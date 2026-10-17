@@ -1,0 +1,10 @@
+[package]
+name = "neumann-control-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+test-support = []

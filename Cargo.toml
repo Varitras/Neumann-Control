@@ -1,0 +1,20 @@
+[workspace]
+members = ["crates/core", "crates/app"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Varitras"]
+license = "MIT"
+rust-version = "1.95"
+
+# Dependencies carry no debug info in dev and test builds: their PDBs made up
+# most of a target directory that grew past 40 GB; our own crate keeps its own.
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
