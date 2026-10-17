@@ -1,0 +1,487 @@
+# Path catalog of neumann-control.
+#
+# This file mirrors custom_components/neumann_kh/const.py of neumann-connect (Home Assistant
+# integration), synced from version 1.19.1. Model knowledge lives here and nowhere in code:
+# which model has a path (`class`), where it may be written (`writable_on`, exact product
+# strings as the device reports them) and how often it is polled (`poll`). A product that is
+# not listed in `writable_on` is read-only, so unmeasured models never get a write.
+#
+# Labels are German UI copy. Out of scope (not listed): EQ, restore, save_settings, out5,
+# mixer, mute_persist, update, auth, system, time, macs.
+
+[models]
+# Models with subwoofer features; every other product counts as a monitor.
+subwoofer = ["KH 750", "KH 750 DSP"]
+# Models with a logo brightness setting.
+logo = ["KH 80", "KH 80 DSP", "KH 150", "KH 150 AES67", "KH 120", "KH 120 II", "KH 120 II AES67"]
+
+
+[[entry]]
+path = "device/identity/product"
+label = "Produkt"
+group = "device"
+kind = "display"
+poll = "once"
+class = "all"
+
+[[entry]]
+path = "device/identity/version"
+label = "Firmware-Version"
+group = "device"
+kind = "display"
+poll = "once"
+class = "all"
+
+[[entry]]
+path = "device/identity/serial"
+label = "Seriennummer"
+group = "device"
+kind = "display"
+poll = "once"
+class = "all"
+
+[[entry]]
+path = "device/identity/vendor"
+label = "Hersteller"
+group = "device"
+kind = "display"
+poll = "once"
+class = "all"
+
+[[entry]]
+path = "device/identity/hw_version"
+label = "Hardware-Version"
+group = "device"
+kind = "display"
+poll = "slow"
+class = "all"
+
+[[entry]]
+path = "audio/out/level"
+label = "Pegel"
+group = "output"
+kind = "number"
+poll = "fast"
+class = "all"
+unit = "dB SPL"
+min = 0
+max = 120
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "audio/out/delay"
+label = "Verzögerung"
+group = "output"
+kind = "number"
+poll = "fast"
+class = "all"
+unit = "1/48 kHz"
+min = 0
+max = 5760
+max_subwoofer = 1000
+step = 1
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "audio/out/mute"
+label = "Stumm"
+group = "output"
+kind = "switch"
+poll = "fast"
+class = "all"
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "audio/out/phaseinversion"
+label = "Phase invertiert"
+group = "output"
+kind = "switch"
+poll = "fast"
+class = "monitor"
+writable_on = ["KH 120 II"]
+
+[[entry]]
+path = "audio/out/label"
+label = "Bezeichnung"
+group = "output"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "audio/out1/level"
+label = "Pegel"
+group = "output1"
+kind = "number"
+poll = "fast"
+class = "subwoofer"
+unit = "dB SPL"
+min = 0
+max = 120
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out1/delay"
+label = "Verzögerung"
+group = "output1"
+kind = "number"
+poll = "fast"
+class = "subwoofer"
+unit = "1/48 kHz"
+min = 0
+max = 1000
+step = 1
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out1/mute"
+label = "Stumm"
+group = "output1"
+kind = "switch"
+poll = "fast"
+class = "subwoofer"
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out1/label"
+label = "Bezeichnung"
+group = "output1"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "audio/out1/loudspeaker"
+label = "Lautsprecher"
+group = "output1"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "audio/out2/level"
+label = "Pegel"
+group = "output2"
+kind = "number"
+poll = "fast"
+class = "subwoofer"
+unit = "dB SPL"
+min = 0
+max = 120
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out2/delay"
+label = "Verzögerung"
+group = "output2"
+kind = "number"
+poll = "fast"
+class = "subwoofer"
+unit = "1/48 kHz"
+min = 0
+max = 1000
+step = 1
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out2/mute"
+label = "Stumm"
+group = "output2"
+kind = "switch"
+poll = "fast"
+class = "subwoofer"
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out2/label"
+label = "Bezeichnung"
+group = "output2"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "audio/out2/loudspeaker"
+label = "Lautsprecher"
+group = "output2"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "audio/in/interface"
+label = "Eingangs-Interface"
+group = "input"
+kind = "select"
+poll = "slow"
+class = "all"
+options = ["ANALOG ONLY", "DIGITAL ONLY", "DIGITAL DISCARDS ANALOG"]
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "audio/in/current_input"
+label = "Aktueller Eingang"
+group = "input"
+kind = "display"
+poll = "slow"
+class = "all"
+
+[[entry]]
+path = "device/standby/enabled"
+label = "Auto-Standby"
+group = "standby"
+kind = "switch"
+poll = "fast"
+class = "all"
+writable_on = ["KH 120 II"]
+
+[[entry]]
+path = "device/standby/auto_standby_time"
+label = "Standby-Zeit"
+group = "standby"
+kind = "number"
+poll = "fast"
+class = "all"
+unit = "min"
+min = 1
+max = 240
+step = 1
+writable_on = ["KH 120 II"]
+
+[[entry]]
+path = "device/standby/level"
+label = "Standby-Pegel"
+group = "standby"
+kind = "number"
+poll = "fast"
+class = "all"
+unit = "dBu"
+min = -80
+max = -55
+step = 1
+writable_on = ["KH 120 II"]
+
+[[entry]]
+path = "device/standby/countdown"
+label = "Countdown"
+group = "standby"
+kind = "display"
+poll = "fast"
+class = "all"
+unit = "min"
+
+[[entry]]
+path = "device/identification/visual"
+label = "Identifizieren"
+group = "device"
+kind = "switch"
+poll = "fast"
+class = "all"
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "ui/control_mode"
+label = "Steuermodus"
+group = "device"
+kind = "select"
+poll = "fast"
+class = "all"
+options = ["NETWORK", "LOCAL"]
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "ui/logo/brightness"
+label = "Logo-Helligkeit"
+group = "device"
+kind = "number"
+poll = "fast"
+class = "logo"
+unit = "%"
+min = 0
+max = 125
+step = 1
+writable_on = ["KH 120 II"]
+
+[[entry]]
+path = "device/name"
+label = "Name"
+group = "device"
+kind = "text"
+poll = "slow"
+class = "all"
+max_length = 52
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "warnings"
+label = "Warnungen"
+group = "device"
+kind = "display"
+poll = "fast"
+class = "all"
+
+[[entry]]
+path = "device/temperature"
+label = "Temperatur"
+group = "device"
+kind = "display"
+poll = "fast"
+class = "subwoofer"
+unit = "K"
+conversion = "kelvin_to_celsius"
+
+[[entry]]
+path = "ui/input_gain"
+label = "Eingangsverstärkung"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+unit = "dB"
+
+[[entry]]
+path = "ui/output_level"
+label = "Ausgangspegel"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+unit = "dB SPL"
+
+[[entry]]
+path = "ui/bass_gain"
+label = "Bass"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+unit = "dB"
+
+[[entry]]
+path = "ui/mid_gain"
+label = "Mitten"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+unit = "dB"
+
+[[entry]]
+path = "ui/treble_gain"
+label = "Höhen"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+unit = "dB"
+
+[[entry]]
+path = "ui/input_select"
+label = "Eingangswahl"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "monitor"
+
+[[entry]]
+path = "audio/digital_bypass"
+label = "Digital-Bypass"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "ui/bass_management"
+label = "Bassmanagement"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "ui/channel_b_input_mode"
+label = "Kanal-B-Eingang"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+
+[[entry]]
+path = "ui/subwoofer_input_gain"
+label = "Eingangsverstärkung"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+unit = "dB"
+
+[[entry]]
+path = "ui/subwoofer_low_cut"
+label = "Low-Cut"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+unit = "dB"
+
+[[entry]]
+path = "ui/subwoofer_output_level"
+label = "Ausgangspegel"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+unit = "dB SPL"
+
+[[entry]]
+path = "ui/subwoofer_phase"
+label = "Phase"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+unit = "°"
+
+[[entry]]
+path = "ui/subwoofer_phase_inversion"
+label = "Phasenumkehr"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
+unit = "°"
+
+[[entry]]
+path = "m/in/level"
+label = "Eingangspegel"
+group = "metering"
+kind = "meter"
+poll = "meter"
+class = "all"
+unit = "dB"
+
+[[entry]]
+path = "m/in/clip"
+label = "Eingang übersteuert"
+group = "metering"
+kind = "clip"
+poll = "meter"
+class = "all"
+
+[[entry]]
+path = "m/out/level"
+label = "Ausgangspegel"
+group = "metering"
+kind = "meter"
+poll = "meter"
+class = "subwoofer"
+unit = "dB"
+
+[[entry]]
+path = "m/out/clip"
+label = "Ausgang übersteuert"
+group = "metering"
+kind = "clip"
+poll = "meter"
+class = "subwoofer"
