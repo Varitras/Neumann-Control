@@ -1,0 +1,107 @@
+use neumann_control_core::settings::{
+    load, save, ManualSpeaker, Settings, WindowGeometry, SETTINGS_FILE,
+};
+use std::fs;
+
+fn sample() -> Settings {
+    Settings {
+        manual: vec![
+            ManualSpeaker {
+                address: "fe80::2a36:38ff:fe12:3456".to_string(),
+                port: 45,
+                serial: Some("SIM0001234".to_string()),
+            },
+            ManualSpeaker {
+                address: "192.0.2.10".to_string(),
+                port: 45,
+                serial: None,
+            },
+        ],
+        window: Some(WindowGeometry {
+            x: 10.0,
+            y: 20.0,
+            width: 800.0,
+            height: 600.0,
+        }),
+    }
+}
+
+#[test]
+fn missing_file_gives_default() {
+    let directory = tempfile::tempdir().unwrap();
+    let loaded = load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(loaded, Settings::default());
+}
+
+#[test]
+fn round_trip_keeps_values() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    save(&sample(), &path).unwrap();
+    assert_eq!(load(&path), sample());
+    assert!(!directory.path().join("settings.json.tmp").exists());
+}
+
+#[test]
+fn save_replaces_existing_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    save(&Settings::default(), &path).unwrap();
+    save(&sample(), &path).unwrap();
+    assert_eq!(load(&path), sample());
+}
+
+#[test]
+fn malformed_file_is_moved_aside() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, "{ not json").unwrap();
+    assert_eq!(load(&path), Settings::default());
+    assert!(!path.exists());
+    assert_eq!(
+        fs::read_to_string(directory.path().join("settings.json.bad")).unwrap(),
+        "{ not json"
+    );
+}
+
+#[test]
+fn existing_bad_file_is_never_overwritten() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(directory.path().join("settings.json.bad"), "first").unwrap();
+    fs::write(&path, "second").unwrap();
+    assert_eq!(load(&path), Settings::default());
+    assert_eq!(
+        fs::read_to_string(directory.path().join("settings.json.bad")).unwrap(),
+        "first"
+    );
+    assert_eq!(
+        fs::read_to_string(directory.path().join("settings.json.bad.1")).unwrap(),
+        "second"
+    );
+}
+
+#[test]
+fn wrong_type_is_malformed() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual": "oops"}"#).unwrap();
+    assert_eq!(load(&path), Settings::default());
+    assert!(directory.path().join("settings.json.bad").exists());
+}
+
+#[test]
+fn unknown_and_missing_fields_are_tolerated() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(
+        &path,
+        r#"{"future": 1, "manual": [{"address": "192.0.2.10", "port": 45, "extra": true}]}"#,
+    )
+    .unwrap();
+    let loaded = load(&path);
+    assert_eq!(loaded.manual.len(), 1);
+    assert_eq!(loaded.manual[0].serial, None);
+    assert_eq!(loaded.window, None);
+    assert!(path.exists());
+}
