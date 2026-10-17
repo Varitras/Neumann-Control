@@ -17,3 +17,11 @@ path = "src/lib.rs"
 [dependencies]
 neumann-control-core = { path = "../core" }
 serde_json = "1"
+eframe = "0.36"
+log = "0.4"
+simplelog = "0.12"
+
+[dev-dependencies]
+egui_kittest = { version = "0.36", features = ["eframe"] }
+neumann-control-core = { path = "../core", features = ["test-support"] }
+tempfile = "3"

@@ -9,7 +9,7 @@ use std::ops::RangeInclusive;
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
-use neumann_control_core::mask::mask_serial;
+use neumann_control_core::mask::{mask_host, mask_serial};
 use neumann_control_core::settings::ManualSpeaker;
 use neumann_control_core::speaker::{Event, Identity};
 use neumann_control_core::ssc::wire::SscPath;
@@ -25,9 +25,9 @@ pub const WHEEL_IDLE_SECONDS: f64 = 0.3;
 
 const INPUT_METER_PATH: &str = "m/in/level";
 const OUTPUT_METER_PATH: &str = "m/out/level";
-const OUTPUT_LEVEL_PATH: &str = "audio/out/level";
+pub const OUTPUT_LEVEL_PATH: &str = "audio/out/level";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpeakerKey {
     Serial(String),
     Address(SocketAddrV6),
@@ -45,6 +45,8 @@ pub struct SpeakerState {
     pub key: SpeakerKey,
     pub address: SocketAddrV6,
     pub identity: Option<Identity>,
+    /// What the last scan reported for this speaker; names may be empty.
+    pub discovered: Option<Found>,
     pub values: BTreeMap<SscPath, Value>,
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
@@ -63,6 +65,7 @@ impl SpeakerState {
             key,
             address,
             identity: None,
+            discovered: None,
             values: BTreeMap::new(),
             absent: BTreeSet::new(),
             status: Status::Connecting,
@@ -73,6 +76,38 @@ impl SpeakerState {
             output_meters: Vec::new(),
             fader: FaderState::default(),
         }
+    }
+
+    /// The speaker's own name, else the announced one, else the model, else the masked
+    /// address; mDNS names and device names can both be empty.
+    pub fn display_name(&self) -> String {
+        let own = self
+            .identity
+            .as_ref()
+            .map(|identity| identity.name.as_str());
+        let announced = self.discovered.as_ref().map(|found| found.name.as_str());
+        [own, announced, self.model()]
+            .into_iter()
+            .flatten()
+            .find(|name| !name.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| mask_host(&self.address))
+    }
+
+    /// The reported product, else the announced one.
+    pub fn model(&self) -> Option<&str> {
+        let reported = self
+            .identity
+            .as_ref()
+            .map(|identity| identity.product.as_str());
+        let announced = self
+            .discovered
+            .as_ref()
+            .and_then(|found| found.product.as_deref());
+        [reported, announced]
+            .into_iter()
+            .flatten()
+            .find(|model| !model.is_empty())
     }
 
     pub fn apply(&mut self, event: Event, now: f64) {
@@ -284,6 +319,11 @@ impl FaderState {
             return self.pending.take();
         }
         None
+    }
+
+    /// When the pending wheel value becomes due, so the UI can wake up for it.
+    pub fn deadline(&self) -> Option<f64> {
+        self.pending.map(|_| self.last_step + WHEEL_IDLE_SECONDS)
     }
 
     pub fn shown(&self, device: f64) -> f64 {
@@ -559,6 +599,60 @@ mod tests {
         assert_eq!(fader.due(1.625), Some(81.5));
         assert_eq!(fader.due(2.0), None);
         assert_eq!(fader.shown(80.0), 80.0);
+    }
+
+    #[test]
+    fn wheel_deadline_follows_the_last_step_and_ends_when_due() {
+        let range = output_level_range();
+        let mut fader = FaderState::default();
+        assert_eq!(fader.deadline(), None);
+        fader.on_wheel(1, 80.0, range.clone(), 1.0);
+        fader.on_wheel(1, 80.0, range, 1.5);
+        assert_eq!(fader.deadline(), Some(1.5 + WHEEL_IDLE_SECONDS));
+        fader.due(2.0);
+        assert_eq!(fader.deadline(), None);
+    }
+
+    fn identity(name: &str, product: &str) -> Identity {
+        Identity {
+            product: product.to_owned(),
+            version: "1".to_owned(),
+            serial: SERIAL.to_owned(),
+            name: name.to_owned(),
+        }
+    }
+
+    #[test]
+    fn display_name_falls_back_from_own_to_announced_to_model_to_masked_address() {
+        let mut speaker = state();
+        assert_eq!(speaker.display_name(), mask_host(&address(ADDRESS_TEXT)));
+        speaker.discovered = Some(Found {
+            name: String::new(),
+            product: Some("KH 750".to_owned()),
+            ..found(ADDRESS_TEXT, None)
+        });
+        assert_eq!(speaker.display_name(), "KH 750");
+        speaker.discovered.as_mut().unwrap().name = "announced".to_owned();
+        assert_eq!(speaker.display_name(), "announced");
+        speaker.identity = Some(identity("", "KH 120 II"));
+        assert_eq!(speaker.display_name(), "announced");
+        speaker.identity = Some(identity("own", "KH 120 II"));
+        assert_eq!(speaker.display_name(), "own");
+    }
+
+    #[test]
+    fn model_prefers_the_reported_product() {
+        let mut speaker = state();
+        assert_eq!(speaker.model(), None);
+        speaker.discovered = Some(Found {
+            product: Some("KH 750".to_owned()),
+            ..found(ADDRESS_TEXT, None)
+        });
+        assert_eq!(speaker.model(), Some("KH 750"));
+        speaker.identity = Some(identity("", ""));
+        assert_eq!(speaker.model(), Some("KH 750"));
+        speaker.identity = Some(identity("", "KH 120 II"));
+        assert_eq!(speaker.model(), Some("KH 120 II"));
     }
 
     #[test]

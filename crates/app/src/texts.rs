@@ -1,6 +1,30 @@
 //! German UI strings; the only place user-visible text lives.
 
+use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
+
+pub const WINDOW_TITLE: &str = "Neumann Control";
+pub const SCAN: &str = "Suchen";
+pub const ADD_ADDRESS: &str = "+ Adresse";
+pub const SCAN_FAILED: &str = "Suche fehlgeschlagen";
+pub const SETTINGS_NOT_SAVED: &str = "Einstellungen konnten nicht gespeichert werden";
+pub const NO_SPEAKERS: &str =
+    "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.";
+
+pub const MUTE: &str = "Stumm";
+pub const IDENTIFY: &str = "Ident.";
+pub const MORE: &str = "Mehr";
+pub const LESS: &str = "Weniger";
+pub const CONNECTING: &str = "verbinde …";
+pub const CONNECTED: &str = "verbunden";
+pub const LEVEL: &str = "Pegel";
+pub const CLIP: &str = "Übersteuert";
+
+pub const ADD_ADDRESS_TITLE: &str = "Lautsprecher per Adresse hinzufügen";
+pub const ADDRESS_FIELD: &str = "IPv6-Adresse";
+pub const ADDRESS_HINT: &str = "z. B. fe80::1%7";
+pub const ADD: &str = "Hinzufügen";
+pub const CANCEL: &str = "Abbrechen";
 
 pub const UNREACHABLE: &str = "nicht erreichbar (aus oder Standby)";
 pub const WRITE_FAILED: &str = "Schreiben fehlgeschlagen";
@@ -9,6 +33,36 @@ const SERIAL_MISMATCH_SUFFIX: &str = ")";
 
 const REJECTED_READ_ONLY_CODE: i64 = 405;
 const REJECTED_WRONG_VALUE_CODE: i64 = 406;
+
+pub fn speaker_count(count: usize) -> String {
+    format!("{count} Lautsprecher")
+}
+
+pub fn port(port: u16) -> String {
+    format!("Port {port}")
+}
+
+pub fn readout(value: f64, unit: &str) -> String {
+    format!("{value:.1} {unit}")
+}
+
+pub fn status_line(firmware: &str, masked_serial: &str) -> String {
+    format!("Firmware {firmware} · SN {masked_serial}")
+}
+
+pub fn describe_address_error(error: &AddressError) -> String {
+    let text = match error {
+        AddressError::Ipv4NotSupported => {
+            "IPv4 geht nicht: die Lautsprecher sind nur über IPv6 erreichbar, z. B. fe80::1%7."
+        }
+        AddressError::MissingScope => {
+            "Bei fe80-Adressen fehlt der Schnittstellenindex nach dem %, z. B. fe80::1%7."
+        }
+        AddressError::ScopeNotNumeric => "Nach dem % muss der Schnittstellenindex als Zahl stehen.",
+        AddressError::Invalid => "Keine gültige IPv6-Adresse.",
+    };
+    text.to_owned()
+}
 
 pub fn serial_mismatch(masked_serial: &str) -> String {
     format!("{SERIAL_MISMATCH_PREFIX}{masked_serial}{SERIAL_MISMATCH_SUFFIX}")
