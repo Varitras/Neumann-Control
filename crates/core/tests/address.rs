@@ -72,9 +72,29 @@ fn host_mask_without_scope_has_no_suffix() {
 }
 
 #[test]
-fn host_mask_of_uncompressed_address_masks_final_group() {
-    let address = SocketAddrV6::new("2001:db8:1:2:3:4:5:6789".parse().unwrap(), SSC_PORT, 0, 0);
-    assert_eq!(mask_host(&address), "2001:db8:1:2:3:4:5:xx89");
+fn host_mask_hides_interface_identifier_of_uncompressed_address() {
+    let address = parse_address("2001:db8:1:2:2a36:38ff:fe12:3456", SSC_PORT).unwrap();
+    let masked = mask_host(&address);
+    assert_eq!(masked, "2001:db8:1:2::xx56");
+    for hidden in ["2a36", "38ff", "fe12"] {
+        assert!(!masked.contains(hidden));
+    }
+}
+
+#[test]
+fn scope_with_plus_sign_is_not_numeric() {
+    assert_eq!(
+        parse_address("fe80::1%+12", SSC_PORT),
+        Err(AddressError::ScopeNotNumeric)
+    );
+}
+
+#[test]
+fn ipv4_mapped_address_is_refused() {
+    assert_eq!(
+        parse_address("::ffff:192.168.1.10", SSC_PORT),
+        Err(AddressError::Ipv4NotSupported)
+    );
 }
 
 #[test]

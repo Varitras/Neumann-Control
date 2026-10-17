@@ -51,14 +51,23 @@ pub fn parse_address(input: &str, port: u16) -> Result<SocketAddrV6, AddressErro
         return Err(AddressError::Ipv4NotSupported);
     }
     let ip: Ipv6Addr = host.parse().map_err(|_| AddressError::Invalid)?;
+    if ip.to_ipv4_mapped().is_some() {
+        return Err(AddressError::Ipv4NotSupported);
+    }
     let scope = match scope_text {
-        Some(text) => text
-            .parse::<u32>()
-            .map_err(|_| AddressError::ScopeNotNumeric)?,
+        Some(text) => parse_scope(text)?,
         None => NO_SCOPE,
     };
     if is_link_local(&ip) && scope == NO_SCOPE {
         return Err(AddressError::MissingScope);
     }
     Ok(SocketAddrV6::new(ip, port, 0, scope))
+}
+
+// `u32::from_str` accepts a leading `+`, which Windows would not.
+fn parse_scope(text: &str) -> Result<u32, AddressError> {
+    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(AddressError::ScopeNotNumeric);
+    }
+    text.parse().map_err(|_| AddressError::ScopeNotNumeric)
 }

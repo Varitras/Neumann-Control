@@ -1,29 +1,27 @@
 //! Masking of addresses and serial numbers for logs and screenshots.
 
-use std::net::SocketAddrV6;
+use std::net::{Ipv6Addr, SocketAddrV6};
 
 const MASK_PLACEHOLDER: &str = "xx";
-const KEPT_ADDRESS_CHARACTERS: usize = 2;
+const SEGMENT_COUNT: usize = 8;
+const KEPT_PREFIX_SEGMENTS: usize = 4;
+const LOW_BYTE_MASK: u16 = 0x00ff;
 const KEPT_SERIAL_CHARACTERS: usize = 3;
 const ELLIPSIS: char = '…';
-const GROUP_SEPARATOR: char = ':';
-const COMPRESSION_MARKER: &str = "::";
 
-/// Keeps the prefix up to the last `::` and drops the groups after it, keeping
-/// only the final two characters. Without a `::` only the last group is masked.
+/// Keeps the first four groups (the network prefix) and only the low byte of
+/// the last group, so the interface identifier never reaches logs.
 pub fn mask_host(address: &SocketAddrV6) -> String {
-    let text = address.ip().to_string();
-    let prefix_length = match text.rfind(COMPRESSION_MARKER) {
-        Some(index) => index + COMPRESSION_MARKER.len(),
-        None => text.rfind(GROUP_SEPARATOR).map_or(0, |index| index + 1),
-    };
-    let (prefix, tail) = text.split_at(prefix_length);
-    let kept_start = tail.len().saturating_sub(KEPT_ADDRESS_CHARACTERS);
+    let segments = address.ip().segments();
+    let mut prefix_segments = [0u16; SEGMENT_COUNT];
+    prefix_segments[..KEPT_PREFIX_SEGMENTS].copy_from_slice(&segments[..KEPT_PREFIX_SEGMENTS]);
+    let prefix = Ipv6Addr::from(prefix_segments);
+    let last_byte = segments[SEGMENT_COUNT - 1] & LOW_BYTE_MASK;
     let scope = match address.scope_id() {
         0 => String::new(),
         scope_id => format!("%{scope_id}"),
     };
-    format!("{prefix}{MASK_PLACEHOLDER}{}{scope}", &tail[kept_start..])
+    format!("{prefix}{MASK_PLACEHOLDER}{last_byte:02x}{scope}")
 }
 
 pub fn mask_serial(serial: &str) -> String {
