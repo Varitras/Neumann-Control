@@ -10,6 +10,7 @@ rust-version.workspace = true
 test-support = []
 
 [dependencies]
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1"
@@ -20,4 +21,8 @@ required-features = ["test-support"]
 
 [[test]]
 name = "client"
+required-features = ["test-support"]
+
+[[test]]
+name = "speaker"
 required-features = ["test-support"]
