@@ -1,0 +1,64 @@
+//! Parsing of IPv6 speaker addresses, including Windows numeric zone indexes.
+
+use std::fmt;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV6};
+
+pub const SSC_PORT: u16 = 45;
+
+const SCOPE_SEPARATOR: char = '%';
+const LINK_LOCAL_PREFIX_MASK: u16 = 0xffc0;
+const LINK_LOCAL_PREFIX: u16 = 0xfe80;
+const NO_SCOPE: u32 = 0;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AddressError {
+    Ipv4NotSupported,
+    MissingScope,
+    ScopeNotNumeric,
+    Invalid,
+}
+
+impl fmt::Display for AddressError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            AddressError::Ipv4NotSupported => "IPv4 addresses are not supported",
+            AddressError::MissingScope => "link-local address needs an interface index scope",
+            AddressError::ScopeNotNumeric => "scope must be a numeric interface index",
+            AddressError::Invalid => "not a valid IPv6 address",
+        };
+        formatter.write_str(text)
+    }
+}
+
+impl std::error::Error for AddressError {}
+
+pub fn is_link_local(address: &Ipv6Addr) -> bool {
+    address.segments()[0] & LINK_LOCAL_PREFIX_MASK == LINK_LOCAL_PREFIX
+}
+
+pub fn parse_address(input: &str, port: u16) -> Result<SocketAddrV6, AddressError> {
+    let trimmed = input.trim();
+    let unbracketed = trimmed
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(trimmed);
+    let (host, scope_text) = match unbracketed.split_once(SCOPE_SEPARATOR) {
+        Some((host, scope_text)) => (host, Some(scope_text)),
+        None => (unbracketed, None),
+    };
+
+    if host.parse::<Ipv4Addr>().is_ok() {
+        return Err(AddressError::Ipv4NotSupported);
+    }
+    let ip: Ipv6Addr = host.parse().map_err(|_| AddressError::Invalid)?;
+    let scope = match scope_text {
+        Some(text) => text
+            .parse::<u32>()
+            .map_err(|_| AddressError::ScopeNotNumeric)?,
+        None => NO_SCOPE,
+    };
+    if is_link_local(&ip) && scope == NO_SCOPE {
+        return Err(AddressError::MissingScope);
+    }
+    Ok(SocketAddrV6::new(ip, port, 0, scope))
+}
