@@ -165,6 +165,10 @@ dependencies = [
 [[package]]
 name = "neumann-control-app"
 version = "0.1.0"
+dependencies = [
+ "neumann-control-core",
+ "serde_json",
+]
 
 [[package]]
 name = "neumann-control-core"
