@@ -73,7 +73,23 @@ fn instance_name<'a>(fullname: &'a str, service_type: &str) -> &'a str {
 }
 
 fn capped(text: &str) -> String {
-    text.chars().take(MAX_TXT_CHARACTERS).collect()
+    text.chars()
+        .filter(|character| !character.is_control())
+        .take(MAX_TXT_CHARACTERS)
+        .collect()
+}
+
+/// A TXT value that is empty after cleaning counts as missing, so two malformed speakers are
+/// never merged under the same empty serial.
+fn txt_value(text: Option<&str>) -> Option<String> {
+    text.map(capped).filter(|value| !value.is_empty())
+}
+
+/// Adds one resolved speaker; mdns-sd re-emits resolutions per interface and refresh, so the
+/// speaker cap has to count the merged list, not the events.
+fn add_found(mut found: Vec<Found>, candidate: Found) -> Vec<Found> {
+    found.push(candidate);
+    merge_found(found)
 }
 
 fn found_from_parts(
@@ -86,20 +102,21 @@ fn found_from_parts(
 ) -> Option<Found> {
     Some(Found {
         name: capped(instance_name(fullname, service_type)),
-        product: product.map(capped),
-        serial: serial.map(capped),
+        product: txt_value(product),
+        serial: txt_value(serial),
         address: pick_address(addresses, port)?,
     })
 }
 
-/// Browses for `duration` and returns every speaker that resolved with a usable address.
+/// Browses for `duration` and returns every speaker that resolved with a usable address. It may
+/// return early once `MAX_SERVICES` distinct speakers are found.
 /// Errors are fixed texts: the underlying messages could carry network addresses.
 pub fn scan(duration: Duration) -> Result<Vec<Found>, String> {
     let daemon = ServiceDaemon::new().map_err(|_| "mDNS could not be started".to_string())?;
     let result = browse(&daemon, duration);
     // The scan is over either way; a failed shutdown leaves nothing to recover.
     let _ = daemon.shutdown();
-    result.map(merge_found)
+    result
 }
 
 fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, String> {
@@ -110,7 +127,7 @@ fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, Stri
         .browse(SERVICE_TYPE)
         .map_err(|_| "mDNS browsing could not be started".to_string())?;
     let deadline = Instant::now() + duration;
-    let mut found = Vec::new();
+    let mut found: Vec<Found> = Vec::new();
     while found.len() < MAX_SERVICES {
         let remaining = deadline.saturating_duration_since(Instant::now());
         let Ok(event) = events.recv_timeout(remaining) else {
@@ -135,7 +152,9 @@ fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, Stri
             service.get_property_val_str(TXT_PRODUCT_KEY),
             service.get_property_val_str(TXT_SERIAL_KEY),
         );
-        found.extend(entry);
+        if let Some(entry) = entry {
+            found = add_found(found, entry);
+        }
     }
     Ok(found)
 }
@@ -168,6 +187,46 @@ mod tests {
         .unwrap();
         assert_eq!(found.product.unwrap().chars().count(), MAX_TXT_CHARACTERS);
         assert_eq!(found.serial.unwrap().chars().count(), MAX_TXT_CHARACTERS);
+    }
+
+    fn sample(serial: Option<&str>, last_segment: u16) -> Found {
+        let address = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, last_segment);
+        Found {
+            name: "Speaker".into(),
+            product: None,
+            serial: serial.map(String::from),
+            address: SocketAddrV6::new(address, 45, 0, 0),
+        }
+    }
+
+    #[test]
+    fn repeated_events_do_not_fill_the_cap() {
+        let mut found = Vec::new();
+        for _ in 0..MAX_SERVICES + 5 {
+            found = add_found(found, sample(Some("SIM0001234"), 1));
+        }
+        assert_eq!(found.len(), 1);
+    }
+
+    #[test]
+    fn empty_serial_is_treated_as_missing() {
+        let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let found = found_from_parts(
+            "a._ssc._tcp.local.",
+            SERVICE_TYPE,
+            45,
+            &[(address, 0)],
+            Some(""),
+            Some(""),
+        )
+        .unwrap();
+        assert_eq!(found.serial, None);
+        assert_eq!(found.product, None);
+    }
+
+    #[test]
+    fn control_characters_are_removed_from_txt() {
+        assert_eq!(capped("KH\u{0}1\n20\u{1b}"), "KH120");
     }
 
     #[test]
