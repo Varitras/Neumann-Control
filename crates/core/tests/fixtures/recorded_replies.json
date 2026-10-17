@@ -1,0 +1,253 @@
+{
+  "not_found": [
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "dimm": null
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"audio\":{\"out\":{\"dimm\":[404,{\"desc\":\"address not found\"}]}}}]}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out5": {
+            "level": null
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"audio\":{\"out5\":[404,{\"desc\":\"address not found\"}]}}]}}"
+    },
+    {
+      "request": {
+        "device": {
+          "save_settings": null
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"device\":{\"save_settings\":[404,{\"desc\":\"address not found\"}]}}]}}"
+    }
+  ],
+  "kh750_not_found": [
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "phaseinversion": null
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"audio\":{\"out\":{\"phaseinversion\":[404,{\"desc\":\"address not found\"}]}}}]}}"
+    }
+  ],
+  "container": [
+    {
+      "request": {
+        "device": null
+      },
+      "reply": "{\"osc\":{\"error\":[{\"device\":[404,{\"desc\":\"address not found\"}]}]}}"
+    }
+  ],
+  "bundle": [
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "level": null,
+            "dimm": null
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"level\":100.0}},\"osc\":{\"error\":[{\"audio\":{\"out\":[404,{\"desc\":\"address not found\"}]}}]}}"
+    }
+  ],
+  "set": [
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "mute": false
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false}}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "dimm": 0
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"audio\":{\"out\":{\"dimm\":[404,{\"desc\":\"address not found\"}]}}}]}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "mute": "x"
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"audio\":{\"out\":{\"mute\":[406,{\"desc\":\"not acceptable\"}]}}}]}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "mute": false,
+            "delay": 0
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false,\"delay\":0}}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "mute": false,
+            "dimm": 0
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false}},\"osc\":{\"error\":[{\"audio\":{\"out\":[404,{\"desc\":\"address not found\"}]}}]}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "delay": null,
+            "mute": false
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false,\"delay\":0}}}"
+    },
+    {
+      "request": {
+        "ui": {
+          "input_gain": 0.0
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"ui\":{\"input_gain\":[405,{\"desc\":\"method not allowed\"}]}}]}}"
+    },
+    {
+      "request": {
+        "audio": {
+          "out": {
+            "mute": false
+          }
+        },
+        "ui": {
+          "input_gain": 0.0
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false}},\"osc\":{\"error\":[{\"ui\":{\"input_gain\":[405,{\"desc\":\"method not allowed\"}]}}]}}"
+    }
+  ],
+  "schema": [
+    {
+      "request": {
+        "osc": {
+          "schema": null
+        }
+      },
+      "reply": "{\"osc\":{\"schema\":[{\"device\":{},\"osc\":{},\"audio\":{},\"m\":{},\"ui\":{},\"warnings\":null}]}}"
+    },
+    {
+      "request": {
+        "osc": {
+          "schema": [
+            {
+              "audio": null
+            }
+          ]
+        }
+      },
+      "reply": "{\"osc\":{\"schema\":[{\"audio\":{\"in\":{},\"out\":{}}}]}}",
+      "model": "KH 120 II"
+    },
+    {
+      "request": {
+        "osc": {
+          "schema": [
+            {
+              "audio": null
+            }
+          ]
+        }
+      },
+      "reply": "{\"osc\":{\"schema\":[{\"audio\":{\"in\":{},\"out\":{},\"out1\":{},\"out2\":{},\"digital_bypass\":null}}]}}",
+      "model": "KH 750"
+    }
+  ],
+  "introspection_errors": [
+    {
+      "request": {
+        "osc": {
+          "schema": [
+            null
+          ]
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"osc\":{\"schema\":[454,{\"desc\":\"parameter address not found\"}]}}]}}"
+    },
+    {
+      "request": {
+        "osc": {
+          "schema": [
+            {
+              "audio": {}
+            }
+          ]
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"osc\":{\"schema\":[406,{\"desc\":\"not acceptable\"}]}}]}}"
+    },
+    {
+      "request": {
+        "osc": {
+          "limits": {
+            "audio": {
+              "out": {
+                "level": null
+              }
+            }
+          }
+        }
+      },
+      "reply": "{\"osc\":{\"error\":[{\"osc\":{\"limits\":[454,{\"desc\":\"parameter address not found\"}]}}]}}"
+    }
+  ],
+  "xid": [
+    {
+      "request": {
+        "osc": {
+          "xid": 4711
+        },
+        "audio": {
+          "out": {
+            "level": null
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"level\":100.0}},\"osc\":{\"xid\":4711}}"
+    },
+    {
+      "request": {
+        "osc": {
+          "xid": "abc"
+        },
+        "audio": {
+          "out": {
+            "mute": null
+          }
+        }
+      },
+      "reply": "{\"audio\":{\"out\":{\"mute\":false}},\"osc\":{\"xid\":\"abc\"}}"
+    }
+  ]
+}
