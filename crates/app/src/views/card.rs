@@ -4,8 +4,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, pos2, vec2, Button, CornerRadius, Event, Label, Rect, RichText, Sense, Slider, Stroke,
-    Ui, Vec2,
+    self, pos2, vec2, Button, CornerRadius, Event, Label, MouseWheelUnit, Rect, RichText, Sense,
+    Slider, Stroke, Ui, Vec2,
 };
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::mask::mask_serial;
@@ -179,13 +179,12 @@ fn fader(
         writer.set(path.clone(), Value::from(value));
     }
     if enabled && response.hovered() {
-        let steps = wheel_steps(ui);
         // The cards sit in a scroll area, which would scroll along with the fader.
         ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
-        if steps != 0 {
-            speaker.fader.on_wheel(steps, device, range, now);
-            value = speaker.fader.shown(device);
+        for notches in wheel_notches(ui) {
+            speaker.fader.on_wheel(notches, device, range.clone(), now);
         }
+        value = speaker.fader.shown(device);
     }
     if let Some(due) = speaker.fader.due(now) {
         writer.set(path, Value::from(due));
@@ -197,18 +196,34 @@ fn fader(
     value
 }
 
-/// One step per wheel event, upwards raising the level, whatever unit the device reports.
-fn wheel_steps(ui: &Ui) -> i32 {
+/// Lines and pixels of a precision touchpad come as many small events, pages as rare large
+/// ones; egui scrolls this many points per line.
+const POINTS_PER_NOTCH: f32 = 40.0;
+const NOTCHES_PER_PAGE: f32 = 10.0;
+
+/// Each wheel event of this frame in notches (lines), upwards positive.
+fn wheel_notches(ui: &Ui) -> Vec<f64> {
     ui.input(|input| {
         input
             .events
             .iter()
             .filter_map(|event| match event {
-                Event::MouseWheel { delta, .. } if delta.y != 0.0 => Some(delta.y.signum() as i32),
+                Event::MouseWheel { unit, delta, .. } if delta.y != 0.0 => {
+                    Some(notches(*unit, delta.y))
+                }
                 _ => None,
             })
-            .sum()
+            .collect()
     })
+}
+
+fn notches(unit: MouseWheelUnit, delta: f32) -> f64 {
+    let lines = match unit {
+        MouseWheelUnit::Line => delta,
+        MouseWheelUnit::Point => delta / POINTS_PER_NOTCH,
+        MouseWheelUnit::Page => delta * NOTCHES_PER_PAGE,
+    };
+    f64::from(lines)
 }
 
 fn meters(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
@@ -288,5 +303,17 @@ fn status_line(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     }
     if let Some(message) = &speaker.message {
         ui.add(Label::new(RichText::new(message).small().color(tokens.danger)).wrap());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wheel_units_become_notches() {
+        assert_eq!(notches(MouseWheelUnit::Line, 0.25), 0.25);
+        assert_eq!(notches(MouseWheelUnit::Point, -80.0), -2.0);
+        assert_eq!(notches(MouseWheelUnit::Page, 1.0), 10.0);
     }
 }

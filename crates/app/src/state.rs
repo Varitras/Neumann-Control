@@ -302,15 +302,29 @@ impl MeterState {
 pub struct FaderState {
     pending: Option<f64>,
     last_step: f64,
+    /// Wheel movement short of a whole notch, in 1/NOTCH_RESOLUTION notches.
+    partial_notch: i64,
 }
+
+/// Fractions of a notch are counted in whole units so ten tenths make exactly one notch.
+const NOTCH_RESOLUTION: f64 = 1000.0;
 
 impl FaderState {
     /// `range` is the allowed value range of the faded entry.
-    pub fn on_wheel(&mut self, steps: i32, current: f64, range: RangeInclusive<f64>, now: f64) {
-        let base = self.pending.unwrap_or(current);
-        let target = base + f64::from(steps) * WHEEL_STEP_DB;
-        self.pending = Some(target.clamp(*range.start(), *range.end()));
+    /// `notches` may be fractional (touchpads, high-resolution wheels); one step of
+    /// WHEEL_STEP_DB per whole notch, the rest is kept for the next event.
+    pub fn on_wheel(&mut self, notches: f64, current: f64, range: RangeInclusive<f64>, now: f64) {
+        self.partial_notch += (notches * NOTCH_RESOLUTION).round() as i64;
+        let resolution = NOTCH_RESOLUTION as i64;
+        let whole = self.partial_notch / resolution;
+        self.partial_notch %= resolution;
         self.last_step = now;
+        if whole == 0 {
+            return;
+        }
+        let base = self.pending.unwrap_or(current);
+        let target = base + whole as f64 * WHEEL_STEP_DB;
+        self.pending = Some(target.clamp(*range.start(), *range.end()));
     }
 
     pub fn due(&mut self, now: f64) -> Option<f64> {
@@ -591,9 +605,9 @@ mod tests {
     fn wheel_steps_debounce_to_one_value() {
         let range = output_level_range();
         let mut fader = FaderState::default();
-        fader.on_wheel(1, 80.0, range.clone(), 1.0);
-        fader.on_wheel(1, 80.0, range.clone(), 1.125);
-        fader.on_wheel(1, 80.0, range, 1.25);
+        fader.on_wheel(1.0, 80.0, range.clone(), 1.0);
+        fader.on_wheel(1.0, 80.0, range.clone(), 1.125);
+        fader.on_wheel(1.0, 80.0, range, 1.25);
         assert_eq!(fader.shown(80.0), 81.5);
         assert_eq!(fader.due(1.5), None);
         assert_eq!(fader.due(1.625), Some(81.5));
@@ -606,8 +620,8 @@ mod tests {
         let range = output_level_range();
         let mut fader = FaderState::default();
         assert_eq!(fader.deadline(), None);
-        fader.on_wheel(1, 80.0, range.clone(), 1.0);
-        fader.on_wheel(1, 80.0, range, 1.5);
+        fader.on_wheel(1.0, 80.0, range.clone(), 1.0);
+        fader.on_wheel(1.0, 80.0, range, 1.5);
         assert_eq!(fader.deadline(), Some(1.5 + WHEEL_IDLE_SECONDS));
         fader.due(2.0);
         assert_eq!(fader.deadline(), None);
@@ -656,13 +670,27 @@ mod tests {
     }
 
     #[test]
+    fn fractional_wheel_events_add_up_to_whole_notches() {
+        let range = output_level_range();
+        let mut fader = FaderState::default();
+        for _ in 0..10 {
+            fader.on_wheel(0.1, 80.0, range.clone(), 1.0);
+        }
+        assert_eq!(fader.shown(80.0), 80.5);
+        fader.on_wheel(0.5, 80.0, range.clone(), 1.0);
+        assert_eq!(fader.shown(80.0), 80.5);
+        fader.on_wheel(0.5, 80.0, range, 1.0);
+        assert_eq!(fader.shown(80.0), 81.0);
+    }
+
+    #[test]
     fn wheel_clamps_at_120() {
         let range = output_level_range();
         assert_eq!(range, 0.0..=120.0);
         let mut fader = FaderState::default();
-        fader.on_wheel(10, 119.0, range.clone(), 0.0);
+        fader.on_wheel(10.0, 119.0, range.clone(), 0.0);
         assert_eq!(fader.due(1.0), Some(120.0));
-        fader.on_wheel(-1000, 1.0, range, 2.0);
+        fader.on_wheel(-1000.0, 1.0, range, 2.0);
         assert_eq!(fader.due(3.0), Some(0.0));
     }
 }
