@@ -4,8 +4,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddrV6;
+use std::ops::RangeInclusive;
 
 use neumann_control_core::address::parse_address;
+use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::settings::ManualSpeaker;
@@ -20,10 +22,10 @@ pub const METER_FLOOR_DB: f64 = -60.0;
 pub const METER_CEILING_DB: f64 = 6.0;
 pub const WHEEL_STEP_DB: f64 = 0.5;
 pub const WHEEL_IDLE_SECONDS: f64 = 0.3;
-pub const FADER_MIN_DB: f64 = 0.0;
-pub const FADER_MAX_DB: f64 = 120.0;
 
-const METER_PATHS: [&str; 2] = ["m/in/level", "m/out/level"];
+const INPUT_METER_PATH: &str = "m/in/level";
+const OUTPUT_METER_PATH: &str = "m/out/level";
+const OUTPUT_LEVEL_PATH: &str = "audio/out/level";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpeakerKey {
@@ -47,8 +49,11 @@ pub struct SpeakerState {
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
     pub message: Option<String>,
+    /// The path a write message is about; a fresh value for it clears the message.
+    message_path: Option<SscPath>,
     pub expanded: bool,
-    pub meters: Vec<MeterState>,
+    pub input_meters: Vec<MeterState>,
+    pub output_meters: Vec<MeterState>,
     pub fader: FaderState,
 }
 
@@ -62,8 +67,10 @@ impl SpeakerState {
             absent: BTreeSet::new(),
             status: Status::Connecting,
             message: None,
+            message_path: None,
             expanded: false,
-            meters: Vec::new(),
+            input_meters: Vec::new(),
+            output_meters: Vec::new(),
             fader: FaderState::default(),
         }
     }
@@ -76,14 +83,18 @@ impl SpeakerState {
                 }
                 self.identity = Some(identity);
                 self.status = Status::Connected;
-                self.message = None;
+                self.set_message(None, None);
             }
             // The masked reason is for the log; the card only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
-                self.message = Some(texts::UNREACHABLE.to_owned());
+                self.set_message(Some(texts::UNREACHABLE.to_owned()), None);
+                self.reset_meters();
             }
             Event::Value { path, value } => {
+                if self.message_path.as_ref() == Some(&path) {
+                    self.set_message(None, None);
+                }
                 self.absent.remove(&path);
                 self.feed_meters(&path, &value, now);
                 self.values.insert(path, value);
@@ -92,41 +103,56 @@ impl SpeakerState {
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
-            Event::WriteRejected { error, .. } => {
-                self.message = Some(texts::describe_rejection(error.code));
+            Event::WriteRejected { path, error } => {
+                let text = texts::describe_rejection(error.code);
+                self.set_message(Some(text), Some(path));
             }
-            Event::WriteFailed { .. } => {
-                self.message = Some(texts::WRITE_FAILED.to_owned());
+            Event::WriteFailed { path, .. } => {
+                self.set_message(Some(texts::WRITE_FAILED.to_owned()), Some(path));
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
-                self.message = Some(texts::serial_mismatch(&mask_serial(&found)));
+                let text = texts::serial_mismatch(&mask_serial(&found));
+                self.set_message(Some(text), None);
             }
             // The full-value dump has no state to land in until the report view exists.
             Event::AllValues(_) | Event::AllValuesFailed(_) => {}
         }
     }
 
-    fn feed_meters(&mut self, path: &SscPath, value: &Value, now: f64) {
-        let path_text = path.to_string();
-        if !METER_PATHS.contains(&path_text.as_str()) {
-            return;
+    fn set_message(&mut self, message: Option<String>, path: Option<SscPath>) {
+        self.message = message;
+        self.message_path = path;
+    }
+
+    fn reset_meters(&mut self) {
+        let meters = self.input_meters.iter_mut().chain(&mut self.output_meters);
+        for meter in meters {
+            meter.reset();
         }
+    }
+
+    fn feed_meters(&mut self, path: &SscPath, value: &Value, now: f64) {
+        let meters = match path.to_string().as_str() {
+            INPUT_METER_PATH => &mut self.input_meters,
+            OUTPUT_METER_PATH => &mut self.output_meters,
+            _ => return,
+        };
         let Some(levels) = value.as_array() else {
             return;
         };
-        if self.meters.len() < levels.len() {
-            self.meters.resize_with(levels.len(), MeterState::default);
+        if meters.len() < levels.len() {
+            meters.resize_with(levels.len(), MeterState::default);
         }
-        for (meter, level) in self.meters.iter_mut().zip(levels) {
+        for (meter, level) in meters.iter_mut().zip(levels) {
             meter.update(level.as_f64().unwrap_or(METER_FLOOR_DB), now);
         }
     }
 }
 
-/// Manual entries first (settings order), then discovered speakers not yet listed. A serial
-/// present on both sides is one target at the discovered address; entries without serial are
-/// identified by address. Manual entries whose address does not parse are skipped here and stay
+/// Manual entries first (settings order), then discovered speakers not yet listed. A speaker
+/// present on both sides (same serial, or same address) is one target at the discovered
+/// address, keyed by the serial once either side knows it. Manual entries whose address does not parse are skipped here and stay
 /// untouched in the settings.
 pub fn merge_targets(manual: &[ManualSpeaker], found: &[Found]) -> Vec<(SpeakerKey, SocketAddrV6)> {
     let mut targets: Vec<(SpeakerKey, SocketAddrV6)> = Vec::new();
@@ -154,13 +180,35 @@ fn push_or_replace(
     targets: &mut Vec<(SpeakerKey, SocketAddrV6)>,
     key: SpeakerKey,
     address: SocketAddrV6,
-    replace_address: bool,
+    from_found: bool,
 ) {
-    match targets.iter_mut().find(|(existing, _)| *existing == key) {
-        Some(existing) if replace_address => existing.1 = address,
-        Some(_) => {}
-        None => targets.push((key, address)),
+    let position = targets
+        .iter()
+        .position(|(existing, existing_address)| *existing == key || *existing_address == address);
+    let Some(position) = position else {
+        targets.push((key, address));
+        return;
+    };
+    if !from_found {
+        return;
     }
+    if matches!(key, SpeakerKey::Serial(_)) {
+        targets[position].0 = key;
+    }
+    targets[position].1 = address;
+}
+
+/// The catalog range of the output level, which the wheel fader drives.
+pub fn output_level_range() -> RangeInclusive<f64> {
+    let path = SscPath::parse(OUTPUT_LEVEL_PATH).expect("constant path");
+    let entry = Catalog::embedded()
+        .entries
+        .iter()
+        .find(|entry| entry.path == path)
+        .expect("catalog has the output level");
+    let min = entry.min.expect("output level has a minimum");
+    let max = entry.max.expect("output level has a maximum");
+    min..=max
 }
 
 /// Maps a dB value linearly from the floor..ceiling range to 0..1; the device reports silence
@@ -201,8 +249,16 @@ impl MeterState {
         self.level
     }
 
-    pub fn peak(&self) -> f64 {
+    /// The held peak, or the current level once the hold ran out.
+    pub fn peak(&self, now: f64) -> f64 {
+        if now - self.peak_since >= PEAK_HOLD_SECONDS {
+            return self.level;
+        }
         self.peak
+    }
+
+    pub fn reset(&mut self) {
+        *self = MeterState::default();
     }
 }
 
@@ -214,10 +270,11 @@ pub struct FaderState {
 }
 
 impl FaderState {
-    pub fn on_wheel(&mut self, steps: i32, current: f64, now: f64) {
+    /// `range` is the allowed value range of the faded entry.
+    pub fn on_wheel(&mut self, steps: i32, current: f64, range: RangeInclusive<f64>, now: f64) {
         let base = self.pending.unwrap_or(current);
         let target = base + f64::from(steps) * WHEEL_STEP_DB;
-        self.pending = Some(target.clamp(FADER_MIN_DB, FADER_MAX_DB));
+        self.pending = Some(target.clamp(*range.start(), *range.end()));
         self.last_step = now;
     }
 
@@ -272,6 +329,13 @@ mod tests {
             SpeakerKey::Address(address(ADDRESS_TEXT)),
             address(ADDRESS_TEXT),
         )
+    }
+
+    fn value_event(text: &str, value: Value) -> Event {
+        Event::Value {
+            path: path(text),
+            value,
+        }
     }
 
     fn path(text: &str) -> SscPath {
@@ -413,8 +477,8 @@ mod tests {
             },
             0.0,
         );
-        assert_eq!(speaker.meters.len(), 2);
-        assert_eq!(speaker.meters[1].level(), -20.5);
+        assert_eq!(speaker.output_meters.len(), 2);
+        assert_eq!(speaker.output_meters[1].level(), -20.5);
     }
 
     #[test]
@@ -422,10 +486,58 @@ mod tests {
         let mut meter = MeterState::default();
         meter.update(-6.0, 0.0);
         meter.update(-30.0, 1.0);
-        assert_eq!(meter.peak(), -6.0);
+        assert_eq!(meter.peak(1.0), -6.0);
         assert_eq!(meter.level(), -30.0);
-        meter.update(-30.0, 1.6);
-        assert_eq!(meter.peak(), -30.0);
+        assert_eq!(meter.peak(1.25), -6.0);
+        assert_eq!(meter.peak(1.5), -30.0);
+    }
+
+    #[test]
+    fn input_and_output_meters_are_kept_apart() {
+        let mut speaker = state();
+        speaker.apply(value_event("m/in/level", json!([-10.0])), 0.0);
+        speaker.apply(value_event("m/out/level", json!([-20.0, -30.0])), 0.0);
+        assert_eq!(speaker.input_meters.len(), 1);
+        assert_eq!(speaker.input_meters[0].level(), -10.0);
+        assert_eq!(speaker.output_meters.len(), 2);
+    }
+
+    #[test]
+    fn unreachable_resets_meters() {
+        let mut speaker = state();
+        speaker.apply(value_event("m/out/level", json!([-3.0])), 0.0);
+        speaker.apply(Event::Unreachable("masked".to_owned()), 0.5);
+        assert_eq!(speaker.output_meters[0].level(), METER_FLOOR_DB);
+        assert_eq!(speaker.output_meters[0].peak(0.5), METER_FLOOR_DB);
+    }
+
+    #[test]
+    fn write_message_clears_when_the_path_reports_a_value() {
+        let mut speaker = state();
+        speaker.apply(
+            Event::WriteFailed {
+                path: path("audio/out/level"),
+                message: "lost".to_owned(),
+            },
+            0.0,
+        );
+        assert_eq!(speaker.message.as_deref(), Some(texts::WRITE_FAILED));
+        speaker.apply(value_event("device/name", json!("left")), 1.0);
+        assert!(speaker.message.is_some());
+        speaker.apply(value_event("audio/out/level", json!(80.0)), 2.0);
+        assert_eq!(speaker.message, None);
+    }
+
+    #[test]
+    fn manual_address_and_found_serial_merge_into_one_target() {
+        let targets = merge_targets(
+            &[manual(ADDRESS_TEXT, None)],
+            &[found(ADDRESS_TEXT, Some(SERIAL))],
+        );
+        assert_eq!(
+            targets,
+            vec![(SpeakerKey::Serial(SERIAL.to_owned()), address(ADDRESS_TEXT))]
+        );
     }
 
     #[test]
@@ -437,23 +549,26 @@ mod tests {
 
     #[test]
     fn wheel_steps_debounce_to_one_value() {
+        let range = output_level_range();
         let mut fader = FaderState::default();
-        fader.on_wheel(1, 80.0, 1.0);
-        fader.on_wheel(1, 80.0, 1.1);
-        fader.on_wheel(1, 80.0, 1.2);
+        fader.on_wheel(1, 80.0, range.clone(), 1.0);
+        fader.on_wheel(1, 80.0, range.clone(), 1.125);
+        fader.on_wheel(1, 80.0, range, 1.25);
         assert_eq!(fader.shown(80.0), 81.5);
-        assert_eq!(fader.due(1.4), None);
-        assert_eq!(fader.due(1.5), Some(81.5));
+        assert_eq!(fader.due(1.5), None);
+        assert_eq!(fader.due(1.625), Some(81.5));
         assert_eq!(fader.due(2.0), None);
         assert_eq!(fader.shown(80.0), 80.0);
     }
 
     #[test]
     fn wheel_clamps_at_120() {
+        let range = output_level_range();
+        assert_eq!(range, 0.0..=120.0);
         let mut fader = FaderState::default();
-        fader.on_wheel(10, 119.0, 0.0);
+        fader.on_wheel(10, 119.0, range.clone(), 0.0);
         assert_eq!(fader.due(1.0), Some(120.0));
-        fader.on_wheel(-1000, 1.0, 2.0);
+        fader.on_wheel(-1000, 1.0, range, 2.0);
         assert_eq!(fader.due(3.0), Some(0.0));
     }
 }
