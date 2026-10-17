@@ -99,8 +99,8 @@ Invoke-Gate 'licence gate (cargo about)' {
     cargo about generate --workspace --locked --fail -c about.toml about.hbs -o "$env:TEMP\neumann-control-about-check.html"
 }
 Invoke-Gate 'cargo audit'  { cargo audit }
-Invoke-Gate 'cargo clippy' { cargo clippy --workspace --all-targets --locked -- -D warnings }
-Invoke-Gate 'cargo test'   { cargo test --workspace --locked }
+Invoke-Gate 'cargo clippy' { cargo clippy --workspace --all-targets --all-features --locked -- -D warnings }
+Invoke-Gate 'cargo test'   { cargo test --workspace --all-features --locked }
 
 Write-Host ""
 Write-Host "All gates green." -ForegroundColor Green

@@ -1,0 +1,201 @@
+{
+  "device": {
+    "auth": {
+      "exclusive": ""
+    },
+    "identification": {
+      "visual": false
+    },
+    "identity": {
+      "hw_version": 1,
+      "product": "KH 750",
+      "serial": "SIM0007500",
+      "vendor": "Georg Neumann GmbH",
+      "version": "2_1_2"
+    },
+    "name": "Simulated KH 750",
+    "network": {
+      "ether": {
+        "macs": "08:1b:2c:3d:4e:5f"
+      }
+    },
+    "restore": "",
+    "standby": {
+      "auto_standby_time": 60,
+      "countdown": 0,
+      "enabled": true,
+      "level": -65
+    },
+    "system": "",
+    "time": 0,
+    "timeprecision": 0,
+    "update": {
+      "enable": false,
+      "startover": false
+    },
+    "temperature": 310
+  },
+  "audio": {
+    "in": {
+      "current_input": "ANALOG INPUT",
+      "interface": "ANALOG ONLY"
+    },
+    "digital_bypass": true,
+    "out": {
+      "delay": 0,
+      "level": 100.0,
+      "mixer": {
+        "levels": [0.0, -100.0]
+      },
+      "mute": false,
+      "mute_persist": false,
+      "eq1": {
+        "in1": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["LOWPASS", "LOWPASS"]
+        },
+        "in2": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["LOWPASS", "LOWPASS"]
+        }
+      },
+      "eq2": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "eq3": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "label": "SUBWOOFER"
+    },
+    "out1": {
+      "delay": 0,
+      "level": 100.0,
+      "mixer": {
+        "levels": [0.0, -100.0]
+      },
+      "mute": false,
+      "mute_persist": false,
+      "eq1": {
+        "in1": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["HIGHPASS", "HIGHPASS"]
+        },
+        "in2": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["HIGHPASS", "HIGHPASS"]
+        }
+      },
+      "eq2": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "eq3": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "label": "OUT1",
+      "loudspeaker": "UNKNOWN"
+    },
+    "out2": {
+      "delay": 0,
+      "level": 100.0,
+      "mixer": {
+        "levels": [0.0, -100.0]
+      },
+      "mute": false,
+      "mute_persist": false,
+      "eq1": {
+        "in1": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["HIGHPASS", "HIGHPASS"]
+        },
+        "in2": {
+          "boost": [0.0, 0.0],
+          "enabled": [true, true],
+          "frequency": [80.0, 80.0],
+          "gain": [0.0, 0.0],
+          "q": [0.7, 0.7],
+          "type": ["HIGHPASS", "HIGHPASS"]
+        }
+      },
+      "eq2": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "eq3": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "label": "OUT2",
+      "loudspeaker": "UNKNOWN"
+    }
+  },
+  "ui": {
+    "control_mode": "NETWORK",
+    "auto_standby": "ON",
+    "bass_management": "DISABLED",
+    "channel_b_input_mode": "Ext.BM LFE (fullrange)",
+    "subwoofer_input_gain": 2.0,
+    "subwoofer_low_cut": -0.1,
+    "subwoofer_output_level": "94",
+    "subwoofer_phase": "0",
+    "subwoofer_phase_inversion": "0"
+  },
+  "m": {
+    "in": {
+      "clip": [false, false],
+      "level": [-40.0, -41.5]
+    },
+    "out": {
+      "clip": [false, false, false],
+      "level": [-35.0, -35.0, -35.0]
+    }
+  },
+  "warnings": ["NO_WARNING"]
+}

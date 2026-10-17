@@ -249,5 +249,23 @@
       },
       "reply": "{\"audio\":{\"out\":{\"mute\":false}},\"osc\":{\"xid\":\"abc\"}}"
     }
+  ],
+  "osc_methods": [
+    {
+      "request": { "osc": { "version": null } },
+      "reply": "{\"osc\":{\"version\":\"1.1\"}}"
+    },
+    {
+      "request": { "osc": { "feature": { "pattern": null } } },
+      "reply": "{\"osc\":{\"feature\":{\"pattern\":\"*?\"}}}"
+    },
+    {
+      "request": { "osc": { "feature": { "subscription": null } } },
+      "reply": "{\"osc\":{\"feature\":{\"subscription\":true}}}"
+    },
+    {
+      "request": { "osc": { "ping": null } },
+      "reply": "{\"osc\":{\"ping\":null}}"
+    }
   ]
 }
