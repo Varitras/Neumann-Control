@@ -18,6 +18,10 @@ const CONTROL_MODE_LABEL: &str = "Steuermodus";
 const NAME_PATH: &str = "/device/name";
 const CONTROL_MODE_PATH: &str = "/ui/control_mode";
 const DELAY_PATH: &str = "/audio/out/delay";
+const STANDBY_TIME_LABEL: &str = "Standby-Zeit";
+const STANDBY_TIME_PATH: &str = "/device/standby/auto_standby_time";
+/// Frames a widget would need to write a value nobody chose, if it did.
+const IDLE_FRAMES: usize = 10;
 
 /// A connected card with "Mehr" open, in a window tall enough for the whole area.
 fn expanded_card(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
@@ -27,6 +31,7 @@ fn expanded_card(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'sta
     wait_until(&mut harness, "the expanded area", |harness| {
         harness.query_by_label(texts::ALL_VALUES).is_some()
     });
+    harness.run_steps(1);
     (simulator, directory, harness)
 }
 
@@ -153,4 +158,150 @@ fn number_field_sends_once_per_gesture() {
         .as_i64()
         .expect("the delay is sent as a whole number");
     assert!(delay > 0, "dragging right raises the delay: {sets:?}");
+}
+
+/// Clicks a number field into text editing and types `text` over its value.
+fn type_number(harness: &mut Harness<'static, NeumannApp>, label: &str, text: &str) {
+    harness.get_by_label(label).click();
+    harness.run_steps(1);
+    harness.get_by_label(label).type_text(text);
+    harness.run_steps(1);
+}
+
+fn numeric_value(harness: &Harness<'static, NeumannApp>, label: &str) -> Option<f64> {
+    harness.get_by_label(label).accesskit_node().numeric_value()
+}
+
+#[test]
+fn out_of_range_device_value_is_not_written_back() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/delay", json!(6000));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        numeric_value(harness, DELAY_LABEL) == Some(6000.0)
+    });
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, DELAY_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
+#[test]
+fn abandoned_number_edit_is_not_sent_on_reopen() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    type_number(&mut harness, STANDBY_TIME_LABEL, "50");
+    harness.get_by_label(texts::LESS).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::MORE).click();
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, STANDBY_TIME_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
+#[test]
+fn a_typed_number_is_snapped_only_when_sent() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    type_number(&mut harness, STANDBY_TIME_LABEL, "1.5");
+    harness.run_steps(2);
+    let shown = harness.get_by_label(STANDBY_TIME_LABEL).value();
+    assert_eq!(shown.as_deref(), Some("1.5"));
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the Set after Enter", |_| {
+        !sets_to(&simulator, STANDBY_TIME_PATH).is_empty()
+    });
+    assert_eq!(sets_to(&simulator, STANDBY_TIME_PATH), vec![json!(2)]);
+}
+
+#[test]
+fn escape_during_number_edit_sends_nothing() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    type_number(&mut harness, STANDBY_TIME_LABEL, "50");
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, STANDBY_TIME_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+    assert_eq!(numeric_value(&harness, STANDBY_TIME_LABEL), Some(60.0));
+}
+
+#[test]
+fn an_abandoned_name_draft_follows_the_device_again() {
+    let (_simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_role(Role::TextInput).click();
+    harness.run_steps(1);
+    harness.get_by_role(Role::TextInput).type_text("draft");
+    harness.run_steps(1);
+    let typed = harness
+        .get_by_role(Role::TextInput)
+        .value()
+        .unwrap_or_default();
+    assert!(typed.contains("draft"), "{typed}");
+    harness.get_by_label("Gerät").click();
+    harness.run_steps(2);
+    let shown = harness.get_by_role(Role::TextInput).value();
+    assert_eq!(shown.as_deref(), Some("Simulated KH 120 II"));
+}
+
+#[test]
+fn card_controls_are_not_repeated_in_the_area() {
+    let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
+    assert_eq!(harness.query_all_by_label(texts::MUTE).count(), 1);
+    assert_eq!(harness.query_all_by_label(texts::IDENTIFY).count(), 1);
+    assert!(harness.query_by_label("Identifizieren").is_none());
+    assert!(harness.query_by_label("Eingangspegel").is_none());
+    assert_eq!(harness.query_all_by_role(Role::Slider).count(), 1);
+    assert!(harness.query_all_by_role(Role::SpinButton).all(|node| node
+        .accesskit_node()
+        .label()
+        .as_deref()
+        != Some(texts::LEVEL)));
+}
+
+#[test]
+fn kh750_output_meters_are_drawn() {
+    let (_simulator, _directory, harness) = expanded_card(SimModel::Kh750);
+    // One for the meters, one for the rear-panel output level.
+    assert_eq!(harness.query_all_by_label("Ausgangspegel").count(), 2);
+}
+
+#[test]
+fn cancelling_local_control_mode_sends_nothing() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_label(CONTROL_MODE_LABEL).click();
+    harness.run_steps(2);
+    harness.get_by_label("LOCAL").click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::CANCEL).click();
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    assert!(sets_to(&simulator, CONTROL_MODE_PATH).is_empty());
+    assert!(harness.query_by_label(texts::LOCAL_MODE_WARNING).is_none());
+}
+
+#[test]
+fn network_control_mode_is_sent_without_confirmation() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    simulator.set_value("ui/control_mode", json!("LOCAL"));
+    wait_until(&mut harness, "LOCAL on the card", |harness| {
+        harness.get_by_label(CONTROL_MODE_LABEL).value().as_deref() == Some("LOCAL")
+    });
+    harness.get_by_label(CONTROL_MODE_LABEL).click();
+    harness.run_steps(2);
+    harness.get_by_label("NETWORK").click();
+    wait_until(&mut harness, "NETWORK on the device", |_| {
+        simulator.value("ui/control_mode") == Some(json!("NETWORK"))
+    });
+    assert!(harness.query_by_label(texts::LOCAL_MODE_WARNING).is_none());
+}
+
+#[test]
+fn all_values_button_reads_the_whole_tree() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_label(texts::ALL_VALUES).click();
+    wait_until(&mut harness, "the schema walk", |_| {
+        simulator
+            .requests()
+            .iter()
+            .any(|request| request.pointer("/osc/schema").is_some())
+    });
 }

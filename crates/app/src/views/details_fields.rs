@@ -44,8 +44,9 @@ impl Fields<'_> {
         known && writes::can_write(self.speaker, self.catalog, &entry.path)
     }
 
-    /// A drag or a typed value is one gesture; its final value is written once it ends
-    /// (release, Enter or focus loss), never while it is going on. Escape drops it.
+    /// A drag or a typed value is one gesture. Its value is held while the gesture is active
+    /// and written once, on the frame it ends (release, Enter or focus loss); Escape drops it.
+    /// The device value itself is never clamped or written back.
     pub fn number(&mut self, ui: &mut Ui, entry: &Entry) {
         let reported = self.speaker.values.get(&entry.path).cloned();
         let device = reported.as_ref().and_then(Value::as_f64);
@@ -56,10 +57,11 @@ impl Fields<'_> {
             .max_for(product, &self.catalog.classes)
             .unwrap_or(f64::INFINITY);
         let pending_id = ui.id().with(entry.path.to_string()).with(PENDING_NUMBER_ID);
-        let pending = ui.data(|data| data.get_temp::<f64>(pending_id));
-        let mut value = pending.or(device).unwrap_or(entry.min.unwrap_or_default());
+        let held = ui.data(|data| data.get_temp::<f64>(pending_id));
+        let mut value = held.or(device).unwrap_or(entry.min.unwrap_or_default());
         let mut drag = DragValue::new(&mut value)
             .range(min..=max)
+            .clamp_existing_to_range(false)
             .speed(entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED));
         if let Some(unit) = &entry.unit {
             drag = drag.suffix(format!(" {unit}"));
@@ -70,16 +72,20 @@ impl Fields<'_> {
                 ui.add_enabled(enabled, drag).labelled_by(label.id)
             })
             .inner;
-        if response.changed() {
-            let snapped = writes::number_value(entry, reported.as_ref(), value);
-            let shown = snapped.as_f64().unwrap_or(value);
-            ui.data_mut(|data| data.insert_temp(pending_id, shown));
+        let active = response.dragged() || response.has_focus();
+        let ended = response.drag_stopped() || response.lost_focus();
+        if !active && !ended {
+            ui.data_mut(|data| data.remove::<f64>(pending_id));
+            return;
         }
-        let gesture_over = !response.dragged() && !response.has_focus();
-        let pending = ui.data(|data| data.get_temp::<f64>(pending_id));
-        let Some(number) = pending.filter(|_| gesture_over) else {
+        let edited = response.changed().then_some(value);
+        let Some(number) = edited.or(held) else {
             return;
         };
+        if active {
+            ui.data_mut(|data| data.insert_temp(pending_id, number));
+            return;
+        }
         ui.data_mut(|data| data.remove::<f64>(pending_id));
         if ui.input(|input| input.key_pressed(Key::Escape)) {
             return;
@@ -176,9 +182,15 @@ impl Fields<'_> {
         // Keys typed while a dialog is open belong to the dialog.
         let dialog_open = ui.memory(|memory| memory.top_modal_layer().is_some());
         let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
-        let applied = ui.add_enabled(enabled, Button::new(texts::APPLY)).clicked();
-        if applied || (entered && !dialog_open) {
+        let apply = ui.add_enabled(enabled, Button::new(texts::APPLY));
+        if apply.clicked() || (entered && !dialog_open) {
             self.submit_text(ui, entry, &mut draft);
+        }
+        // Leaving the field without writing gives it back to the device, unless the press
+        // that took the focus is on "Übernehmen" or a refusal still explains the text.
+        let abandoned = field.lost_focus() && !entered && !apply.is_pointer_button_down_on();
+        if abandoned && draft.refusal.is_none() {
+            draft.edited = false;
         }
         if let Some(refusal) = &draft.refusal {
             ui.colored_label(ui.visuals().error_fg_color, refusal);
@@ -187,15 +199,19 @@ impl Fields<'_> {
     }
 
     fn submit_text(&mut self, ui: &Ui, entry: &Entry, draft: &mut TextDraft) {
-        let value = Value::String(draft.text.clone());
-        if let Err(refusal) = writes::check(self.speaker, self.catalog, &entry.path, &value) {
-            draft.refusal = Some(texts::describe_refusal(&refusal));
-            return;
+        let intent = Intent::Write {
+            path: entry.path.clone(),
+            value: Value::String(draft.text.clone()),
+        };
+        let now = ui.input(|input| input.time);
+        match self.speaker.try_request(intent, self.catalog, now) {
+            Ok(command) => {
+                draft.edited = false;
+                draft.refusal = None;
+                self.commands.push(command);
+            }
+            Err(refusal) => draft.refusal = Some(texts::describe_refusal(&refusal)),
         }
-        draft.edited = false;
-        draft.refusal = None;
-        let path = entry.path.clone();
-        self.send(ui, Intent::Write { path, value });
     }
 
     /// The dialog for a selection that needs confirmation; the write waits until "Umschalten".

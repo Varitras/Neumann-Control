@@ -1,6 +1,7 @@
 //! The write policy: what the user asked for becomes a `Command` only for a connected speaker
 //! whose model the catalog lists as writable for the path, with a value the catalog accepts.
-//! Anything else is refused with a message on the card.
+//! Anything else is refused: `request` puts the reason on the card's message line, and
+//! `try_request` hands it to the caller (a text field shows it under itself).
 
 use neumann_control_core::catalog::{Catalog, Entry, ValueError};
 use neumann_control_core::speaker::Command;
@@ -117,22 +118,31 @@ impl SpeakerState {
     /// A sent level is held on the fader until the speaker reports it (`now` is the UI clock).
     pub fn request(&mut self, intent: Intent, catalog: &Catalog, now: f64) -> Option<Command> {
         let path = intent.path();
-        let checked = self
-            .intended_value(&intent, &path)
-            .and_then(|value| check(self, catalog, &path, &value).map(|()| value));
-        match checked {
-            Ok(value) => {
-                if let Intent::Level(level) = intent {
-                    self.fader.sent(level, now);
-                }
-                Some(Command::Set { path, value })
-            }
+        match self.try_request(intent, catalog, now) {
+            Ok(command) => Some(command),
             Err(refusal) => {
-                log::warn!("not sending {path}: {refusal:?}");
                 self.set_message(Some(texts::describe_refusal(&refusal)), Some(path));
                 None
             }
         }
+    }
+
+    /// Like `request`, but the refusal goes back to the caller instead of onto the card.
+    pub fn try_request(
+        &mut self,
+        intent: Intent,
+        catalog: &Catalog,
+        now: f64,
+    ) -> Result<Command, Refusal> {
+        let path = intent.path();
+        let checked = self
+            .intended_value(&intent, &path)
+            .and_then(|value| check(self, catalog, &path, &value).map(|()| value));
+        let value = checked.inspect_err(|refusal| log::warn!("not sending {path}: {refusal:?}"))?;
+        if let Intent::Level(level) = intent {
+            self.fader.sent(level, now);
+        }
+        Ok(Command::Set { path, value })
     }
 
     fn intended_value(&self, intent: &Intent, path: &SscPath) -> Result<Value, Refusal> {
