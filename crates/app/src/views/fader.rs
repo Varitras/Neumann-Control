@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Event, Key, MouseWheelUnit, Response, Slider, Ui, Vec2};
+use eframe::egui::{Event, Key, MouseWheelUnit, Response, Slider, SliderClamping, Ui, Vec2};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
@@ -35,7 +35,10 @@ pub fn show(
     let slider = Slider::new(&mut value, range.clone())
         .vertical()
         .show_value(false)
-        .step_by(WHEEL_STEP_DB);
+        .step_by(WHEEL_STEP_DB)
+        // The default also clamps and snaps the reported level, so the readout would show a
+        // value the speaker does not have.
+        .clamping(SliderClamping::Edits);
     let response = ui.add_enabled(enabled, slider);
     if response.drag_started() {
         speaker.fader.drag_started();

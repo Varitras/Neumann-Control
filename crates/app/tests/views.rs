@@ -187,3 +187,17 @@ fn unreachable_card_is_disabled() {
         .accesskit_node()
         .is_disabled());
 }
+
+#[test]
+fn out_of_range_level_is_not_written_back() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/level", serde_json::json!(130.0));
+    wait_for_level(&mut harness, 130.0);
+    harness.run_steps(10);
+    barrier(&simulator);
+    assert!(
+        level_sets(&simulator).is_empty(),
+        "{:?}",
+        level_sets(&simulator)
+    );
+}
