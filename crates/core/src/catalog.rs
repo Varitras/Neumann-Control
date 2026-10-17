@@ -12,6 +12,8 @@ use crate::ssc::wire::SscPath;
 
 const EMBEDDED_CATALOG: &str = include_str!("paths.toml");
 const PRINTABLE_ASCII: std::ops::RangeInclusive<char> = ' '..='~';
+/// Relative to the step size; absorbs binary rounding of decimal steps.
+const STEP_TOLERANCE: f64 = 1e-9;
 const KELVIN_OFFSET: f64 = 273.15;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -122,6 +124,7 @@ impl ModelClasses {
 pub enum ValueError {
     OutOfRange { min: f64, max: f64 },
     NotAnOption,
+    NotAStep,
     TooLong(usize),
     NotPrintableAscii,
     WrongType,
@@ -132,6 +135,7 @@ impl fmt::Display for ValueError {
         match self {
             ValueError::OutOfRange { min, max } => write!(formatter, "value outside {min}..{max}"),
             ValueError::NotAnOption => formatter.write_str("value is not one of the options"),
+            ValueError::NotAStep => formatter.write_str("value is not a whole number of steps"),
             ValueError::TooLong(limit) => write!(formatter, "text longer than {limit} characters"),
             ValueError::NotPrintableAscii => formatter.write_str("text is not printable ASCII"),
             ValueError::WrongType => formatter.write_str("value has the wrong type"),
@@ -210,6 +214,17 @@ impl Entry {
                 min: self.min.unwrap_or(f64::NEG_INFINITY),
                 max: max.unwrap_or(f64::INFINITY),
             });
+        }
+        self.validate_step(number)
+    }
+
+    fn validate_step(&self, number: f64) -> Result<(), ValueError> {
+        let Some(step) = self.step.filter(|step| *step > 0.0) else {
+            return Ok(());
+        };
+        let steps = (number - self.min.unwrap_or(0.0)) / step;
+        if (steps - steps.round()).abs() > STEP_TOLERANCE {
+            return Err(ValueError::NotAStep);
         }
         Ok(())
     }

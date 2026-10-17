@@ -1,4 +1,4 @@
-use neumann_control_core::catalog::{Catalog, Entry, ValueError};
+use neumann_control_core::catalog::{Catalog, CatalogError, Conversion, Entry, ValueError};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
 
@@ -177,7 +177,9 @@ fn wrong_json_type_is_refused() {
 fn temperature_is_converted_from_kelvin() {
     let temperature = entry("device/temperature");
     assert_eq!(temperature.unit.as_deref(), Some("K"));
-    assert!(temperature.conversion.is_some());
+    assert_eq!(temperature.conversion, Some(Conversion::KelvinToCelsius));
+    let celsius = Conversion::KelvinToCelsius.apply(313.0);
+    assert!((celsius - 39.85).abs() < 1e-9, "{celsius}");
 }
 
 #[test]
@@ -203,7 +205,12 @@ fn duplicate_path_in_text_is_an_error() {
         poll = "fast"
         class = "all"
     "#;
-    assert!(Catalog::parse(text).is_err());
+    match Catalog::parse(text) {
+        Err(CatalogError::DuplicatePath(duplicate)) => {
+            assert_eq!(duplicate, path("audio/out/mute"))
+        }
+        other => panic!("expected DuplicatePath, got {other:?}"),
+    }
 }
 
 #[test]
@@ -221,5 +228,24 @@ fn select_without_options_is_an_error() {
         poll = "fast"
         class = "all"
     "#;
-    assert!(Catalog::parse(text).is_err());
+    match Catalog::parse(text) {
+        Err(CatalogError::Invalid { path: invalid, .. }) => {
+            assert_eq!(invalid, path("ui/control_mode"))
+        }
+        other => panic!("expected Invalid, got {other:?}"),
+    }
+}
+
+#[test]
+fn delay_must_be_whole_steps() {
+    let catalog = Catalog::embedded();
+    let delay = entry("audio/out/delay");
+    assert_eq!(
+        delay.validate(&json!(1.5), MONITOR, &catalog.classes),
+        Err(ValueError::NotAStep)
+    );
+    assert_eq!(
+        delay.validate(&json!(2.0), MONITOR, &catalog.classes),
+        Ok(())
+    );
 }
