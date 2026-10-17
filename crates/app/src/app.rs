@@ -16,7 +16,8 @@ use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeomet
 use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
 
 use crate::spawner::{ScanResult, SpeakerSpawner};
-use crate::state::{merge_targets, SpeakerKey, SpeakerState};
+use crate::state::{SpeakerKey, SpeakerState};
+use crate::targets::merge_targets;
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};

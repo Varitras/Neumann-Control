@@ -1,6 +1,11 @@
 pub mod app;
+pub mod fader;
+pub mod meter;
+pub mod paths;
 pub mod spawner;
 pub mod state;
+pub mod targets;
 pub mod texts;
 pub mod ui_kit;
 pub mod views;
+pub mod writes;

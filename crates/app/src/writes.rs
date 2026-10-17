@@ -1,0 +1,212 @@
+//! The write policy: what the user asked for becomes a `Command` only for a connected speaker
+//! whose model the catalog lists as writable for the path, with a value the catalog accepts.
+//! Anything else is refused with a message on the card.
+
+use neumann_control_core::catalog::{Catalog, ValueError};
+use neumann_control_core::speaker::Command;
+use neumann_control_core::ssc::wire::SscPath;
+use serde_json::Value;
+
+use crate::paths;
+use crate::state::{SpeakerState, Status};
+use crate::texts;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Switch {
+    Mute,
+    Identify,
+}
+
+impl Switch {
+    pub fn path(self) -> SscPath {
+        match self {
+            Switch::Mute => paths::path(paths::MUTE),
+            Switch::Identify => paths::path(paths::IDENTIFY),
+        }
+    }
+}
+
+/// What a control on the card asks for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Intent {
+    /// Flip a switch to the opposite of its current value.
+    Toggle(Switch),
+    /// Set the output level.
+    Level(f64),
+}
+
+impl Intent {
+    pub fn path(self) -> SscPath {
+        match self {
+            Intent::Toggle(switch) => switch.path(),
+            Intent::Level(_) => paths::path(paths::OUTPUT_LEVEL),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Refusal {
+    NotConnected,
+    NotWritable,
+    /// A switch whose current value the speaker has not reported yet.
+    ValueUnknown,
+    Invalid(ValueError),
+}
+
+/// Whether a control for `path` may be offered at all.
+pub fn can_write(speaker: &SpeakerState, catalog: &Catalog, path: &SscPath) -> bool {
+    let product = speaker.model().unwrap_or_default();
+    let writable =
+        paths::catalog_entry(catalog, path).is_some_and(|entry| entry.is_writable(product));
+    speaker.status == Status::Connected && writable
+}
+
+/// The checks of the policy, in the order the user would fix them.
+pub fn check(
+    speaker: &SpeakerState,
+    catalog: &Catalog,
+    path: &SscPath,
+    value: &Value,
+) -> Result<(), Refusal> {
+    if speaker.status != Status::Connected {
+        return Err(Refusal::NotConnected);
+    }
+    let product = speaker.model().unwrap_or_default();
+    let entry = paths::catalog_entry(catalog, path)
+        .filter(|entry| entry.is_writable(product))
+        .ok_or(Refusal::NotWritable)?;
+    entry
+        .validate(value, product, &catalog.classes)
+        .map_err(Refusal::Invalid)
+}
+
+impl SpeakerState {
+    /// The command for `intent`, or `None` after putting the refusal on the card.
+    pub fn request(&mut self, intent: Intent, catalog: &Catalog) -> Option<Command> {
+        let path = intent.path();
+        let checked = self
+            .intended_value(intent, &path)
+            .and_then(|value| check(self, catalog, &path, &value).map(|()| value));
+        match checked {
+            Ok(value) => Some(Command::Set { path, value }),
+            Err(refusal) => {
+                log::warn!("not sending {path}: {refusal:?}");
+                self.set_message(Some(texts::describe_refusal(&refusal)), Some(path));
+                None
+            }
+        }
+    }
+
+    fn intended_value(&self, intent: Intent, path: &SscPath) -> Result<Value, Refusal> {
+        match intent {
+            Intent::Level(level) => Ok(Value::from(level)),
+            Intent::Toggle(_) => {
+                let current = self.values.get(path).and_then(Value::as_bool);
+                let current = current.ok_or(Refusal::ValueUnknown)?;
+                Ok(Value::Bool(!current))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use neumann_control_core::address::parse_address;
+    use neumann_control_core::speaker::{Event, Identity};
+
+    use crate::state::SpeakerKey;
+
+    const ADDRESS_TEXT: &str = "fe80::2a36:38ff:fe12:3456%7";
+
+    fn speaker(product: &str) -> SpeakerState {
+        let address = parse_address(ADDRESS_TEXT, 45).unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: product.to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: "left".to_owned(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        speaker.apply(
+            Event::Value {
+                path: paths::path(paths::MUTE),
+                value: Value::Bool(false),
+            },
+            0.0,
+        );
+        speaker
+    }
+
+    fn set(path: &str, value: Value) -> Option<Command> {
+        Some(Command::Set {
+            path: paths::path(path),
+            value,
+        })
+    }
+
+    #[test]
+    fn toggle_writes_the_opposite_switch_value() {
+        let mut speaker = speaker("KH 120 II");
+        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded());
+        assert_eq!(command, set(paths::MUTE, Value::Bool(true)));
+        assert_eq!(speaker.message, None);
+    }
+
+    #[test]
+    fn a_model_without_write_permission_is_refused_with_a_message() {
+        let mut speaker = speaker("KH 80");
+        let command = speaker.request(Intent::Level(80.0), Catalog::embedded());
+        assert_eq!(command, None);
+        let expected = texts::describe_refusal(&Refusal::NotWritable);
+        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+        assert!(!can_write(
+            &speaker,
+            Catalog::embedded(),
+            &paths::path(paths::OUTPUT_LEVEL)
+        ));
+    }
+
+    #[test]
+    fn an_out_of_range_value_is_refused_with_the_catalog_reason() {
+        let mut speaker = speaker("KH 120 II");
+        let command = speaker.request(Intent::Level(130.0), Catalog::embedded());
+        assert_eq!(command, None);
+        let reason = ValueError::OutOfRange {
+            min: 0.0,
+            max: 120.0,
+        };
+        let expected = texts::describe_refusal(&Refusal::Invalid(reason));
+        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn an_unreachable_speaker_is_refused() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.apply(Event::Unreachable("masked".to_owned()), 1.0);
+        assert_eq!(
+            check(
+                &speaker,
+                Catalog::embedded(),
+                &paths::path(paths::MUTE),
+                &Value::Bool(true)
+            ),
+            Err(Refusal::NotConnected)
+        );
+        assert!(!can_write(
+            &speaker,
+            Catalog::embedded(),
+            &paths::path(paths::MUTE)
+        ));
+    }
+
+    #[test]
+    fn a_switch_without_a_reported_value_is_refused() {
+        let mut speaker = speaker("KH 120 II");
+        let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded());
+        assert_eq!(command, None);
+        let expected = texts::describe_refusal(&Refusal::ValueUnknown);
+        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+    }
+}

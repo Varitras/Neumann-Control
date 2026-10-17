@@ -3,6 +3,8 @@
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
 
+use crate::writes::Refusal;
+
 pub const WINDOW_TITLE: &str = "Neumann Control";
 pub const SCAN: &str = "Suchen";
 pub const ADD_ADDRESS: &str = "+ Adresse";
@@ -78,6 +80,15 @@ pub fn describe_value_error(error: &ValueError) -> String {
             "Nur Buchstaben A–Z, Ziffern und Satzzeichen ohne Umlaute.".to_owned()
         }
         ValueError::WrongType => "Wert hat den falschen Typ.".to_owned(),
+    }
+}
+
+pub fn describe_refusal(refusal: &Refusal) -> String {
+    match refusal {
+        Refusal::NotConnected => "Nicht verbunden".to_owned(),
+        Refusal::NotWritable => "Für dieses Modell nicht freigegeben".to_owned(),
+        Refusal::ValueUnknown => "Wert noch unbekannt".to_owned(),
+        Refusal::Invalid(error) => describe_value_error(error),
     }
 }
 
