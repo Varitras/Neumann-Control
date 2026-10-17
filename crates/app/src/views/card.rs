@@ -1,18 +1,16 @@
 //! One speaker as a channel strip: name, status, level fader with input meters, mute and
-//! identify, the "Mehr" toggle and a status line. The card only reports what was clicked;
-//! `writes` decides whether it becomes a command.
+//! identify, the "Mehr" toggle with the settings it opens, and a status line. The card only
+//! reports what was clicked; `writes` decides whether it becomes a command.
 
-use eframe::egui::{
-    self, pos2, vec2, Button, CornerRadius, Label, Rect, RichText, Sense, Stroke, Ui, Vec2,
-};
+use eframe::egui::{self, Button, CornerRadius, Label, RichText, Sense, Stroke, Ui, Vec2};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use super::fader::{self, FADER_HEIGHT};
+use super::{details, meters};
 use crate::fader::output_level_range;
-use crate::meter::fraction;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
@@ -23,12 +21,9 @@ const CARD_WIDTH: f32 = 170.0;
 const CARD_MARGIN: i8 = 8;
 const CARD_RADIUS: u8 = 6;
 const BORDER_WIDTH: f32 = 1.0;
-const METER_WIDTH: f32 = 8.0;
-const CLIP_LAMP_RADIUS: f32 = 3.5;
-const CLIP_LAMP_SPACE: f32 = 10.0;
-const PEAK_LINE_WIDTH: f32 = 2.0;
 const STATUS_DOT_RADIUS: f32 = 4.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
+const DETAILS_ID: &str = "details";
 
 /// Draws the card and returns the writes the user asked for that the write policy allowed.
 pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
@@ -49,6 +44,15 @@ pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<C
             strip(ui, speaker, catalog, &mut commands, &tokens);
             buttons(ui, speaker, catalog, &mut commands);
             more_toggle(ui, speaker);
+            // The scope exists collapsed too, so opening it never renumbers the widgets after it.
+            let expanded = ui.push_id(DETAILS_ID, |ui| {
+                if speaker.expanded {
+                    details::show(ui, speaker, catalog)
+                } else {
+                    Vec::new()
+                }
+            });
+            commands.extend(expanded.inner);
             status_line(ui, speaker, &tokens);
         });
     commands
@@ -103,41 +107,8 @@ fn strip(
 }
 
 fn meters(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
-    let now = ui.input(|input| input.time);
-    let clips = speaker
-        .values
-        .get(&paths::path(paths::INPUT_CLIP))
-        .and_then(Value::as_array);
-    for (channel, meter) in speaker.input_meters.iter().enumerate() {
-        let clipped = clips
-            .and_then(|clips| clips.get(channel))
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let size = vec2(METER_WIDTH, FADER_HEIGHT);
-        let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
-        let lamp_color = if clipped {
-            tokens.danger
-        } else {
-            tokens.clip_off
-        };
-        let lamp_center = pos2(rect.center().x, rect.top() + CLIP_LAMP_RADIUS);
-        let track = Rect::from_min_max(pos2(rect.left(), rect.top() + CLIP_LAMP_SPACE), rect.max);
-        let painter = ui.painter();
-        painter.circle_filled(lamp_center, CLIP_LAMP_RADIUS, lamp_color);
-        painter.rect_filled(track, CornerRadius::ZERO, tokens.meter_track);
-        let level_top = track.bottom() - track.height() * fraction(meter.level());
-        let level = Rect::from_min_max(pos2(track.left(), level_top), track.max);
-        painter.rect_filled(level, CornerRadius::ZERO, tokens.meter_fill);
-        let peak_y = track.bottom() - track.height() * fraction(meter.peak(now));
-        painter.hline(
-            track.x_range(),
-            peak_y,
-            Stroke::new(PEAK_LINE_WIDTH, tokens.text_dim),
-        );
-        if clipped {
-            response.on_hover_text(texts::CLIP);
-        }
-    }
+    let clips = speaker.values.get(&paths::path(paths::INPUT_CLIP));
+    meters::show(ui, &speaker.input_meters, clips, FADER_HEIGHT, tokens);
 }
 
 fn buttons(

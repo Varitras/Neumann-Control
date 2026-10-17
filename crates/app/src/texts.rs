@@ -22,6 +22,14 @@ pub const CONNECTED: &str = "verbunden";
 pub const LEVEL: &str = "Pegel";
 pub const CLIP: &str = "Übersteuert";
 
+pub const ALL_VALUES: &str = "Alle Werte…";
+pub const APPLY: &str = "Übernehmen";
+pub const ON: &str = "an";
+pub const OFF: &str = "aus";
+pub const CELSIUS: &str = "°C";
+pub const SWITCH_MODE: &str = "Umschalten";
+pub const LOCAL_MODE_WARNING: &str = "Im Modus LOCAL kann die Netzwerksteuerung gesperrt sein, bis am Gerät zurückgestellt wird. Trotzdem umschalten?";
+
 pub const ADD_ADDRESS_TITLE: &str = "Lautsprecher per Adresse hinzufügen";
 pub const ADDRESS_FIELD: &str = "IPv6-Adresse";
 pub const ADDRESS_HINT: &str = "z. B. fe80::1%7";

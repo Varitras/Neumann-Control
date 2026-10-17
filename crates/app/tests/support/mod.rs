@@ -26,6 +26,8 @@ pub const WAIT_LIMIT: Duration = Duration::from_secs(15);
 // Paces the polling loop only; every outcome is decided by the condition.
 pub const POLL_PAUSE: Duration = Duration::from_millis(10);
 pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
+/// Tall enough for a card with "Mehr" open, so every control in it can be clicked.
+pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [900.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 
 pub struct SimulatorSpawner {

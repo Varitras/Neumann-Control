@@ -1,0 +1,225 @@
+//! The controls of the "Mehr" area, one per writable kind: number, switch, selection and text,
+//! plus the confirmation a risky selection waits for. Every write goes through `writes`.
+
+use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Id, Key, Modal, TextEdit, Ui};
+use neumann_control_core::catalog::{Catalog, Entry};
+use neumann_control_core::speaker::Command;
+use serde_json::Value;
+
+use crate::state::SpeakerState;
+use crate::texts;
+use crate::writes::{self, Intent};
+
+/// Drag speed for numbers without a step in the catalog, in units per point.
+const UNSTEPPED_DRAG_SPEED: f64 = 0.1;
+const CONFIRMATION_WIDTH: f32 = 320.0;
+const PENDING_NUMBER_ID: &str = "pending_number";
+const TEXT_DRAFT_ID: &str = "text_draft";
+const TEXT_FIELD_ID: &str = "text_field";
+
+/// What the user typed into a text field and has not yet written.
+#[derive(Clone, Debug, Default)]
+struct TextDraft {
+    text: String,
+    edited: bool,
+    refusal: Option<String>,
+}
+
+pub(super) struct Fields<'a> {
+    pub speaker: &'a mut SpeakerState,
+    pub catalog: &'a Catalog,
+    pub commands: &'a mut Vec<Command>,
+    /// Where a selection waiting for confirmation is kept between frames.
+    pub confirmation_id: Id,
+}
+
+impl Fields<'_> {
+    fn send(&mut self, ui: &Ui, intent: Intent) {
+        let now = ui.input(|input| input.time);
+        let command = self.speaker.request(intent, self.catalog, now);
+        self.commands.extend(command);
+    }
+
+    fn enabled(&self, entry: &Entry, known: bool) -> bool {
+        known && writes::can_write(self.speaker, self.catalog, &entry.path)
+    }
+
+    /// A drag or a typed value is one gesture; its final value is written once it ends
+    /// (release, Enter or focus loss), never while it is going on. Escape drops it.
+    pub fn number(&mut self, ui: &mut Ui, entry: &Entry) {
+        let reported = self.speaker.values.get(&entry.path).cloned();
+        let device = reported.as_ref().and_then(Value::as_f64);
+        let enabled = self.enabled(entry, device.is_some());
+        let product = self.speaker.model().unwrap_or_default();
+        let min = entry.min.unwrap_or(f64::NEG_INFINITY);
+        let max = entry
+            .max_for(product, &self.catalog.classes)
+            .unwrap_or(f64::INFINITY);
+        let pending_id = ui.id().with(entry.path.to_string()).with(PENDING_NUMBER_ID);
+        let pending = ui.data(|data| data.get_temp::<f64>(pending_id));
+        let mut value = pending.or(device).unwrap_or(entry.min.unwrap_or_default());
+        let mut drag = DragValue::new(&mut value)
+            .range(min..=max)
+            .speed(entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED));
+        if let Some(unit) = &entry.unit {
+            drag = drag.suffix(format!(" {unit}"));
+        }
+        let response = ui
+            .horizontal_wrapped(|ui| {
+                let label = ui.label(&entry.label);
+                ui.add_enabled(enabled, drag).labelled_by(label.id)
+            })
+            .inner;
+        if response.changed() {
+            let snapped = writes::number_value(entry, reported.as_ref(), value);
+            let shown = snapped.as_f64().unwrap_or(value);
+            ui.data_mut(|data| data.insert_temp(pending_id, shown));
+        }
+        let gesture_over = !response.dragged() && !response.has_focus();
+        let pending = ui.data(|data| data.get_temp::<f64>(pending_id));
+        let Some(number) = pending.filter(|_| gesture_over) else {
+            return;
+        };
+        ui.data_mut(|data| data.remove::<f64>(pending_id));
+        if ui.input(|input| input.key_pressed(Key::Escape)) {
+            return;
+        }
+        let path = entry.path.clone();
+        let value = writes::number_value(entry, reported.as_ref(), number);
+        self.send(ui, Intent::Write { path, value });
+    }
+
+    pub fn switch(&mut self, ui: &mut Ui, entry: &Entry) {
+        let current = self
+            .speaker
+            .values
+            .get(&entry.path)
+            .and_then(Value::as_bool);
+        let enabled = self.enabled(entry, current.is_some());
+        let mut checked = current.unwrap_or(false);
+        let checkbox = Checkbox::new(&mut checked, &entry.label);
+        if ui.add_enabled(enabled, checkbox).clicked() {
+            let path = entry.path.clone();
+            let value = Value::Bool(checked);
+            self.send(ui, Intent::Write { path, value });
+        }
+    }
+
+    pub fn select(&mut self, ui: &mut Ui, entry: &Entry) {
+        let current = self
+            .speaker
+            .values
+            .get(&entry.path)
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let enabled = self.enabled(entry, current.is_some());
+        let current = current.unwrap_or_default();
+        let mut chosen = None;
+        let label = ui.label(&entry.label);
+        ui.add_enabled_ui(enabled, |ui| {
+            ComboBox::from_id_salt(entry.path.to_string())
+                .selected_text(&current)
+                .width(ui.available_width())
+                .show_ui(ui, |ui| {
+                    for option in &entry.options {
+                        let selected = *option == current;
+                        if ui.selectable_label(selected, option).clicked() && !selected {
+                            chosen = Some(option.clone());
+                        }
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+        });
+        let Some(option) = chosen else {
+            return;
+        };
+        let intent = Intent::Write {
+            path: entry.path.clone(),
+            value: Value::String(option),
+        };
+        if intent.needs_confirmation() {
+            ui.data_mut(|data| data.insert_temp(self.confirmation_id, intent));
+            return;
+        }
+        self.send(ui, intent);
+    }
+
+    /// Written with "Übernehmen" or Enter after the catalog check; a refused text stays in
+    /// the field with the reason below it. Polling never replaces what is being edited.
+    pub fn text(&mut self, ui: &mut Ui, entry: &Entry) {
+        let reported = self
+            .speaker
+            .values
+            .get(&entry.path)
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let enabled = self.enabled(entry, reported.is_some());
+        let draft_id = ui.id().with(entry.path.to_string()).with(TEXT_DRAFT_ID);
+        let field_id = draft_id.with(TEXT_FIELD_ID);
+        let mut draft = ui
+            .data(|data| data.get_temp::<TextDraft>(draft_id))
+            .unwrap_or_default();
+        let focused = ui.memory(|memory| memory.has_focus(field_id));
+        if !draft.edited && !focused {
+            draft.text = reported.unwrap_or_default();
+        }
+        let label = ui.label(&entry.label);
+        let field = TextEdit::singleline(&mut draft.text)
+            .id(field_id)
+            .desired_width(f32::INFINITY);
+        let field = ui.add_enabled(enabled, field).labelled_by(label.id);
+        if field.changed() {
+            draft.edited = true;
+            draft.refusal = None;
+        }
+        // Keys typed while a dialog is open belong to the dialog.
+        let dialog_open = ui.memory(|memory| memory.top_modal_layer().is_some());
+        let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+        let applied = ui.add_enabled(enabled, Button::new(texts::APPLY)).clicked();
+        if applied || (entered && !dialog_open) {
+            self.submit_text(ui, entry, &mut draft);
+        }
+        if let Some(refusal) = &draft.refusal {
+            ui.colored_label(ui.visuals().error_fg_color, refusal);
+        }
+        ui.data_mut(|data| data.insert_temp(draft_id, draft));
+    }
+
+    fn submit_text(&mut self, ui: &Ui, entry: &Entry, draft: &mut TextDraft) {
+        let value = Value::String(draft.text.clone());
+        if let Err(refusal) = writes::check(self.speaker, self.catalog, &entry.path, &value) {
+            draft.refusal = Some(texts::describe_refusal(&refusal));
+            return;
+        }
+        draft.edited = false;
+        draft.refusal = None;
+        let path = entry.path.clone();
+        self.send(ui, Intent::Write { path, value });
+    }
+
+    /// The dialog for a selection that needs confirmation; the write waits until "Umschalten".
+    pub fn confirmation(&mut self, ui: &Ui) {
+        let id = self.confirmation_id;
+        let Some(intent) = ui.data(|data| data.get_temp::<Intent>(id)) else {
+            return;
+        };
+        let modal = Modal::new(id).show(ui.ctx(), |ui| {
+            ui.set_max_width(CONFIRMATION_WIDTH);
+            ui.label(texts::LOCAL_MODE_WARNING);
+            ui.horizontal(|ui| {
+                let confirmed = ui.button(texts::SWITCH_MODE).clicked();
+                let cancelled = ui.button(texts::CANCEL).clicked();
+                (confirmed, cancelled)
+            })
+            .inner
+        });
+        let (confirmed, cancelled) = modal.inner;
+        if confirmed || cancelled || modal.should_close() {
+            ui.data_mut(|data| data.remove::<Intent>(id));
+        }
+        if confirmed {
+            self.send(ui, intent);
+        }
+    }
+}

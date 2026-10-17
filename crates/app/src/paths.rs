@@ -9,6 +9,11 @@ pub const IDENTIFY: &str = "device/identification/visual";
 pub const INPUT_METER: &str = "m/in/level";
 pub const OUTPUT_METER: &str = "m/out/level";
 pub const INPUT_CLIP: &str = "m/in/clip";
+pub const OUTPUT_CLIP: &str = "m/out/clip";
+pub const PRODUCT: &str = "device/identity/product";
+pub const FIRMWARE_VERSION: &str = "device/identity/version";
+pub const SERIAL: &str = "device/identity/serial";
+pub const CONTROL_MODE: &str = "ui/control_mode";
 
 pub fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("constant path is valid")
@@ -32,6 +37,11 @@ mod tests {
             INPUT_METER,
             OUTPUT_METER,
             INPUT_CLIP,
+            OUTPUT_CLIP,
+            PRODUCT,
+            FIRMWARE_VERSION,
+            SERIAL,
+            CONTROL_MODE,
         ] {
             assert!(catalog_entry(catalog, &path(text)).is_some(), "{text}");
         }

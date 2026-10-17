@@ -6,7 +6,8 @@ use std::net::SocketAddrV6;
 
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::{mask_host, mask_serial};
-use neumann_control_core::speaker::{Event, Identity};
+use neumann_control_core::schema_walk::LeafReport;
+use neumann_control_core::speaker::{Command, Event, Identity};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -28,6 +29,16 @@ pub enum Status {
     Unreachable,
 }
 
+/// The answer to "Alle Werte…": every value the speaker has, read on request.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum AllValuesState {
+    #[default]
+    Idle,
+    Loading,
+    Loaded(Vec<LeafReport>),
+    Failed(String),
+}
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
@@ -45,6 +56,7 @@ pub struct SpeakerState {
     pub input_meters: Vec<MeterState>,
     pub output_meters: Vec<MeterState>,
     pub fader: FaderState,
+    pub all_values: AllValuesState,
 }
 
 impl SpeakerState {
@@ -63,6 +75,7 @@ impl SpeakerState {
             input_meters: Vec::new(),
             output_meters: Vec::new(),
             fader: FaderState::default(),
+            all_values: AllValuesState::Idle,
         }
     }
 
@@ -141,9 +154,15 @@ impl SpeakerState {
                 let text = texts::serial_mismatch(&mask_serial(&found));
                 self.set_message(Some(text), None);
             }
-            // The full-value dump has no state to land in until the report view exists.
-            Event::AllValues(_) | Event::AllValuesFailed(_) => {}
+            Event::AllValues(reports) => self.all_values = AllValuesState::Loaded(reports),
+            Event::AllValuesFailed(reason) => self.all_values = AllValuesState::Failed(reason),
         }
+    }
+
+    /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
+    pub fn read_all_values(&mut self) -> Command {
+        self.all_values = AllValuesState::Loading;
+        Command::ReadAll
     }
 
     pub(crate) fn set_message(&mut self, message: Option<String>, path: Option<SscPath>) {
@@ -360,6 +379,26 @@ mod tests {
         assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
         speaker.apply(value_event(paths::OUTPUT_LEVEL, json!(80.0)), 0.5);
         assert_eq!(speaker.fader.shown(80.0, 0.5), 80.0);
+    }
+
+    #[test]
+    fn all_values_go_from_loading_to_loaded_or_failed() {
+        let mut speaker = state();
+        assert_eq!(speaker.read_all_values(), Command::ReadAll);
+        assert_eq!(speaker.all_values, AllValuesState::Loading);
+        let reports = vec![LeafReport {
+            path: path("device/name"),
+            value: Ok(json!("left")),
+            limits: None,
+        }];
+        speaker.apply(Event::AllValues(reports.clone()), 0.0);
+        assert_eq!(speaker.all_values, AllValuesState::Loaded(reports));
+        speaker.read_all_values();
+        speaker.apply(Event::AllValuesFailed("refused".to_owned()), 1.0);
+        assert_eq!(
+            speaker.all_values,
+            AllValuesState::Failed("refused".to_owned())
+        );
     }
 
     fn identity(name: &str, product: &str) -> Identity {
