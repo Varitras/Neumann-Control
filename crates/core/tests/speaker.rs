@@ -6,7 +6,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::schema_walk::read_all;
+use neumann_control_core::schema_walk::{read_all, WalkError, MAX_SCHEMA_DEPTH, MAX_SCHEMA_NODES};
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 use neumann_control_core::speaker::{
     spawn, Command, Event, Identity, SpeakerHandle, Target, Timing,
@@ -21,6 +21,8 @@ const RECOVERY_DEADLINE: Duration = Duration::from_secs(15);
 const REQUEST_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const QUIET_PERIOD: Duration = Duration::from_millis(300);
 const STOP_DEADLINE: Duration = Duration::from_secs(1);
+// Slow enough that a walk or connect-time read takes many seconds.
+const SLOW_REPLY: Duration = Duration::from_millis(200);
 const LONG_INTERVAL: Duration = Duration::from_secs(60);
 const READ_ONLY_CODE: i64 = 405;
 const KH_120_II_LEAVES: usize = 50;
@@ -235,7 +237,12 @@ fn worker_reports_identity_then_values() {
             .expect("the sim has a level"),
     };
     assert_eq!(seen.last(), Some(&expected));
-    assert!(woken.load(Ordering::SeqCst) > seen.len());
+    // wake runs after the event is sent, so it may trail the receiver by a moment.
+    let end = Instant::now() + EVENT_DEADLINE;
+    while woken.load(Ordering::SeqCst) < seen.len() + 1 {
+        assert!(Instant::now() < end, "wake was not called for every event");
+        thread::sleep(REQUEST_POLL_INTERVAL);
+    }
 }
 
 #[test]
@@ -320,6 +327,25 @@ fn absent_path_is_reported_once_and_not_polled_again() {
 }
 
 #[test]
+fn set_on_absent_path_reports_absent_again() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.remove_value("audio/out/mute");
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let mute = path("audio/out/mute");
+    collect_until(&events, EVENT_DEADLINE, |event| {
+        *event == Event::Absent(mute.clone())
+    });
+
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    collect_until(&events, EVENT_DEADLINE, |event| {
+        *event == Event::Absent(mute.clone())
+    });
+}
+
+#[test]
 fn commands_run_before_polling() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     let busy = Timing {
@@ -334,11 +360,11 @@ fn commands_run_before_polling() {
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &level));
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &level));
 
-    let before = simulator.requests().len();
     handle.send(Command::Set {
         path: level.clone(),
         value: json!(90.0),
     });
+    let after_send = simulator.requests().len();
     collect_until(&events, EVENT_DEADLINE, |event| {
         *event
             == Event::Value {
@@ -354,8 +380,8 @@ fn commands_run_before_polling() {
         .expect("the set reached the simulator");
     // At most the one poll that was already under way may come first.
     assert!(
-        set_index <= before + 1,
-        "set was request {set_index}, {before} requests before it was sent"
+        set_index <= after_send + 1,
+        "set was request {set_index}, {after_send} requests when it was sent"
     );
 }
 
@@ -489,7 +515,7 @@ fn read_all_lists_every_leaf() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
 
-    let reports = read_all(&mut client).expect("the walk succeeds");
+    let reports = read_all(&mut client, &|| false).expect("the walk succeeds");
 
     assert_eq!(reports.len(), KH_120_II_LEAVES);
     let mut paths: Vec<String> = reports.iter().map(|leaf| leaf.path.to_string()).collect();
@@ -556,4 +582,117 @@ fn drop_stops_the_thread_while_waiting_to_reconnect() {
     let started = Instant::now();
     drop(handle);
     assert!(started.elapsed() < STOP_DEADLINE);
+}
+
+#[test]
+fn drop_during_read_all_returns_promptly() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let last = last_initial_path(KH_120_II_PRODUCT);
+    collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
+
+    simulator.set_reply_delay(SLOW_REPLY);
+    handle.send(Command::ReadAll);
+    wait_for_requests(&simulator, &path("osc/schema"), 1, EVENT_DEADLINE);
+
+    let started = Instant::now();
+    drop(handle);
+    assert!(started.elapsed() < STOP_DEADLINE);
+}
+
+#[test]
+fn drop_during_connect_read_returns_promptly() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(SLOW_REPLY);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    let started = Instant::now();
+    drop(handle);
+    assert!(started.elapsed() < STOP_DEADLINE);
+}
+
+#[test]
+fn oversized_schema_fails_read_all_but_keeps_connection() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let deep = (0..=MAX_SCHEMA_DEPTH)
+        .map(|level| format!("level{level}"))
+        .collect::<Vec<_>>()
+        .join("/");
+    simulator.set_value(&deep, json!(1));
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    handle.send(Command::ReadAll);
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        matches!(event, Event::AllValues(_) | Event::AllValuesFailed(_))
+    });
+    assert!(matches!(seen.last(), Some(Event::AllValuesFailed(_))));
+
+    let mute = path("audio/out/mute");
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        *event
+            == Event::Value {
+                path: mute.clone(),
+                value: json!(true),
+            }
+    });
+    assert!(!seen.iter().any(is_unreachable));
+}
+
+#[test]
+fn too_many_schema_nodes_are_refused() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    for index in 0..=MAX_SCHEMA_NODES {
+        simulator.set_value(&format!("wide/node{index}"), json!(index));
+    }
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+
+    let outcome = read_all(&mut client, &|| false);
+
+    assert!(matches!(outcome, Err(WalkError::Refused(_))));
+    assert!(!client.is_closed());
+}
+
+#[test]
+fn read_all_stops_when_asked() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+
+    let outcome = read_all(&mut client, &|| true);
+
+    assert_eq!(outcome, Err(WalkError::Stopped));
+    assert!(simulator.requests().is_empty());
+}
+
+#[test]
+fn commands_queued_during_long_work_keep_their_order() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(Duration::from_millis(20));
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    // Sent while the connect-time read is still running, so the worker sets them aside.
+    let level = path("audio/out/level");
+    for value in [80.0, 90.0] {
+        handle.send(Command::Set {
+            path: level.clone(),
+            value: json!(value),
+        });
+    }
+    let last_set = Event::Value {
+        path: level.clone(),
+        value: json!(90.0),
+    };
+    let seen = collect_until(&events, RECOVERY_DEADLINE, |event| *event == last_set);
+    let first_set = Event::Value {
+        path: level,
+        value: json!(80.0),
+    };
+    assert!(seen.contains(&first_set), "the first set did not run first");
+    assert_eq!(simulator.value("audio/out/level"), Some(json!(90.0)));
 }

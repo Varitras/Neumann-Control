@@ -1,6 +1,8 @@
 //! The worker that owns the connection to one speaker: one thread per speaker, commands from
 //! the app before polling, and everything it learns sent back as events.
 
+mod inbox;
+
 use std::collections::HashSet;
 use std::net::SocketAddrV6;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -13,9 +15,10 @@ use serde_json::Value;
 use crate::catalog::{Catalog, Entry};
 use crate::mask::{mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
-use crate::schema_walk::{self, LeafReport};
+use crate::schema_walk::{self, LeafReport, WalkError};
 use crate::ssc::client::{Client, SscError};
 use crate::ssc::wire::{DeviceError, SscPath};
+use inbox::Inbox;
 
 const DEFAULT_METER_INTERVAL: Duration = Duration::from_millis(100);
 const DEFAULT_FAST_INTERVAL: Duration = Duration::from_secs(2);
@@ -82,9 +85,10 @@ pub enum Event {
         path: SscPath,
         value: Value,
     },
-    /// The speaker does not have the path; it is not polled again on this connection.
+    /// The speaker does not have the path; it is not polled again on this connection, and
+    /// every `Set` to it is answered with this again.
     Absent(SscPath),
-    /// The speaker refused the write; a `Value` with the unchanged value follows.
+    /// The speaker refused the write; a re-read follows.
     WriteRejected {
         path: SscPath,
         error: DeviceError,
@@ -139,7 +143,7 @@ pub fn spawn(
         host: mask_host(&target.address),
         target,
         timing,
-        commands,
+        inbox: Inbox::new(commands),
         outbox: Outbox { events, wake },
         reported: None,
     };
@@ -177,6 +181,7 @@ enum Disconnect {
 /// Why a connected session ended.
 enum Interruption {
     Stopped,
+    /// The connection is gone, or the speaker cannot be used on it.
     Lost(SscError),
 }
 
@@ -193,7 +198,7 @@ struct Worker {
     target: Target,
     host: String,
     timing: Timing,
-    commands: Receiver<Command>,
+    inbox: Inbox,
     outbox: Outbox,
     reported: Option<Disconnect>,
 }
@@ -212,13 +217,17 @@ impl Worker {
 
     /// One connection attempt and, if the speaker is the expected one, the session on it.
     fn connect_and_serve(&mut self) -> Result<(), Stopped> {
-        let connected = Client::connect(self.target.address).and_then(|mut client| {
-            let identity = read_identity(&mut client)?;
-            Ok((client, identity))
-        });
-        let (client, identity) = match connected {
-            Ok(connected) => connected,
+        let mut client = match Client::connect(self.target.address) {
+            Ok(client) => client,
             Err(error) => {
+                self.report_unreachable(&error);
+                return Ok(());
+            }
+        };
+        let identity = match self.read_identity(&mut client) {
+            Ok(identity) => identity,
+            Err(Interruption::Stopped) => return Err(Stopped),
+            Err(Interruption::Lost(error)) => {
                 self.report_unreachable(&error);
                 return Ok(());
             }
@@ -261,7 +270,7 @@ impl Worker {
     /// A pending command, or else what the schedule has due; waits for whichever comes first.
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
         let wait = session.schedule.time_until_due(Instant::now());
-        match self.commands.recv_timeout(wait) {
+        match self.inbox.next(wait) {
             Ok(command) => return self.execute(session, command),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
@@ -282,13 +291,18 @@ impl Worker {
     }
 
     fn read(&self, session: &mut Session, path: &SscPath) -> Result<(), Interruption> {
+        if self.inbox.stop_requested() {
+            return Err(Interruption::Stopped);
+        }
         match session.client.get(path) {
             Ok(value) => self.outbox.emit(Event::Value {
                 path: path.clone(),
                 value,
             }),
             Err(SscError::Device(error)) if error.code == NOT_FOUND_CODE => {
-                self.mark_absent(session, path);
+                if self.forget(session, path) {
+                    self.outbox.emit(Event::Absent(path.clone()));
+                }
             }
             // Nothing the user could act on; the next poll asks again.
             Err(SscError::Device(error)) => log::warn!(
@@ -319,8 +333,10 @@ impl Worker {
             Err(error) => error,
         };
         match error {
+            // Reported even when already known: the app waits for an answer to its write.
             SscError::Device(error) if error.code == NOT_FOUND_CODE => {
-                self.mark_absent(session, &path);
+                self.forget(session, &path);
+                self.outbox.emit(Event::Absent(path));
                 Ok(())
             }
             // The device kept its old value (read-only, wrong type, ...); show that one again.
@@ -342,26 +358,31 @@ impl Worker {
     }
 
     fn read_all(&self, session: &mut Session) -> Result<(), Interruption> {
-        let error = match schema_walk::read_all(&mut session.client) {
+        let should_stop = || self.inbox.stop_requested();
+        match schema_walk::read_all(&mut session.client, &should_stop) {
             Ok(reports) => {
                 self.outbox.emit(Event::AllValues(reports));
-                return Ok(());
+                Ok(())
             }
-            Err(error) => error,
-        };
-        self.outbox.emit(Event::AllValuesFailed(error.to_string()));
-        if error.is_connection_lost() {
-            return Err(Interruption::Lost(error));
+            Err(WalkError::Refused(reason)) => {
+                self.outbox.emit(Event::AllValuesFailed(reason));
+                Ok(())
+            }
+            Err(WalkError::Connection(error)) => {
+                self.outbox.emit(Event::AllValuesFailed(error.to_string()));
+                Err(Interruption::Lost(error))
+            }
+            Err(WalkError::Stopped) => Err(Interruption::Stopped),
         }
-        Ok(())
     }
 
-    fn mark_absent(&self, session: &mut Session, path: &SscPath) {
+    /// Stops polling `path`; false when it was already known to be absent.
+    fn forget(&self, session: &mut Session, path: &SscPath) -> bool {
         if !session.absent.insert(path.clone()) {
-            return;
+            return false;
         }
         session.schedule.forget(path);
-        self.outbox.emit(Event::Absent(path.clone()));
+        true
     }
 
     /// Waits between connection attempts, answering commands at once since none can run.
@@ -369,7 +390,7 @@ impl Worker {
         let deadline = Instant::now() + duration;
         loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
-            match self.commands.recv_timeout(remaining) {
+            match self.inbox.next(remaining) {
                 Ok(Command::Set { path, .. }) => self.outbox.emit(Event::WriteFailed {
                     path,
                     message: NOT_CONNECTED_MESSAGE.to_owned(),
@@ -413,22 +434,26 @@ impl Worker {
         );
         self.outbox.emit(Event::SerialMismatch { expected, found });
     }
-}
 
-fn read_identity(client: &mut Client) -> Result<Identity, SscError> {
-    Ok(Identity {
-        product: read_text(client, PRODUCT_PATH)?,
-        version: read_text(client, VERSION_PATH)?,
-        serial: read_text(client, SERIAL_PATH)?,
-        name: read_text(client, NAME_PATH)?,
-    })
-}
+    /// A device error counts as lost too: without its identity the speaker cannot be used.
+    fn read_identity(&self, client: &mut Client) -> Result<Identity, Interruption> {
+        Ok(Identity {
+            product: self.read_text(client, PRODUCT_PATH)?,
+            version: self.read_text(client, VERSION_PATH)?,
+            serial: self.read_text(client, SERIAL_PATH)?,
+            name: self.read_text(client, NAME_PATH)?,
+        })
+    }
 
-/// A string value as it is; any other value in its JSON form.
-fn read_text(client: &mut Client, path: &str) -> Result<String, SscError> {
-    let path = SscPath::parse(path).expect("constant identity path is valid");
-    match client.get(&path)? {
-        Value::String(text) => Ok(text),
-        other => Ok(other.to_string()),
+    /// A string value as it is; any other value in its JSON form.
+    fn read_text(&self, client: &mut Client, path: &str) -> Result<String, Interruption> {
+        if self.inbox.stop_requested() {
+            return Err(Interruption::Stopped);
+        }
+        let path = SscPath::parse(path).expect("constant identity path is valid");
+        match client.get(&path).map_err(Interruption::Lost)? {
+            Value::String(text) => Ok(text),
+            other => Ok(other.to_string()),
+        }
     }
 }

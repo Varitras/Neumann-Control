@@ -60,6 +60,7 @@ struct State {
     device: SimulatedDevice,
     faults: VecDeque<Fault>,
     requests: Vec<Value>,
+    reply_delay: Duration,
 }
 
 #[derive(Default)]
@@ -137,7 +138,9 @@ impl Shared {
             let Ok(Value::Object(request)) = parsed else {
                 continue;
             };
-            let lines = match self.respond(request) {
+            let delivery = self.respond(request);
+            thread::sleep(self.state().reply_delay);
+            let lines = match delivery {
                 Delivery::Lines(lines) => lines,
                 Delivery::Silent => continue,
                 Delivery::Close => break,
@@ -217,6 +220,7 @@ impl Simulator {
                 device: SimulatedDevice::new(model),
                 faults: VecDeque::new(),
                 requests: Vec::new(),
+                reply_delay: Duration::ZERO,
             }),
             connections: Mutex::new(Connections::default()),
             stopping: AtomicBool::new(false),
@@ -249,6 +253,11 @@ impl Simulator {
     /// Every request received so far, parsed.
     pub fn requests(&self) -> Vec<Value> {
         self.shared.state().requests.clone()
+    }
+
+    /// Models a slow device: every later reply waits this long.
+    pub fn set_reply_delay(&self, delay: Duration) {
+        self.shared.state().reply_delay = delay;
     }
 
     pub fn value(&self, path: &str) -> Option<Value> {
