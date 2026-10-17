@@ -1,7 +1,12 @@
+use std::io::{BufRead, BufReader, Write};
+use std::net::{Ipv6Addr, SocketAddrV6, TcpListener, TcpStream};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
-use neumann_control_core::ssc::client::{Client, NodeKind, SscError};
+use neumann_control_core::ssc::client::{
+    Client, NodeKind, SscError, MAX_LINE_BYTES, MAX_RESPONSE_BYTES, MAX_RESPONSE_LINES,
+};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::{json, Value};
 
@@ -67,10 +72,9 @@ fn wrong_type_set_is_device_error_406() {
     assert_eq!(device_code(error), WRONG_TYPE_CODE);
 }
 
-// A stale line without an id is accepted when it carries the requested path, so the stale
-// line of the simulator (audio/out/level) must be skipped because it lacks a different path.
+// Rule 3: a line without an id counts only if it has the requested path.
 #[test]
-fn stale_line_is_skipped_by_xid() {
+fn xidless_line_without_the_path_is_skipped() {
     let (simulator, mut client) = start(SimModel::Kh750);
     simulator.inject(Fault::StaleLineFirst);
     let mute = client.get(&path("audio/out/mute")).unwrap();
@@ -189,4 +193,147 @@ fn set_number_sends_a_finite_number() {
     let (_simulator, mut client) = start(SimModel::Kh750);
     let confirmed: Value = client.set_number(&path("audio/out/level"), 90.0).unwrap();
     assert_eq!(confirmed, json!(90.0));
+}
+
+const SHORT_LINE: &str = "{\"x\":1}
+";
+const BIG_LINE_BYTES: usize = 900 * 1024;
+const BIG_LINE_COUNT: usize = 5;
+const _: () = assert!(BIG_LINE_BYTES < MAX_LINE_BYTES);
+const _: () = assert!(BIG_LINE_BYTES * BIG_LINE_COUNT > MAX_RESPONSE_BYTES);
+const FOREIGN_XID: u64 = 999_999;
+const TALKING_INTERVAL: Duration = Duration::from_secs(2);
+const TALKING_LINES: usize = 8;
+const TEN_SECOND_CUT_MIN: Duration = Duration::from_secs(9);
+const TEN_SECOND_CUT_MAX: Duration = Duration::from_secs(13);
+
+/// A one-connection fake speaker: reads the request line, then runs `script` with the
+/// request's transaction id. Write errors in the script are ignored (the client hangs up).
+fn scripted_speaker(script: impl FnOnce(&mut TcpStream, u64) + Send + 'static) -> Client {
+    let listener = TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)).unwrap();
+    let address = match listener.local_addr().unwrap() {
+        std::net::SocketAddr::V6(address) => address,
+        other => panic!("not IPv6: {other}"),
+    };
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = String::new();
+        BufReader::new(stream.try_clone().unwrap())
+            .read_line(&mut request)
+            .unwrap();
+        let tree: Value = serde_json::from_str(request.trim()).unwrap();
+        let xid = tree["osc"]["xid"].as_u64().unwrap();
+        script(&mut stream, xid);
+    });
+    Client::connect(address).expect("fake speaker accepts")
+}
+
+fn level_reply(xid: u64) -> String {
+    format!(
+        "{{\"audio\":{{\"out\":{{\"level\":1.0}}}},\"osc\":{{\"xid\":{xid}}}}}
+"
+    )
+}
+
+fn padded_object(total_content_bytes: usize) -> String {
+    let overhead = "{\"x\":\"\"}".len();
+    format!(
+        "{{\"x\":\"{}\"}}",
+        "a".repeat(total_content_bytes - overhead)
+    )
+}
+
+fn assert_protocol_and_closed(mut client: Client) {
+    let error = client.get(&path("audio/out/level")).unwrap_err();
+    assert!(matches!(error, SscError::Protocol(_)), "got {error:?}");
+    assert!(client.is_closed());
+}
+
+#[test]
+fn too_many_lines_closes_connection() {
+    let client = scripted_speaker(|stream, _| {
+        for _ in 0..=MAX_RESPONSE_LINES {
+            if stream.write_all(SHORT_LINE.as_bytes()).is_err() {
+                break;
+            }
+        }
+    });
+    assert_protocol_and_closed(client);
+}
+
+#[test]
+fn too_many_bytes_closes_connection() {
+    let client = scripted_speaker(|stream, _| {
+        let line = format!(
+            "{}
+",
+            padded_object(BIG_LINE_BYTES)
+        );
+        for _ in 0..BIG_LINE_COUNT {
+            if stream.write_all(line.as_bytes()).is_err() {
+                break;
+            }
+        }
+    });
+    assert_protocol_and_closed(client);
+}
+
+#[test]
+fn unterminated_stream_over_line_limit_closes_connection() {
+    let client = scripted_speaker(|stream, _| {
+        let chunk = vec![b'a'; MAX_LINE_BYTES + 1024];
+        let _ = stream.write_all(&chunk);
+    });
+    assert_protocol_and_closed(client);
+}
+
+// The limit applies to the line without its CR LF: exactly MAX_LINE_BYTES is allowed.
+#[test]
+fn line_of_exactly_the_limit_is_accepted() {
+    let mut client = scripted_speaker(|stream, xid| {
+        let line = format!(
+            "{}
+",
+            padded_object(MAX_LINE_BYTES)
+        );
+        let _ = stream.write_all(line.as_bytes());
+        let _ = stream.write_all(level_reply(xid).as_bytes());
+    });
+    assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(1.0));
+}
+
+#[test]
+fn line_one_byte_over_the_limit_closes_connection() {
+    let client = scripted_speaker(|stream, _| {
+        let line = format!(
+            "{}
+",
+            padded_object(MAX_LINE_BYTES + 1)
+        );
+        let _ = stream.write_all(line.as_bytes());
+    });
+    assert_protocol_and_closed(client);
+}
+
+#[test]
+fn device_that_keeps_talking_is_cut_after_ten_seconds() {
+    let client = scripted_speaker(|stream, _| {
+        let line = format!(
+            "{{\"osc\":{{\"xid\":{FOREIGN_XID}}}}}
+"
+        );
+        for _ in 0..TALKING_LINES {
+            if stream.write_all(line.as_bytes()).is_err() {
+                break;
+            }
+            thread::sleep(TALKING_INTERVAL);
+        }
+    });
+    let started = Instant::now();
+    assert_protocol_and_closed(client);
+    let elapsed = started.elapsed();
+    assert!(
+        (TEN_SECOND_CUT_MIN..TEN_SECOND_CUT_MAX).contains(&elapsed),
+        "cut after {elapsed:?}"
+    );
 }
