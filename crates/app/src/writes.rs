@@ -82,13 +82,19 @@ pub fn check(
 
 impl SpeakerState {
     /// The command for `intent`, or `None` after putting the refusal on the card.
-    pub fn request(&mut self, intent: Intent, catalog: &Catalog) -> Option<Command> {
+    /// A sent level is held on the fader until the speaker reports it (`now` is the UI clock).
+    pub fn request(&mut self, intent: Intent, catalog: &Catalog, now: f64) -> Option<Command> {
         let path = intent.path();
         let checked = self
             .intended_value(intent, &path)
             .and_then(|value| check(self, catalog, &path, &value).map(|()| value));
         match checked {
-            Ok(value) => Some(Command::Set { path, value }),
+            Ok(value) => {
+                if let Intent::Level(level) = intent {
+                    self.fader.sent(level, now);
+                }
+                Some(Command::Set { path, value })
+            }
             Err(refusal) => {
                 log::warn!("not sending {path}: {refusal:?}");
                 self.set_message(Some(texts::describe_refusal(&refusal)), Some(path));
@@ -149,15 +155,23 @@ mod tests {
     #[test]
     fn toggle_writes_the_opposite_switch_value() {
         let mut speaker = speaker("KH 120 II");
-        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded());
+        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
         assert_eq!(command, set(paths::MUTE, Value::Bool(true)));
         assert_eq!(speaker.message, None);
     }
 
     #[test]
+    fn a_sent_level_is_held_on_the_fader() {
+        let mut speaker = speaker("KH 120 II");
+        let command = speaker.request(Intent::Level(90.0), Catalog::embedded(), 0.0);
+        assert_eq!(command, set(paths::OUTPUT_LEVEL, Value::from(90.0)));
+        assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
+    }
+
+    #[test]
     fn a_model_without_write_permission_is_refused_with_a_message() {
         let mut speaker = speaker("KH 80");
-        let command = speaker.request(Intent::Level(80.0), Catalog::embedded());
+        let command = speaker.request(Intent::Level(80.0), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
         let expected = texts::describe_refusal(&Refusal::NotWritable);
         assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
@@ -171,7 +185,7 @@ mod tests {
     #[test]
     fn an_out_of_range_value_is_refused_with_the_catalog_reason() {
         let mut speaker = speaker("KH 120 II");
-        let command = speaker.request(Intent::Level(130.0), Catalog::embedded());
+        let command = speaker.request(Intent::Level(130.0), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
         let reason = ValueError::OutOfRange {
             min: 0.0,
@@ -204,7 +218,7 @@ mod tests {
     #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
-        let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded());
+        let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
         let expected = texts::describe_refusal(&Refusal::ValueUnknown);
         assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));

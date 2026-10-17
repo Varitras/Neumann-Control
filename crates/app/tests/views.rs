@@ -108,6 +108,24 @@ fn wait_for_level(harness: &mut Harness<'static, NeumannApp>, value: f64) {
     });
 }
 
+/// Requests the simulator must receive after a frame before "nothing was sent" can be
+/// asserted: the worker runs commands before polls, so one request still in flight plus one
+/// more mean anything the frame sent has arrived.
+const BARRIER_REQUESTS: usize = 2;
+
+/// Waits without drawing frames, so the window sends nothing new meanwhile.
+fn barrier(simulator: &Simulator) {
+    let start = simulator.requests().len();
+    let deadline = Instant::now() + WAIT_LIMIT;
+    while simulator.requests().len() < start + BARRIER_REQUESTS {
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for later polls"
+        );
+        thread::sleep(POLL_PAUSE);
+    }
+}
+
 fn level_sets(simulator: &Simulator) -> Vec<f64> {
     simulator
         .requests()
@@ -146,6 +164,7 @@ fn fader_drag_sends_once_on_release() {
         harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
         harness.step();
     }
+    barrier(&simulator);
     assert!(
         level_sets(&simulator).is_empty(),
         "a Set went out while dragging"
@@ -160,6 +179,7 @@ fn fader_drag_sends_once_on_release() {
         !level_sets(&simulator).is_empty()
     });
     harness.run_steps(10);
+    barrier(&simulator);
     let sets = level_sets(&simulator);
     assert_eq!(sets.len(), 1, "{sets:?}");
     assert!(sets[0] < 100.0, "dragging down lowers the level: {sets:?}");
@@ -180,13 +200,76 @@ fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
         });
     }
     harness.step();
+    barrier(&simulator);
     assert!(level_sets(&simulator).is_empty(), "the wheel wrote at once");
     harness.get_by_label(&readout(101.0));
     wait_until(&mut harness, "the wheel Set", |_| {
         !level_sets(&simulator).is_empty()
     });
     harness.run_steps(10);
+    barrier(&simulator);
     assert_eq!(level_sets(&simulator), vec![101.0]);
+}
+
+#[test]
+fn escape_during_a_drag_sends_nothing() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness.get_by_role(Role::Slider).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=5 {
+        harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.step();
+    for frame in 6..=10 {
+        harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(start + egui::vec2(0.0, 40.0));
+    harness.run_steps(10);
+    barrier(&simulator);
+    assert!(
+        level_sets(&simulator).is_empty(),
+        "{:?}",
+        level_sets(&simulator)
+    );
+    harness.get_by_label(&readout(100.0));
+    // The next drag is a normal one again.
+    harness.drag_at(start);
+    harness.hover_at(start + egui::vec2(0.0, 20.0));
+    harness.step();
+    harness.drop_at(start + egui::vec2(0.0, 20.0));
+    wait_until(&mut harness, "the next drag's Set", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+}
+
+#[test]
+fn a_drag_replaces_wheel_steps_not_yet_sent() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness.get_by_role(Role::Slider).rect().center();
+    harness.hover_at(start);
+    harness.event(egui::Event::MouseWheel {
+        unit: MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 1.0),
+        phase: TouchPhase::Move,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.drag_at(start);
+    for frame in 1..=4 {
+        harness.hover_at(start + egui::vec2(0.0, 5.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(start + egui::vec2(0.0, 20.0));
+    wait_until(&mut harness, "the drag's Set", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    harness.run_steps(10);
+    barrier(&simulator);
+    let sets = level_sets(&simulator);
+    assert_eq!(sets.len(), 1, "{sets:?}");
+    assert!(sets[0] < 100.0, "{sets:?}");
 }
 
 #[test]

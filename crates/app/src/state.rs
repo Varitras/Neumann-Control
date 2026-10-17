@@ -118,6 +118,9 @@ impl SpeakerState {
                 if self.message_path.as_ref() == Some(&path) {
                     self.set_message(None, None);
                 }
+                if path == paths::path(paths::OUTPUT_LEVEL) {
+                    self.fader.confirmed();
+                }
                 self.absent.remove(&path);
                 self.feed_meters(&path, &value, now);
                 self.values.insert(path, value);
@@ -347,6 +350,16 @@ mod tests {
         assert!(speaker.message.is_some());
         speaker.apply(value_event("audio/out/level", json!(80.0)), 2.0);
         assert_eq!(speaker.message, None);
+    }
+
+    #[test]
+    fn a_reported_level_ends_the_held_fader_value() {
+        let mut speaker = state();
+        speaker.fader.sent(90.0, 0.0);
+        speaker.apply(value_event("device/name", json!("left")), 0.5);
+        assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
+        speaker.apply(value_event(paths::OUTPUT_LEVEL, json!(80.0)), 0.5);
+        assert_eq!(speaker.fader.shown(80.0, 0.5), 80.0);
     }
 
     fn identity(name: &str, product: &str) -> Identity {

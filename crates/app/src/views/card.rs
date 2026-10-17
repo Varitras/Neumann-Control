@@ -173,7 +173,8 @@ fn toggle(
     let enabled = current.is_some() && writes::can_write(speaker, catalog, &path);
     let button = Button::new(text).selected(current.unwrap_or(false));
     if ui.add_enabled(enabled, button).clicked() {
-        commands.extend(speaker.request(Intent::Toggle(switch), catalog));
+        let now = ui.input(|input| input.time);
+        commands.extend(speaker.request(Intent::Toggle(switch), catalog, now));
     }
 }
 
