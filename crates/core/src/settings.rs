@@ -28,6 +28,7 @@ pub struct ManualSpeaker {
     pub serial: Option<String>,
 }
 
+/// Outer position and inner size of the main window in physical pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct WindowGeometry {
     pub x: f32,

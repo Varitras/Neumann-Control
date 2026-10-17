@@ -5,14 +5,17 @@ use std::error::Error;
 use std::fs::File;
 use std::path::Path;
 
-use eframe::egui::{pos2, vec2, ViewportBuilder};
+use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
 use eframe::wgpu;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::texts;
+use neumann_control_app::window_placement::{fit_into, MonitorArea};
 use neumann_control_core::settings::{self, WindowGeometry, LOG_FILE, SETTINGS_FILE};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::window::Window;
 
 const WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
 const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
@@ -36,19 +39,31 @@ fn wgpu_options() -> WgpuConfiguration {
     options
 }
 
-/// The saved window, never smaller than the minimum; the default size when none was saved.
-fn viewport(saved: Option<WindowGeometry>) -> ViewportBuilder {
-    let builder = ViewportBuilder::default()
-        .with_title(texts::WINDOW_TITLE)
-        .with_min_inner_size(WINDOW_MIN_SIZE);
-    let Some(saved) = saved else {
-        return builder.with_inner_size(WINDOW_SIZE);
-    };
-    let width = saved.width.max(WINDOW_MIN_SIZE[0]);
-    let height = saved.height.max(WINDOW_MIN_SIZE[1]);
-    builder
-        .with_position(pos2(saved.x, saved.y))
-        .with_inner_size(vec2(width, height))
+fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
+    window
+        .available_monitors()
+        .map(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            MonitorArea {
+                x: position.x as f32,
+                y: position.y as f32,
+                width: size.width as f32,
+                height: size.height as f32,
+            }
+        })
+        .collect()
+}
+
+/// Set in physical pixels once the window exists: the viewport builder takes points, whose
+/// scale is not known before the window is on a monitor.
+fn place_window(window: &Window, saved: WindowGeometry) {
+    let scale = window.scale_factor() as f32;
+    let min_size = (WINDOW_MIN_SIZE[0] * scale, WINDOW_MIN_SIZE[1] * scale);
+    let geometry = fit_into(saved, &monitor_areas(window), min_size);
+    window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
+    // The size granted arrives as a resize event like any other.
+    let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
 }
 
 /// The app still runs without a log, e.g. from a read-only folder.
@@ -71,7 +86,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let settings_path = directory.join(SETTINGS_FILE);
     let saved_window = settings::load(&settings_path).window;
     let options = eframe::NativeOptions {
-        viewport: viewport(saved_window),
+        viewport: ViewportBuilder::default()
+            .with_title(texts::WINDOW_TITLE)
+            .with_inner_size(WINDOW_SIZE)
+            .with_min_inner_size(WINDOW_MIN_SIZE),
+        centered: true,
         wgpu_options: wgpu_options(),
         ..eframe::NativeOptions::default()
     };
@@ -79,6 +98,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         texts::WINDOW_TITLE,
         options,
         Box::new(move |creation_context| {
+            let window = creation_context.winit_window();
+            if let (Some(window), Some(saved)) = (window, saved_window) {
+                place_window(window, saved);
+            }
             let context = creation_context.egui_ctx.clone();
             let spawner = Box::new(CoreSpawner::new(context.clone()));
             Ok(Box::new(NeumannApp::new(&context, settings_path, spawner)))

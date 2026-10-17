@@ -273,20 +273,21 @@ fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }
 
-/// Outer position and inner size in points, as the viewport builder takes them back. `None`
-/// while minimized or maximized, so the file keeps the last normal window.
-pub fn window_geometry(viewport: &ViewportInfo) -> Option<WindowGeometry> {
+/// Outer position and inner size in physical pixels, as `window_placement` takes them back.
+/// `None` while minimized or maximized, so the file keeps the last normal window.
+pub fn window_geometry(viewport: &ViewportInfo, pixels_per_point: f32) -> Option<WindowGeometry> {
     let outer = viewport.outer_rect?;
     let inner = viewport.inner_rect?;
     let normal = viewport.minimized != Some(true) && viewport.maximized != Some(true);
     if !normal {
         return None;
     }
+    let physical = |points: f32| (points * pixels_per_point).round();
     Some(WindowGeometry {
-        x: outer.min.x,
-        y: outer.min.y,
-        width: inner.width(),
-        height: inner.height(),
+        x: physical(outer.min.x),
+        y: physical(outer.min.y),
+        width: physical(inner.width()),
+        height: physical(inner.height()),
     })
 }
 
@@ -295,7 +296,8 @@ impl eframe::App for NeumannApp {
         let now = context.input(|input| input.time);
         self.drain_events(now);
         self.poll_scan();
-        let geometry = context.input(|input| window_geometry(input.viewport()));
+        let pixels_per_point = context.pixels_per_point();
+        let geometry = context.input(|input| window_geometry(input.viewport(), pixels_per_point));
         self.window = geometry.or(self.window);
     }
 
@@ -330,14 +332,14 @@ mod tests {
     }
 
     #[test]
-    fn geometry_is_outer_position_and_inner_size() {
+    fn geometry_is_outer_position_and_inner_size_in_physical_pixels() {
         assert_eq!(
-            window_geometry(&viewport()),
+            window_geometry(&viewport(), 1.5),
             Some(WindowGeometry {
-                x: -10.0,
-                y: 20.0,
-                width: 800.0,
-                height: 500.0,
+                x: -15.0,
+                y: 30.0,
+                width: 1200.0,
+                height: 750.0,
             })
         );
     }
@@ -352,8 +354,8 @@ mod tests {
             maximized: Some(true),
             ..viewport()
         };
-        assert_eq!(window_geometry(&minimized), None);
-        assert_eq!(window_geometry(&maximized), None);
-        assert_eq!(window_geometry(&ViewportInfo::default()), None);
+        assert_eq!(window_geometry(&minimized, 1.0), None);
+        assert_eq!(window_geometry(&maximized, 1.0), None);
+        assert_eq!(window_geometry(&ViewportInfo::default(), 1.0), None);
     }
 }

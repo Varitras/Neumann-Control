@@ -8,4 +8,5 @@ pub mod targets;
 pub mod texts;
 pub mod ui_kit;
 pub mod views;
+pub mod window_placement;
 pub mod writes;

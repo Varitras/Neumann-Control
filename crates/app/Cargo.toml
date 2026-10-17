@@ -20,6 +20,8 @@ serde_json = "1"
 eframe = "0.36"
 log = "0.4"
 simplelog = "0.12"
+# Already in the tree through eframe; lists the monitors to place the window at the start.
+winit = "0.30"
 
 [dev-dependencies]
 egui_kittest = { version = "0.36", features = ["eframe"] }
