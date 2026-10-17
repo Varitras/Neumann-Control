@@ -27,6 +27,7 @@ pub const ADDRESS_FIELD: &str = "IPv6-Adresse";
 pub const ADDRESS_HINT: &str = "z. B. fe80::1%7";
 pub const ADD: &str = "Hinzufügen";
 pub const CANCEL: &str = "Abbrechen";
+pub const ADDRESS_ALREADY_LISTED: &str = "Diese Adresse ist schon eingetragen.";
 
 pub const UNREACHABLE: &str = "nicht erreichbar (aus oder Standby)";
 pub const WRITE_FAILED: &str = "Schreiben fehlgeschlagen";

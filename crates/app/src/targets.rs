@@ -34,6 +34,13 @@ pub fn merge_targets(manual: &[ManualSpeaker], found: &[Found]) -> Vec<(SpeakerK
     targets
 }
 
+/// Whether a manual entry already points at `address`, however it was written.
+pub fn is_listed(manual: &[ManualSpeaker], address: SocketAddrV6) -> bool {
+    manual
+        .iter()
+        .any(|entry| parse_address(&entry.address, entry.port) == Ok(address))
+}
+
 /// Writes the serial a speaker reported into the manual entries for its address that have none
 /// yet, so the next merge joins them with scan results by serial. True when an entry changed.
 pub fn remember_serial(manual: &mut [ManualSpeaker], serial: &str, address: SocketAddrV6) -> bool {

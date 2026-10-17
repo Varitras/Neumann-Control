@@ -186,18 +186,11 @@ impl NeumannApp {
         }
     }
 
+    /// The dialog already refused unparsable and listed addresses.
     fn add_manual(&mut self, manual: ManualSpeaker) {
         let Ok(address) = parse_address(&manual.address, manual.port) else {
             return;
         };
-        let known = self
-            .settings
-            .manual
-            .iter()
-            .any(|existing| parse_address(&existing.address, existing.port) == Ok(address));
-        if known {
-            return;
-        }
         log::info!("manual speaker added at {}", mask_host(&address));
         self.settings.manual.push(manual);
         self.save_settings();
@@ -257,7 +250,7 @@ impl NeumannApp {
         let Some(form) = &mut self.add_address else {
             return;
         };
-        match add_address::show(ui, form) {
+        match add_address::show(ui, form, &self.settings.manual) {
             AddAddressAction::None => {}
             AddAddressAction::Cancel => self.add_address = None,
             AddAddressAction::Add(manual) => {

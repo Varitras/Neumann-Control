@@ -537,3 +537,28 @@ fn two_manual_entries_for_one_speaker_stay_one_card() {
     });
     wait_until(&mut harness, "one card", has_one_card);
 }
+
+#[test]
+fn add_address_names_an_address_already_listed() {
+    let directory = tempfile::tempdir().unwrap();
+    let listed = ManualSpeaker {
+        address: LOOPBACK.to_owned(),
+        port: neumann_control_core::address::SSC_PORT,
+        serial: None,
+    };
+    let path = settings_file(directory.path(), vec![listed]);
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.get_by_label(texts::ADD_ADDRESS).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::ADDRESS_FIELD).click();
+    harness.run_steps(1);
+    harness
+        .get_by_label(texts::ADDRESS_FIELD)
+        .type_text("[::1]");
+    harness.run_steps(1);
+    harness.get_by_label(texts::ADD).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::ADDRESS_ALREADY_LISTED);
+    harness.get_by_label(texts::ADD_ADDRESS_TITLE);
+    assert_eq!(settings::load(&path).manual.len(), 1);
+}
