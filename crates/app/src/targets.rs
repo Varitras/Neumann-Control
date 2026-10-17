@@ -34,6 +34,35 @@ pub fn merge_targets(manual: &[ManualSpeaker], found: &[Found]) -> Vec<(SpeakerK
     targets
 }
 
+/// Writes the serial a speaker reported into the manual entries for its address that have none
+/// yet, so the next merge joins them with scan results by serial. True when an entry changed.
+pub fn remember_serial(manual: &mut [ManualSpeaker], serial: &str, address: SocketAddrV6) -> bool {
+    if serial.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for entry in manual.iter_mut() {
+        let same_address = parse_address(&entry.address, entry.port) == Ok(address);
+        if same_address && entry.serial.is_none() {
+            entry.serial = Some(serial.to_owned());
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Positions of cards whose serial an earlier card already has: one speaker reached at two
+/// addresses. The first card stays.
+pub fn duplicate_cards(keys: &[SpeakerKey]) -> Vec<usize> {
+    keys.iter()
+        .enumerate()
+        .filter(|(position, key)| {
+            matches!(key, SpeakerKey::Serial(_)) && keys[..*position].contains(key)
+        })
+        .map(|(position, _)| position)
+        .collect()
+}
+
 fn push_or_replace(
     targets: &mut Vec<(SpeakerKey, SocketAddrV6)>,
     key: SpeakerKey,
@@ -127,6 +156,41 @@ mod tests {
     fn found_without_serial_dedupes_by_address() {
         let targets = merge_targets(&[manual(ADDRESS_TEXT, None)], &[found(ADDRESS_TEXT, None)]);
         assert_eq!(targets.len(), 1);
+    }
+
+    #[test]
+    fn a_reported_serial_lands_in_manual_entries_without_one() {
+        let mut entries = vec![
+            manual(ADDRESS_TEXT, None),
+            manual(OTHER_ADDRESS_TEXT, None),
+            manual(ADDRESS_TEXT, Some(OTHER_SERIAL)),
+        ];
+        assert!(remember_serial(&mut entries, SERIAL, address(ADDRESS_TEXT)));
+        assert_eq!(entries[0].serial.as_deref(), Some(SERIAL));
+        assert_eq!(entries[1].serial, None);
+        assert_eq!(entries[2].serial.as_deref(), Some(OTHER_SERIAL));
+        assert!(!remember_serial(
+            &mut entries,
+            SERIAL,
+            address(ADDRESS_TEXT)
+        ));
+        assert!(!remember_serial(
+            &mut entries,
+            "",
+            address(OTHER_ADDRESS_TEXT)
+        ));
+    }
+
+    #[test]
+    fn later_cards_with_a_known_serial_are_duplicates() {
+        let keys = [
+            SpeakerKey::Address(address(ADDRESS_TEXT)),
+            SpeakerKey::Serial(SERIAL.to_owned()),
+            SpeakerKey::Address(address(ADDRESS_TEXT)),
+            SpeakerKey::Serial(OTHER_SERIAL.to_owned()),
+            SpeakerKey::Serial(SERIAL.to_owned()),
+        ];
+        assert_eq!(duplicate_cards(&keys), vec![4]);
     }
 
     #[test]

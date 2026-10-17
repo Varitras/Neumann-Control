@@ -397,3 +397,60 @@ fn scan_moves_a_known_speaker_to_its_new_address() {
     wait_for_level(&mut harness, 100.0);
     harness.get_by_label(&texts::speaker_count(1));
 }
+
+fn readouts(harness: &Harness<'static, NeumannApp>) -> usize {
+    harness.query_all_by_label(&readout(100.0)).count()
+}
+
+fn has_one_card(harness: &Harness<'static, NeumannApp>) -> bool {
+    readouts(harness) == 1 && harness.query_by_label(&texts::speaker_count(1)).is_some()
+}
+
+fn serials_remembered(path: &Path, count: usize) -> bool {
+    let manual = settings::load(path).manual;
+    manual.len() == count
+        && manual
+            .iter()
+            .all(|entry| entry.serial.as_deref() == Some(SIMULATED_SERIAL))
+}
+
+#[test]
+fn a_manual_speaker_found_at_a_second_address_stays_one_card() {
+    let manual_simulator = Simulator::start(SimModel::Kh120Ii);
+    // The manual card connects only after the scan created a card for the second address.
+    manual_simulator.set_reply_delay(Duration::from_millis(300));
+    let second_simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&manual_simulator)]);
+    let found = Found {
+        name: String::new(),
+        product: Some("KH 120 II".to_owned()),
+        serial: Some(SIMULATED_SERIAL.to_owned()),
+        address: second_simulator.address(),
+    };
+    let mut harness = harness(path.clone(), vec![found]);
+    harness.get_by_label(texts::SCAN).click();
+    wait_until(&mut harness, "the serial in the manual entry", |_| {
+        serials_remembered(&path, 1)
+    });
+    wait_until(&mut harness, "one card after the first scan", has_one_card);
+    harness.get_by_label(texts::SCAN).click();
+    harness.run_steps(5);
+    wait_until(&mut harness, "one card after the second scan", has_one_card);
+}
+
+#[test]
+fn two_manual_entries_for_one_speaker_stay_one_card() {
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let second = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(
+        directory.path(),
+        vec![manual_for(&first), manual_for(&second)],
+    );
+    let mut harness = harness(path.clone(), Vec::new());
+    wait_until(&mut harness, "both serials remembered", |_| {
+        serials_remembered(&path, 2)
+    });
+    wait_until(&mut harness, "one card", has_one_card);
+}

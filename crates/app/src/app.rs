@@ -17,7 +17,7 @@ use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
 
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{SpeakerKey, SpeakerState};
-use crate::targets::merge_targets;
+use crate::targets::{duplicate_cards, merge_targets, remember_serial};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
@@ -118,16 +118,46 @@ impl NeumannApp {
         let speaker = &mut self.speakers[position];
         speaker.state.address = address;
         speaker.events = events;
-        let old = std::mem::replace(&mut speaker.handle, handle);
-        // Dropping a handle joins its worker, which can sit in a 3 s connect; not on this thread.
-        thread::spawn(move || drop(old));
+        retire(std::mem::replace(&mut speaker.handle, handle));
     }
 
     fn drain_events(&mut self, now: f64) {
+        let mut connected = Vec::new();
         for speaker in &mut self.speakers {
             while let Ok(event) = speaker.events.try_recv() {
+                if let Event::Connected(identity) = &event {
+                    connected.push((identity.serial.clone(), speaker.state.address));
+                }
                 speaker.state.apply(event, now);
             }
+        }
+        if connected.is_empty() {
+            return;
+        }
+        let mut remembered = false;
+        for (serial, address) in &connected {
+            remembered |= remember_serial(&mut self.settings.manual, serial, *address);
+        }
+        if remembered {
+            self.save_settings();
+        }
+        self.drop_duplicate_cards();
+    }
+
+    /// One speaker reached at two addresses shows up as two cards until both connected.
+    fn drop_duplicate_cards(&mut self) {
+        let keys: Vec<SpeakerKey> = self
+            .speakers
+            .iter()
+            .map(|speaker| speaker.state.key.clone())
+            .collect();
+        for position in duplicate_cards(&keys).into_iter().rev() {
+            let speaker = self.speakers.remove(position);
+            log::info!(
+                "{} is a speaker already shown",
+                mask_host(&speaker.state.address)
+            );
+            retire(speaker.handle);
         }
     }
 
@@ -236,6 +266,11 @@ impl NeumannApp {
             }
         }
     }
+}
+
+/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
+fn retire(handle: SpeakerHandle) {
+    thread::spawn(move || drop(handle));
 }
 
 /// Outer position and inner size in points, as the viewport builder takes them back. `None`
