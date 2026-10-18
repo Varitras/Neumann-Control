@@ -38,7 +38,7 @@ pub fn show(
         let painter = ui.painter();
         painter.circle_filled(lamp_center, CLIP_LAMP_RADIUS, lamp_color);
         painter.rect_filled(track, CornerRadius::ZERO, tokens.meter_track);
-        let level_top = track.bottom() - track.height() * fraction(meter.level());
+        let level_top = track.bottom() - track.height() * fraction(meter.shown(now));
         let level = Rect::from_min_max(pos2(track.left(), level_top), track.max);
         painter.rect_filled(level, CornerRadius::ZERO, tokens.meter_fill);
         let peak_y = track.bottom() - track.height() * fraction(meter.peak(now));
@@ -50,5 +50,8 @@ pub fn show(
         if clipped {
             response.on_hover_text(texts::CLIP);
         }
+    }
+    if meters.iter().any(|meter| meter.is_moving(now)) {
+        ui.ctx().request_repaint();
     }
 }
