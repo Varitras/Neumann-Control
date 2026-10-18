@@ -726,8 +726,9 @@ fn meter_groups_are_labelled_input_and_output() {
     let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
     harness.get_by_label(texts::METER_INPUT_SHORT);
     harness.get_by_label(texts::METER_OUTPUT_SHORT);
+    // The KH 120 II names its input by the rear switch instead.
     let (_other, _other_directory, kh120) = connected_card(SimModel::Kh120Ii);
-    kh120.get_by_label(texts::METER_INPUT_SHORT);
+    kh120.get_by_label(texts::SOURCE_ANALOG);
     assert!(kh120.query_by_label(texts::METER_OUTPUT_SHORT).is_none());
 }
 
@@ -795,4 +796,25 @@ fn channel_names_do_not_touch() {
         .unwrap();
     let sub = harness.get_by_label("Sub").rect();
     assert!(sub.left() > b.right(), "B {b:?}, Sub {sub:?}");
+}
+
+#[test]
+fn played_input_channels_are_marked_with_the_source() {
+    let (simulator, _directory, analog) = connected_card(SimModel::Kh120Ii);
+    analog.get_by_label(texts::SOURCE_ANALOG);
+    assert_eq!(analog.query_all_by_label(texts::PLAYED_CHANNEL).count(), 2);
+    drop((simulator, analog));
+    // The switch is polled every 30 s, so the speaker reports AES3 L from the start.
+    let left = Simulator::start(SimModel::Kh120Ii);
+    left.set_value("ui/input_select", serde_json::json!("AES3 L"));
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&left)]);
+    let mut aes3 = harness(path, Vec::new());
+    wait_for_level(&mut aes3, 100.0);
+    wait_for_initial_read(&mut aes3, &left);
+    aes3.get_by_label(texts::SOURCE_AES3_LEFT);
+    assert_eq!(aes3.query_all_by_label(texts::PLAYED_CHANNEL).count(), 1);
+    let (_other, _other_directory, kh750) = connected_card(SimModel::Kh750);
+    kh750.get_by_label(texts::METER_INPUT_SHORT);
+    assert_eq!(kh750.query_all_by_label(texts::PLAYED_CHANNEL).count(), 0);
 }

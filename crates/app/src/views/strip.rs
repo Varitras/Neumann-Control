@@ -15,6 +15,7 @@ use super::fader::{self, FADER_HEIGHT};
 use super::knob;
 use super::meters::{self, Meters};
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
+use crate::input_source::input_source;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
@@ -189,15 +190,20 @@ fn level(
 
 /// Input meters, then the output meters of models that report them (KH 750), set apart.
 fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tokens) {
+    let source = input_source(speaker);
+    let caption = source.map_or(texts::METER_INPUT_SHORT, |source| source.caption);
+    let played = source.map(|source| source.played).unwrap_or_default();
+    let played: &[bool] = if source.is_some() { &played } else { &[] };
     let floor = desk.meter_floor.db();
     let input = MeterGroup {
         with_scale: true,
-        caption: texts::METER_INPUT_SHORT,
+        caption,
         meters: Meters {
             name: texts::INPUT_METERS,
             channels: texts::INPUT_CHANNELS,
             levels: &speaker.input_meters,
             clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+            played,
         },
     };
     meter_group(ui, &input, floor, tokens);
@@ -213,6 +219,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
             channels: texts::OUTPUT_CHANNELS,
             levels: &speaker.output_meters,
             clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+            played: &[],
         },
     };
     meter_group(ui, &output, floor, tokens);

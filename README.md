@@ -19,9 +19,11 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   address with "+ Adresse". Added speakers are remembered.
 - One channel strip per speaker, side by side: name, four LEDs (connection, clip, device
   warning, LOCAL), knobs for delay (shown in ms) and standby time, output level fader
-  (0-120 dB SPL in 0.5 dB steps), input level meters marked "Ein" with clip lamps (on the
-  KH 750 also its output meters, marked "Aus"), response time, "Stumm" (mute) and "Ident."
-  (identify).
+  (0-120 dB SPL in 0.5 dB steps), input level meters for channels A and B with clip lamps (on
+  the KH 750 also its output meters A, B and Sub, marked "Aus"), response time, "Stumm" (mute)
+  and "Ident." (identify). On the KH 120 II the input meters are captioned with the rear input
+  switch (Analog, AES3 L, AES3 R, Mono) and a dot marks the channels the speaker plays; that A
+  is the left AES3 channel is assumed, not measured.
 - Fader: grab it anywhere and drag; it moves with the pointer and never jumps to it. Shift makes
   it ten times finer, the mouse wheel moves 0.5 dB per notch, and a double-click on the value
   under it lets you type one. The value stands beside the fader while you drag.

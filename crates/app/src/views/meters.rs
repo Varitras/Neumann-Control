@@ -3,8 +3,8 @@
 //! peak as one lit segment, and a clip lamp on top. The scale is the spread one from `meter`.
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, RichText, Sense, Stroke, Ui,
-    Vec2, WidgetInfo, WidgetType,
+    pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, Response, RichText, Sense,
+    Stroke, Ui, Vec2, WidgetInfo, WidgetType,
 };
 use serde_json::Value;
 
@@ -27,6 +27,8 @@ const SCALE_FONT_SIZE: f32 = 8.5;
 const SCALE_MARKS_DB: [f64; 5] = [0.0, -6.0, -20.0, -60.0, -90.0];
 const CHANNEL_NAME_HEIGHT: f32 = 12.0;
 const CHANNEL_NAME_SIZE: f32 = 9.0;
+const PLAYED_MARK_SPACE: f32 = 8.0;
+const PLAYED_MARK_RADIUS: f32 = 2.0;
 
 /// One group of meters, side by side.
 pub struct Meters<'a> {
@@ -37,6 +39,8 @@ pub struct Meters<'a> {
     pub levels: &'a [MeterState],
     /// The speaker's clip list for the same channels, if it reported one.
     pub clips: Option<&'a Value>,
+    /// Which channels the speaker plays; empty when it does not say.
+    pub played: &'a [bool],
 }
 
 /// Returns the area the meters themselves cover, without names that stick out beside them.
@@ -59,16 +63,32 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
             .layout_no_wrap(name.clone(), font, tokens.text_dim)
             .size()
             .x;
-        let size = vec2(METER_WIDTH.max(name_width), height + CHANNEL_NAME_HEIGHT);
+        let mark_space = if group.played.is_empty() {
+            0.0
+        } else {
+            PLAYED_MARK_SPACE
+        };
+        let size = vec2(
+            METER_WIDTH.max(name_width),
+            height + CHANNEL_NAME_HEIGHT + mark_space,
+        );
         let (cell, response) = ui.allocate_exact_size(size, Sense::hover());
         covered = covered.union(cell);
         let rect = Rect::from_center_size(
             pos2(cell.center().x, cell.top() + height / 2.0),
             vec2(METER_WIDTH, height),
         );
-        let name_rect = Rect::from_min_max(pos2(cell.left(), rect.bottom()), cell.max);
+        let name_bottom = rect.bottom() + CHANNEL_NAME_HEIGHT;
+        let name_rect = Rect::from_min_max(
+            pos2(cell.left(), rect.bottom()),
+            pos2(cell.right(), name_bottom),
+        );
         let caption = Label::new(RichText::new(&name).size(CHANNEL_NAME_SIZE).weak());
         ui.put(name_rect, caption);
+        if group.played.get(channel).copied().unwrap_or(false) {
+            let mark = Rect::from_min_max(pos2(cell.left(), name_bottom), cell.max);
+            ui.put(mark, |ui: &mut Ui| played_mark(ui, tokens));
+        }
         let label = texts::meter_label(name_of_group, &name);
         response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label));
         let lamp_color = if clipped {
@@ -95,6 +115,16 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         return Rect::from_min_size(ui.cursor().min, Vec2::ZERO);
     }
     covered
+}
+
+/// The dot under a channel the speaker plays.
+fn played_mark(ui: &mut Ui, tokens: &Tokens) -> Response {
+    let size = Vec2::splat(2.0 * PLAYED_MARK_RADIUS);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+    ui.painter()
+        .circle_filled(rect.center(), PLAYED_MARK_RADIUS, tokens.text);
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, texts::PLAYED_CHANNEL));
+    response.on_hover_text(texts::PLAYED_CHANNEL)
 }
 
 /// dB marks beside the meters, at the same heights; marks below `floor` are left out.

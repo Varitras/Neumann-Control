@@ -45,6 +45,11 @@ pub const INPUT_METERS: &str = "Eingangspegel";
 pub const OUTPUT_METERS: &str = "Ausgangspegel";
 pub const METER_INPUT_SHORT: &str = "Ein";
 pub const METER_OUTPUT_SHORT: &str = "Aus";
+pub const SOURCE_ANALOG: &str = "Analog";
+pub const SOURCE_AES3_LEFT: &str = "AES3 L";
+pub const SOURCE_AES3_RIGHT: &str = "AES3 R";
+pub const SOURCE_MONO: &str = "Mono (A+B)";
+pub const PLAYED_CHANNEL: &str = "Wird wiedergegeben (Annahme: A = links, B = rechts)";
 
 pub const ALL_VALUES: &str = "Alle Werte…";
 pub const APPLY: &str = "Übernehmen";
