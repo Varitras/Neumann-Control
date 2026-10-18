@@ -57,6 +57,7 @@ const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
 };
 
 /// While the rear CONTROL switch is on LOCAL, every set answers 401 and gets still work.
+/// Measured on the KH 750 only; the simulated KH 120 II is assumed to do the same.
 const CONTROL_MODE_PATH: &str = "ui/control_mode";
 const LOCAL_CONTROL_MODE: &str = "LOCAL";
 
