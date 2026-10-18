@@ -45,9 +45,12 @@ pub fn number_text(text: String) -> String {
     }
 }
 
-/// `value` with `places` decimals.
-pub fn decimal(value: f64, places: usize) -> String {
-    number_text(format!("{value:.places$}"))
+pub fn one_decimal(value: f64) -> String {
+    number_text(format!("{value:.1}"))
+}
+
+pub fn two_decimals(value: f64) -> String {
+    number_text(format!("{value:.2}"))
 }
 
 /// The shortest text that reads back as exactly `value`.
@@ -312,11 +315,11 @@ pub fn level_move(moved: f64) -> String {
 
 /// A group's or the master's level, without unit: it moves several speakers by the same amount.
 pub fn shared_readout(value: f64) -> String {
-    decimal(value, 1)
+    one_decimal(value)
 }
 
 pub fn readout(value: f64, unit: &str) -> String {
-    format!("{} {unit}", decimal(value, 1))
+    format!("{} {unit}", one_decimal(value))
 }
 
 pub fn status_line(firmware: &str, masked_serial: &str) -> String {

@@ -193,14 +193,14 @@ fn number_field<'a>(harness: &'a Harness<'static, NeumannApp>, label: &'a str) -
 
 /// Clicks a number field into text editing and types `text` over its value.
 fn type_number(harness: &mut Harness<'static, NeumannApp>, label: &str, text: &str) {
-    number_field(&harness, label).click();
+    number_field(harness, label).click();
     harness.run_steps(1);
-    number_field(&harness, label).type_text(text);
+    number_field(harness, label).type_text(text);
     harness.run_steps(1);
 }
 
 fn numeric_value(harness: &Harness<'static, NeumannApp>, label: &str) -> Option<f64> {
-    number_field(&harness, label)
+    number_field(harness, label)
         .accesskit_node()
         .numeric_value()
 }

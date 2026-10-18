@@ -50,7 +50,7 @@ pub fn converted(conversion: Conversion, number: f64) -> String {
     match conversion {
         // Adding zero turns the -0 of a slightly negative reading into 0.
         Conversion::KelvinToCelsius => format!("{} {unit}", shown.round() + 0.0),
-        Conversion::SamplesToMilliseconds => format!("{} {unit}", texts::decimal(shown, 2)),
+        Conversion::SamplesToMilliseconds => format!("{} {unit}", texts::two_decimals(shown)),
     }
 }
 
