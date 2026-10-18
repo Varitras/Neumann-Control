@@ -185,8 +185,8 @@ fn rescan_updates_saved_address() {
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     harness.get_by_label(&texts::speaker_count(1));
     harness.get_by_label(texts::SCAN).click();
-    wait_for_label(&mut harness, KH120_NAME);
-    harness.get_by_label(texts::ALREADY_ADDED);
+    // Not the name: the unconnected card shows the announced name as well.
+    wait_for_label(&mut harness, texts::ALREADY_ADDED);
     assert!(saved_at(&path, &simulator));
     assert_eq!(settings::load(&path).manual.len(), 1);
     wait_for_level(&mut harness, 100.0);
