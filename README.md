@@ -35,6 +35,15 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   that model (output, input, standby, device, rear panel), grouped in two columns; settings a
   model may write get a control, the rest are shown greyed. The panel also shows model,
   firmware and masked serial number. Escape, "Schließen" or a click outside closes it.
+- Groups: "+ Gruppe" creates a group; a speaker joins one in its device panel ("Gruppe"). Group
+  members are framed in the group's colour and followed by a group strip: its fader moves every
+  member by the same amount (each stays within its own range), "Stumm" mutes them all, and the
+  buttons under "Gekoppelt" link level, mute, standby or input, so a change on one member goes
+  to the others whose model may write it. "Für Gruppe übernehmen" in the panel copies a linked
+  value to the other members. Clicking the group's name renames or deletes it.
+- A master strip at the end moves and mutes all connected speakers the same way.
+- Drag a strip by the dots before its name onto another strip to put it in front; the order is
+  remembered.
 - "Einstellungen" sets the theme (like Windows, light, dark), the lowest level the meters show
   (-120, -90 or -60 dB) and whether response times are shown; the toolbar shows the average
   response time of the connected speakers.
@@ -93,7 +102,7 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial), the window position and size, and the choices from "Einstellungen" |
+| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size, and the choices from "Einstellungen" |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable

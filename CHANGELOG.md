@@ -19,6 +19,8 @@ First version.
 - A device panel per speaker with every setting of its model and a list of all values the
   speaker reports.
 - A settings dialog for theme, meter range and response times.
+- Groups with a group strip (relative fader, mute, linked settings), a master strip, and strips
+  reordered by dragging.
 - Support for the KH 120 II and the KH 750 with writes; other models read-only.
 - Portable settings and log next to the executable.
 - A speaker simulator for both models used by the automated tests.
