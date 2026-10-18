@@ -27,8 +27,6 @@ pub const APPLY: &str = "Übernehmen";
 pub const ON: &str = "an";
 pub const OFF: &str = "aus";
 pub const CELSIUS: &str = "°C";
-pub const SWITCH_MODE: &str = "Umschalten";
-pub const LOCAL_MODE_WARNING: &str = "Im Modus LOCAL kann die Netzwerksteuerung gesperrt sein, bis am Gerät zurückgestellt wird. Trotzdem umschalten?";
 
 pub const ALL_VALUES_FILTER_LABEL: &str = "Pfad enthält";
 pub const ALL_VALUES_RELOAD: &str = "Neu einlesen";

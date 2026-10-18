@@ -1,7 +1,9 @@
 # Path catalog of neumann-control.
 #
 # This file mirrors custom_components/neumann_kh/const.py of neumann-connect (Home Assistant
-# integration), synced from version 1.19.1. Model knowledge lives here and nowhere in code:
+# integration), synced from version 1.19.1 plus its later change of `ui/control_mode` to a
+# read-only sensor (the rear CONTROL switch sets it; a write answers 405 on both models).
+# Model knowledge lives here and nowhere in code:
 # which model has a path (`class`), where it may be written (`writable_on`, exact product
 # strings as the device reports them) and how often it is polled (`poll`). A product that is
 # not listed in `writable_on` is read-only, so unmeasured models never get a write.
@@ -283,11 +285,9 @@ writable_on = ["KH 120 II", "KH 750"]
 path = "ui/control_mode"
 label = "Steuermodus"
 group = "device"
-kind = "select"
+kind = "display"
 poll = "fast"
 class = "all"
-options = ["NETWORK", "LOCAL"]
-writable_on = ["KH 120 II", "KH 750"]
 
 [[entry]]
 path = "ui/logo/brightness"

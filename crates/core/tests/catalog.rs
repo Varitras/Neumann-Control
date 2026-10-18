@@ -1,4 +1,4 @@
-use neumann_control_core::catalog::{Catalog, CatalogError, Conversion, Entry, ValueError};
+use neumann_control_core::catalog::{Catalog, CatalogError, Conversion, Entry, Kind, ValueError};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
 
@@ -145,15 +145,24 @@ fn name_longer_than_52_is_refused() {
 #[test]
 fn unknown_option_is_refused() {
     let catalog = Catalog::embedded();
-    let mode = entry("ui/control_mode");
+    let interface = entry("audio/in/interface");
     assert_eq!(
-        mode.validate(&json!("REMOTE"), MONITOR, &catalog.classes),
+        interface.validate(&json!("REMOTE"), MONITOR, &catalog.classes),
         Err(ValueError::NotAnOption)
     );
     assert_eq!(
-        mode.validate(&json!("LOCAL"), MONITOR, &catalog.classes),
+        interface.validate(&json!("DIGITAL ONLY"), MONITOR, &catalog.classes),
         Ok(())
     );
+}
+
+#[test]
+fn control_mode_is_read_only_on_every_model() {
+    let mode = entry("ui/control_mode");
+    assert_eq!(mode.kind, Kind::Display);
+    for product in [MONITOR, SUBWOOFER] {
+        assert!(!mode.is_writable(product), "{product}");
+    }
 }
 
 #[test]
@@ -221,16 +230,16 @@ fn select_without_options_is_an_error() {
         logo = []
 
         [[entry]]
-        path = "ui/control_mode"
-        label = "Steuermodus"
-        group = "device"
+        path = "audio/in/interface"
+        label = "Eingangs-Interface"
+        group = "input"
         kind = "select"
-        poll = "fast"
+        poll = "slow"
         class = "all"
     "#;
     match Catalog::parse(text) {
         Err(CatalogError::Invalid { path: invalid, .. }) => {
-            assert_eq!(invalid, path("ui/control_mode"))
+            assert_eq!(invalid, path("audio/in/interface"))
         }
         other => panic!("expected Invalid, got {other:?}"),
     }

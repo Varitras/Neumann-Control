@@ -167,6 +167,23 @@ fn simulator_refuses_standby_enabled_set_on_kh750_only() {
 }
 
 #[test]
+fn control_mode_set_answers_405_on_both_models() {
+    for model in [SimModel::Kh120Ii, SimModel::Kh750] {
+        let simulator = Simulator::start(model);
+        let reply = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
+        assert_eq!(device_error(&reply).map(|error| error.code), Some(405));
+    }
+}
+
+#[test]
+fn auto_standby_set_answers_405_on_kh750() {
+    let simulator = Simulator::start(SimModel::Kh750);
+    let reply = Client::connect(&simulator).ask(&json!({"ui":{"auto_standby":"OFF"}}));
+    assert_eq!(device_error(&reply).map(|error| error.code), Some(405));
+    assert_eq!(simulator.value("ui/auto_standby"), Some(json!("ON")));
+}
+
+#[test]
 fn valid_set_is_stored_and_echoed() {
     let simulator = start_kh120();
     let mut client = Client::connect(&simulator);

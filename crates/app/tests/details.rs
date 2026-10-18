@@ -1,4 +1,4 @@
-//! The card's expanded area: settings per model, displays, confirmation and number gestures.
+//! The card's expanded area: settings per model, displays and number gestures.
 
 mod support;
 
@@ -16,7 +16,6 @@ const STANDBY_LABEL: &str = "Auto-Standby";
 const DELAY_LABEL: &str = "Verzögerung";
 const CONTROL_MODE_LABEL: &str = "Steuermodus";
 const NAME_PATH: &str = "/device/name";
-const CONTROL_MODE_PATH: &str = "/ui/control_mode";
 const DELAY_PATH: &str = "/audio/out/delay";
 const STANDBY_TIME_LABEL: &str = "Standby-Zeit";
 const STANDBY_TIME_PATH: &str = "/device/standby/auto_standby_time";
@@ -116,20 +115,24 @@ fn name_field_shows_refusal() {
 }
 
 #[test]
-fn local_control_mode_needs_confirmation() {
-    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    harness.get_by_label(CONTROL_MODE_LABEL).click();
-    harness.run_steps(2);
-    harness.get_by_label("LOCAL").click();
-    harness.run_steps(2);
-    barrier(&simulator);
-    assert!(sets_to(&simulator, CONTROL_MODE_PATH).is_empty());
-    harness.get_by_label(texts::LOCAL_MODE_WARNING);
-    harness.get_by_label(texts::SWITCH_MODE).click();
-    wait_until(&mut harness, "LOCAL on the device", |_| {
-        simulator.value("ui/control_mode") == Some(json!("LOCAL"))
-    });
-    assert_eq!(sets_to(&simulator, CONTROL_MODE_PATH), vec![json!("LOCAL")]);
+fn control_mode_is_shown_read_only_on_both_models() {
+    for model in [SimModel::Kh120Ii, SimModel::Kh750] {
+        let (_simulator, _directory, harness) = expanded_card(model);
+        let combo_boxes = harness.query_all_by_role(Role::ComboBox);
+        let labels: Vec<_> = combo_boxes
+            .map(|node| node.accesskit_node().label())
+            .collect();
+        let offered = labels
+            .iter()
+            .any(|label| label.as_deref() == Some(CONTROL_MODE_LABEL));
+        assert!(!offered, "{model:?} offers a control mode selection");
+        assert_eq!(
+            role_of(&harness, CONTROL_MODE_LABEL),
+            Role::Label,
+            "{model:?}"
+        );
+        harness.get_by_label("NETWORK");
+    }
 }
 
 #[test]
@@ -348,36 +351,6 @@ fn kh750_output_meters_are_drawn() {
     let (_simulator, _directory, harness) = expanded_card(SimModel::Kh750);
     // One for the meters, one for the rear-panel output level.
     assert_eq!(harness.query_all_by_label("Ausgangspegel").count(), 2);
-}
-
-#[test]
-fn cancelling_local_control_mode_sends_nothing() {
-    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    harness.get_by_label(CONTROL_MODE_LABEL).click();
-    harness.run_steps(2);
-    harness.get_by_label("LOCAL").click();
-    harness.run_steps(2);
-    harness.get_by_label(texts::CANCEL).click();
-    harness.run_steps(IDLE_FRAMES);
-    barrier(&simulator);
-    assert!(sets_to(&simulator, CONTROL_MODE_PATH).is_empty());
-    assert!(harness.query_by_label(texts::LOCAL_MODE_WARNING).is_none());
-}
-
-#[test]
-fn network_control_mode_is_sent_without_confirmation() {
-    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    simulator.set_value("ui/control_mode", json!("LOCAL"));
-    wait_until(&mut harness, "LOCAL on the card", |harness| {
-        harness.get_by_label(CONTROL_MODE_LABEL).value().as_deref() == Some("LOCAL")
-    });
-    harness.get_by_label(CONTROL_MODE_LABEL).click();
-    harness.run_steps(2);
-    harness.get_by_label("NETWORK").click();
-    wait_until(&mut harness, "NETWORK on the device", |_| {
-        simulator.value("ui/control_mode") == Some(json!("NETWORK"))
-    });
-    assert!(harness.query_by_label(texts::LOCAL_MODE_WARNING).is_none());
 }
 
 #[test]

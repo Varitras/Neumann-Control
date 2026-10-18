@@ -26,7 +26,6 @@ const SHOWN_ON_CARD: &[&str] = &[
     paths::SERIAL,
 ];
 const OUTPUT_METER_HEIGHT: f32 = 60.0;
-const CONFIRMATION_ID: &str = "confirmation";
 
 /// Draws the area and returns the writes the user asked for that the write policy allowed.
 pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
@@ -43,7 +42,6 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
         speaker,
         catalog,
         commands: &mut commands,
-        confirmation_id: ui.id().with(CONFIRMATION_ID),
     };
     for (group, entries) in groups {
         ui.push_id(group.title(), |ui| {
@@ -56,7 +54,6 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
     }
     ui.separator();
     all_values_button(ui, fields.speaker, fields.commands);
-    fields.confirmation(ui);
     commands
 }
 

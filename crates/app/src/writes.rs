@@ -27,9 +27,6 @@ impl Switch {
     }
 }
 
-/// The control mode in which the speaker may stop listening to the network.
-const LOCAL_CONTROL_MODE: &str = "LOCAL";
-
 /// What a control on the card asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Intent {
@@ -48,15 +45,6 @@ impl Intent {
             Intent::Level(_) => paths::path(paths::OUTPUT_LEVEL),
             Intent::Write { path, .. } => path.clone(),
         }
-    }
-
-    /// Whether the user has to confirm before the write goes out: in LOCAL control mode the
-    /// speaker may ignore the network until someone resets it at the device.
-    pub fn needs_confirmation(&self) -> bool {
-        let Intent::Write { path, value } = self else {
-            return false;
-        };
-        *path == paths::path(paths::CONTROL_MODE) && value.as_str() == Some(LOCAL_CONTROL_MODE)
     }
 }
 
@@ -283,22 +271,6 @@ mod tests {
         assert_eq!(speaker.request(intent, Catalog::embedded(), 0.0), None);
         let expected = texts::describe_refusal(&Refusal::Invalid(ValueError::NotPrintableAscii));
         assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
-    }
-
-    #[test]
-    fn only_switching_to_local_control_needs_confirmation() {
-        let write = |value: &str| Intent::Write {
-            path: paths::path(paths::CONTROL_MODE),
-            value: Value::from(value),
-        };
-        assert!(write("LOCAL").needs_confirmation());
-        assert!(!write("NETWORK").needs_confirmation());
-        assert!(!Intent::Level(80.0).needs_confirmation());
-        let other = Intent::Write {
-            path: paths::path("audio/in/interface"),
-            value: Value::from("LOCAL"),
-        };
-        assert!(!other.needs_confirmation());
     }
 
     #[test]

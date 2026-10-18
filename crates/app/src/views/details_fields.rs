@@ -1,7 +1,7 @@
-//! The controls of the "Mehr" area, one per writable kind: number, switch, selection and text,
-//! plus the confirmation a risky selection waits for. Every write goes through `writes`.
+//! The controls of the "Mehr" area, one per writable kind: number, switch, selection and text.
+//! Every write goes through `writes`.
 
-use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Event, Id, Key, Modal, TextEdit, Ui};
+use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Event, Key, TextEdit, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
@@ -12,7 +12,6 @@ use crate::writes::{self, Intent};
 
 /// Drag speed for numbers without a step in the catalog, in units per point.
 const UNSTEPPED_DRAG_SPEED: f64 = 0.1;
-const CONFIRMATION_WIDTH: f32 = 320.0;
 const PENDING_NUMBER_ID: &str = "pending_number";
 const TEXT_DRAFT_ID: &str = "text_draft";
 const TEXT_FIELD_ID: &str = "text_field";
@@ -39,8 +38,6 @@ pub(super) struct Fields<'a> {
     pub speaker: &'a mut SpeakerState,
     pub catalog: &'a Catalog,
     pub commands: &'a mut Vec<Command>,
-    /// Where a selection waiting for confirmation is kept between frames.
-    pub confirmation_id: Id,
 }
 
 impl Fields<'_> {
@@ -162,10 +159,6 @@ impl Fields<'_> {
             path: entry.path.clone(),
             value: Value::String(option),
         };
-        if intent.needs_confirmation() {
-            ui.data_mut(|data| data.insert_temp(self.confirmation_id, intent));
-            return;
-        }
         self.send(ui, intent);
     }
 
@@ -230,31 +223,6 @@ impl Fields<'_> {
                 self.commands.push(command);
             }
             Err(refusal) => draft.refusal = Some(texts::describe_refusal(&refusal)),
-        }
-    }
-
-    /// The dialog for a selection that needs confirmation; the write waits until "Umschalten".
-    pub fn confirmation(&mut self, ui: &Ui) {
-        let id = self.confirmation_id;
-        let Some(intent) = ui.data(|data| data.get_temp::<Intent>(id)) else {
-            return;
-        };
-        let modal = Modal::new(id).show(ui.ctx(), |ui| {
-            ui.set_max_width(CONFIRMATION_WIDTH);
-            ui.label(texts::LOCAL_MODE_WARNING);
-            ui.horizontal(|ui| {
-                let confirmed = ui.button(texts::SWITCH_MODE).clicked();
-                let cancelled = ui.button(texts::CANCEL).clicked();
-                (confirmed, cancelled)
-            })
-            .inner
-        });
-        let (confirmed, cancelled) = modal.inner;
-        if confirmed || cancelled || modal.should_close() {
-            ui.data_mut(|data| data.remove::<Intent>(id));
-        }
-        if confirmed {
-            self.send(ui, intent);
         }
     }
 }

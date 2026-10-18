@@ -24,8 +24,8 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   greyed.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
-- Switching the control mode to LOCAL asks for confirmation first, because a speaker in LOCAL
-  mode can refuse network control until it is reset at the device.
+- Shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the speaker
+  sets; it cannot be changed over the network. In LOCAL the speaker refuses every write.
 - A speaker that stops answering is shown as unreachable and reconnected every 10 seconds.
 
 ## Supported models
