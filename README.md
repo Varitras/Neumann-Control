@@ -37,8 +37,8 @@ strips on a desk, with level faders, meters, groups and a master.
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
 
-The interface is in German or English. This README uses the German names of buttons and dialogs,
-with their meaning in brackets where it is not obvious.
+The interface starts in German; switch it to English in **Settings** → **Language** (in German:
+**Einstellungen** → **Sprache**). This README uses the English names.
 
 ## Status
 
@@ -75,12 +75,11 @@ delete the folder.
 
 ## Getting started
 
-1. Start `neumann-control.exe` and press **Suchen** (scan). The scan takes 4 seconds. The dialog
-   "Gefundene Lautsprecher" (speakers found) lists every speaker found with its name, model and
-   masked address. Check the ones you want and press **Hinzufügen** (add); each gets a strip.
-   Speakers that already have one are marked "bereits hinzugefügt" (already added).
-   **Abbrechen** (cancel) adds nothing.
-2. If the scan finds nothing (for example because mDNS is blocked), press **+ Adresse** and enter
+1. Start `neumann-control.exe` and press **Scan**. The scan takes 4 seconds. The dialog
+   "Speakers found" lists every speaker found with its name, model and masked address. Check the
+   ones you want and press **Add**; each gets a strip. Speakers that already have one are marked
+   "already added". **Cancel** adds nothing.
+2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
    the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
 
@@ -103,11 +102,11 @@ Each speaker has a channel strip:
 
 - its name (click it to open the device panel) and a grip to drag the strip elsewhere,
 - four LEDs: connection, clip, device warning, and LOCAL (the rear CONTROL switch locks writing),
-- knobs for **Verzögerung** (delay, shown in ms) and **Standby-Zeit** (standby time),
+- knobs for **Delay** (shown in ms) and **Standby time**,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
-  and Sub, captioned "Ausg." (output),
-- the response time, **Stumm** (mute) and **Ident.** (identify).
+  and Sub, captioned "Out",
+- the response time, **Mute** and **Ident.** (identify).
 
 On the KH 120 II the input meters are captioned with the rear input switch (Analog, AES3 L,
 AES3 R, Mono), and a dot marks the channels the speaker plays. That channel A is the left AES3
@@ -131,24 +130,24 @@ The toolbar shows the number of speakers and the average response time of the co
 Click a speaker's name. The panel lists every setting the catalog knows for that model (output,
 input, standby, device, rear panel) in two columns. Settings the model may write get a control;
 the rest are shown greyed. The panel also shows model, firmware and the masked serial number.
-Escape, **Schließen** (close) or a click outside closes it.
+Escape, **Close** or a click outside closes it.
 
-**Alle Werte...** (all values) lists every value the speaker reports in its own schema, with a path
+**All values…** lists every value the speaker reports in its own schema, with a path
 filter and copy buttons, including paths the catalog does not know yet.
 
-To remove a speaker, press **Entfernen** (remove) in its panel and confirm. The speaker is no
+To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
 longer remembered, and it also leaves its group and its place in the order.
 
 ### Groups and master
 
-- **+ Gruppe** creates a group; a speaker joins one in its device panel (**Gruppe**). Members are
+- **+ Group** creates a group; a speaker joins one in its device panel (**Group**). Members are
   framed in the group's colour and followed by a group strip.
 - The group fader moves every member by the same amount, each within its own range. With the
-  loudest member at its maximum, the others still follow. **Stumm** on the group strip mutes them
+  loudest member at its maximum, the others still follow. **Mute** on the group strip mutes them
   all.
-- The buttons under **Gekoppelt** (linked) link level, mute, auto standby or input interface: a
+- The buttons under **Linked** link level, mute, auto standby or input interface: a
   change on one member goes to the others whose model may write it. Members that are not
-  connected are left out. **Für Gruppe übernehmen** (apply to group) in the panel copies a linked
+  connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
 - Click the group's name to rename or delete it.
 - The master strip at the end moves and mutes all connected speakers the same way.
@@ -159,9 +158,9 @@ cancels.
 
 ### Compact mode
 
-**Kompakt** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
+**Compact** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
 ungrouped speaker and per group, each with LEDs (a group: its colour), the name, a lying level
-fader with its value, the loudest input as a small meter and **Stumm**, and a master row at the
+fader with its value, the loudest input as a small meter and **Mute**, and a master row at the
 bottom. A group row moves its members like the group strip. A **!** stands for a speaker's message
 (on a group or the master row, a member's), which shows on hover.
 
@@ -170,10 +169,10 @@ its rows. Scanning and adding speakers or groups stay on the desk.
 
 ### Settings
 
-**Einstellungen** (settings) sets:
+**Settings** sets:
 
 - the theme: like Windows, light or dark,
-- the language: Deutsch or English. It changes at once. German shows a decimal comma; typed values
+- the language: German or English. It changes at once. German shows a decimal comma; typed values
   take a comma or a point.
 - the lowest level the meters show: −120, −90 or −60 dB,
 - whether response times are shown.
@@ -220,7 +219,7 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size for the desk and the compact mode, and the choices from "Einstellungen" |
+| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size for the desk and the compact mode, and the choices from **Settings** |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
@@ -234,7 +233,7 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
 - SSC has no authentication. Anyone on the network segment can read and change the settings of
   every speaker; use the app only on a network you trust.
 - A speaker in standby does not answer on the network, so it looks the same as a speaker that is
-  switched off ("nicht erreichbar (aus oder Standby)").
+  switched off ("unreachable (off or standby)").
 - A speaker accepts only a few TCP connections at a time (about four). With more clients connected
   (vendor app, home automation), it can look unreachable as well.
 - On the KH 750, auto standby, standby time and standby level are shown but not written; writing
