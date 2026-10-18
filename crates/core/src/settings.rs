@@ -28,6 +28,36 @@ pub struct Settings {
     pub order: Vec<String>,
 }
 
+impl Settings {
+    /// The window as the current mode, desk or compact, last had it.
+    pub fn window_of_mode(&self) -> Option<WindowGeometry> {
+        if self.desk.compact {
+            self.compact_window
+        } else {
+            self.window
+        }
+    }
+
+    /// Keeps `geometry` for the current mode.
+    pub fn remember_window(&mut self, geometry: WindowGeometry) {
+        if self.desk.compact {
+            self.compact_window = Some(geometry);
+        } else {
+            self.window = Some(geometry);
+        }
+    }
+
+    /// Leaves the current mode, keeping its window `current`, and returns the window the other
+    /// mode last had.
+    pub fn switch_mode(&mut self, current: Option<WindowGeometry>) -> Option<WindowGeometry> {
+        if let Some(current) = current {
+            self.remember_window(current);
+        }
+        self.desk.compact = !self.desk.compact;
+        self.window_of_mode()
+    }
+}
+
 /// A group of speakers with a group strip; a speaker is in at most one group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupSettings {

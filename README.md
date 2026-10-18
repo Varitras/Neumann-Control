@@ -1,7 +1,8 @@
 # neumann-control
 
 A portable Windows app to find, read and control Neumann KH DSP speakers over the
-Sennheiser Sound Control protocol (SSC). The user interface is in German.
+Sennheiser Sound Control protocol (SSC). The user interface is in German or English; the
+names below are the German ones.
 
 This is an independent project. It is not affiliated with or endorsed by Neumann or Sennheiser.
 
@@ -45,9 +46,15 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 - Drag a strip by the dots before its name; the other strips of its group (or the ungrouped
   ones) make room where it would land, and the order is remembered when you let go. Escape
   cancels.
-- "Einstellungen" sets the theme (like Windows, light, dark), the lowest level the meters show
-  (-120, -90 or -60 dB) and whether response times are shown; the toolbar shows the average
-  response time of the connected speakers.
+- "Einstellungen" sets the theme (like Windows, light, dark), the language (Deutsch, English;
+  it changes at once), the lowest level the meters show (-120, -90 or -60 dB) and whether
+  response times are shown; the toolbar shows the average response time of the connected
+  speakers.
+- "Kompakt" (or Ctrl+K) switches to a compact window and back: one row per ungrouped speaker
+  and per group, each with LEDs (a group: its colour), name, a lying level fader with its value,
+  the loudest input as a small meter and "Stumm", and the master row at the bottom. A group row
+  moves its members like the group strip. The compact window keeps its own size and position;
+  scanning and adding speakers or groups stay on the desk.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
 - Shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the speaker

@@ -11,7 +11,7 @@ use neumann_control_core::settings::DeskSettings;
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::fader::{self, FADER_HEIGHT};
+use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::meters::{self, Meters};
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
@@ -35,7 +35,7 @@ const GRIP_HEIGHT: f32 = GRIP_ROWS as f32 * GRIP_DOT_SPACING;
 const BORDER_WIDTH: f32 = 1.0;
 const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
-const UNREACHABLE_OPACITY: f32 = 0.55;
+pub(super) const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
 const METER_SPACING: f32 = 3.0;
 const CAPTION_HEIGHT: f32 = 16.0;
@@ -131,13 +131,13 @@ fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
     }
 }
 
-fn name(ui: &mut Ui, speaker: &SpeakerState) -> Option<Pos2> {
+pub(super) fn name(ui: &mut Ui, speaker: &SpeakerState) -> Option<Pos2> {
     let text = RichText::new(speaker.display_name()).strong();
     let response = ui.add(Button::new(text).frame(false).truncate());
     response.clicked().then(|| response.rect.left_bottom())
 }
 
-fn leds(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
+pub(super) fn leds(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     let state = status_leds(speaker);
     let connection = match state.connection {
         ConnectionLed::Connected => tokens.connected,
@@ -214,7 +214,12 @@ fn level(
     let shown = ui
         .with_layout(Layout::left_to_right(Align::Min), |ui| {
             let range = output_level_range();
-            let shown = fader::show(ui, speaker, catalog, commands, device, range, &unit);
+            let scale = Scale {
+                range,
+                unit: &unit,
+                orientation: Orientation::Vertical,
+            };
+            let shown = fader::show(ui, speaker, catalog, commands, device, scale);
             meters(ui, speaker, desk, tokens);
             shown
         })
@@ -344,7 +349,7 @@ fn buttons(
 }
 
 /// A button showing a switch value of the speaker; a click asks for the opposite.
-fn toggle(
+pub(super) fn toggle(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,

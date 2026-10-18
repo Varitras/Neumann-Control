@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use eframe::egui;
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
@@ -17,7 +18,9 @@ use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
-use neumann_control_core::settings::{self, ManualSpeaker, Settings, SETTINGS_FILE};
+use neumann_control_core::settings::{
+    self, GroupSettings, Linkable, ManualSpeaker, Settings, SETTINGS_FILE,
+};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 use serde_json::Value;
@@ -233,4 +236,57 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
         harness.query_by_label(texts::ALL_VALUES.get()).is_some()
     });
     harness.run_steps(1);
+}
+
+pub const KH120_ID: &str = "serial:SIM0001234";
+pub const KH750_ID: &str = "serial:SIM0007500";
+pub const GROUP_NAME: &str = "Front";
+
+/// A KH 120 II and a KH 750 in one group "Front", linking `linked`, both connected.
+pub fn grouped(
+    linked: Vec<Linkable>,
+) -> (
+    Simulator,
+    Simulator,
+    tempfile::TempDir,
+    Harness<'static, NeumannApp>,
+) {
+    let kh120 = Simulator::start(SimModel::Kh120Ii);
+    let kh750 = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut first = manual_for(&kh120);
+    first.serial = Some("SIM0001234".to_owned());
+    let mut second = manual_for(&kh750);
+    second.serial = Some("SIM0007500".to_owned());
+    let settings = Settings {
+        manual: vec![first, second],
+        groups: vec![GroupSettings {
+            name: GROUP_NAME.to_owned(),
+            color: 0,
+            members: vec![KH120_ID.to_owned(), KH750_ID.to_owned()],
+            linked,
+        }],
+        ..Settings::default()
+    };
+    settings::save(&settings, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    harness.set_size(egui::vec2(1200.0, 900.0));
+    wait_until(&mut harness, "both strips connected", |harness| {
+        harness.query_by_label(KH120_DEVICE_NAME).is_some()
+            && harness.query_by_label(KH750_DEVICE_NAME).is_some()
+            && harness.query_all_by_label(&readout(100.0)).count() == 2
+    });
+    wait_for_initial_read(&mut harness, &kh120);
+    wait_for_initial_read(&mut harness, &kh750);
+    (kh120, kh750, directory, harness)
+}
+
+pub fn sets(simulator: &Simulator, pointer: &str) -> Vec<Value> {
+    simulator
+        .requests()
+        .iter()
+        .filter_map(|request| request.pointer(pointer).filter(|value| !value.is_null()))
+        .cloned()
+        .collect()
 }

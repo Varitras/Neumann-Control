@@ -94,6 +94,34 @@ pub fn layout(order: &[String], groups: &[GroupSettings], speakers: &[String]) -
     items
 }
 
+/// One row of the compact mode: an ungrouped speaker, or a group standing for its members.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompactRow {
+    Speaker(usize),
+    Group(usize),
+}
+
+/// The compact rows in the order of the desk: grouped speakers have no row of their own.
+pub fn compact_rows(
+    items: &[DeskItem],
+    groups: &[GroupSettings],
+    speakers: &[String],
+) -> Vec<CompactRow> {
+    let grouped = |index: usize| {
+        groups
+            .iter()
+            .any(|group| group.members.contains(&speakers[index]))
+    };
+    items
+        .iter()
+        .filter_map(|item| match *item {
+            DeskItem::Speaker(index) if grouped(index) => None,
+            DeskItem::Speaker(index) => Some(CompactRow::Speaker(index)),
+            DeskItem::GroupStrip(group) => Some(CompactRow::Group(group)),
+        })
+        .collect()
+}
+
 /// Puts `member` into `group` (or into none), out of any other group.
 pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<usize>) {
     for existing in groups.iter_mut() {
@@ -213,6 +241,19 @@ mod tests {
                 GroupStrip(1)
             ]
         );
+    }
+
+    #[test]
+    fn compact_rows_show_groups_instead_of_their_members() {
+        use DeskItem::*;
+        let speakers = ids(&["a", "b", "c"]);
+        let groups = [group("Front", &["a", "c"])];
+        let items = layout(&[], &groups, &speakers);
+        assert_eq!(
+            compact_rows(&items, &groups, &speakers),
+            vec![CompactRow::Speaker(1), CompactRow::Group(0)]
+        );
+        assert_eq!(items[0], Speaker(1));
     }
 
     #[test]

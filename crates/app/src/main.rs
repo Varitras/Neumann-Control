@@ -8,7 +8,7 @@ use std::path::Path;
 use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
 use eframe::wgpu;
-use neumann_control_app::app::NeumannApp;
+use neumann_control_app::app::{NeumannApp, DESK_WINDOW_SIZE};
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::texts;
 use neumann_control_app::window_placement::{fit_into, MonitorArea};
@@ -17,7 +17,6 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::window::Window;
 
-const WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
 const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
 // Our crates only: wgpu logs the graphics adapters with their bus ids at info level.
 const LOG_TARGET_PREFIX: &str = "neumann_control";
@@ -84,11 +83,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ok_or("the executable has no parent folder")?;
     start_log(directory);
     let settings_path = directory.join(SETTINGS_FILE);
-    let saved_window = settings::load(&settings_path).window;
+    let saved_window = settings::load(&settings_path).window_of_mode();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
-            .with_inner_size(WINDOW_SIZE)
+            .with_inner_size(DESK_WINDOW_SIZE)
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
         wgpu_options: wgpu_options(),

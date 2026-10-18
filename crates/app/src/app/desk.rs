@@ -30,7 +30,7 @@ const STRIP_CENTERS_ID: &str = "strip_centers";
 const DRAGGED_OPACITY: f32 = 0.4;
 
 /// What a frame's gestures asked for; applied once the desk is drawn.
-enum DeskAction {
+pub(super) enum DeskAction {
     Commands(usize, Vec<Command>),
     Group(usize, GroupStripResponse),
     Master(MasterResponse),
@@ -146,7 +146,7 @@ impl NeumannApp {
         }
     }
 
-    fn apply_desk_action(
+    pub(super) fn apply_desk_action(
         &mut self,
         action: DeskAction,
         catalog: &Catalog,
@@ -316,7 +316,7 @@ impl NeumannApp {
         self.group_draft = Some(GroupDraft { index: count, name });
     }
 
-    fn states(&self, indexes: &[usize]) -> Vec<&SpeakerState> {
+    pub(super) fn states(&self, indexes: &[usize]) -> Vec<&SpeakerState> {
         indexes
             .iter()
             .map(|index| &self.speakers[*index].state)
@@ -362,7 +362,7 @@ pub(super) fn group_of(groups: &[GroupSettings], id: &str) -> Option<usize> {
         .position(|group| group.members.iter().any(|member| member == id))
 }
 
-fn members_of(group: &GroupSettings, ids: &[String]) -> Vec<usize> {
+pub(super) fn members_of(group: &GroupSettings, ids: &[String]) -> Vec<usize> {
     ids.iter()
         .enumerate()
         .filter(|(_, id)| group.members.contains(id))
@@ -388,12 +388,12 @@ fn level_of(state: &SpeakerState) -> Option<f64> {
         .and_then(Value::as_f64)
 }
 
-fn levels(states: &[&SpeakerState]) -> Vec<f64> {
+pub(super) fn levels(states: &[&SpeakerState]) -> Vec<f64> {
     states.iter().filter_map(|state| level_of(state)).collect()
 }
 
 /// Whether every connected member is muted; none when no member is connected.
-fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
+pub(super) fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
     let mutes: Vec<bool> = states
         .iter()
         .filter(|state| state.status == Status::Connected)
@@ -407,7 +407,7 @@ fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
     (!mutes.is_empty()).then(|| mutes.iter().all(|muted| *muted))
 }
 
-fn level_unit(catalog: &Catalog) -> String {
+pub(super) fn level_unit(catalog: &Catalog) -> String {
     paths::catalog_entry(catalog, &paths::path(paths::OUTPUT_LEVEL))
         .and_then(|entry| entry.unit.clone())
         .unwrap_or_default()

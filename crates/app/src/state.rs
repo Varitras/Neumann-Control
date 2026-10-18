@@ -227,6 +227,14 @@ impl SpeakerState {
         }
     }
 
+    /// The loudest input channel as its meter shows it now; none before any meter reading.
+    pub fn loudest_input(&self, now: f64) -> Option<f64> {
+        self.input_meters
+            .iter()
+            .map(|meter| meter.shown(now))
+            .reduce(f64::max)
+    }
+
     pub(crate) fn set_message(&mut self, message: Option<Message>, source: MessageSource) {
         self.message = message;
         self.message_source = source;
@@ -444,6 +452,16 @@ mod tests {
         assert_eq!(speaker.input_meters.len(), 1);
         assert_eq!(speaker.input_meters[0].level(), -10.0);
         assert_eq!(speaker.output_meters.len(), 2);
+    }
+
+    #[test]
+    fn the_loudest_input_is_the_highest_channel_as_shown() {
+        let mut speaker = state();
+        assert_eq!(speaker.loudest_input(0.0), None);
+        speaker.apply(value_event("m/in/level", json!([-30.0, -12.0])), 0.0);
+        speaker.apply(value_event("m/out/level", json!([-3.0])), 0.0);
+        // Long after the rise, the meters show the levels themselves.
+        assert_eq!(speaker.loudest_input(10.0), Some(-12.0));
     }
 
     #[test]

@@ -8,7 +8,9 @@ use eframe::egui::{
 };
 use serde_json::Value;
 
-use crate::meter::{level_at, position, zone, MeterState, Zone};
+use crate::meter::{
+    level_at, position, zone, MeterState, Zone, HOT_FROM_DB, METER_CEILING_DB, OVER_FROM_DB,
+};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
@@ -29,6 +31,9 @@ const CHANNEL_NAME_HEIGHT: f32 = 12.0;
 const CHANNEL_NAME_SIZE: f32 = 9.0;
 const PLAYED_MARK_SPACE: f32 = 8.0;
 const PLAYED_MARK_RADIUS: f32 = 2.0;
+const BAR_WIDTH: f32 = 72.0;
+const BAR_HEIGHT: f32 = 6.0;
+const BAR_RADIUS: u8 = 2;
 
 /// One group of meters, side by side.
 pub struct Meters<'a> {
@@ -189,6 +194,33 @@ fn segment_rects(track: Rect, pixels_per_point: f32) -> Vec<Rect> {
             )
         })
         .collect()
+}
+
+/// One level lying in a compact row: the zones side by side, lit up to `db` and dimmed above,
+/// like the strip's meters.
+pub fn bar(ui: &mut Ui, db: Option<f64>, floor: f64, label: &str, tokens: &Tokens) {
+    let (rect, response) = ui.allocate_exact_size(vec2(BAR_WIDTH, BAR_HEIGHT), Sense::hover());
+    let lit = db.map_or(0.0, |db| position(db, floor));
+    let zones = [
+        (Zone::Safe, floor, HOT_FROM_DB),
+        (Zone::Hot, HOT_FROM_DB, OVER_FROM_DB),
+        (Zone::Over, OVER_FROM_DB, METER_CEILING_DB),
+    ];
+    let painter = ui.painter();
+    let x = |at: f32| rect.left() + at * rect.width();
+    for (zone, from, to) in zones {
+        let (start, end) = (position(from, floor), position(to, floor));
+        let color = zone_color(zone, tokens);
+        let whole = Rect::from_x_y_ranges(x(start)..=x(end), rect.y_range());
+        painter.rect_filled(
+            whole,
+            CornerRadius::same(BAR_RADIUS),
+            color.gamma_multiply(UNLIT_OPACITY),
+        );
+        let shown = Rect::from_x_y_ranges(x(start)..=x(lit.clamp(start, end)), rect.y_range());
+        painter.rect_filled(shown, CornerRadius::same(BAR_RADIUS), color);
+    }
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, label));
 }
 
 fn zone_color(zone: Zone, tokens: &Tokens) -> Color32 {

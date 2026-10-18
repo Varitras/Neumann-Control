@@ -1,0 +1,201 @@
+//! The compact mode's rows: LEDs (or the group's colour), name, a lying level fader with its
+//! value, the loudest input as a small meter, and mute. One row per ungrouped speaker and per
+//! group, the master at the bottom. The rows only report gestures, as the strips do.
+
+use std::ops::RangeInclusive;
+
+use eframe::egui::{
+    self, vec2, Align, Button, Color32, CornerRadius, Layout, Pos2, RichText, Sense, Stroke, Ui,
+};
+use neumann_control_core::catalog::Catalog;
+use neumann_control_core::settings::{DeskSettings, GroupSettings};
+use neumann_control_core::speaker::Command;
+use serde_json::Value;
+
+use super::fader::{self, Orientation, Scale};
+use super::group_strip::{mute_button, GroupStripResponse, MasterResponse};
+use super::meters;
+use super::strip::{self, UNREACHABLE_OPACITY};
+use crate::fader::output_level_range;
+use crate::paths;
+use crate::state::{SpeakerState, Status};
+use crate::texts;
+use crate::ui_kit::theme::Tokens;
+use crate::writes::Switch;
+
+const ROW_MARGIN: i8 = 4;
+const ROW_RADIUS: u8 = 4;
+const BORDER_WIDTH: f32 = 1.0;
+/// The columns line up from row to row; the LED column is as wide as four LEDs.
+const MARK_WIDTH: f32 = 50.0;
+const NAME_WIDTH: f32 = 120.0;
+const READOUT_WIDTH: f32 = 72.0;
+const ROW_HEIGHT: f32 = 22.0;
+const SWATCH_SIZE: f32 = 10.0;
+const SWATCH_RADIUS: u8 = 2;
+
+pub struct SpeakerRowResponse {
+    /// The writes the user asked for that the write policy allowed.
+    pub commands: Vec<Command>,
+    /// Where the device panel opens when the name was clicked.
+    pub open_panel: Option<Pos2>,
+}
+
+pub fn speaker(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    desk: &DeskSettings,
+) -> SpeakerRowResponse {
+    let tokens = Tokens::current(ui.ctx());
+    let mut commands = Vec::new();
+    let path = paths::path(paths::OUTPUT_LEVEL);
+    let device = speaker.values.get(&path).and_then(Value::as_f64);
+    let unit = paths::catalog_entry(catalog, &path)
+        .and_then(|entry| entry.unit.clone())
+        .unwrap_or_default();
+    let now = ui.input(|input| input.time);
+    let loudest = speaker.loudest_input(now);
+    let open_panel = row(ui, tokens.border, |ui| {
+        if speaker.status == Status::Unreachable {
+            ui.multiply_opacity(UNREACHABLE_OPACITY);
+        }
+        cell(ui, MARK_WIDTH, |ui| strip::leds(ui, speaker, &tokens));
+        let open_panel = cell(ui, NAME_WIDTH, |ui| strip::name(ui, speaker));
+        let range = output_level_range();
+        let scale = Scale {
+            range,
+            unit: &unit,
+            orientation: Orientation::Horizontal,
+        };
+        let shown = fader::show(ui, speaker, catalog, &mut commands, device, scale);
+        let readout = device
+            .map(|_| texts::readout(shown, &unit))
+            .unwrap_or_default();
+        cell(ui, READOUT_WIDTH, |ui| ui.monospace(readout));
+        let floor = desk.meter_floor.db();
+        meters::bar(ui, loudest, floor, texts::INPUT_METERS.get(), &tokens);
+        let mute = texts::MUTE.get();
+        strip::toggle(ui, speaker, catalog, &mut commands, Switch::Mute, mute);
+        open_panel
+    });
+    SpeakerRowResponse {
+        commands,
+        open_panel,
+    }
+}
+
+/// What a group or master row shows: the loudest connected member's level as reference, whether
+/// all are muted, and the loudest input among them.
+pub struct SharedRow<'a> {
+    pub reference: Option<f64>,
+    pub muted: Option<bool>,
+    pub loudest: Option<f64>,
+    pub range: RangeInclusive<f64>,
+    pub unit: &'a str,
+    pub floor: f64,
+}
+
+pub fn group(
+    ui: &mut Ui,
+    group: &GroupSettings,
+    color: Color32,
+    shown: SharedRow,
+) -> GroupStripResponse {
+    let tokens = Tokens::current(ui.ctx());
+    let mut response = GroupStripResponse::default();
+    row(ui, color, |ui| {
+        cell(ui, MARK_WIDTH, |ui| swatch(ui, color));
+        let name = RichText::new(&group.name).strong().color(color);
+        response.open_settings = cell(ui, NAME_WIDTH, |ui| {
+            ui.add(Button::new(name).frame(false).truncate()).clicked()
+        });
+        let label = texts::group_level(&group.name);
+        let (level, mute) =
+            shared_controls(ui, &label, &texts::group_mute(&group.name), shown, &tokens);
+        response.level = level;
+        response.mute = mute;
+    });
+    response
+}
+
+pub fn master(ui: &mut Ui, shown: SharedRow) -> MasterResponse {
+    let tokens = Tokens::current(ui.ctx());
+    let mut response = MasterResponse::default();
+    row(ui, tokens.accent, |ui| {
+        cell(ui, MARK_WIDTH, |_| {});
+        cell(ui, NAME_WIDTH, |ui| {
+            ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()))
+        });
+        let (level, mute) = shared_controls(
+            ui,
+            texts::MASTER_LEVEL.get(),
+            texts::MUTE_ALL.get(),
+            shown,
+            &tokens,
+        );
+        response.level = level;
+        response.mute = mute;
+    });
+    response
+}
+
+/// Fader, value, meter and mute of a row that moves several speakers at once.
+fn shared_controls(
+    ui: &mut Ui,
+    level_label: &str,
+    mute_label: &str,
+    shown: SharedRow,
+    tokens: &Tokens,
+) -> (Option<f64>, Option<bool>) {
+    let scale = Scale {
+        range: shown.range,
+        unit: shown.unit,
+        orientation: Orientation::Horizontal,
+    };
+    let level = fader::shared(ui, level_label, shown.reference, scale);
+    let readout = shown
+        .reference
+        .map(texts::shared_readout)
+        .unwrap_or_default();
+    cell(ui, READOUT_WIDTH, |ui| ui.monospace(readout));
+    meters::bar(
+        ui,
+        shown.loudest,
+        shown.floor,
+        texts::INPUT_METERS.get(),
+        tokens,
+    );
+    let mute = mute_button(ui, mute_label, shown.muted);
+    (level, mute)
+}
+
+fn row<R>(ui: &mut Ui, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let tokens = Tokens::current(ui.ctx());
+    egui::Frame::new()
+        .fill(tokens.card)
+        .stroke(Stroke::new(BORDER_WIDTH, border))
+        .corner_radius(CornerRadius::same(ROW_RADIUS))
+        .inner_margin(ROW_MARGIN)
+        .show(ui, |ui| {
+            ui.with_layout(Layout::left_to_right(Align::Center), contents)
+                .inner
+        })
+        .inner
+}
+
+/// A column of fixed width, so that the rows line up.
+fn cell<R>(ui: &mut Ui, width: f32, contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let size = vec2(width, ROW_HEIGHT);
+    ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
+        ui.set_min_size(size);
+        contents(ui)
+    })
+    .inner
+}
+
+fn swatch(ui: &mut Ui, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(vec2(SWATCH_SIZE, SWATCH_SIZE), Sense::hover());
+    ui.painter()
+        .rect_filled(rect, CornerRadius::same(SWATCH_RADIUS), color);
+}

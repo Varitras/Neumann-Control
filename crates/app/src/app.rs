@@ -7,7 +7,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui::{self, Context, Pos2, Ui, ViewportInfo};
+use eframe::egui::{self, Context, Key, KeyboardShortcut, Modifiers, Pos2, Ui, ViewportInfo};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
@@ -31,9 +31,14 @@ use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, panel};
 
+mod compact;
 mod desk;
 
 const DESK_SCROLL_ID: &str = "desk";
+const COMPACT_SCROLL_ID: &str = "compact";
+const COMPACT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
+/// The desk's window size in points before it was ever resized.
+pub const DESK_WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
 
 struct Speaker {
     state: SpeakerState,
@@ -89,7 +94,7 @@ impl NeumannApp {
         context.set_theme(theme::preference(settings.desk.theme));
         let repaint_context = context.clone();
         let mut app = NeumannApp {
-            window: settings.window,
+            window: settings.window_of_mode(),
             settings_path,
             settings,
             spawner,
@@ -288,6 +293,7 @@ impl NeumannApp {
 
     fn show(&mut self, ui: &mut Ui) {
         let facts = ToolbarFacts {
+            compact: self.settings.desk.compact,
             scanning: self.scan.is_some(),
             speaker_count: self.speakers.len(),
             notice: self.notice,
@@ -302,9 +308,19 @@ impl NeumannApp {
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::AddGroup => self.add_group(),
             ToolbarAction::Settings => self.settings_open = true,
+            ToolbarAction::ToggleCompact => self.toggle_compact(ui.ctx()),
             ToolbarAction::None => {}
         }
-        egui::CentralPanel::default().show(ui, |ui| self.show_desk(ui));
+        if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
+            self.toggle_compact(ui.ctx());
+        }
+        egui::CentralPanel::default().show(ui, |ui| {
+            if self.settings.desk.compact {
+                self.show_compact(ui);
+            } else {
+                self.show_desk(ui);
+            }
+        });
         self.show_panel(ui.ctx());
         self.show_dialog(ui);
         self.show_scan_choice(ui);
@@ -527,8 +543,8 @@ impl eframe::App for NeumannApp {
             speaker.handle.send(Command::Stop);
         }
         self.speakers.clear();
-        if self.window.is_some() {
-            self.settings.window = self.window;
+        if let Some(window) = self.window {
+            self.settings.remember_window(window);
             self.save_settings();
         }
     }

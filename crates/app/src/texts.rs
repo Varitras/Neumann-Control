@@ -130,6 +130,8 @@ pub const CONTROL_HINT: Text = Text::new(
 );
 pub const PANEL_TITLE: Text = Text::new("Lautsprecher", "Speaker");
 pub const SETTINGS: Text = Text::new("Einstellungen", "Settings");
+pub const COMPACT: Text = Text::new("Kompakt", "Compact");
+pub const COMPACT_HINT: Text = Text::new("Strg+K", "Ctrl+K");
 pub const SETTINGS_TITLE: Text = Text::new("Einstellungen", "Settings");
 pub const THEME: Text = Text::new("Darstellung", "Appearance");
 pub const THEME_SYSTEM: Text = Text::new("wie Windows", "like Windows");

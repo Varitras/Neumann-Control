@@ -8,7 +8,7 @@ use eframe::egui::{
 };
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
-use super::fader;
+use super::fader::{self, Orientation, Scale};
 use crate::groups::LINKABLE;
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -56,7 +56,7 @@ pub fn group(
             }
         }
         let label = texts::group_level(&group.name);
-        response.level = fader::shared(ui, &label, reference, range, unit);
+        response.level = fader::shared(ui, &label, reference, upright(range, unit));
         let readout = reference.map(texts::shared_readout).unwrap_or_default();
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, &texts::group_mute(&group.name), muted);
@@ -81,12 +81,21 @@ pub fn master(
     let mut response = MasterResponse::default();
     frame(ui, tokens.accent, |ui| {
         ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()));
-        response.level = fader::shared(ui, texts::MASTER_LEVEL.get(), reference, range, unit);
+        let label = texts::MASTER_LEVEL.get();
+        response.level = fader::shared(ui, label, reference, upright(range, unit));
         let readout = reference.map(texts::shared_readout).unwrap_or_default();
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, texts::MUTE_ALL.get(), muted);
     });
     response
+}
+
+fn upright(range: RangeInclusive<f64>, unit: &str) -> Scale<'_> {
+    Scale {
+        range,
+        unit,
+        orientation: Orientation::Vertical,
+    }
 }
 
 fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {
@@ -106,7 +115,7 @@ fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {
 }
 
 /// Shows whether all are muted; a click asks for the opposite for all.
-fn mute_button(ui: &mut Ui, label: &str, muted: Option<bool>) -> Option<bool> {
+pub(super) fn mute_button(ui: &mut Ui, label: &str, muted: Option<bool>) -> Option<bool> {
     let all = muted.unwrap_or(false);
     let button = ui.add_enabled(muted.is_some(), Button::new(texts::MUTE).selected(all));
     button.widget_info(|| WidgetInfo::selected(WidgetType::Button, muted.is_some(), all, label));

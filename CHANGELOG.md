@@ -18,7 +18,10 @@ First version.
   meters (KH 750: also output meters) with clip lamps, response time, mute and identify.
 - A device panel per speaker with every setting of its model and a list of all values the
   speaker reports.
-- A settings dialog for theme, meter range and response times.
+- A settings dialog for theme, language, meter range and response times.
+- German and English user interface, switched at once.
+- A compact window mode (Ctrl+K) with one row per ungrouped speaker and per group and a master
+  row, with its own window size and position.
 - Groups with a group strip (relative fader, mute, linked settings), a master strip, and strips
   reordered by dragging.
 - Support for the KH 120 II and the KH 750 with writes; other models read-only.

@@ -178,3 +178,29 @@ fn groups_and_order_round_trip() {
     save(&settings, &path).unwrap();
     assert_eq!(load(&path), settings);
 }
+
+#[test]
+fn each_mode_keeps_its_own_window() {
+    let desk = WindowGeometry {
+        x: 0.0,
+        y: 0.0,
+        width: 900.0,
+        height: 600.0,
+    };
+    let compact = WindowGeometry {
+        width: 480.0,
+        height: 360.0,
+        ..desk
+    };
+    let mut settings = Settings::default();
+    assert_eq!(
+        settings.switch_mode(Some(desk)),
+        None,
+        "compact never had a window"
+    );
+    assert!(settings.desk.compact);
+    assert_eq!(settings.switch_mode(Some(compact)), Some(desk));
+    assert!(!settings.desk.compact);
+    assert_eq!(settings.switch_mode(None), Some(compact));
+    assert_eq!(settings.window_of_mode(), Some(compact));
+}
