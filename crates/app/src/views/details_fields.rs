@@ -46,7 +46,9 @@ impl Fields<'_> {
 
     /// A drag or a typed value is one gesture. Its value is held while the gesture is active
     /// and written once, on the frame it ends (release, Enter or focus loss); Escape drops it.
-    /// The device value itself is never clamped or written back.
+    /// The device value itself is never clamped or written back. The field shows the value
+    /// unrounded: egui parses the shown text when focus leaves and would otherwise report the
+    /// rounded text as an edit.
     pub fn number(&mut self, ui: &mut Ui, entry: &Entry) {
         let reported = self.speaker.values.get(&entry.path).cloned();
         let device = reported.as_ref().and_then(Value::as_f64);
@@ -62,6 +64,7 @@ impl Fields<'_> {
         let mut drag = DragValue::new(&mut value)
             .range(min..=max)
             .clamp_existing_to_range(false)
+            .custom_formatter(|number, _| number.to_string())
             .speed(entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED));
         if let Some(unit) = &entry.unit {
             drag = drag.suffix(format!(" {unit}"));

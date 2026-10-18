@@ -186,6 +186,22 @@ fn out_of_range_device_value_is_not_written_back() {
 }
 
 #[test]
+fn visiting_a_number_field_does_not_write_its_rounded_text() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/delay", json!(100.123456));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        numeric_value(harness, DELAY_LABEL) == Some(100.123456)
+    });
+    harness.get_by_label(DELAY_LABEL).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, DELAY_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
+#[test]
 fn abandoned_number_edit_is_not_sent_on_reopen() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");
