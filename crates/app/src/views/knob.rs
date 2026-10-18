@@ -43,6 +43,9 @@ const DRAG_ANGLE_ID: &str = "knob_drag_angle";
 const DRAG_START_ID: &str = "knob_drag_start";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
+/// Below the small text style, so the panel's names ("Verzögerung", "Standby-Zeit") fit their
+/// column on one line; a longer one is cut, never broken inside a word, and shows whole on hover.
+const CAPTION_SIZE: f32 = 9.0;
 /// Room for the value line under the knob.
 const CELL_MIN_WIDTH: f32 = 52.0;
 pub const KNOB_DIAMETER: f32 = 34.0;
@@ -213,7 +216,8 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             let label = knob.label.to_owned();
             response.widget_info(|| WidgetInfo::slider(enabled, value, &label));
             if knob.caption {
-                ui.add(Label::new(RichText::new(knob.label).small().weak()));
+                let caption = RichText::new(knob.label).size(CAPTION_SIZE).weak();
+                ui.add(Label::new(caption).truncate());
             }
             let open_now = response.double_clicked();
             let edited = value_entry(ui, id, open_now, value, knob.conversion);

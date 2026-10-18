@@ -828,4 +828,10 @@ fn the_strip_knob_captions_stay_apart() {
     let caption = |label: &str| harness.get_by_role_and_label(Role::Label, label).rect();
     let (delay, standby) = (caption(DELAY_KNOB), caption(STANDBY_KNOB));
     assert!(!delay.intersects(standby), "{delay:?} {standby:?}");
+    // One line each: a name too long for its column is cut, never broken inside a word.
+    let small = egui::TextStyle::Small.resolve(&harness.ctx.global_style());
+    let line = harness.ctx.fonts_mut(|fonts| fonts.row_height(&small));
+    for rect in [delay, standby] {
+        assert!(rect.height() < 1.5 * line, "{rect:?} for a line of {line}");
+    }
 }
