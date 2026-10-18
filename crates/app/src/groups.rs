@@ -104,20 +104,58 @@ pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<
     }
 }
 
-/// Moves `member` in front of `before` in the saved order; speakers the order does not know
-/// yet are added first in `speakers` order, so the result covers everyone.
-pub fn move_in_order(order: &mut Vec<String>, speakers: &[String], member: &str, before: &str) {
-    for id in speakers {
-        if !order.contains(id) {
-            order.push(id.clone());
-        }
-    }
-    order.retain(|id| id != member);
-    let at = order
+/// Where a dragged strip would land: the number of other strips of its section whose centre
+/// is left of the pointer, so past the last one is a slot of its own.
+pub fn insertion_slot(centers: &[f32], pointer_x: f32) -> usize {
+    centers.iter().filter(|center| **center < pointer_x).count()
+}
+
+/// The desk with `dragged` moved to `slot` among `others`, the other speakers of its section in
+/// their current order; strips of other sections keep their places.
+pub fn with_moved(
+    items: &[DeskItem],
+    dragged: usize,
+    others: &[usize],
+    slot: usize,
+) -> Vec<DeskItem> {
+    let Some(anchor) = others.get(slot).or(others.last()) else {
+        return items.to_vec();
+    };
+    let mut moved: Vec<DeskItem> = items
         .iter()
-        .position(|id| id == before)
-        .unwrap_or(order.len());
-    order.insert(at, member.to_owned());
+        .copied()
+        .filter(|item| *item != DeskItem::Speaker(dragged))
+        .collect();
+    let anchor_at = moved
+        .iter()
+        .position(|item| *item == DeskItem::Speaker(*anchor))
+        .unwrap_or(moved.len());
+    let at = if slot < others.len() {
+        anchor_at
+    } else {
+        anchor_at + 1
+    };
+    moved.insert(at, DeskItem::Speaker(dragged));
+    moved
+}
+
+/// The saved order after a drop: the speakers as `items` shows them, then the saved ids of
+/// speakers not on the desk right now, so they keep their places for when they return.
+pub fn order_of(items: &[DeskItem], speakers: &[String], saved: &[String]) -> Vec<String> {
+    let mut order: Vec<String> = items
+        .iter()
+        .filter_map(|item| match item {
+            DeskItem::Speaker(index) => Some(speakers[*index].clone()),
+            DeskItem::GroupStrip(_) => None,
+        })
+        .collect();
+    let absent: Vec<String> = saved
+        .iter()
+        .filter(|id| !order.contains(id))
+        .cloned()
+        .collect();
+    order.extend(absent);
+    order
 }
 
 /// The level a group or master fader shows: its loudest member.
@@ -188,12 +226,39 @@ mod tests {
     }
 
     #[test]
-    fn moving_puts_the_speaker_before_the_target() {
-        let mut order = ids(&["a", "b"]);
-        move_in_order(&mut order, &ids(&["a", "b", "c"]), "c", "a");
-        assert_eq!(order, ids(&["c", "a", "b"]));
-        move_in_order(&mut order, &ids(&["a", "b", "c"]), "c", "b");
-        assert_eq!(order, ids(&["a", "c", "b"]));
+    fn the_slot_is_the_number_of_strips_left_of_the_pointer() {
+        let centers = [50.0, 150.0, 250.0];
+        assert_eq!(insertion_slot(&centers, 10.0), 0);
+        assert_eq!(insertion_slot(&centers, 120.0), 1);
+        assert_eq!(insertion_slot(&centers, 400.0), 3, "behind the last strip");
+    }
+
+    #[test]
+    fn a_dragged_strip_moves_within_its_section() {
+        use DeskItem::*;
+        let items = [Speaker(0), Speaker(1), Speaker(2), GroupStrip(0)];
+        // Speaker 0 dragged among the others of its section (1 and 2).
+        assert_eq!(
+            with_moved(&items, 0, &[1, 2], 2),
+            vec![Speaker(1), Speaker(2), Speaker(0), GroupStrip(0)]
+        );
+        assert_eq!(
+            with_moved(&items, 2, &[0, 1], 0),
+            vec![Speaker(2), Speaker(0), Speaker(1), GroupStrip(0)]
+        );
+        assert_eq!(with_moved(&items, 1, &[0, 2], 1), items.to_vec());
+    }
+
+    #[test]
+    fn the_saved_order_follows_the_desk_and_keeps_absent_speakers() {
+        use DeskItem::*;
+        let speakers = ids(&["a", "b"]);
+        let items = [Speaker(1), GroupStrip(0), Speaker(0)];
+        let saved = ids(&["gone", "a", "b"]);
+        assert_eq!(
+            order_of(&items, &speakers, &saved),
+            ids(&["b", "a", "gone"])
+        );
     }
 
     #[test]

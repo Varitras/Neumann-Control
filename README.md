@@ -42,8 +42,9 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   to the others whose model may write it. "Für Gruppe übernehmen" in the panel copies a linked
   value to the other members. Clicking the group's name renames or deletes it.
 - A master strip at the end moves and mutes all connected speakers the same way.
-- Drag a strip by the dots before its name onto another strip to put it in front; the order is
-  remembered.
+- Drag a strip by the dots before its name; the other strips of its group (or the ungrouped
+  ones) make room where it would land, and the order is remembered when you let go. Escape
+  cancels.
 - "Einstellungen" sets the theme (like Windows, light, dark), the lowest level the meters show
   (-120, -90 or -60 dB) and whether response times are shown; the toolbar shows the average
   response time of the connected speakers.

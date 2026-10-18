@@ -2,7 +2,9 @@
 //! and what their gestures mean for each speaker: relative moves of a group or the master, and
 //! a change on a group member sent on to the other members when the group links that setting.
 
-use eframe::egui::{Align, Layout, Rect, ScrollArea, Sense, Stroke, Ui};
+use std::collections::HashMap;
+
+use eframe::egui::{Align, Context, DragAndDrop, Id, Layout, ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::speaker::Command;
@@ -11,21 +13,21 @@ use serde_json::Value;
 use super::{NeumannApp, OpenPanel, DESK_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{
-    layout, linkable_of, linked_path, member_id, move_in_order, reference_level, shifted_levels,
-    DeskItem,
+    insertion_slot, layout, linkable_of, linked_path, member_id, order_of, reference_level,
+    shifted_levels, with_moved, DeskItem,
 };
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
-use crate::ui_kit::theme::{group_color, group_color_count, Tokens};
+use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip;
 use crate::writes::Intent;
 
-const DROP_ZONE_ID: &str = "drop_zone";
-const DROP_MARK_WIDTH: f32 = 2.0;
-/// The drop mark sits in the gap left of the strip.
-const DROP_MARK_OFFSET: f32 = 4.0;
+const STRIP_CENTERS_ID: &str = "strip_centers";
+/// The dragged strip stays where it would land, faded so the strips around it read as the
+/// result of the drop.
+const DRAGGED_OPACITY: f32 = 0.4;
 
 /// What a frame's gestures asked for; applied once the desk is drawn.
 enum DeskAction {
@@ -33,11 +35,6 @@ enum DeskAction {
     Group(usize, GroupStripResponse),
     Master(MasterResponse),
     OpenPanel(OpenPanel),
-    /// A strip dropped on another: `member` goes in front of `before`.
-    Move {
-        member: String,
-        before: String,
-    },
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -56,6 +53,13 @@ impl NeumannApp {
         let desk = self.settings.desk;
         let ids = self.member_ids();
         let items = layout(&self.settings.order, &self.settings.groups, &ids);
+        let dragged = DragAndDrop::payload::<String>(ui.ctx())
+            .and_then(|member| ids.iter().position(|id| *id == *member));
+        let items = match dragged {
+            Some(index) => previewed(ui.ctx(), items, index, &ids, &self.settings.groups),
+            None => items,
+        };
+        let mut centers = HashMap::new();
         let range = output_level_range();
         let unit = level_unit(catalog);
         let mut actions = Vec::new();
@@ -73,6 +77,9 @@ impl NeumannApp {
                                 let key = speaker.state.key.clone();
                                 let response = ui
                                     .push_id(&key, |ui| {
+                                        if dragged == Some(index) {
+                                            ui.multiply_opacity(DRAGGED_OPACITY);
+                                        }
                                         let member = &ids[index];
                                         strip::show(
                                             ui,
@@ -84,10 +91,7 @@ impl NeumannApp {
                                         )
                                     })
                                     .inner;
-                                if let Some(member) = dropped_on(ui, response.rect, index) {
-                                    let before = ids[index].clone();
-                                    actions.push(DeskAction::Move { member, before });
-                                }
+                                centers.insert(ids[index].clone(), response.rect.center().x);
                                 actions.push(DeskAction::Commands(index, response.commands));
                                 if let Some(anchor) = response.open_panel {
                                     let opened_now = true;
@@ -126,6 +130,16 @@ impl NeumannApp {
                     actions.push(DeskAction::Master(response));
                 });
             });
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(Id::new(STRIP_CENTERS_ID), centers));
+        let dropped = dragged.is_some() && ui.input(|input| input.pointer.any_released());
+        if dropped {
+            let order = order_of(&items, &ids, &self.settings.order);
+            if order != self.settings.order {
+                self.settings.order = order;
+                self.save_settings();
+            }
+        }
         let now = ui.input(|input| input.time);
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);
@@ -162,12 +176,6 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(open) => self.panel = Some(open),
-            DeskAction::Move { member, before } => {
-                if member != before {
-                    move_in_order(&mut self.settings.order, ids, &member, &before);
-                    self.save_settings();
-                }
-            }
         }
     }
 
@@ -316,19 +324,36 @@ impl NeumannApp {
     }
 }
 
-/// The speaker identity dropped on the strip at `rect`, if one was let go there; while one
-/// hovers, a line marks where it would go.
-fn dropped_on(ui: &mut Ui, rect: Rect, index: usize) -> Option<String> {
-    let id = ui.id().with((DROP_ZONE_ID, index));
-    let zone = ui.interact(rect, id, Sense::hover());
-    if zone.dnd_hover_payload::<String>().is_some() {
-        let tokens = Tokens::current(ui.ctx());
-        let x = rect.left() - DROP_MARK_OFFSET;
-        let stroke = Stroke::new(DROP_MARK_WIDTH, tokens.accent);
-        ui.painter().vline(x, rect.y_range(), stroke);
-    }
-    zone.dnd_release_payload::<String>()
-        .map(|member| (*member).clone())
+/// The desk as it would look with `dragged` dropped at the pointer: moved among the other
+/// speakers of its section (its group, or the ungrouped ones), placed by where their strips were
+/// last frame. Before every one of them was drawn once, the desk stays as it is.
+fn previewed(
+    ctx: &Context,
+    items: Vec<DeskItem>,
+    dragged: usize,
+    ids: &[String],
+    groups: &[GroupSettings],
+) -> Vec<DeskItem> {
+    let section = group_of(groups, &ids[dragged]);
+    let others: Vec<usize> = items
+        .iter()
+        .filter_map(|item| match item {
+            DeskItem::Speaker(index) if *index != dragged => Some(*index),
+            _ => None,
+        })
+        .filter(|index| group_of(groups, &ids[*index]) == section)
+        .collect();
+    let centers: HashMap<String, f32> = ctx
+        .data(|data| data.get_temp(Id::new(STRIP_CENTERS_ID)))
+        .unwrap_or_default();
+    let known: Option<Vec<f32>> = others
+        .iter()
+        .map(|index| centers.get(&ids[*index]).copied())
+        .collect();
+    let (Some(known), Some(pointer)) = (known, ctx.pointer_interact_pos()) else {
+        return items;
+    };
+    with_moved(&items, dragged, &others, insertion_slot(&known, pointer.x))
 }
 
 pub(super) fn group_of(groups: &[GroupSettings], id: &str) -> Option<usize> {

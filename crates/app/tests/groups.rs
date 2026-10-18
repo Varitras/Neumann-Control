@@ -210,3 +210,56 @@ fn dragging_a_strip_onto_another_puts_it_in_front_and_saves_the_order() {
     let saved = settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.order, vec![KH750_ID.to_owned(), KH120_ID.to_owned()]);
 }
+
+#[test]
+fn a_strip_can_be_dragged_behind_the_last_one_and_the_others_make_room_meanwhile() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    let handle = harness
+        .get_all_by_label(texts::MOVE_STRIP)
+        .next()
+        .unwrap()
+        .rect();
+    let group_strip = harness
+        .get_by_role_and_label(Role::Slider, &texts::group_level(GROUP_NAME))
+        .rect();
+    // Past the last member, over the group strip: no strip to drop "in front of" there.
+    let target = egui::pos2(group_strip.center().x, handle.center().y);
+    harness.drag_at(handle.center());
+    for frame in 1..=6 {
+        let progress = frame as f32 / 6.0;
+        harness.hover_at(handle.center() + (target - handle.center()) * progress);
+        harness.step();
+    }
+    let x_of = |harness: &Harness<'static, NeumannApp>, name: &str| {
+        harness.get_by_label(name).rect().center().x
+    };
+    assert!(
+        x_of(&harness, KH750_DEVICE_NAME) < x_of(&harness, KH120_DEVICE_NAME),
+        "the other strip moves aside while dragging"
+    );
+    harness.drop_at(target);
+    harness.run_steps(2);
+    let saved = settings::load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(saved.order, vec![KH750_ID.to_owned(), KH120_ID.to_owned()]);
+}
+
+#[test]
+fn escape_while_dragging_keeps_the_order() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    let handles: Vec<egui::Rect> = harness
+        .query_all_by_label(texts::MOVE_STRIP)
+        .map(|node| node.rect())
+        .collect();
+    let (first, second) = (handles[0], handles[1]);
+    harness.drag_at(second.center());
+    for frame in 1..=6 {
+        let progress = frame as f32 / 6.0;
+        harness.hover_at(second.center() + (first.center() - second.center()) * progress);
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.drop_at(first.center());
+    harness.run_steps(2);
+    let saved = settings::load(&directory.path().join(SETTINGS_FILE));
+    assert!(saved.order.is_empty(), "{:?}", saved.order);
+}
