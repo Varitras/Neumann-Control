@@ -23,6 +23,10 @@ simplelog = "0.12"
 # Already in the tree through eframe; lists the monitors to place the window at the start.
 winit = "0.30"
 
+[build-dependencies]
+# Puts the icon into the executable, for Explorer and the taskbar.
+winresource = "0.1"
+
 [dev-dependencies]
 egui_kittest = { version = "0.36", features = ["eframe"] }
 neumann-control-core = { path = "../core", features = ["test-support"] }

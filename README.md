@@ -1,5 +1,7 @@
 # neumann-control
 
+![Neumann Control](crates/app/assets/brand/logo.png)
+
 A portable Windows app to find, read and control Neumann KH DSP speakers over the
 Sennheiser Sound Control protocol (SSC). The user interface is in German or English; the
 names below are the German ones.

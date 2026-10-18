@@ -4,6 +4,7 @@
 use std::error::Error;
 use std::fs::File;
 use std::path::Path;
+use std::sync::Arc;
 
 use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
@@ -14,6 +15,9 @@ use neumann_control_app::texts;
 use neumann_control_app::window_placement::{first_window_size, place_window, WINDOW_MIN_SIZE};
 use neumann_control_core::settings::{self, LOG_FILE, SETTINGS_FILE};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
+
+/// Title bar and taskbar; the executable's own icon comes from `build.rs`.
+const WINDOW_ICON: &[u8] = include_bytes!("../assets/brand/icon.png");
 
 // Our crates only: wgpu logs the graphics adapters with their bus ids at info level.
 const LOG_TARGET_PREFIX: &str = "neumann_control";
@@ -33,6 +37,10 @@ fn wgpu_options() -> WgpuConfiguration {
         setup.instance_descriptor.backends = wgpu::Backends::DX12;
     }
     options
+}
+
+fn window_icon() -> Result<eframe::egui::IconData, Box<dyn Error>> {
+    Ok(eframe::icon_data::from_png_bytes(WINDOW_ICON)?)
 }
 
 /// The app still runs without a log, e.g. from a read-only folder.
@@ -58,6 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
+            .with_icon(Arc::new(window_icon()?))
             .with_inner_size(first_window_size(saved.desk.compact))
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
