@@ -20,6 +20,59 @@ pub struct Settings {
     /// first name so that files written before scans were remembered load unchanged.
     pub manual: Vec<ManualSpeaker>,
     pub window: Option<WindowGeometry>,
+    pub desk: DeskSettings,
+}
+
+/// What the settings dialog changes.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DeskSettings {
+    pub theme: ThemeChoice,
+    pub meter_floor: MeterFloor,
+    pub show_response_times: bool,
+}
+
+impl Default for DeskSettings {
+    fn default() -> DeskSettings {
+        DeskSettings {
+            theme: ThemeChoice::System,
+            meter_floor: MeterFloor::Minus120,
+            show_response_times: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ThemeChoice {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// The lowest level a meter shows; quiet room volume reads about -90 dB on the inputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MeterFloor {
+    #[default]
+    Minus120,
+    Minus90,
+    Minus60,
+}
+
+impl MeterFloor {
+    pub const ALL: [MeterFloor; 3] = [
+        MeterFloor::Minus120,
+        MeterFloor::Minus90,
+        MeterFloor::Minus60,
+    ];
+
+    pub fn db(self) -> f64 {
+        match self {
+            MeterFloor::Minus120 => -120.0,
+            MeterFloor::Minus90 => -90.0,
+            MeterFloor::Minus60 => -60.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

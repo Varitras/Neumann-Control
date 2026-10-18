@@ -1,5 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, ManualSpeaker, Settings, WindowGeometry, SETTINGS_FILE,
+    load, save, DeskSettings, ManualSpeaker, MeterFloor, Settings, ThemeChoice, WindowGeometry,
+    SETTINGS_FILE,
 };
 use std::fs;
 
@@ -23,6 +24,7 @@ fn sample() -> Settings {
             width: 800.0,
             height: 600.0,
         }),
+        desk: DeskSettings::default(),
     }
 }
 
@@ -104,4 +106,32 @@ fn unknown_and_missing_fields_are_tolerated() {
     assert_eq!(loaded.manual[0].serial, None);
     assert_eq!(loaded.window, None);
     assert!(path.exists());
+}
+
+#[test]
+fn old_settings_file_loads_with_desk_defaults() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[],"window":null}"#).unwrap();
+    let loaded = load(&path);
+    assert_eq!(loaded.desk, DeskSettings::default());
+    assert_eq!(loaded.desk.theme, ThemeChoice::System);
+    assert_eq!(loaded.desk.meter_floor.db(), -120.0);
+    assert!(loaded.desk.show_response_times);
+}
+
+#[test]
+fn desk_settings_round_trip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let settings = Settings {
+        desk: DeskSettings {
+            theme: ThemeChoice::Dark,
+            meter_floor: MeterFloor::Minus60,
+            show_response_times: false,
+        },
+        ..Settings::default()
+    };
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path), settings);
 }

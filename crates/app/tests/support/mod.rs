@@ -64,7 +64,7 @@ pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
     let path = directory.join(SETTINGS_FILE);
     let settings = Settings {
         manual,
-        window: None,
+        ..Settings::default()
     };
     settings::save(&settings, &path).unwrap();
     path
