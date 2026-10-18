@@ -19,12 +19,13 @@ First version.
 - A device panel per speaker with every setting of its model and a list of all values the
   speaker reports.
 - A settings dialog for theme, language, meter range and response times.
-- German and English user interface, switched at once.
+- German and English user interface, switched at once; German shows a decimal comma.
 - A compact window mode (Ctrl+K) with one row per ungrouped speaker and per group and a master
   row, with its own window size and position.
 - Groups with a group strip (relative fader, mute, linked settings), a master strip, and strips
   reordered by dragging.
 - Support for the KH 120 II and the KH 750 with writes; other models read-only.
-- Portable settings and log next to the executable.
+- Portable settings and log next to the executable; a settings value this version does not
+  understand falls back to its default without losing the rest, and the file is copied aside.
 - A speaker simulator for both models used by the automated tests.
 - `check.ps1` quality gates and `build-release.ps1` for the release folder.
