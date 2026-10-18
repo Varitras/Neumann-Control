@@ -62,7 +62,8 @@ Assert-CleanTree
 $version = Get-WorkspaceVersion
 
 # Checked before the gate: a rerun must not silently replace an exe already built.
-$releaseDirectory = Join-Path 'release' $version
+# Absolute: .NET file calls resolve relative paths against the process directory, not Set-Location.
+$releaseDirectory = Join-Path $PSScriptRoot (Join-Path 'release' $version)
 $holdsEarlierBuild = (Test-Path -LiteralPath $releaseDirectory) -and @(Get-ChildItem -LiteralPath $releaseDirectory -Force).Count -gt 0
 if ($holdsEarlierBuild -and -not $Force) {
     Write-Host "FAILED: $releaseDirectory already holds files; pass -Force to overwrite them" -ForegroundColor Red
