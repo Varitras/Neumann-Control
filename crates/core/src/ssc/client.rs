@@ -187,6 +187,8 @@ pub struct Client {
     connection: Connection,
     next_xid: u64,
     closed: bool,
+    /// Send to matching reply of the last answered request, until taken.
+    round_trip: Option<Duration>,
 }
 
 impl Client {
@@ -208,6 +210,7 @@ impl Client {
             },
             next_xid: FIRST_XID,
             closed: false,
+            round_trip: None,
         })
     }
 
@@ -263,6 +266,11 @@ impl Client {
         }
     }
 
+    /// The round trip of the last answered request, once.
+    pub fn take_round_trip(&mut self) -> Option<Duration> {
+        self.round_trip.take()
+    }
+
     fn close(&mut self) {
         self.closed = true;
         let _ = self.connection.stream.shutdown(Shutdown::Both);
@@ -286,8 +294,10 @@ impl Client {
     fn transact(&mut self, path: &SscPath, value: Value) -> Result<Value, SscError> {
         let xid = self.next_xid;
         self.next_xid += 1;
+        let sent = Instant::now();
         self.connection.send_line(&request_line(path, value, xid))?;
         let reply = self.read_reply(xid, path)?;
+        self.round_trip = Some(sent.elapsed());
         match device_error(&reply) {
             Some(error) => Err(SscError::Device(error)),
             None => Ok(reply),

@@ -110,6 +110,8 @@ pub enum Event {
         found: String,
     },
     AllValues(Vec<LeafReport>),
+    /// A running mean of the request round trips, sent at most once per second while connected.
+    ResponseTime(Duration),
     AllValuesFailed(String),
 }
 
@@ -244,6 +246,42 @@ struct Session {
     absent: HashSet<SscPath>,
     /// A running "read everything", advanced whenever no command or poll is due.
     walk: Option<Walk>,
+    response_time: ResponseTime,
+}
+
+/// Weight of the newest round trip in the running mean.
+const RESPONSE_TIME_WEIGHT: f64 = 0.2;
+const RESPONSE_TIME_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Default)]
+struct ResponseTime {
+    mean: Option<Duration>,
+    reported_at: Option<Instant>,
+}
+
+impl ResponseTime {
+    fn add(&mut self, sample: Duration) {
+        let mean = match self.mean {
+            Some(mean) => {
+                mean.mul_f64(1.0 - RESPONSE_TIME_WEIGHT) + sample.mul_f64(RESPONSE_TIME_WEIGHT)
+            }
+            None => sample,
+        };
+        self.mean = Some(mean);
+    }
+
+    /// The mean when the last report is a second old or there was none.
+    fn due(&mut self, now: Instant) -> Option<Duration> {
+        let mean = self.mean?;
+        let waited = self
+            .reported_at
+            .is_none_or(|at| now.duration_since(at) >= RESPONSE_TIME_INTERVAL);
+        if !waited {
+            return None;
+        }
+        self.reported_at = Some(now);
+        Some(mean)
+    }
 }
 
 struct Worker {
@@ -297,6 +335,7 @@ impl Worker {
             schedule: Schedule::new(&entries, &self.timing, Instant::now()),
             absent: HashSet::new(),
             walk: None,
+            response_time: ResponseTime::default(),
         };
         let interruption = self.serve(&mut session, &entries);
         // The app waits for an answer to every "read everything".
@@ -349,7 +388,18 @@ impl Worker {
             Due::Nothing => {}
         }
         // One step per round, so neither the walk nor the meters can starve the other.
-        self.advance_walk(session)
+        let walked = self.advance_walk(session);
+        self.report_response_time(session);
+        walked
+    }
+
+    fn report_response_time(&self, session: &mut Session) {
+        if let Some(sample) = session.client.take_round_trip() {
+            session.response_time.add(sample);
+        }
+        if let Some(mean) = session.response_time.due(Instant::now()) {
+            self.outbox.emit(Event::ResponseTime(mean));
+        }
     }
 
     fn paused(&self) -> bool {

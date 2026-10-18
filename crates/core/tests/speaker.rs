@@ -690,6 +690,27 @@ fn polling_pauses_while_nobody_reads_the_events() {
 }
 
 #[test]
+fn response_time_is_reported_about_once_a_second() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(Duration::from_millis(30));
+    let (_handle, events) = start_worker(simulator.address(), None, short_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    let end = Instant::now() + Duration::from_millis(2500);
+    let mut times = Vec::new();
+    while let Some(remaining) = end.checked_duration_since(Instant::now()) {
+        if let Ok(Event::ResponseTime(time)) = events.recv_timeout(remaining) {
+            times.push(time);
+        }
+    }
+    assert!((2..=3).contains(&times.len()), "{times:?}");
+    assert!(
+        times.iter().all(|time| *time >= Duration::from_millis(25)),
+        "{times:?}"
+    );
+}
+
+#[test]
 fn drop_stops_the_thread() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, short_timing());

@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddrV6;
+use std::time::Duration;
 
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::{mask_host, mask_serial};
@@ -75,6 +76,8 @@ pub struct SpeakerState {
     pub all_values: AllValuesState,
     /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
     pub all_values_filter: String,
+    /// The worker's running mean; none until the current connection measured one.
+    pub response_time: Option<Duration>,
 }
 
 impl SpeakerState {
@@ -95,6 +98,7 @@ impl SpeakerState {
             fader: FaderState::default(),
             all_values: AllValuesState::Idle,
             all_values_filter: String::new(),
+            response_time: None,
         }
     }
 
@@ -156,6 +160,7 @@ impl SpeakerState {
                     MessageSource::Connection,
                 );
                 self.reset_meters();
+                self.response_time = None;
             }
             Event::Value { path, value } => {
                 if path == paths::path(paths::OUTPUT_LEVEL) {
@@ -178,6 +183,7 @@ impl SpeakerState {
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
+                self.response_time = None;
                 let text = texts::serial_mismatch(&mask_serial(&found));
                 self.set_message(Some(text), MessageSource::Connection);
             }
@@ -185,6 +191,7 @@ impl SpeakerState {
             Event::AllValuesFailed(reason) => {
                 self.finish_all_values(AllValuesState::Failed(reason));
             }
+            Event::ResponseTime(time) => self.response_time = Some(time),
         }
     }
 
@@ -370,6 +377,15 @@ mod tests {
         let message = speaker.message.unwrap();
         assert!(message.contains(&mask_serial(OTHER_SERIAL)));
         assert!(!message.contains(OTHER_SERIAL));
+    }
+
+    #[test]
+    fn response_time_is_cleared_when_unreachable() {
+        let mut speaker = state();
+        speaker.apply(Event::ResponseTime(Duration::from_millis(14)), 0.0);
+        assert_eq!(speaker.response_time, Some(Duration::from_millis(14)));
+        speaker.apply(Event::Unreachable("gone".to_owned()), 1.0);
+        assert_eq!(speaker.response_time, None);
     }
 
     #[test]
