@@ -7,6 +7,16 @@ use serde_json::Value;
 use crate::texts;
 
 const LIST_SEPARATOR: &str = ", ";
+const DEVICE_VERSION_SEPARATOR: char = '_';
+const SHOWN_VERSION_SEPARATOR: char = '.';
+
+/// The device reports its firmware as `major_minor_patch`; people write it with dots.
+pub fn firmware_version(reported: &str) -> String {
+    reported.replace(
+        DEVICE_VERSION_SEPARATOR,
+        &SHOWN_VERSION_SEPARATOR.to_string(),
+    )
+}
 
 pub fn shown_value(entry: &Entry, value: &Value) -> String {
     if let (Some(conversion), Some(number)) = (entry.conversion, value.as_f64()) {
@@ -54,6 +64,17 @@ mod tests {
 
     fn entry(path: &str) -> &'static Entry {
         paths::catalog_entry(Catalog::embedded(), &paths::path(path)).unwrap()
+    }
+
+    #[test]
+    fn firmware_underscores_become_dots() {
+        assert_eq!(firmware_version("2_1_2"), "2.1.2");
+    }
+
+    #[test]
+    fn firmware_without_underscores_is_unchanged() {
+        assert_eq!(firmware_version("2.1.2"), "2.1.2");
+        assert_eq!(firmware_version("1"), "1");
     }
 
     #[test]

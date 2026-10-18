@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use super::fader::{self, FADER_HEIGHT};
 use super::{details, meters};
+use crate::display::firmware_version;
 use crate::fader::output_level_range;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
@@ -162,7 +163,10 @@ fn more_toggle(ui: &mut Ui, speaker: &mut SpeakerState) {
 
 fn status_line(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     if let Some(identity) = &speaker.identity {
-        let line = texts::status_line(&identity.version, &mask_serial(&identity.serial));
+        let line = texts::status_line(
+            &firmware_version(&identity.version),
+            &mask_serial(&identity.serial),
+        );
         ui.add(Label::new(RichText::new(line).small().weak()).wrap());
     }
     if let Some(message) = &speaker.message {
