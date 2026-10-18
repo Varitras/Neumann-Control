@@ -1,7 +1,56 @@
 //! Where the window reopens: the saved geometry, moved onto a monitor that is still there
-//! (an undocked laptop would otherwise open it off screen). All values are physical pixels.
+//! (an undocked laptop would otherwise open it off screen). At the start and when the window
+//! switches between desk and compact mode. All geometry values are physical pixels.
 
 use neumann_control_core::settings::WindowGeometry;
+use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::window::Window;
+
+/// The smallest window in points, in both modes.
+pub const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
+/// The window size in points of a mode that never had a window of its own.
+pub const DESK_WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
+pub const COMPACT_WINDOW_SIZE: [f32; 2] = [640.0, 360.0];
+
+pub fn first_window_size(compact: bool) -> [f32; 2] {
+    if compact {
+        COMPACT_WINDOW_SIZE
+    } else {
+        DESK_WINDOW_SIZE
+    }
+}
+
+fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
+    window
+        .available_monitors()
+        .map(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            MonitorArea {
+                x: position.x as f32,
+                y: position.y as f32,
+                width: size.width as f32,
+                height: size.height as f32,
+            }
+        })
+        .collect()
+}
+
+/// Puts the window where `saved` says, fitted onto the monitors there are now. Set in physical
+/// pixels once the window exists: points need the scale, which is known only on a monitor.
+pub fn place_window(window: &Window, saved: WindowGeometry) {
+    let scale = window.scale_factor() as f32;
+    let min_size = (WINDOW_MIN_SIZE[0] * scale, WINDOW_MIN_SIZE[1] * scale);
+    let geometry = fit_into(saved, &monitor_areas(window), min_size);
+    window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
+    // The size granted arrives as a resize event like any other.
+    let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
+}
+
+/// Gives the window a mode's first size, where it is.
+pub fn resize_window(window: &Window, size: [f32; 2]) {
+    let _ = window.request_inner_size(LogicalSize::new(size[0], size[1]));
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonitorArea {

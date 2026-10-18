@@ -37,8 +37,6 @@ mod desk;
 const DESK_SCROLL_ID: &str = "desk";
 const COMPACT_SCROLL_ID: &str = "compact";
 const COMPACT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
-/// The desk's window size in points before it was ever resized.
-pub const DESK_WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
 
 struct Speaker {
     state: SpeakerState,
@@ -314,7 +312,7 @@ impl NeumannApp {
         }
     }
 
-    fn show(&mut self, ui: &mut Ui) {
+    fn show(&mut self, ui: &mut Ui, frame: &eframe::Frame) {
         let facts = ToolbarFacts {
             compact: self.settings.desk.compact,
             scanning: self.scan.is_some(),
@@ -331,11 +329,11 @@ impl NeumannApp {
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::AddGroup => self.add_group(),
             ToolbarAction::Settings => self.settings_open = true,
-            ToolbarAction::ToggleCompact => self.toggle_compact(ui.ctx()),
+            ToolbarAction::ToggleCompact => self.toggle_compact(frame),
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
-            self.toggle_compact(ui.ctx());
+            self.toggle_compact(frame);
         }
         egui::CentralPanel::default().show(ui, |ui| {
             if self.settings.desk.compact {
@@ -555,9 +553,9 @@ impl eframe::App for NeumannApp {
         self.window = geometry.or(self.window);
     }
 
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         texts::set_language(self.settings.desk.language);
-        self.show(ui);
+        self.show(ui, frame);
     }
 
     fn on_exit(&mut self) {

@@ -8,16 +8,13 @@ use std::path::Path;
 use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
 use eframe::wgpu;
-use neumann_control_app::app::{NeumannApp, DESK_WINDOW_SIZE};
+use neumann_control_app::app::NeumannApp;
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::texts;
-use neumann_control_app::window_placement::{fit_into, MonitorArea};
-use neumann_control_core::settings::{self, WindowGeometry, LOG_FILE, SETTINGS_FILE};
+use neumann_control_app::window_placement::{first_window_size, place_window, WINDOW_MIN_SIZE};
+use neumann_control_core::settings::{self, LOG_FILE, SETTINGS_FILE};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
-use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::window::Window;
 
-const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
 // Our crates only: wgpu logs the graphics adapters with their bus ids at info level.
 const LOG_TARGET_PREFIX: &str = "neumann_control";
 
@@ -38,33 +35,6 @@ fn wgpu_options() -> WgpuConfiguration {
     options
 }
 
-fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
-    window
-        .available_monitors()
-        .map(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            MonitorArea {
-                x: position.x as f32,
-                y: position.y as f32,
-                width: size.width as f32,
-                height: size.height as f32,
-            }
-        })
-        .collect()
-}
-
-/// Set in physical pixels once the window exists: the viewport builder takes points, whose
-/// scale is not known before the window is on a monitor.
-fn place_window(window: &Window, saved: WindowGeometry) {
-    let scale = window.scale_factor() as f32;
-    let min_size = (WINDOW_MIN_SIZE[0] * scale, WINDOW_MIN_SIZE[1] * scale);
-    let geometry = fit_into(saved, &monitor_areas(window), min_size);
-    window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
-    // The size granted arrives as a resize event like any other.
-    let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
-}
-
 /// The app still runs without a log, e.g. from a read-only folder.
 fn start_log(directory: &Path) {
     let Ok(file) = File::create(directory.join(LOG_FILE)) else {
@@ -83,11 +53,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ok_or("the executable has no parent folder")?;
     start_log(directory);
     let settings_path = directory.join(SETTINGS_FILE);
-    let saved_window = settings::load(&settings_path).window_of_mode();
+    let saved = settings::load(&settings_path);
+    let saved_window = saved.window_of_mode();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
-            .with_inner_size(DESK_WINDOW_SIZE)
+            .with_inner_size(first_window_size(saved.desk.compact))
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
         wgpu_options: wgpu_options(),

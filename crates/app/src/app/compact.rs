@@ -1,19 +1,17 @@
 //! The compact mode: one row per ungrouped speaker and per group, the master at the bottom. The
 //! rows' gestures mean the same as on the desk and go the same way to the speakers.
 
-use eframe::egui::{Context, ScrollArea, Ui, ViewportCommand};
+use eframe::egui::{ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, levels, members_of, DeskAction};
-use super::{NeumannApp, OpenPanel, COMPACT_SCROLL_ID, DESK_WINDOW_SIZE};
+use super::{NeumannApp, OpenPanel, COMPACT_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{compact_rows, layout, reference_level, shared_level, CompactRow};
 use crate::texts;
 use crate::ui_kit::theme::group_color;
 use crate::views::compact::{self, SharedRow};
-
-/// The window size the compact mode starts with before it was ever resized, in points.
-const COMPACT_WINDOW_SIZE: [f32; 2] = [640.0, 360.0];
+use crate::window_placement::{first_window_size, place_window, resize_window};
 
 impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
@@ -93,26 +91,21 @@ impl NeumannApp {
         }
     }
 
-    /// Desk to compact or back: the window the new mode last had comes back, else its first size.
-    pub(super) fn toggle_compact(&mut self, context: &Context) {
+    /// Desk to compact or back: the window the new mode last had comes back, fitted onto the
+    /// monitors there are now, else the mode's first size.
+    pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
         let target = self.settings.switch_mode(self.window);
         self.save_settings();
-        let Some(target) = target else {
-            let [width, height] = if self.settings.desk.compact {
-                COMPACT_WINDOW_SIZE
-            } else {
-                DESK_WINDOW_SIZE
-            };
-            context.send_viewport_cmd(ViewportCommand::InnerSize(eframe::egui::vec2(
-                width, height,
-            )));
+        // Only a geometry of the new mode may be kept for it; a maximised window reports none
+        // and would otherwise leave the old mode's geometry to be saved for the new one.
+        self.window = target;
+        // No real window under test.
+        let Some(window) = frame.winit_window() else {
             return;
         };
-        let points = |physical: f32| physical / context.pixels_per_point();
-        let position = eframe::egui::pos2(points(target.x), points(target.y));
-        let size = eframe::egui::vec2(points(target.width), points(target.height));
-        context.send_viewport_cmd(ViewportCommand::OuterPosition(position));
-        context.send_viewport_cmd(ViewportCommand::InnerSize(size));
-        self.window = Some(target);
+        match target {
+            Some(geometry) => place_window(window, geometry),
+            None => resize_window(window, first_window_size(self.settings.desk.compact)),
+        }
     }
 }
