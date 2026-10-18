@@ -15,7 +15,7 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
-use crate::groups::set_membership;
+use crate::groups::{forget_member, member_id, rename_member, set_membership};
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
@@ -166,25 +166,44 @@ impl NeumannApp {
 
     fn drain_events(&mut self, now: f64) {
         let mut connected = Vec::new();
+        let mut renamed = Vec::new();
         for speaker in &mut self.speakers {
             while let Ok(event) = speaker.events.try_recv() {
                 if let Event::Connected(identity) = &event {
                     connected.push((identity.serial.clone(), speaker.state.address));
                 }
+                let before = speaker.state.key.clone();
                 speaker.state.apply(event, now);
+                if speaker.state.key != before {
+                    renamed.push((before, speaker.state.key.clone()));
+                }
             }
         }
         if connected.is_empty() {
             return;
         }
-        let mut remembered = false;
+        let mut changed = false;
         for (serial, address) in &connected {
-            remembered |= remember_serial(&mut self.settings.manual, serial, *address);
+            changed |= remember_serial(&mut self.settings.manual, serial, *address);
         }
-        if remembered {
+        for (before, after) in &renamed {
+            changed |= self.follow_key(before, after);
+        }
+        if changed {
             self.save_settings();
         }
         self.drop_duplicate_cards();
+    }
+
+    /// A speaker's key changed (its serial became known): its group, its place in the order and
+    /// its open panel go with it.
+    fn follow_key(&mut self, before: &SpeakerKey, after: &SpeakerKey) -> bool {
+        if let Some(panel) = self.panel.as_mut().filter(|panel| panel.key == *before) {
+            panel.key = after.clone();
+        }
+        let (old, new) = (member_id(before), member_id(after));
+        let settings = &mut self.settings;
+        rename_member(&mut settings.groups, &mut settings.order, &old, &new)
     }
 
     /// One speaker reached at two addresses shows up as two cards until both connected.
@@ -265,7 +284,8 @@ impl NeumannApp {
         self.sync_targets();
     }
 
-    /// Stops the card's worker and forgets every settings entry of its speaker.
+    /// Stops the speaker's worker and forgets it in the settings: its manual entry, its group and
+    /// its place in the order.
     fn remove_speaker(&mut self, removal: Removal) {
         let position = self.speakers.iter().position(|speaker| {
             speaker.state.key == removal.key || speaker.state.address == removal.address
@@ -279,7 +299,10 @@ impl NeumannApp {
             None => (removal.key, removal.address),
         };
         log::info!("speaker at {} removed", mask_host(&address));
-        if forget(&mut self.settings.manual, &key, address) {
+        let ids = [member_id(&key), member_id(&SpeakerKey::Address(address))];
+        let settings = &mut self.settings;
+        let forgotten = forget_member(&mut settings.groups, &mut settings.order, &ids);
+        if forget(&mut settings.manual, &key, address) | forgotten {
             self.save_settings();
         }
     }

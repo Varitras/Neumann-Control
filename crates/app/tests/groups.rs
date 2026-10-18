@@ -8,8 +8,8 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
-use neumann_control_core::settings::{self, Linkable, SETTINGS_FILE};
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::settings::{self, GroupSettings, Linkable, Settings, SETTINGS_FILE};
+use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
 use support::*;
 
@@ -209,4 +209,52 @@ fn escape_while_dragging_keeps_the_order() {
     harness.run_steps(2);
     let saved = settings::load(&directory.path().join(SETTINGS_FILE));
     assert!(saved.order.is_empty(), "{:?}", saved.order);
+}
+
+#[test]
+fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
+    let kh120 = Simulator::start(SimModel::Kh120Ii);
+    let kh750 = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    // Added by address and never connected yet: no serial is known.
+    let address_id =
+        |simulator: &Simulator| format!("address:[::1]:{}", simulator.address().port());
+    let settings = Settings {
+        manual: vec![manual_for(&kh120), manual_for(&kh750)],
+        groups: vec![GroupSettings {
+            name: GROUP_NAME.to_owned(),
+            color: 0,
+            members: vec![address_id(&kh120)],
+            linked: Vec::new(),
+        }],
+        order: vec![address_id(&kh750), address_id(&kh120)],
+        ..Settings::default()
+    };
+    settings::save(&settings, &path).unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.set_size(egui::vec2(1200.0, 900.0));
+    wait_until(&mut harness, "both strips connected", |harness| {
+        harness.query_all_by_label(&readout(100.0)).count() == 2
+    });
+    harness.run_steps(2);
+    let saved = settings::load(&path);
+    assert_eq!(saved.order, vec![KH750_ID.to_owned(), KH120_ID.to_owned()]);
+    assert_eq!(saved.groups[0].members, vec![KH120_ID.to_owned()]);
+}
+
+#[test]
+fn removing_a_speaker_also_forgets_its_group() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(texts::REMOVE.get()).click();
+    wait_for_label(&mut harness, texts::REMOVE_TITLE.get());
+    harness
+        .query_all_by_label(texts::REMOVE.get())
+        .last()
+        .expect("the dialog's button")
+        .click();
+    harness.run_steps(2);
+    let saved = settings::load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(saved.groups[0].members, vec![KH750_ID.to_owned()]);
 }

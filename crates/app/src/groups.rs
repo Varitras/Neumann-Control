@@ -122,6 +122,59 @@ pub fn compact_rows(
         .collect()
 }
 
+/// A speaker known by address until it first connects is known by serial from then on; its
+/// group and its place in the order follow it. Returns whether anything changed.
+pub fn rename_member(
+    groups: &mut [GroupSettings],
+    order: &mut Vec<String>,
+    old: &str,
+    new: &str,
+) -> bool {
+    let mut changed = false;
+    for group in groups.iter_mut() {
+        changed |= rename_in(&mut group.members, old, new);
+    }
+    changed | rename_in(order, old, new)
+}
+
+/// `old` becomes `new` where it stands; where `new` is already listed, `old` just goes.
+fn rename_in(ids: &mut Vec<String>, old: &str, new: &str) -> bool {
+    let Some(position) = ids.iter().position(|id| id == old) else {
+        return false;
+    };
+    if ids.iter().any(|id| id == new) {
+        ids.remove(position);
+    } else {
+        ids[position] = new.to_owned();
+    }
+    true
+}
+
+/// A removed speaker leaves its group and its place in the order, under every id it had.
+/// Returns whether anything changed.
+pub fn forget_member(
+    groups: &mut [GroupSettings],
+    order: &mut Vec<String>,
+    ids: &[String],
+) -> bool {
+    let known = |id: &String| ids.contains(id);
+    let before = order.len()
+        + groups
+            .iter()
+            .map(|group| group.members.len())
+            .sum::<usize>();
+    order.retain(|id| !known(id));
+    for group in groups.iter_mut() {
+        group.members.retain(|id| !known(id));
+    }
+    let after = order.len()
+        + groups
+            .iter()
+            .map(|group| group.members.len())
+            .sum::<usize>();
+    after != before
+}
+
 /// Puts `member` into `group` (or into none), out of any other group.
 pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<usize>) {
     for existing in groups.iter_mut() {
@@ -275,6 +328,46 @@ mod tests {
             vec![CompactRow::Speaker(1), CompactRow::Group(0)]
         );
         assert_eq!(items[0], Speaker(1));
+    }
+
+    #[test]
+    fn a_renamed_member_keeps_its_group_and_place() {
+        let mut groups = [group("Front", &["address:a", "b"])];
+        let mut order = ids(&["c", "address:a", "b"]);
+        assert!(rename_member(
+            &mut groups,
+            &mut order,
+            "address:a",
+            "serial:a"
+        ));
+        assert_eq!(groups[0].members, ids(&["serial:a", "b"]));
+        assert_eq!(order, ids(&["c", "serial:a", "b"]));
+        assert!(!rename_member(
+            &mut groups,
+            &mut order,
+            "address:x",
+            "serial:x"
+        ));
+    }
+
+    #[test]
+    fn a_rename_onto_a_listed_id_drops_the_old_one() {
+        let mut groups = [group("Front", &["serial:a", "address:a"])];
+        let mut order = ids(&["serial:a", "address:a"]);
+        rename_member(&mut groups, &mut order, "address:a", "serial:a");
+        assert_eq!(groups[0].members, ids(&["serial:a"]));
+        assert_eq!(order, ids(&["serial:a"]));
+    }
+
+    #[test]
+    fn a_forgotten_member_leaves_group_and_order_under_every_id() {
+        let mut groups = [group("Front", &["serial:a", "b"])];
+        let mut order = ids(&["address:a", "b"]);
+        let forgotten = ids(&["serial:a", "address:a"]);
+        assert!(forget_member(&mut groups, &mut order, &forgotten));
+        assert_eq!(groups[0].members, ids(&["b"]));
+        assert_eq!(order, ids(&["b"]));
+        assert!(!forget_member(&mut groups, &mut order, &forgotten));
     }
 
     #[test]
