@@ -29,7 +29,10 @@ pub struct Tokens {
     pub connecting: Color32,
     pub unreachable: Color32,
     pub meter_track: Color32,
-    pub meter_fill: Color32,
+    /// Meter zones: up to -18 dB, up to -6 dB, above.
+    pub meter_safe: Color32,
+    pub meter_hot: Color32,
+    pub meter_over: Color32,
     pub clip_off: Color32,
 }
 
@@ -56,7 +59,9 @@ impl Tokens {
             connecting: Color32::from_rgb(230, 180, 60),
             unreachable: Color32::from_gray(110),
             meter_track: Color32::from_gray(24),
-            meter_fill: Color32::from_rgb(74, 200, 110),
+            meter_safe: Color32::from_rgb(74, 200, 110),
+            meter_hot: Color32::from_rgb(232, 176, 52),
+            meter_over: Color32::from_rgb(240, 84, 84),
             clip_off: Color32::from_gray(70),
         }
     }
@@ -77,7 +82,9 @@ impl Tokens {
             connecting: Color32::from_rgb(200, 140, 20),
             unreachable: Color32::from_gray(150),
             meter_track: Color32::from_rgb(222, 222, 228),
-            meter_fill: Color32::from_rgb(30, 160, 80),
+            meter_safe: Color32::from_rgb(30, 160, 80),
+            meter_hot: Color32::from_rgb(214, 140, 16),
+            meter_over: Color32::from_rgb(214, 48, 48),
             clip_off: Color32::from_rgb(200, 200, 206),
         }
     }

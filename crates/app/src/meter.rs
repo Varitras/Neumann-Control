@@ -5,11 +5,73 @@ pub const PEAK_HOLD_SECONDS: f64 = 1.5;
 pub const METER_FLOOR_DB: f64 = -120.0;
 pub const METER_CEILING_DB: f64 = 6.0;
 
-/// Maps a dB value linearly from the floor..ceiling range to 0..1; the device reports silence
-/// as -160, which lands below any floor and gives 0. `floor` comes from the desk settings.
-pub fn fraction(db: f64, floor: f64) -> f32 {
-    let position = (db - floor) / (METER_CEILING_DB - floor);
-    position.clamp(0.0, 1.0) as f32
+/// Below this a level is safe, up to `OVER_FROM_DB` hot, above over.
+pub const HOT_FROM_DB: f64 = -18.0;
+pub const OVER_FROM_DB: f64 = -6.0;
+
+/// The meter's scale: dB against height from -120 to +6 dB. The top is spread out, where a
+/// level matters, and the bottom still leaves quiet room volume (about -90 dB) visible.
+const SCALE: [(f64, f64); 10] = [
+    (METER_FLOOR_DB, 0.0),
+    (-90.0, 0.18),
+    (-60.0, 0.32),
+    (-40.0, 0.42),
+    (-20.0, 0.56),
+    (-10.0, 0.68),
+    (-6.0, 0.76),
+    (-3.0, 0.85),
+    (0.0, 0.93),
+    (METER_CEILING_DB, 1.0),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Zone {
+    Safe,
+    Hot,
+    Over,
+}
+
+pub fn zone(db: f64) -> Zone {
+    if db > OVER_FROM_DB {
+        return Zone::Over;
+    }
+    if db > HOT_FROM_DB {
+        return Zone::Hot;
+    }
+    Zone::Safe
+}
+
+/// Where `db` sits on the meter, 0 at `floor` (from the desk settings) and 1 at the top. The
+/// device reports silence as -160, which lands below any floor and gives 0.
+pub fn position(db: f64, floor: f64) -> f32 {
+    let bottom = scale_height(floor);
+    let height = (scale_height(db) - bottom) / (1.0 - bottom);
+    height.clamp(0.0, 1.0) as f32
+}
+
+/// The level at a height of the meter; the inverse of `position`.
+pub fn level_at(position: f32, floor: f64) -> f64 {
+    let bottom = scale_height(floor);
+    let height = bottom + f64::from(position) * (1.0 - bottom);
+    let pairs = SCALE.windows(2);
+    for pair in pairs {
+        let [(low_db, low), (high_db, high)] = [pair[0], pair[1]];
+        if height <= high {
+            return low_db + (height - low) / (high - low) * (high_db - low_db);
+        }
+    }
+    METER_CEILING_DB
+}
+
+fn scale_height(db: f64) -> f64 {
+    let db = db.clamp(METER_FLOOR_DB, METER_CEILING_DB);
+    for pair in SCALE.windows(2) {
+        let [(low_db, low), (high_db, high)] = [pair[0], pair[1]];
+        if db <= high_db {
+            return low + (db - low_db) / (high_db - low_db) * (high - low);
+        }
+    }
+    1.0
 }
 
 /// The device is polled about ten times a second; the bar glides between the readings like a
@@ -103,10 +165,35 @@ mod tests {
     }
 
     #[test]
-    fn meter_fraction_clamps_below_floor_and_above_ceiling() {
-        assert_eq!(fraction(-160.0, METER_FLOOR_DB), 0.0);
-        assert_eq!(fraction(10.0, METER_FLOOR_DB), 1.0);
-        assert_eq!(fraction(-57.0, METER_FLOOR_DB), 0.5);
+    fn position_clamps_below_floor_and_above_ceiling() {
+        assert_eq!(position(-160.0, METER_FLOOR_DB), 0.0);
+        assert_eq!(position(10.0, METER_FLOOR_DB), 1.0);
+        assert_eq!(position(METER_CEILING_DB, METER_FLOOR_DB), 1.0);
+    }
+
+    #[test]
+    fn the_top_of_the_scale_is_spread_out() {
+        // 0 to -10 dB takes more room than -60 to -70 dB.
+        let top = position(0.0, METER_FLOOR_DB) - position(-10.0, METER_FLOOR_DB);
+        let low = position(-60.0, METER_FLOOR_DB) - position(-70.0, METER_FLOOR_DB);
+        assert!(top > 2.0 * low, "top {top}, low {low}");
+    }
+
+    #[test]
+    fn level_at_is_the_inverse_of_position() {
+        for db in [-110.0, -90.0, -40.0, -18.0, -6.0, -1.0, 3.0] {
+            let back = level_at(position(db, METER_FLOOR_DB), METER_FLOOR_DB);
+            assert!((back - db).abs() < 0.01, "{db} -> {back}");
+        }
+    }
+
+    #[test]
+    fn zones_split_at_minus_18_and_minus_6() {
+        assert_eq!(zone(-30.0), Zone::Safe);
+        assert_eq!(zone(-18.0), Zone::Safe);
+        assert_eq!(zone(-10.0), Zone::Hot);
+        assert_eq!(zone(-6.0), Zone::Hot);
+        assert_eq!(zone(-1.0), Zone::Over);
     }
 
     #[test]
@@ -134,13 +221,16 @@ mod tests {
     #[test]
     fn quiet_room_level_is_visible() {
         // Measured on a KH 120 II at quiet room volume: the input meter reads about -90 dB.
-        assert!(fraction(-90.0, METER_FLOOR_DB) > 0.2);
+        assert!(position(-90.0, METER_FLOOR_DB) > 0.15);
     }
 
     #[test]
     fn meter_floor_setting_changes_the_scale() {
-        assert_eq!(fraction(-60.0, -60.0), 0.0);
-        assert_eq!(fraction(-27.0, -60.0), 0.5);
-        assert!(fraction(-60.0, -120.0) > 0.4);
+        assert_eq!(position(-60.0, -60.0), 0.0);
+        assert_eq!(position(-90.0, -60.0), 0.0);
+        assert!(position(-60.0, -120.0) > 0.25);
+        // A higher floor gives the bottom of the remaining range more room.
+        let near_floor = |floor: f64| position(-55.0, floor) - position(-60.0, floor);
+        assert!(near_floor(-60.0) > near_floor(-120.0));
     }
 }

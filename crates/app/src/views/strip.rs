@@ -22,7 +22,7 @@ use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent, Switch};
 
-pub const STRIP_WIDTH: f32 = 124.0;
+pub const STRIP_WIDTH: f32 = 140.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
 const BORDER_WIDTH: f32 = 1.0;
@@ -30,6 +30,7 @@ const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
+const METER_SPACING: f32 = 3.0;
 const DELAY_PATH: &str = "audio/out/delay";
 const LEVEL_ENTRY_ID: &str = "level_entry";
 const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
@@ -188,6 +189,7 @@ fn level(
 fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tokens) {
     let floor = desk.meter_floor.db();
     let input = MeterGroup {
+        with_scale: true,
         caption: texts::METER_INPUT_SHORT,
         name: texts::INPUT_METERS,
         meters: &speaker.input_meters,
@@ -199,6 +201,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     }
     ui.add_space(METER_GROUP_GAP);
     let output = MeterGroup {
+        with_scale: false,
         caption: texts::METER_OUTPUT_SHORT,
         name: texts::OUTPUT_METERS,
         meters: &speaker.output_meters,
@@ -208,6 +211,8 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
 }
 
 struct MeterGroup<'a> {
+    /// The first group carries the dB marks; the others share its heights.
+    with_scale: bool,
     /// Under the meters, so input and output can be told apart at a glance.
     caption: &'a str,
     /// For screen readers.
@@ -219,6 +224,10 @@ struct MeterGroup<'a> {
 fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = METER_SPACING;
+            if group.with_scale {
+                meters::scale(ui, FADER_HEIGHT, floor, tokens);
+            }
             meters::show(
                 ui,
                 group.name,

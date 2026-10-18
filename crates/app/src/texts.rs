@@ -114,6 +114,11 @@ pub fn knob_label(label: &str) -> String {
     format!("{label} (Regler)")
 }
 
+/// A mark on the meter scale, without unit to fit beside the meters.
+pub fn scale_mark(db: f64) -> String {
+    format!("{db}")
+}
+
 pub fn meter_floor(db: f64) -> String {
     format!("{db} dB")
 }
