@@ -3,8 +3,8 @@
 //! last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, Button, Color32, CornerRadius, Label, Pos2, RichText, Sense, Stroke, Ui, Vec2,
-    WidgetInfo, WidgetType,
+    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, RichText, Sense, Stroke,
+    Ui, Vec2, WidgetInfo, WidgetType,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::DeskSettings;
@@ -222,23 +222,24 @@ struct MeterGroup<'a> {
 }
 
 fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
-    ui.vertical(|ui| {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = METER_SPACING;
-            if group.with_scale {
-                meters::scale(ui, FADER_HEIGHT, floor, tokens);
-            }
-            meters::show(
-                ui,
-                group.name,
-                group.meters,
-                group.clips,
-                FADER_HEIGHT,
-                floor,
-                tokens,
-            );
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = METER_SPACING;
+        if group.with_scale {
+            meters::scale(ui, FADER_HEIGHT, floor, tokens);
+        }
+        // The caption belongs to the meters, not to the scale beside them.
+        ui.vertical(|ui| {
+            let meters = ui
+                .horizontal(|ui| {
+                    let (name, levels, clips) = (group.name, group.meters, group.clips);
+                    meters::show(ui, name, levels, clips, FADER_HEIGHT, floor, tokens);
+                })
+                .response
+                .rect;
+            let caption = Label::new(RichText::new(group.caption).small().weak());
+            let cell = vec2(meters.width(), 0.0);
+            ui.allocate_ui_with_layout(cell, Layout::top_down(Align::Center), |ui| ui.add(caption));
         });
-        ui.add(Label::new(RichText::new(group.caption).small().weak()));
     });
 }
 

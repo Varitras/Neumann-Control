@@ -730,3 +730,23 @@ fn meter_groups_are_labelled_input_and_output() {
     kh120.get_by_label(texts::METER_INPUT_SHORT);
     assert!(kh120.query_by_label(texts::METER_OUTPUT_SHORT).is_none());
 }
+
+#[test]
+fn meter_captions_are_centred_under_their_meters() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    for (caption, group, channels) in [
+        (texts::METER_INPUT_SHORT, texts::INPUT_METERS, 2),
+        (texts::METER_OUTPUT_SHORT, texts::OUTPUT_METERS, 3),
+    ] {
+        let first = harness.get_by_label(&texts::meter_label(group, 1)).rect();
+        let last = harness
+            .get_by_label(&texts::meter_label(group, channels))
+            .rect();
+        let middle = (first.left() + last.right()) / 2.0;
+        let centre = harness.get_by_label(caption).rect().center().x;
+        assert!(
+            (centre - middle).abs() < 2.0,
+            "{caption}: {centre} vs {middle}"
+        );
+    }
+}
