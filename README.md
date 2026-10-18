@@ -6,6 +6,9 @@ A portable Windows app to find, read and control Neumann KH DSP speakers over th
 the Sennheiser Sound Control protocol (SSC). It shows your speakers side by side like channel
 strips on a desk, with level faders, meters, groups and a master.
 
+> **Alpha.** This is an early version: expect rough edges and changes between versions, and keep
+> an eye on your speakers' settings while you use it.
+>
 > This is an independent project. It is not affiliated with or endorsed by Neumann or
 > Sennheiser.
 
@@ -42,7 +45,7 @@ The interface starts in German; switch it to English in **Settings** → **Langu
 
 ## Status
 
-Version 0.1.0. The protocol layer, the polling and the interface are covered by automated tests
+Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated tests
 against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
 KH 750 speakers the app was checked for scanning, reading, metering and writing level, mute,
 identify and standby time. Groups, the compact mode and the English interface are so far covered
