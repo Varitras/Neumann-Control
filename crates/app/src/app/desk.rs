@@ -2,7 +2,7 @@
 //! and what their gestures mean for each speaker: relative moves of a group or the master, and
 //! a change on a group member sent on to the other members when the group links that setting.
 
-use eframe::egui::{Align, Layout, ScrollArea, Ui};
+use eframe::egui::{Align, Layout, Rect, ScrollArea, Sense, Stroke, Ui};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::speaker::Command;
@@ -11,15 +11,21 @@ use serde_json::Value;
 use super::{NeumannApp, OpenPanel, DESK_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{
-    layout, linkable_of, linked_path, member_id, reference_level, shifted_levels, DeskItem,
+    layout, linkable_of, linked_path, member_id, move_in_order, reference_level, shifted_levels,
+    DeskItem,
 };
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
-use crate::ui_kit::theme::{group_color, group_color_count};
+use crate::ui_kit::theme::{group_color, group_color_count, Tokens};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip;
 use crate::writes::Intent;
+
+const DROP_ZONE_ID: &str = "drop_zone";
+const DROP_MARK_WIDTH: f32 = 2.0;
+/// The drop mark sits in the gap left of the strip.
+const DROP_MARK_OFFSET: f32 = 4.0;
 
 /// What a frame's gestures asked for; applied once the desk is drawn.
 enum DeskAction {
@@ -27,6 +33,11 @@ enum DeskAction {
     Group(usize, GroupStripResponse),
     Master(MasterResponse),
     OpenPanel(OpenPanel),
+    /// A strip dropped on another: `member` goes in front of `before`.
+    Move {
+        member: String,
+        before: String,
+    },
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -62,9 +73,21 @@ impl NeumannApp {
                                 let key = speaker.state.key.clone();
                                 let response = ui
                                     .push_id(&key, |ui| {
-                                        strip::show(ui, &mut speaker.state, catalog, &desk, color)
+                                        let member = &ids[index];
+                                        strip::show(
+                                            ui,
+                                            &mut speaker.state,
+                                            catalog,
+                                            &desk,
+                                            color,
+                                            member,
+                                        )
                                     })
                                     .inner;
+                                if let Some(member) = dropped_on(ui, response.rect, index) {
+                                    let before = ids[index].clone();
+                                    actions.push(DeskAction::Move { member, before });
+                                }
                                 actions.push(DeskAction::Commands(index, response.commands));
                                 if let Some(anchor) = response.open_panel {
                                     let opened_now = true;
@@ -139,6 +162,12 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(open) => self.panel = Some(open),
+            DeskAction::Move { member, before } => {
+                if member != before {
+                    move_in_order(&mut self.settings.order, ids, &member, &before);
+                    self.save_settings();
+                }
+            }
         }
     }
 
@@ -285,6 +314,21 @@ impl NeumannApp {
             .map(|index| &self.speakers[*index].state)
             .collect()
     }
+}
+
+/// The speaker identity dropped on the strip at `rect`, if one was let go there; while one
+/// hovers, a line marks where it would go.
+fn dropped_on(ui: &mut Ui, rect: Rect, index: usize) -> Option<String> {
+    let id = ui.id().with((DROP_ZONE_ID, index));
+    let zone = ui.interact(rect, id, Sense::hover());
+    if zone.dnd_hover_payload::<String>().is_some() {
+        let tokens = Tokens::current(ui.ctx());
+        let x = rect.left() - DROP_MARK_OFFSET;
+        let stroke = Stroke::new(DROP_MARK_WIDTH, tokens.accent);
+        ui.painter().vline(x, rect.y_range(), stroke);
+    }
+    zone.dnd_release_payload::<String>()
+        .map(|member| (*member).clone())
 }
 
 pub(super) fn group_of(groups: &[GroupSettings], id: &str) -> Option<usize> {

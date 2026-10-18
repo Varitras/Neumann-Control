@@ -189,3 +189,24 @@ fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
     assert_eq!(saved.groups[0].members.len(), 1, "{:?}", saved.groups);
     drop(simulator);
 }
+
+#[test]
+fn dragging_a_strip_onto_another_puts_it_in_front_and_saves_the_order() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    let handles: Vec<egui::Rect> = harness
+        .query_all_by_label(texts::MOVE_STRIP)
+        .map(|node| node.rect())
+        .collect();
+    assert_eq!(handles.len(), 2);
+    let (first, second) = (handles[0], handles[1]);
+    harness.drag_at(second.center());
+    for frame in 1..=6 {
+        let progress = frame as f32 / 6.0;
+        harness.hover_at(second.center() + (first.center() - second.center()) * progress);
+        harness.step();
+    }
+    harness.drop_at(first.center());
+    harness.run_steps(2);
+    let saved = settings::load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(saved.order, vec![KH750_ID.to_owned(), KH120_ID.to_owned()]);
+}

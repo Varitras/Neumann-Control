@@ -27,6 +27,12 @@ pub const STRIP_WIDTH: f32 = 140.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
 const GROUP_BORDER_WIDTH: f32 = 2.0;
+const GRIP_ID: &str = "grip";
+const GRIP_ROWS: usize = 3;
+const GRIP_DOT_SPACING: f32 = 4.0;
+const GRIP_DOT_RADIUS: f32 = 1.2;
+const GRIP_WIDTH: f32 = 2.0 * GRIP_DOT_SPACING;
+const GRIP_HEIGHT: f32 = GRIP_ROWS as f32 * GRIP_DOT_SPACING;
 const BORDER_WIDTH: f32 = 1.0;
 const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
@@ -43,6 +49,8 @@ pub struct StripResponse {
     pub commands: Vec<Command>,
     /// Where the device panel opens when the name was clicked.
     pub open_panel: Option<Pos2>,
+    /// The strip's area, where another strip can be dropped.
+    pub rect: Rect,
 }
 
 pub fn show(
@@ -51,11 +59,12 @@ pub fn show(
     catalog: &Catalog,
     desk: &DeskSettings,
     group_color: Option<Color32>,
+    member: &str,
 ) -> StripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
-    let open_panel = egui::Frame::new()
+    let frame = egui::Frame::new()
         .fill(tokens.card)
         // A member of a group is framed in the group's colour.
         .stroke(
@@ -72,7 +81,12 @@ pub fn show(
                 if speaker.status == Status::Unreachable {
                     ui.multiply_opacity(UNREACHABLE_OPACITY);
                 }
-                let open_panel = name(ui, speaker);
+                let open_panel = ui
+                    .horizontal(|ui| {
+                        grip(ui, member, &tokens);
+                        name(ui, speaker)
+                    })
+                    .inner;
                 leds(ui, speaker, &tokens);
                 knobs(ui, speaker, catalog, &mut commands);
                 level(ui, speaker, catalog, desk, &mut commands, &tokens);
@@ -84,11 +98,38 @@ pub fn show(
                 open_panel
             })
             .inner
-        })
-        .inner;
+        });
     StripResponse {
         commands,
-        open_panel,
+        open_panel: frame.inner,
+        rect: frame.response.rect,
+    }
+}
+
+/// The handle a strip is dragged by to another place on the desk; the payload is the speaker's
+/// identity in the saved order.
+fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
+    let id = ui.id().with(GRIP_ID);
+    let response = ui
+        .dnd_drag_source(id, member.to_owned(), |ui| {
+            let size = vec2(GRIP_WIDTH, GRIP_HEIGHT);
+            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            for row in 0..GRIP_ROWS {
+                for column in 0..2 {
+                    let center = rect.left_top()
+                        + vec2(
+                            GRIP_DOT_SPACING * (column as f32 + 0.5),
+                            GRIP_DOT_SPACING * (row as f32 + 0.5),
+                        );
+                    ui.painter()
+                        .circle_filled(center, GRIP_DOT_RADIUS, tokens.text_dim);
+                }
+            }
+        })
+        .response;
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, texts::MOVE_STRIP));
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
     }
 }
 

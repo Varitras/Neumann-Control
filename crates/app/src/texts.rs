@@ -30,6 +30,7 @@ pub const KNOB_DELAY: &str = "Delay";
 pub const KNOB_STANDBY: &str = "Standby";
 pub const CLOSE: &str = "Schließen";
 pub const ADD_GROUP: &str = "+ Gruppe";
+pub const MOVE_STRIP: &str = "Verschieben";
 pub const GROUP_DIALOG_TITLE: &str = "Gruppe";
 pub const GROUP_NAME: &str = "Name";
 pub const DELETE_GROUP: &str = "Gruppe löschen";
