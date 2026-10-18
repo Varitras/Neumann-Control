@@ -13,9 +13,9 @@ First version.
 - Added speakers are remembered and reconnected at every start; a scan updates the stored
   address of a remembered speaker that moved.
 - Removing a speaker from its device panel after a confirmation.
-- One channel strip per speaker with status LEDs, delay and standby knobs, an output level fader
-  that shows its value while dragging, input meters (KH 750: also output meters) with clip lamps,
-  response time, mute and identify.
+- One channel strip per speaker with status LEDs, delay (in ms) and standby knobs, an output
+  level fader that shows its value while dragging, has a fine mode and takes typed values, input
+  meters (KH 750: also output meters) with clip lamps, response time, mute and identify.
 - A device panel per speaker with every setting of its model and a list of all values the
   speaker reports.
 - A settings dialog for theme, meter range and response times.

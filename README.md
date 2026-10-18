@@ -18,13 +18,17 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   takes 4 seconds) and lets you choose which of them to add, or adds a speaker by its IPv6
   address with "+ Adresse". Added speakers are remembered.
 - One channel strip per speaker, side by side: name, four LEDs (connection, clip, device
-  warning, LOCAL), knobs for delay and standby time, output level fader (0-120 dB SPL, mouse
-  wheel in 0.5 dB steps, the value shown beside the handle while dragging), input level meters
-  with clip lamps (on the KH 750 also its output meters), response time, "Stumm" (mute) and
-  "Ident." (identify).
-- Knobs: drag up or down (Shift for fine steps), turn the mouse wheel, or double-click to type
-  a value; the value is written once when you let go, stop the wheel or press Enter, and
-  Escape cancels.
+  warning, LOCAL), knobs for delay (shown in ms) and standby time, output level fader
+  (0-120 dB SPL in 0.5 dB steps), input level meters marked "Ein" with clip lamps (on the
+  KH 750 also its output meters, marked "Aus"), response time, "Stumm" (mute) and "Ident."
+  (identify).
+- Fader: grab it anywhere and drag; it moves with the pointer and never jumps to it. Shift makes
+  it ten times finer, the mouse wheel moves 0.5 dB per notch, and a double-click on the value
+  under it lets you type one. The value stands beside the fader while you drag.
+- Knobs: turn them by moving the pointer around the knob (clockwise is more; one and a half
+  turns cover the whole range), Shift for fine steps, the mouse wheel, or a double-click to type
+  a value (the delay in ms). The value stands beside the knob while it moves.
+- Fader and knobs write once when you let go, stop the wheel or press Enter; Escape cancels.
 - Clicking a speaker's name opens its device panel with every setting the catalog knows for
   that model (output, input, standby, device, rear panel), grouped in two columns; settings a
   model may write get a control, the rest are shown greyed. The panel also shows model,

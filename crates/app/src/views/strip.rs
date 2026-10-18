@@ -14,6 +14,7 @@ use serde_json::Value;
 use super::fader::{self, FADER_HEIGHT};
 use super::{knob, meters};
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
+use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
@@ -186,18 +187,50 @@ fn level(
 /// Input meters, then the output meters of models that report them (KH 750), set apart.
 fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tokens) {
     let floor = desk.meter_floor.db();
-    let input_clips = speaker.values.get(&paths::path(paths::INPUT_CLIP));
-    let input = &speaker.input_meters;
-    let group = texts::INPUT_METERS;
-    meters::show(ui, group, input, input_clips, FADER_HEIGHT, floor, tokens);
+    let input = MeterGroup {
+        caption: texts::METER_INPUT_SHORT,
+        name: texts::INPUT_METERS,
+        meters: &speaker.input_meters,
+        clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+    };
+    meter_group(ui, &input, floor, tokens);
     if speaker.output_meters.is_empty() {
         return;
     }
     ui.add_space(METER_GROUP_GAP);
-    let output_clips = speaker.values.get(&paths::path(paths::OUTPUT_CLIP));
-    let output = &speaker.output_meters;
-    let group = texts::OUTPUT_METERS;
-    meters::show(ui, group, output, output_clips, FADER_HEIGHT, floor, tokens);
+    let output = MeterGroup {
+        caption: texts::METER_OUTPUT_SHORT,
+        name: texts::OUTPUT_METERS,
+        meters: &speaker.output_meters,
+        clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+    };
+    meter_group(ui, &output, floor, tokens);
+}
+
+struct MeterGroup<'a> {
+    /// Under the meters, so input and output can be told apart at a glance.
+    caption: &'a str,
+    /// For screen readers.
+    name: &'a str,
+    meters: &'a [MeterState],
+    clips: Option<&'a Value>,
+}
+
+fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            meters::show(
+                ui,
+                group.name,
+                group.meters,
+                group.clips,
+                FADER_HEIGHT,
+                floor,
+                tokens,
+            );
+        });
+        ui.add(Label::new(RichText::new(group.caption).small().weak()));
+    });
 }
 
 fn response_time(ui: &mut Ui, speaker: &SpeakerState) {

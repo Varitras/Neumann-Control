@@ -43,6 +43,8 @@ pub const METER_RANGE: &str = "Pegelanzeige ab";
 pub const SHOW_RESPONSE_TIMES: &str = "Antwortzeiten anzeigen";
 pub const INPUT_METERS: &str = "Eingangspegel";
 pub const OUTPUT_METERS: &str = "Ausgangspegel";
+pub const METER_INPUT_SHORT: &str = "Ein";
+pub const METER_OUTPUT_SHORT: &str = "Aus";
 
 pub const ALL_VALUES: &str = "Alle Werte…";
 pub const APPLY: &str = "Übernehmen";

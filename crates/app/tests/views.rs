@@ -720,3 +720,13 @@ fn double_click_on_the_delay_knob_takes_milliseconds() {
     barrier(&simulator);
     assert_eq!(delay_sets(&simulator), vec![serde_json::json!(480)]);
 }
+
+#[test]
+fn meter_groups_are_labelled_input_and_output() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    harness.get_by_label(texts::METER_INPUT_SHORT);
+    harness.get_by_label(texts::METER_OUTPUT_SHORT);
+    let (_other, _other_directory, kh120) = connected_card(SimModel::Kh120Ii);
+    kh120.get_by_label(texts::METER_INPUT_SHORT);
+    assert!(kh120.query_by_label(texts::METER_OUTPUT_SHORT).is_none());
+}
