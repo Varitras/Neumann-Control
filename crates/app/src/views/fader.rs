@@ -58,7 +58,9 @@ pub fn show(
         // The cards sit in a scroll area, which would scroll along with the fader.
         ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
         for notches in wheel_notches(ui) {
-            speaker.fader.on_wheel(notches, device, range.clone(), now);
+            speaker
+                .fader
+                .on_wheel(notches, WHEEL_STEP_DB, device, range.clone(), now);
         }
         value = speaker.fader.shown(device, now);
     }

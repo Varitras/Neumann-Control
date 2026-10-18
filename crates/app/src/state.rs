@@ -13,7 +13,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use crate::display::capped;
-use crate::fader::FaderState;
+use crate::gesture::GestureState;
 use crate::meter::{MeterState, METER_FLOOR_DB};
 use crate::paths;
 use crate::texts;
@@ -72,7 +72,7 @@ pub struct SpeakerState {
     pub expanded: bool,
     pub input_meters: Vec<MeterState>,
     pub output_meters: Vec<MeterState>,
-    pub fader: FaderState,
+    pub fader: GestureState,
     pub all_values: AllValuesState,
     /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
     pub all_values_filter: String,
@@ -95,7 +95,7 @@ impl SpeakerState {
             expanded: false,
             input_meters: Vec::new(),
             output_meters: Vec::new(),
-            fader: FaderState::default(),
+            fader: GestureState::default(),
             all_values: AllValuesState::Idle,
             all_values_filter: String::new(),
             response_time: None,

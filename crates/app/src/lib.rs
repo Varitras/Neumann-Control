@@ -2,6 +2,7 @@ pub mod all_values;
 pub mod app;
 pub mod display;
 pub mod fader;
+pub mod gesture;
 pub mod meter;
 pub mod paths;
 pub mod scan_choice;
