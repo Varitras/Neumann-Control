@@ -79,11 +79,12 @@ fn range_text(limits: Option<&Value>) -> String {
     let Some(limits) = limits else {
         return String::new();
     };
+    let given = |key: &str| limits.get(key).filter(|value| !value.is_null());
     let mut parts = Vec::new();
-    if let Some(units) = limits.get(UNITS_KEY).map(plain_text) {
+    if let Some(units) = given(UNITS_KEY).map(plain_text) {
         parts.push(units);
     }
-    let bounds = (limits.get(MINIMUM_KEY), limits.get(MAXIMUM_KEY));
+    let bounds = (given(MINIMUM_KEY), given(MAXIMUM_KEY));
     if bounds != (None, None) {
         let [minimum, maximum] = [bounds.0, bounds.1].map(|bound| bound.map(plain_text));
         parts.push(format!(
@@ -92,7 +93,7 @@ fn range_text(limits: Option<&Value>) -> String {
             maximum.unwrap_or_default()
         ));
     }
-    if let Some(options) = limits.get(OPTIONS_KEY) {
+    if let Some(options) = given(OPTIONS_KEY) {
         parts.push(options_text(options));
     }
     parts.join(RANGE_SEPARATOR)
@@ -184,6 +185,15 @@ mod tests {
     fn known_means_in_the_catalog() {
         assert!(one(report(paths::OUTPUT_LEVEL, Ok(json!(1)), None)).known);
         assert!(!one(report("device/restore", Ok(json!("")), None)).known);
+    }
+
+    #[test]
+    fn null_limits_are_absent() {
+        let limits = json!({ "units": null, "min": null, "max": 120, "option": null });
+        let row = one(report("a/b", Ok(json!(1)), Some(limits)));
+        assert_eq!(row.range, " … 120");
+        let all_null = json!({ "units": null, "min": null, "max": null, "option": null });
+        assert_eq!(one(report("a/b", Ok(json!(1)), Some(all_null))).range, "");
     }
 
     #[test]
