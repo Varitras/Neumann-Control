@@ -12,9 +12,13 @@ First version.
   entry by IPv6 address, with the interface index for link-local addresses.
 - Added speakers are remembered and reconnected at every start; a scan updates the stored
   address of a remembered speaker that moved.
-- Removing a speaker from its card after a confirmation.
-- Speaker cards with an output level fader, input meters (KH 750: also output meters) with clip lamps, mute and identify.
-- A per-model settings area and a list of all values the speaker reports.
+- Removing a speaker from its device panel after a confirmation.
+- One channel strip per speaker with status LEDs, delay and standby knobs, an output level fader
+  that shows its value while dragging, input meters (KH 750: also output meters) with clip lamps,
+  response time, mute and identify.
+- A device panel per speaker with every setting of its model and a list of all values the
+  speaker reports.
+- A settings dialog for theme, meter range and response times.
 - Support for the KH 120 II and the KH 750 with writes; other models read-only.
 - Portable settings and log next to the executable.
 - A speaker simulator for both models used by the automated tests.

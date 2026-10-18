@@ -17,18 +17,26 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 - Finds speakers on the local network with mDNS (`_ssc._tcp`) when you press "Suchen" (a scan
   takes 4 seconds) and lets you choose which of them to add, or adds a speaker by its IPv6
   address with "+ Adresse". Added speakers are remembered.
-- One card per speaker: connection state, output level fader (0-120 dB SPL, mouse wheel in
-  0.5 dB steps), input level meters with clip lamps (on the KH 750 also its output meters),
-  "Stumm" (mute) and "Ident." (identify),
-  firmware version and masked serial number.
-- "Mehr" opens every setting the catalog knows for that model (output, input, standby, device,
-  rear panel), grouped; settings a model may write get a control, the rest are shown
-  greyed.
+- One channel strip per speaker, side by side: name, four LEDs (connection, clip, device
+  warning, LOCAL), knobs for delay and standby time, output level fader (0-120 dB SPL, mouse
+  wheel in 0.5 dB steps, the value shown beside the handle while dragging), input level meters
+  with clip lamps (on the KH 750 also its output meters), response time, "Stumm" (mute) and
+  "Ident." (identify).
+- Knobs: drag up or down (Shift for fine steps), turn the mouse wheel, or double-click to type
+  a value; the value is written once when you let go, stop the wheel or press Enter, and
+  Escape cancels.
+- Clicking a speaker's name opens its device panel with every setting the catalog knows for
+  that model (output, input, standby, device, rear panel), grouped in two columns; settings a
+  model may write get a control, the rest are shown greyed. The panel also shows model,
+  firmware and masked serial number. Escape, "Schließen" or a click outside closes it.
+- "Einstellungen" sets the theme (like Windows, light, dark), the lowest level the meters show
+  (-120, -90 or -60 dB) and whether response times are shown; the toolbar shows the average
+  response time of the connected speakers.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
 - Shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the speaker
   sets; it cannot be changed over the network. In LOCAL the speaker refuses every write, and the
-  card says so.
+  strip says so.
 - A speaker that stops answering is shown as unreachable and reconnected every 10 seconds.
 
 ## Supported models
@@ -56,7 +64,7 @@ on some models (subwoofer outputs, logo brightness) appear only for those models
 
 1. Start `neumann-control.exe` and press "Suchen". After the scan the dialog "Gefundene
    Lautsprecher" lists every speaker found with its name, model and masked address. Check the
-   ones you want and press "Hinzufügen"; each gets a card. Speakers that already have a card are
+   ones you want and press "Hinzufügen"; each gets a strip. Speakers that already have a strip are
    marked "bereits hinzugefügt" and cannot be checked again. "Abbrechen" adds nothing.
 2. If the scan finds nothing (for example mDNS is blocked), press "+ Adresse" and enter the
    speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
@@ -68,8 +76,8 @@ Added speakers, whether chosen from a scan or entered by address, are remembered
 at every start without a scan. When a later scan finds a remembered speaker at a different
 address (link-local addresses and interface indexes can change), the stored address is updated.
 
-To remove a speaker, open "Mehr" on its card, press "Entfernen" and confirm with "Entfernen".
-The card disappears and the speaker is no longer remembered.
+To remove a speaker, open its device panel, press "Entfernen" and confirm with "Entfernen".
+The strip disappears and the speaker is no longer remembered.
 
 IPv4 addresses are not accepted: the speakers are reachable only over IPv6.
 
@@ -79,7 +87,7 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial) and the window position and size |
+| `settings.json` | Remembered speakers (address, port, serial), the window position and size, and the choices from "Einstellungen" |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable
