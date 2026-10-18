@@ -337,3 +337,17 @@ fn device_that_keeps_talking_is_cut_after_ten_seconds() {
         "cut after {elapsed:?}"
     );
 }
+
+#[test]
+fn reply_with_null_value_keeps_the_connection() {
+    let mut client = scripted_speaker(|stream, xid| {
+        let reply =
+            format!("{{\"audio\":{{\"out\":{{\"level\":null}}}},\"osc\":{{\"xid\":{xid}}}}}\r\n");
+        let _ = stream.write_all(reply.as_bytes());
+        thread::sleep(Duration::from_millis(200));
+    });
+    let error = client.get(&path("audio/out/level")).unwrap_err();
+    assert!(matches!(error, SscError::Unusable(_)), "got {error:?}");
+    assert!(!error.is_connection_lost());
+    assert!(!client.is_closed());
+}

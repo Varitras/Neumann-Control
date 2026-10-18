@@ -304,14 +304,9 @@ impl Worker {
                     self.outbox.emit(Event::Absent(path.clone()));
                 }
             }
+            Err(lost) if lost.is_connection_lost() => return Err(Interruption::Lost(lost)),
             // Nothing the user could act on; the next poll asks again.
-            Err(SscError::Device(error)) => log::warn!(
-                "{} refused to read {path} ({}): {}",
-                self.host,
-                error.code,
-                error.description
-            ),
-            Err(lost) => return Err(Interruption::Lost(lost)),
+            Err(error) => log::warn!("{} could not read {path}: {error}", self.host),
         }
         Ok(())
     }
@@ -347,12 +342,20 @@ impl Worker {
                 });
                 self.read(session, &path)
             }
-            lost => {
+            lost if lost.is_connection_lost() => {
                 self.outbox.emit(Event::WriteFailed {
                     path,
                     message: lost.to_string(),
                 });
                 Err(Interruption::Lost(lost))
+            }
+            // Whether the device took the value is unknown; show what it holds now.
+            unusable => {
+                self.outbox.emit(Event::WriteFailed {
+                    path: path.clone(),
+                    message: unusable.to_string(),
+                });
+                self.read(session, &path)
             }
         }
     }

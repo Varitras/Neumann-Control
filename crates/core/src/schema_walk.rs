@@ -36,10 +36,10 @@ pub enum WalkError {
 
 impl From<SscError> for WalkError {
     fn from(error: SscError) -> WalkError {
-        match error {
-            SscError::Device(_) => WalkError::Refused(error.to_string()),
-            lost => WalkError::Connection(lost),
+        if error.is_connection_lost() {
+            return WalkError::Connection(error);
         }
+        WalkError::Refused(error.to_string())
     }
 }
 
@@ -105,16 +105,16 @@ fn report(
     }
     let value = match client.get(&path) {
         Ok(value) => Ok(value),
-        Err(refusal @ SscError::Device(_)) => Err(refusal.to_string()),
-        Err(lost) => return Err(WalkError::Connection(lost)),
+        Err(lost) if lost.is_connection_lost() => return Err(WalkError::Connection(lost)),
+        Err(refusal) => Err(refusal.to_string()),
     };
     if should_stop() {
         return Err(WalkError::Stopped);
     }
     let limits = match client.limits(&path) {
         Ok(limits) => Some(limits),
-        Err(SscError::Device(_)) => None,
-        Err(lost) => return Err(WalkError::Connection(lost)),
+        Err(lost) if lost.is_connection_lost() => return Err(WalkError::Connection(lost)),
+        Err(_) => None,
     };
     Ok(LeafReport {
         path,

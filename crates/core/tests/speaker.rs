@@ -327,6 +327,36 @@ fn absent_path_is_reported_once_and_not_polled_again() {
 }
 
 #[test]
+fn null_value_from_the_device_keeps_the_connection() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/mute", Value::Null);
+    // Only fast paths repeat, so the product is read only when a connection starts.
+    let timing = Timing {
+        meter: LONG_INTERVAL,
+        slow: LONG_INTERVAL,
+        ..short_timing()
+    };
+    let (_handle, events) = start_worker(simulator.address(), None, timing);
+
+    let mute = path("audio/out/mute");
+    let level = path("audio/out/level");
+    let mut seen = collect_until(&events, EVENT_DEADLINE, is_connected);
+    wait_for_requests(&simulator, &mute, 3, EVENT_DEADLINE);
+    seen.extend(collect_until(&events, EVENT_DEADLINE, |event| {
+        is_value_of(event, &level)
+    }));
+
+    assert!(!seen.iter().any(is_unreachable), "seen: {seen:?}");
+    assert!(!seen.iter().any(|event| is_value_of(event, &mute)));
+    // A connection reads the product twice (identity check, then the catalog's first round);
+    // a reconnect would add two more.
+    assert_eq!(
+        count_requests(&simulator, &path("device/identity/product")),
+        2
+    );
+}
+
+#[test]
 fn set_on_absent_path_reports_absent_again() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     simulator.remove_value("audio/out/mute");

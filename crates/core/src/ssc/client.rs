@@ -40,13 +40,16 @@ pub enum SscError {
     Connection(String),
     Timeout,
     Device(DeviceError),
+    /// The speaker answered this request, but without a usable value (missing, `null`, wrong
+    /// shape). The stream is still in step, so the connection stays.
+    Unusable(String),
     Protocol(String),
 }
 
 impl SscError {
     /// Whether the connection is unusable afterwards and the caller has to reconnect.
     pub fn is_connection_lost(&self) -> bool {
-        !matches!(self, SscError::Device(_))
+        !matches!(self, SscError::Device(_) | SscError::Unusable(_))
     }
 }
 
@@ -60,6 +63,7 @@ impl fmt::Display for SscError {
                 "the speaker refused the request ({}): {}",
                 error.code, error.description
             ),
+            SscError::Unusable(message) => write!(formatter, "unusable answer: {message}"),
             SscError::Protocol(message) => write!(formatter, "protocol error: {message}"),
         }
     }
@@ -238,7 +242,7 @@ impl Client {
                 .map(|(name, child)| (name.clone(), node_kind(child)))
                 .collect()),
             Value::Null => Ok(Vec::new()),
-            _ => Err(protocol("schema level is not an object")),
+            _ => Err(unusable("schema level is not an object")),
         }
     }
 
@@ -255,7 +259,7 @@ impl Client {
         };
         match description {
             Some(found @ Value::Object(_)) => Ok(found.clone()),
-            _ => Err(protocol("limits reply holds no description")),
+            _ => Err(unusable("limits reply holds no description")),
         }
     }
 
@@ -326,11 +330,15 @@ fn judge(tree: &Value, xid: u64, path: &SscPath) -> Verdict {
 fn confirmed_value(reply: &Value, path: &SscPath) -> Result<Value, SscError> {
     extract(reply, path)
         .cloned()
-        .ok_or_else(|| protocol("reply without the requested path"))
+        .ok_or_else(|| unusable("reply without the requested path"))
 }
 
 fn protocol(message: &str) -> SscError {
     SscError::Protocol(message.to_owned())
+}
+
+fn unusable(message: &str) -> SscError {
+    SscError::Unusable(message.to_owned())
 }
 
 fn introspection_path(text: &str) -> SscPath {
@@ -359,12 +367,12 @@ fn introspected_node<'a>(
     let listed = extract(reply, &introspection_path(method))
         .and_then(Value::as_array)
         .and_then(|items| items.first())
-        .ok_or_else(|| protocol("reply without the requested path"))?;
+        .ok_or_else(|| unusable("reply without the requested path"))?;
     let segments = path.map_or(&[][..], SscPath::segments);
     segments
         .iter()
         .try_fold(listed, |node, segment| node.get(segment))
-        .ok_or_else(|| protocol("reply does not describe the requested path"))
+        .ok_or_else(|| unusable("reply does not describe the requested path"))
 }
 
 fn node_kind(node: &Value) -> NodeKind {
