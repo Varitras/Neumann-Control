@@ -3,8 +3,8 @@
 //! peak as one lit segment, and a clip lamp on top. The scale is the spread one from `meter`.
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, FontId, Rect, Sense, Stroke, Ui, WidgetInfo,
-    WidgetType,
+    pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, RichText, Sense, Stroke, Ui,
+    Vec2, WidgetInfo, WidgetType,
 };
 use serde_json::Value;
 
@@ -25,27 +25,41 @@ const SCALE_WIDTH: f32 = 24.0;
 const SCALE_TICK_LENGTH: f32 = 3.0;
 const SCALE_FONT_SIZE: f32 = 8.5;
 const SCALE_MARKS_DB: [f64; 5] = [0.0, -6.0, -20.0, -60.0, -90.0];
+const CHANNEL_NAME_HEIGHT: f32 = 12.0;
+const CHANNEL_NAME_SIZE: f32 = 9.0;
 
-/// `clips` is the speaker's clip list for the same channels, if it reported one; `group`
-/// names the meters for screen readers.
-pub fn show(
-    ui: &mut Ui,
-    group: &str,
-    meters: &[MeterState],
-    clips: Option<&Value>,
-    height: f32,
-    floor: f64,
-    tokens: &Tokens,
-) {
+/// One group of meters, side by side.
+pub struct Meters<'a> {
+    /// Names the meters for screen readers.
+    pub name: &'a str,
+    /// What the speaker calls each channel.
+    pub channels: &'a [&'a str],
+    pub levels: &'a [MeterState],
+    /// The speaker's clip list for the same channels, if it reported one.
+    pub clips: Option<&'a Value>,
+}
+
+/// Returns the area the meters themselves cover, without names that stick out beside them.
+pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Tokens) -> Rect {
+    let mut covered = Rect::NOTHING;
+    let (name_of_group, channels, meters) = (group.name, group.channels, group.levels);
     let now = ui.input(|input| input.time);
-    let clips = clips.and_then(Value::as_array);
+    let clips = group.clips.and_then(Value::as_array);
     for (channel, meter) in meters.iter().enumerate() {
         let clipped = clips
             .and_then(|clips| clips.get(channel))
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let (rect, response) = ui.allocate_exact_size(vec2(METER_WIDTH, height), Sense::hover());
-        let label = texts::meter_label(group, channel + 1);
+        // The channel's name goes below `height`, so the scale beside stays level with it.
+        let size = vec2(METER_WIDTH, height + CHANNEL_NAME_HEIGHT);
+        let (cell, response) = ui.allocate_exact_size(size, Sense::hover());
+        covered = covered.union(cell);
+        let rect = Rect::from_min_size(cell.min, vec2(METER_WIDTH, height));
+        let name = texts::channel_name(channels, channel);
+        let name_rect = Rect::from_min_max(pos2(cell.left(), rect.bottom()), cell.max);
+        let caption = Label::new(RichText::new(&name).size(CHANNEL_NAME_SIZE).weak()).extend();
+        ui.put(name_rect, caption);
+        let label = texts::meter_label(name_of_group, &name);
         response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label));
         let lamp_color = if clipped {
             tokens.danger
@@ -66,6 +80,11 @@ pub fn show(
     if meters.iter().any(|meter| meter.is_moving(now)) {
         ui.ctx().request_repaint();
     }
+    // Before the first reading there are no meters; an empty area would be infinitely negative.
+    if meters.is_empty() {
+        return Rect::from_min_size(ui.cursor().min, Vec2::ZERO);
+    }
+    covered
 }
 
 /// dB marks beside the meters, at the same heights; marks below `floor` are left out.

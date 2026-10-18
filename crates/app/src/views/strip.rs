@@ -12,9 +12,9 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use super::fader::{self, FADER_HEIGHT};
-use super::{knob, meters};
+use super::knob;
+use super::meters::{self, Meters};
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
-use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
@@ -191,9 +191,12 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     let input = MeterGroup {
         with_scale: true,
         caption: texts::METER_INPUT_SHORT,
-        name: texts::INPUT_METERS,
-        meters: &speaker.input_meters,
-        clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+        meters: Meters {
+            name: texts::INPUT_METERS,
+            channels: texts::INPUT_CHANNELS,
+            levels: &speaker.input_meters,
+            clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+        },
     };
     meter_group(ui, &input, floor, tokens);
     if speaker.output_meters.is_empty() {
@@ -203,9 +206,12 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     let output = MeterGroup {
         with_scale: false,
         caption: texts::METER_OUTPUT_SHORT,
-        name: texts::OUTPUT_METERS,
-        meters: &speaker.output_meters,
-        clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+        meters: Meters {
+            name: texts::OUTPUT_METERS,
+            channels: texts::OUTPUT_CHANNELS,
+            levels: &speaker.output_meters,
+            clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+        },
     };
     meter_group(ui, &output, floor, tokens);
 }
@@ -215,10 +221,7 @@ struct MeterGroup<'a> {
     with_scale: bool,
     /// Under the meters, so input and output can be told apart at a glance.
     caption: &'a str,
-    /// For screen readers.
-    name: &'a str,
-    meters: &'a [MeterState],
-    clips: Option<&'a Value>,
+    meters: Meters<'a>,
 }
 
 fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
@@ -230,12 +233,8 @@ fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
         // The caption belongs to the meters, not to the scale beside them.
         ui.vertical(|ui| {
             let meters = ui
-                .horizontal(|ui| {
-                    let (name, levels, clips) = (group.name, group.meters, group.clips);
-                    meters::show(ui, name, levels, clips, FADER_HEIGHT, floor, tokens);
-                })
-                .response
-                .rect;
+                .horizontal(|ui| meters::show(ui, &group.meters, FADER_HEIGHT, floor, tokens))
+                .inner;
             let caption = Label::new(RichText::new(group.caption).small().weak());
             let cell = vec2(meters.width(), 0.0);
             ui.allocate_ui_with_layout(cell, Layout::top_down(Align::Center), |ui| ui.add(caption));

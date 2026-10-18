@@ -734,13 +734,13 @@ fn meter_groups_are_labelled_input_and_output() {
 #[test]
 fn meter_captions_are_centred_under_their_meters() {
     let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
-    for (caption, group, channels) in [
-        (texts::METER_INPUT_SHORT, texts::INPUT_METERS, 2),
-        (texts::METER_OUTPUT_SHORT, texts::OUTPUT_METERS, 3),
+    for (caption, group, last) in [
+        (texts::METER_INPUT_SHORT, texts::INPUT_METERS, "B"),
+        (texts::METER_OUTPUT_SHORT, texts::OUTPUT_METERS, "Sub"),
     ] {
-        let first = harness.get_by_label(&texts::meter_label(group, 1)).rect();
+        let first = harness.get_by_label(&texts::meter_label(group, "A")).rect();
         let last = harness
-            .get_by_label(&texts::meter_label(group, channels))
+            .get_by_label(&texts::meter_label(group, last))
             .rect();
         let middle = (first.left() + last.right()) / 2.0;
         let centre = harness.get_by_label(caption).rect().center().x;
@@ -749,4 +749,20 @@ fn meter_captions_are_centred_under_their_meters() {
             "{caption}: {centre} vs {middle}"
         );
     }
+}
+
+#[test]
+fn meters_name_their_channels_as_the_speaker_does() {
+    // The KH 750 describes its outputs as "[A, B, subwoofer]", its inputs as "[A,B]".
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    for (group, channel) in [
+        (texts::INPUT_METERS, "A"),
+        (texts::INPUT_METERS, "B"),
+        (texts::OUTPUT_METERS, "A"),
+        (texts::OUTPUT_METERS, "B"),
+        (texts::OUTPUT_METERS, "Sub"),
+    ] {
+        harness.get_by_label(&texts::meter_label(group, channel));
+    }
+    assert_eq!(harness.query_all_by_label("Sub").count(), 1);
 }

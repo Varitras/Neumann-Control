@@ -104,8 +104,20 @@ pub fn port(port: u16) -> String {
     format!("Port {port}")
 }
 
-/// Names one meter for screen readers, counting channels from 1.
-pub fn meter_label(group: &str, channel: usize) -> String {
+/// The channels as the speakers describe their meters: inputs "[A,B]", the KH 750's outputs
+/// "[A, B, subwoofer]".
+pub const INPUT_CHANNELS: &[&str] = &["A", "B"];
+pub const OUTPUT_CHANNELS: &[&str] = &["A", "B", "Sub"];
+
+/// The name under a meter; a channel the speakers never described is counted from 1.
+pub fn channel_name(names: &[&str], index: usize) -> String {
+    names
+        .get(index)
+        .map_or_else(|| (index + 1).to_string(), |name| (*name).to_owned())
+}
+
+/// Names one meter for screen readers.
+pub fn meter_label(group: &str, channel: &str) -> String {
     format!("{group} {channel}")
 }
 

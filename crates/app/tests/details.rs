@@ -374,7 +374,7 @@ fn strip_controls_are_not_repeated_in_the_panel() {
 #[test]
 fn kh750_output_meters_sit_next_to_the_input_meters() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh750);
-    let output_meter = texts::meter_label(texts::OUTPUT_METERS, 1);
+    let output_meter = texts::meter_label(texts::OUTPUT_METERS, "A");
     wait_for_label(&mut harness, &output_meter);
     assert_eq!(
         harness
@@ -395,7 +395,7 @@ fn kh750_output_meters_sit_next_to_the_input_meters() {
 #[test]
 fn kh120ii_card_has_no_output_meters() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    wait_for_label(&mut harness, &texts::meter_label(texts::INPUT_METERS, 2));
+    wait_for_label(&mut harness, &texts::meter_label(texts::INPUT_METERS, "B"));
     assert_eq!(
         harness
             .query_all_by_label_contains(texts::OUTPUT_METERS)
