@@ -8,8 +8,8 @@ use eframe::egui::{
 };
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
-use super::fader::{self, Orientation, Scale};
-use crate::groups::LINKABLE;
+use super::fader::{self, Orientation};
+use crate::groups::{SharedLevel, LINKABLE};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
@@ -20,7 +20,7 @@ const BORDER_WIDTH: f32 = 1.0;
 
 #[derive(Default)]
 pub struct GroupStripResponse {
-    /// The level the group fader was let go at.
+    /// The move the group fader was let go at, in dB.
     pub level: Option<f64>,
     /// The mute every member should get.
     pub mute: Option<bool>,
@@ -28,15 +28,14 @@ pub struct GroupStripResponse {
     pub open_settings: bool,
 }
 
-/// `reference` is the loudest connected member, `muted` whether all of them are muted.
+/// `level` follows the loudest connected member, `muted` says whether all of them are muted.
 pub fn group(
     ui: &mut Ui,
     group: &GroupSettings,
     color: Color32,
-    reference: Option<f64>,
+    level: Option<&SharedLevel>,
     muted: Option<bool>,
     range: RangeInclusive<f64>,
-    unit: &str,
 ) -> GroupStripResponse {
     let mut response = GroupStripResponse::default();
     frame(ui, color, |ui| {
@@ -56,8 +55,8 @@ pub fn group(
             }
         }
         let label = texts::group_level(&group.name);
-        response.level = fader::shared(ui, &label, reference, upright(range, unit));
-        let readout = reference.map(texts::shared_readout).unwrap_or_default();
+        response.level = fader::shared(ui, &label, level, range, Orientation::Vertical);
+        let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, &texts::group_mute(&group.name), muted);
     });
@@ -72,30 +71,27 @@ pub struct MasterResponse {
 
 pub fn master(
     ui: &mut Ui,
-    reference: Option<f64>,
+    level: Option<&SharedLevel>,
     muted: Option<bool>,
     range: RangeInclusive<f64>,
-    unit: &str,
 ) -> MasterResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut response = MasterResponse::default();
     frame(ui, tokens.accent, |ui| {
         ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()));
         let label = texts::MASTER_LEVEL.get();
-        response.level = fader::shared(ui, label, reference, upright(range, unit));
-        let readout = reference.map(texts::shared_readout).unwrap_or_default();
+        response.level = fader::shared(ui, label, level, range, Orientation::Vertical);
+        let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, texts::MUTE_ALL.get(), muted);
     });
     response
 }
 
-fn upright(range: RangeInclusive<f64>, unit: &str) -> Scale<'_> {
-    Scale {
-        range,
-        unit,
-        orientation: Orientation::Vertical,
-    }
+pub(super) fn shared_readout(level: Option<&SharedLevel>) -> String {
+    level
+        .map(|level| texts::shared_readout(level.reference))
+        .unwrap_or_default()
 }
 
 fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {

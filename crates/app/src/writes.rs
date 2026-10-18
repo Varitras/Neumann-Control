@@ -126,8 +126,12 @@ impl SpeakerState {
             .intended_value(&intent, &path)
             .and_then(|value| check(self, catalog, &path, &value).map(|()| value));
         let value = checked.inspect_err(|refusal| log::warn!("not sending {path}: {refusal:?}"))?;
+        // A sent value stays on its control until the speaker reports it; a refused one does not.
         if let Intent::Level(level) = intent {
             self.fader.sent(level, now);
+        }
+        if let (Some(knob), Some(number)) = (self.knobs.get_mut(&path), value.as_f64()) {
+            knob.sent(number, now);
         }
         Ok(Command::Set { path, value })
     }

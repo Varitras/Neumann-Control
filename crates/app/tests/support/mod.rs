@@ -290,3 +290,34 @@ pub fn sets(simulator: &Simulator, pointer: &str) -> Vec<Value> {
         .cloned()
         .collect()
 }
+
+pub fn delay_sets(simulator: &Simulator) -> Vec<Value> {
+    simulator
+        .requests()
+        .iter()
+        .filter_map(|request| {
+            request
+                .pointer("/audio/out/delay")
+                .filter(|value| !value.is_null())
+        })
+        .cloned()
+        .collect()
+}
+
+/// The harness clock moves about half a second per frame, more than egui allows between the
+/// two clicks of a double click, so the allowance is widened for the test.
+pub fn double_click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
+    harness
+        .ctx
+        .options_mut(|options| options.input_options.max_double_click_delay = 2.0);
+    harness.hover_at(position);
+    for pressed in [true, false, true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    harness.run_steps(2);
+}

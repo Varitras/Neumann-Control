@@ -1,6 +1,6 @@
 //! A rotary knob for a catalog number: turn it by moving the pointer around it (clockwise is
-//! more), mouse wheel, double-click for exact entry. While it moves, the value floats beside it. It writes once at the end of a
-//! gesture and shows a device value outside its range as is.
+//! more), mouse wheel, double-click for exact entry. While it moves, the value floats beside it.
+//! It writes once at the end of a gesture and shows a device value outside its range as is.
 
 use std::f32::consts::PI;
 use std::ops::RangeInclusive;
@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use super::fader::{drag_aborted, value_beside, wheel_notches, FINE_DIVISOR};
 use crate::display::shown_value;
-use crate::gesture::GestureState;
+use crate::gesture::{bounded_move, released, typed_value, GestureState};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -39,6 +39,7 @@ const INDICATOR_START: f32 = 0.3;
 const ARC_SEGMENTS: usize = 32;
 const DRAG_VALUE_ID: &str = "knob_drag_value";
 const DRAG_ANGLE_ID: &str = "knob_drag_angle";
+const DRAG_START_ID: &str = "knob_drag_start";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
 /// Room for the value line under the knob.
@@ -126,6 +127,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             };
             let (rect, response) = ui.allocate_exact_size(size, sense);
             let drag_id = id.with(DRAG_VALUE_ID);
+            let start_id = id.with(DRAG_START_ID);
             let angle_id = id.with(DRAG_ANGLE_ID);
             let pointer = ui.input(|input| input.pointer.interact_pos());
             let angle = pointer.and_then(|pointer| pointer_angle(rect.center(), pointer));
@@ -134,10 +136,14 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 state.drag_started();
                 ui.data_mut(|data| {
                     data.insert_temp(drag_id, value);
+                    data.insert_temp(start_id, value);
                     data.remove::<f32>(angle_id);
                 });
             }
             let aborted = drag_aborted(ui, &response);
+            let started = ui
+                .data(|data| data.get_temp::<f64>(start_id))
+                .unwrap_or(value);
             if response.dragged() && !aborted {
                 let held = ui
                     .data(|data| data.get_temp::<f64>(drag_id))
@@ -147,8 +153,8 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 let turned = last
                     .zip(angle)
                     .map_or(0.0, |(last, angle)| angle_change(last, angle));
-                let moved = turn_change(&knob.range, turned, fine);
-                value = (held + moved).clamp(*knob.range.start(), *knob.range.end());
+                let target = held + turn_change(&knob.range, turned, fine);
+                value = bounded_move(started, target, &knob.range).unwrap_or(held);
                 ui.data_mut(|data| {
                     data.insert_temp(drag_id, value);
                     // Inside the dead zone the last good angle stays the reference.
@@ -159,10 +165,13 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             }
             if response.drag_stopped() && !aborted {
                 let dragged = ui.data(|data| data.get_temp::<f64>(drag_id));
-                sent = dragged.map(|value| on_grid(value, knob.step));
+                sent = dragged.and_then(|dragged| released(started, dragged, knob.step));
             }
             if response.drag_stopped() {
-                ui.data_mut(|data| data.remove::<f64>(drag_id));
+                ui.data_mut(|data| {
+                    data.remove::<f64>(drag_id);
+                    data.remove::<f64>(start_id);
+                });
             }
             if enabled && response.hovered() {
                 let wheel = wheel_notches(ui);
@@ -200,8 +209,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 ui.add(Label::new(RichText::new(knob.label).small().weak()));
             }
             let open_now = response.double_clicked();
-            let range = &knob.range;
-            let edited = value_entry(ui, id, open_now, value, range, knob.step, knob.conversion);
+            let edited = value_entry(ui, id, open_now, value, knob.conversion);
             sent = sent.or(edited);
             if knob.caption && !value_entry_open(ui, id) {
                 let text = RichText::new((knob.format)(value)).small().monospace();
@@ -210,15 +218,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             response
         })
         .inner;
-    response.on_hover_text(format!(
-        "{}
-{}",
-        knob.label,
-        texts::CONTROL_HINT
-    ));
-    if let Some(value) = sent {
-        state.sent(value, now);
-    }
+    response.on_hover_text(format!("{}\n{}", knob.label, texts::CONTROL_HINT));
     sent
 }
 
@@ -259,20 +259,14 @@ pub fn wheel_step(range: &RangeInclusive<f64>, step: f64) -> f64 {
     steps * step
 }
 
-pub fn on_grid(value: f64, step: f64) -> f64 {
-    (value / step).round() * step
-}
-
-/// A text field for an exact value, open from `open_now` until Enter (returns the value, clamped
-/// and on the step grid) or until Escape or leaving it (returns nothing). Knob and fader use it.
-/// With a `conversion`, the text is in the converted unit (the delay in ms).
+/// A text field for an exact value, open from `open_now` until Enter (returns the value as typed,
+/// see `gesture::typed_value`) or until Escape or leaving it (returns nothing). Knob and fader
+/// readout use it. With a `conversion`, the text is in the converted unit (the delay in ms).
 pub(super) fn value_entry(
     ui: &mut Ui,
     id: Id,
     open_now: bool,
     value: f64,
-    range: &RangeInclusive<f64>,
-    step: f64,
     conversion: Option<Conversion>,
 ) -> Option<f64> {
     let text_id = id.with(EDIT_TEXT_ID);
@@ -299,10 +293,7 @@ pub(super) fn value_entry(
     if !entered {
         return None;
     }
-    let typed: f64 = text.trim().replace(',', ".").parse().ok()?;
-    let typed = conversion.map_or(typed, |conversion| conversion.invert(typed));
-    let clamped = typed.clamp(*range.start(), *range.end());
-    Some(on_grid(clamped, step))
+    typed_value(&text, conversion)
 }
 
 pub(super) fn value_entry_open(ui: &Ui, id: Id) -> bool {
@@ -401,11 +392,5 @@ mod tests {
         assert_eq!(wheel_step(&DELAY_RANGE, 1.0), 58.0);
         assert_eq!(wheel_step(&(1.0..=240.0), 1.0), 2.0);
         assert_eq!(wheel_step(&(0.0..=10.0), 1.0), 1.0);
-    }
-
-    #[test]
-    fn sent_values_sit_on_the_step_grid() {
-        assert_eq!(on_grid(12.4, 1.0), 12.0);
-        assert_eq!(on_grid(1.26, 0.5), 1.5);
     }
 }

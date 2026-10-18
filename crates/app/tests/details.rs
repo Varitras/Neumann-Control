@@ -7,6 +7,7 @@ use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
+use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -440,6 +441,23 @@ fn delay_is_typed_in_milliseconds_and_sent_in_samples() {
         !sets_to(&simulator, DELAY_PATH).is_empty()
     });
     assert_eq!(sets_to(&simulator, DELAY_PATH), vec![json!(480)]);
+}
+
+#[test]
+fn a_typed_number_outside_the_range_is_refused_not_clamped() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    // 500 ms are 24000 samples, far above the KH 120 II's 5760.
+    type_number(&mut harness, DELAY_LABEL, "500");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, DELAY_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+    let range = ValueError::OutOfRange {
+        min: 0.0,
+        max: 5760.0,
+    };
+    harness.get_by_label(&texts::describe_refusal(&Refusal::Invalid(range)));
 }
 
 #[test]

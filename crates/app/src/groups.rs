@@ -191,6 +191,27 @@ pub fn reference_level(levels: &[f64]) -> Option<f64> {
     levels.iter().copied().reduce(f64::max)
 }
 
+/// What a group or master fader shows and how far it can be pushed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SharedLevel {
+    /// The loudest member's level.
+    pub reference: f64,
+    /// Down until the loudest member reaches the bottom of `range`; up until the quietest
+    /// reaches its top, so the others still follow while the loudest stays at its limit.
+    pub reach: RangeInclusive<f64>,
+}
+
+/// None while no member reports a level.
+pub fn shared_level(levels: &[f64], range: &RangeInclusive<f64>) -> Option<SharedLevel> {
+    let reference = reference_level(levels)?;
+    let quietest = levels.iter().copied().reduce(f64::min)?;
+    let top = reference + (range.end() - quietest);
+    Some(SharedLevel {
+        reference,
+        reach: *range.start()..=top,
+    })
+}
+
 /// Every member moved by `delta` dB within its own range; members that would not change are
 /// left out, so nothing is written for them.
 pub fn shifted_levels<K: Clone>(
@@ -311,6 +332,15 @@ mod tests {
             shifted_levels(&members, -6.0),
             vec![("a", 84.0), ("b", 90.0)]
         );
+    }
+
+    #[test]
+    fn a_shared_fader_reaches_as_far_as_the_quietest_member_can_follow() {
+        let range = 0.0..=120.0;
+        let level = shared_level(&[120.0, 90.0], &range).unwrap();
+        assert_eq!(level.reference, 120.0);
+        assert_eq!(level.reach, 0.0..=150.0);
+        assert_eq!(shared_level(&[], &range), None);
     }
 
     #[test]

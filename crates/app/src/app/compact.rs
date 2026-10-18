@@ -4,10 +4,10 @@
 use eframe::egui::{Context, ScrollArea, Ui, ViewportCommand};
 use neumann_control_core::catalog::Catalog;
 
-use super::desk::{all_muted, level_unit, levels, members_of, DeskAction};
+use super::desk::{all_muted, levels, members_of, DeskAction};
 use super::{NeumannApp, OpenPanel, COMPACT_SCROLL_ID, DESK_WINDOW_SIZE};
 use crate::fader::output_level_range;
-use crate::groups::{compact_rows, layout, reference_level, CompactRow};
+use crate::groups::{compact_rows, layout, reference_level, shared_level, CompactRow};
 use crate::texts;
 use crate::ui_kit::theme::group_color;
 use crate::views::compact::{self, SharedRow};
@@ -26,7 +26,6 @@ impl NeumannApp {
         let ids = self.member_ids();
         let items = layout(&self.settings.order, &self.settings.groups, &ids);
         let rows = compact_rows(&items, &self.settings.groups, &ids);
-        let unit = level_unit(catalog);
         let floor = desk.meter_floor.db();
         let now = ui.input(|input| input.time);
         let mut actions = Vec::new();
@@ -58,7 +57,7 @@ impl NeumannApp {
                         CompactRow::Group(group) => {
                             let settings = &self.settings.groups[group];
                             let members = members_of(settings, &ids);
-                            let shown = self.shared_row(&members, &unit, floor, now);
+                            let shown = self.shared_row(&members, floor, now);
                             let color = group_color(settings.color);
                             let response = ui
                                 .push_id((texts::GROUP, group), |ui| {
@@ -70,7 +69,7 @@ impl NeumannApp {
                     }
                 }
                 let everyone: Vec<usize> = (0..self.speakers.len()).collect();
-                let shown = self.shared_row(&everyone, &unit, floor, now);
+                let shown = self.shared_row(&everyone, floor, now);
                 actions.push(DeskAction::Master(compact::master(ui, shown)));
             });
         for action in actions {
@@ -78,24 +77,18 @@ impl NeumannApp {
         }
     }
 
-    fn shared_row<'a>(
-        &self,
-        members: &[usize],
-        unit: &'a str,
-        floor: f64,
-        now: f64,
-    ) -> SharedRow<'a> {
+    fn shared_row(&self, members: &[usize], floor: f64, now: f64) -> SharedRow {
         let states = self.states(members);
         let inputs: Vec<f64> = states
             .iter()
             .filter_map(|state| state.loudest_input(now))
             .collect();
+        let range = output_level_range();
         SharedRow {
-            reference: reference_level(&levels(&states)),
+            level: shared_level(&levels(&states), &range),
             muted: all_muted(&states),
             loudest: reference_level(&inputs),
-            range: output_level_range(),
-            unit,
+            range,
             floor,
         }
     }

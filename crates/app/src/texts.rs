@@ -128,6 +128,8 @@ pub const CONTROL_HINT: Text = Text::new(
     "Shift: fein · Doppelklick: Wert eingeben",
     "Shift: fine · Double-click: type a value",
 );
+/// Faders take no typed value themselves (the strip's readout below does).
+pub const FADER_HINT: Text = Text::new("Shift: fein", "Shift: fine");
 pub const PANEL_TITLE: Text = Text::new("Lautsprecher", "Speaker");
 pub const SETTINGS: Text = Text::new("Einstellungen", "Settings");
 pub const COMPACT: Text = Text::new("Kompakt", "Compact");
@@ -299,6 +301,11 @@ pub fn group_mute(group: &str) -> String {
 
 pub fn response_time(milliseconds: u128) -> String {
     format!("{milliseconds} ms")
+}
+
+/// How far a group or master fader has moved while it is dragged.
+pub fn level_move(moved: f64) -> String {
+    format!("{moved:+.1} dB")
 }
 
 /// A group's or the master's level, without unit: it moves several speakers by the same amount.

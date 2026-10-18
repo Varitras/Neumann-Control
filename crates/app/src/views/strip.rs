@@ -15,6 +15,7 @@ use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::meters::{self, Meters};
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
+use crate::gesture::on_grid;
 use crate::input_source::input_source;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
@@ -231,10 +232,8 @@ fn level(
     let response = ui.add(label).on_hover_text(texts::CONTROL_HINT);
     let entry_id = response.id.with(LEVEL_ENTRY_ID);
     let open_now = response.double_clicked() && device.is_some();
-    let range = output_level_range();
-    if let Some(level) =
-        knob::value_entry(ui, entry_id, open_now, shown, &range, WHEEL_STEP_DB, None)
-    {
+    if let Some(level) = knob::value_entry(ui, entry_id, open_now, shown, None) {
+        let level = on_grid(level, WHEEL_STEP_DB);
         let now = ui.input(|input| input.time);
         commands.extend(speaker.request(Intent::Level(level), catalog, now));
     }

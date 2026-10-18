@@ -13,10 +13,11 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use super::fader::{self, Orientation, Scale};
-use super::group_strip::{mute_button, GroupStripResponse, MasterResponse};
+use super::group_strip::{mute_button, shared_readout, GroupStripResponse, MasterResponse};
 use super::meters;
 use super::strip::{self, UNREACHABLE_OPACITY};
 use crate::fader::output_level_range;
+use crate::groups::SharedLevel;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
@@ -85,14 +86,13 @@ pub fn speaker(
     }
 }
 
-/// What a group or master row shows: the loudest connected member's level as reference, whether
-/// all are muted, and the loudest input among them.
-pub struct SharedRow<'a> {
-    pub reference: Option<f64>,
+/// What a group or master row shows: the level of the loudest connected member, whether all are
+/// muted, and the loudest input among them.
+pub struct SharedRow {
+    pub level: Option<SharedLevel>,
     pub muted: Option<bool>,
     pub loudest: Option<f64>,
     pub range: RangeInclusive<f64>,
-    pub unit: &'a str,
     pub floor: f64,
 }
 
@@ -148,16 +148,10 @@ fn shared_controls(
     shown: SharedRow,
     tokens: &Tokens,
 ) -> (Option<f64>, Option<bool>) {
-    let scale = Scale {
-        range: shown.range,
-        unit: shown.unit,
-        orientation: Orientation::Horizontal,
-    };
-    let level = fader::shared(ui, level_label, shown.reference, scale);
-    let readout = shown
-        .reference
-        .map(texts::shared_readout)
-        .unwrap_or_default();
+    let level = shown.level.as_ref();
+    let range = shown.range;
+    let moved = fader::shared(ui, level_label, level, range, Orientation::Horizontal);
+    let readout = shared_readout(level);
     cell(ui, READOUT_WIDTH, |ui| ui.monospace(readout));
     meters::bar(
         ui,
@@ -167,7 +161,7 @@ fn shared_controls(
         tokens,
     );
     let mute = mute_button(ui, mute_label, shown.muted);
-    (level, mute)
+    (moved, mute)
 }
 
 fn row<R>(ui: &mut Ui, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> R {

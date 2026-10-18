@@ -7,6 +7,7 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use crate::display::{capped, converted_unit};
+use crate::gesture::{bounded_move, on_grid, typed_value};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
@@ -70,9 +71,10 @@ impl Fields<'_> {
         let held = ui.data(|data| data.get_temp::<f64>(pending_id));
         let mut value = held.or(device).unwrap_or(entry.min.unwrap_or_default());
         let step = entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED);
+        // No range on the field: egui would clamp typed text to it, and a typo would reach the
+        // speaker as the range's end. A drag is kept inside below; a typed value goes to the write
+        // policy as typed and is refused with the reason when outside.
         let mut drag = DragValue::new(&mut value)
-            .range(min..=max)
-            .clamp_existing_to_range(false)
             .custom_formatter(|number, _| number.to_string())
             .speed(step);
         if let Some(unit) = &entry.unit {
@@ -84,8 +86,7 @@ impl Fields<'_> {
             drag = drag
                 .custom_formatter(move |number, _| conversion.apply(number).to_string())
                 .custom_parser(move |text| {
-                    let typed: f64 = text.trim().replace(',', ".").parse().ok()?;
-                    Some((conversion.invert(typed) / step).round() * step)
+                    typed_value(text, Some(conversion)).map(|typed| on_grid(typed, step))
                 })
                 .suffix(format!(" {}", converted_unit(conversion)));
         }
@@ -95,6 +96,10 @@ impl Fields<'_> {
                 ui.add_enabled(enabled, drag).labelled_by(label.id)
             })
             .inner;
+        if response.dragged() {
+            let start = device.unwrap_or(value);
+            value = bounded_move(start, value, &(min..=max)).unwrap_or(start);
+        }
         let active = response.dragged() || response.has_focus();
         let ended = response.drag_stopped() || response.lost_focus();
         if !active && !ended {

@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::{NeumannApp, OpenPanel, DESK_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{
-    insertion_slot, layout, linkable_of, linked_path, member_id, order_of, reference_level,
+    insertion_slot, layout, linkable_of, linked_path, member_id, order_of, shared_level,
     shifted_levels, with_moved, DeskItem,
 };
 use crate::paths;
@@ -61,7 +61,6 @@ impl NeumannApp {
         };
         let mut centers = HashMap::new();
         let range = output_level_range();
-        let unit = level_unit(catalog);
         let mut actions = Vec::new();
         ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
@@ -107,15 +106,14 @@ impl NeumannApp {
                                 let settings = &self.settings.groups[group];
                                 let members = members_of(settings, &ids);
                                 let states = self.states(&members);
-                                let reference = reference_level(&levels(&states));
+                                let level = shared_level(&levels(&states), &range);
                                 let muted = all_muted(&states);
                                 let color = group_color(settings.color);
                                 let response = ui
                                     .push_id((texts::GROUP, group), |ui| {
                                         let range = range.clone();
-                                        group_strip::group(
-                                            ui, settings, color, reference, muted, range, &unit,
-                                        )
+                                        let level = level.as_ref();
+                                        group_strip::group(ui, settings, color, level, muted, range)
                                     })
                                     .inner;
                                 actions.push(DeskAction::Group(group, response));
@@ -124,9 +122,9 @@ impl NeumannApp {
                     }
                     let everyone: Vec<usize> = (0..self.speakers.len()).collect();
                     let states = self.states(&everyone);
-                    let reference = reference_level(&levels(&states));
+                    let level = shared_level(&levels(&states), &range);
                     let muted = all_muted(&states);
-                    let response = group_strip::master(ui, reference, muted, range.clone(), &unit);
+                    let response = group_strip::master(ui, level.as_ref(), muted, range.clone());
                     actions.push(DeskAction::Master(response));
                 });
             });
@@ -179,30 +177,28 @@ impl NeumannApp {
         }
     }
 
-    /// A group or master fader let go at `level`: every connected member moves by the same
-    /// amount within its own range; a mute switch sets mute on all of them.
+    /// A group or master fader let go after moving by `moved` dB: every connected member moves by
+    /// that much from its own current level, within its own range; a mute switch sets mute on all
+    /// of them.
     fn apply_shared(
         &mut self,
         members: &[usize],
-        level: Option<f64>,
+        moved: Option<f64>,
         mute: Option<bool>,
         catalog: &Catalog,
         now: f64,
     ) {
-        if let Some(level) = level {
-            let states = self.states(members);
-            if let Some(reference) = reference_level(&levels(&states)) {
-                let range = output_level_range();
-                let current: Vec<(usize, f64, _)> = members
-                    .iter()
-                    .filter_map(|index| {
-                        level_of(&self.speakers[*index].state)
-                            .map(|level| (*index, level, range.clone()))
-                    })
-                    .collect();
-                for (index, shifted) in shifted_levels(&current, level - reference) {
-                    self.request_and_send(index, Intent::Level(shifted), catalog, now);
-                }
+        if let Some(moved) = moved {
+            let range = output_level_range();
+            let current: Vec<(usize, f64, _)> = members
+                .iter()
+                .filter_map(|index| {
+                    level_of(&self.speakers[*index].state)
+                        .map(|level| (*index, level, range.clone()))
+                })
+                .collect();
+            for (index, shifted) in shifted_levels(&current, moved) {
+                self.request_and_send(index, Intent::Level(shifted), catalog, now);
             }
         }
         if let Some(mute) = mute {
@@ -405,10 +401,4 @@ pub(super) fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
         })
         .collect();
     (!mutes.is_empty()).then(|| mutes.iter().all(|muted| *muted))
-}
-
-pub(super) fn level_unit(catalog: &Catalog) -> String {
-    paths::catalog_entry(catalog, &paths::path(paths::OUTPUT_LEVEL))
-        .and_then(|entry| entry.unit.clone())
-        .unwrap_or_default()
 }
