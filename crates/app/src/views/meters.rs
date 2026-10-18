@@ -18,9 +18,10 @@ const CLIP_LAMP_SPACE: f32 = 10.0;
 /// One segment and the gap below it.
 const SEGMENT_PITCH: f32 = 5.0;
 const SEGMENT_GAP: f32 = 1.0;
+const SEGMENT_RADIUS: u8 = 1;
 /// How strongly a segment above the level still shows its zone colour.
 const UNLIT_OPACITY: f32 = 0.22;
-const SCALE_WIDTH: f32 = 18.0;
+const SCALE_WIDTH: f32 = 24.0;
 const SCALE_TICK_LENGTH: f32 = 3.0;
 const SCALE_FONT_SIZE: f32 = 8.5;
 const SCALE_MARKS_DB: [f64; 5] = [0.0, -6.0, -20.0, -60.0, -90.0];
@@ -91,11 +92,11 @@ pub fn scale(ui: &mut Ui, height: f32, floor: f64, tokens: &Tokens) {
 
 fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, tokens: &Tokens) {
     let painter = ui.painter();
-    let count = (track.height() / SEGMENT_PITCH).floor().max(1.0) as usize;
-    let pitch = track.height() / count as f32;
+    let rects = segment_rects(track, ui.ctx().pixels_per_point());
+    let count = rects.len().max(1);
     let lit = (level * count as f32).round() as usize;
     let peak_segment = (peak * count as f32).ceil() as usize;
-    for segment in 0..count {
+    for (segment, rect) in rects.into_iter().enumerate() {
         let middle = (segment as f32 + 0.5) / count as f32;
         let color = zone_color(zone(level_at(middle, floor)), tokens);
         let shown = segment < lit || segment + 1 == peak_segment;
@@ -104,13 +105,31 @@ fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, token
         } else {
             color.gamma_multiply(UNLIT_OPACITY)
         };
-        let bottom = track.bottom() - segment as f32 * pitch;
-        let rect = Rect::from_min_max(
-            pos2(track.left(), bottom - pitch + SEGMENT_GAP),
-            pos2(track.right(), bottom),
-        );
-        painter.rect_filled(rect, CornerRadius::ZERO, color);
+        painter.rect_filled(rect, CornerRadius::same(SEGMENT_RADIUS), color);
     }
+}
+
+/// The segments from the bottom up, each the same whole number of physical pixels high with the
+/// same gap: sizes derived from the track's height would round to uneven pixels.
+fn segment_rects(track: Rect, pixels_per_point: f32) -> Vec<Rect> {
+    let to_points = |pixels: f32| pixels / pixels_per_point;
+    let pitch = (SEGMENT_PITCH * pixels_per_point).round().max(2.0);
+    let gap = (SEGMENT_GAP * pixels_per_point).round().max(1.0);
+    let top = (track.top() * pixels_per_point).ceil();
+    let bottom = (track.bottom() * pixels_per_point).floor();
+    let left = to_points((track.left() * pixels_per_point).round());
+    let right = to_points((track.right() * pixels_per_point).round());
+    let count = ((bottom - top + gap) / pitch).floor().max(0.0) as usize;
+    (0..count)
+        .map(|segment| {
+            let segment_bottom = bottom - segment as f32 * pitch;
+            let segment_top = segment_bottom - (pitch - gap);
+            Rect::from_min_max(
+                pos2(left, to_points(segment_top)),
+                pos2(right, to_points(segment_bottom)),
+            )
+        })
+        .collect()
 }
 
 fn zone_color(zone: Zone, tokens: &Tokens) -> Color32 {
@@ -118,5 +137,40 @@ fn zone_color(zone: Zone, tokens: &Tokens) -> Color32 {
         Zone::Safe => tokens.meter_safe,
         Zone::Hot => tokens.meter_hot,
         Zone::Over => tokens.meter_over,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segments_are_equal_on_whole_pixels() {
+        // A track whose edges fall between pixels, as in the strip.
+        let track = Rect::from_min_max(pos2(10.3, 20.6), pos2(18.3, 207.4));
+        let rects = segment_rects(track, 1.0);
+        assert!(rects.len() > 30);
+        let heights: Vec<f32> = rects.iter().map(Rect::height).collect();
+        assert!(
+            heights.iter().all(|height| *height == heights[0]),
+            "{heights:?}"
+        );
+        for rect in &rects {
+            assert_eq!(rect.top(), rect.top().round());
+            assert_eq!(rect.bottom(), rect.bottom().round());
+        }
+        for pair in rects.windows(2) {
+            assert_eq!(pair[0].top() - pair[1].bottom(), SEGMENT_GAP);
+        }
+    }
+
+    #[test]
+    fn segments_follow_the_pixel_grid_at_other_scales() {
+        let track = Rect::from_min_max(pos2(10.0, 20.0), pos2(18.0, 200.0));
+        let pixels_per_point = 1.25;
+        for rect in segment_rects(track, pixels_per_point) {
+            let top = rect.top() * pixels_per_point;
+            assert!((top - top.round()).abs() < 1e-3, "{rect:?}");
+        }
     }
 }
