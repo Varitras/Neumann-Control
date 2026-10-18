@@ -4,8 +4,7 @@
 
 A portable Windows app to find, read and control Neumann KH DSP speakers over the network, using
 the Sennheiser Sound Control protocol (SSC). It shows your speakers side by side like channel
-strips on a desk, with level faders, meters, groups and a master, and it is careful never to
-write a value you did not choose.
+strips on a desk, with level faders, meters, groups and a master.
 
 > This is an independent project. It is not affiliated with or endorsed by Neumann or
 > Sennheiser.
@@ -189,7 +188,7 @@ A speaker that stops answering is shown as unreachable and reconnected every 10 
 
 ## How writes stay safe
 
-A speaker setting changes only when you mean it to:
+When the app writes to a speaker:
 
 - A value is written at the end of a gesture, never while you drag.
 - A click on a fader without moving it writes nothing.
