@@ -15,6 +15,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::texts;
+use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -29,6 +30,10 @@ pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 /// Tall enough for a card with "Mehr" open, so every control in it can be clicked.
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [900.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
+const PRODUCT_PATH: &str = "device/identity/product";
+/// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
+/// acted before the connect-time read had arrived.
+const REPLY_DELAY: Duration = Duration::from_millis(5);
 
 pub struct SimulatorSpawner {
     pub found: Vec<Found>,
@@ -137,11 +142,35 @@ pub fn connected_card(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
+    simulator.set_reply_delay(REPLY_DELAY);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
     let mut harness = harness(path, Vec::new());
     wait_for_level(&mut harness, 100.0);
+    wait_for_initial_read(&mut harness, &simulator);
     (simulator, directory, harness)
+}
+
+/// Steps frames until the window holds every value the worker reads on connecting, which is
+/// one read per catalog path of the model, in catalog order. The worker sends its next request
+/// only after handing the previous reply to the window, so a request after the read of the
+/// last path means all those values are in the channel; one more frame applies them.
+pub fn wait_for_initial_read(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
+    let product = simulator
+        .value(PRODUCT_PATH)
+        .and_then(|product| product.as_str().map(str::to_owned))
+        .expect("the simulator reports a product");
+    let entries = Catalog::embedded().entries_for(&product);
+    let last = entries.last().expect("the catalog has paths for the model");
+    let pointer = format!("/{}", last.path);
+    wait_until(harness, "the initial read", |_| {
+        let requests = simulator.requests();
+        let last_read = requests
+            .iter()
+            .position(|request| request.pointer(&pointer).is_some_and(Value::is_null));
+        last_read.is_some_and(|index| requests.len() > index + 1)
+    });
+    harness.step();
 }
 
 pub fn readouts(harness: &Harness<'static, NeumannApp>) -> usize {

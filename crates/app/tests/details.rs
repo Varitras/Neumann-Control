@@ -153,6 +153,7 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.get_by_label(texts::SCAN).click();
     wait_for_level(&mut harness, 100.0);
+    wait_for_initial_read(&mut harness, &simulator);
     harness.get_by_label(texts::MORE).click();
     wait_until(&mut harness, "the expanded area", |harness| {
         harness.query_by_label(texts::ALL_VALUES).is_some()
