@@ -696,14 +696,21 @@ fn response_time_is_reported_about_once_a_second() {
     let (_handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
+    // Counted from the first report: the read at connect takes a varying while before it.
+    let first = collect_until(&events, EVENT_DEADLINE, |event| {
+        matches!(event, Event::ResponseTime(_))
+    });
+    let Some(Event::ResponseTime(first)) = first.last().cloned() else {
+        panic!("no response time: {first:?}");
+    };
     let end = Instant::now() + Duration::from_millis(2500);
-    let mut times = Vec::new();
+    let mut times = vec![first];
     while let Some(remaining) = end.checked_duration_since(Instant::now()) {
         if let Ok(Event::ResponseTime(time)) = events.recv_timeout(remaining) {
             times.push(time);
         }
     }
-    assert!((2..=3).contains(&times.len()), "{times:?}");
+    assert!((3..=4).contains(&times.len()), "{times:?}");
     assert!(
         times.iter().all(|time| *time >= Duration::from_millis(25)),
         "{times:?}"

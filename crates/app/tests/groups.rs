@@ -9,6 +9,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::groups::linkable_label;
 use neumann_control_app::texts;
+use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{self, GroupSettings, Linkable, Settings, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
@@ -92,8 +93,16 @@ fn link_buttons_toggle_and_are_saved() {
         .get_by_label(&texts::link_label(linkable_label(Linkable::Level)))
         .click();
     harness.run_steps(2);
-    let saved = settings::load(&directory.path().join(SETTINGS_FILE));
-    assert_eq!(saved.groups[0].linked, vec![Linkable::Level]);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(
+        settings::load(&path).groups[0].linked,
+        vec![Linkable::Level]
+    );
+    harness
+        .get_by_label(&texts::link_label(linkable_label(Linkable::Level)))
+        .click();
+    harness.run_steps(2);
+    assert!(settings::load(&path).groups[0].linked.is_empty());
 }
 
 #[test]
@@ -296,4 +305,103 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
     assert_eq!(groups.len(), 2);
     assert_ne!(groups[0].name, groups[1].name);
     assert_ne!(groups[0].color, groups[1].color);
+}
+
+#[test]
+fn a_linked_setting_skips_a_model_that_may_not_write_it() {
+    // The KH 750's auto standby is read-only (decisions: its write is unmeasured).
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Standby]);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness
+        .get_by_role_and_label(Role::CheckBox, "Auto-Standby")
+        .click();
+    wait_until(&mut harness, "the KH 120 II standby set", |_| {
+        !sets(&kh120, "/device/standby/enabled").is_empty()
+    });
+    harness.run_steps(5);
+    barrier(&kh750);
+    assert!(sets(&kh750, "/device/standby/enabled").is_empty());
+    harness.get_by_label(&texts::describe_refusal(&Refusal::NotWritable));
+}
+
+#[test]
+fn a_linked_level_reaches_the_other_member_as_it_is() {
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Level]);
+    let start = harness
+        .query_all_by_role_and_label(Role::Slider, texts::LEVEL.get())
+        .next()
+        .unwrap()
+        .rect()
+        .center();
+    harness.drag_at(start);
+    for frame in 1..=4 {
+        harness.hover_at(start + egui::vec2(0.0, 5.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(start + egui::vec2(0.0, 20.0));
+    wait_until(&mut harness, "both level sets", |_| {
+        !sets(&kh120, "/audio/out/level").is_empty() && !sets(&kh750, "/audio/out/level").is_empty()
+    });
+    assert_eq!(
+        sets(&kh120, "/audio/out/level"),
+        sets(&kh750, "/audio/out/level")
+    );
+}
+
+#[test]
+fn copy_to_group_sends_the_members_value_to_the_others() {
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Level]);
+    kh120.set_value("audio/out/level", serde_json::json!(90.0));
+    wait_for_level(&mut harness, 90.0);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    let copy = texts::copy_to_group(linkable_label(Linkable::Level));
+    harness.get_by_label(&copy).click();
+    wait_until(&mut harness, "the copied level", |_| {
+        !sets(&kh750, "/audio/out/level").is_empty()
+    });
+    assert_eq!(
+        sets(&kh750, "/audio/out/level"),
+        vec![serde_json::json!(90.0)]
+    );
+    assert!(sets(&kh120, "/audio/out/level").is_empty());
+}
+
+#[test]
+fn ungrouped_strips_can_be_reordered_too() {
+    let kh120 = Simulator::start(SimModel::Kh120Ii);
+    let kh750 = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut first = manual_for(&kh120);
+    first.serial = Some("SIM0001234".to_owned());
+    let mut second = manual_for(&kh750);
+    second.serial = Some("SIM0007500".to_owned());
+    let settings = Settings {
+        manual: vec![first, second],
+        ..Settings::default()
+    };
+    settings::save(&settings, &path).unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.set_size(egui::vec2(1200.0, 900.0));
+    wait_until(&mut harness, "both strips connected", |harness| {
+        harness.query_all_by_label(&readout(100.0)).count() == 2
+    });
+    let handles: Vec<egui::Rect> = harness
+        .query_all_by_label(texts::MOVE_STRIP.get())
+        .map(|node| node.rect())
+        .collect();
+    let (left, right) = (handles[0], handles[1]);
+    let target = egui::pos2(right.right() + 200.0, left.center().y);
+    harness.drag_at(left.center());
+    for frame in 1..=6 {
+        let progress = frame as f32 / 6.0;
+        harness.hover_at(left.center() + (target - left.center()) * progress);
+        harness.step();
+    }
+    harness.drop_at(target);
+    harness.run_steps(2);
+    assert_eq!(
+        settings::load(&path).order,
+        vec![KH750_ID.to_owned(), KH120_ID.to_owned()]
+    );
 }

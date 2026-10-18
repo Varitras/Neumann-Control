@@ -234,3 +234,28 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
     assert_eq!(fs::read_to_string(copy).unwrap(), text);
     assert!(path.exists());
 }
+
+#[test]
+fn a_file_of_the_previous_version_keeps_its_speakers_and_window() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    // Before groups, order, language and the compact mode existed.
+    let text = r#"{
+        "manual": [{"address": "fe80::1%7", "port": 45, "serial": "SIM1"}],
+        "window": {"x": 10.0, "y": 20.0, "width": 900.0, "height": 600.0},
+        "desk": {"theme": "Dark", "meter_floor": "Minus90", "show_response_times": false}
+    }"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load(&path);
+    assert_eq!(loaded.manual[0].serial.as_deref(), Some("SIM1"));
+    assert_eq!(
+        loaded.window_of_mode().map(|window| window.width),
+        Some(900.0)
+    );
+    assert_eq!(loaded.desk.theme, ThemeChoice::Dark);
+    assert_eq!(loaded.desk.meter_floor, MeterFloor::Minus90);
+    assert!(!directory
+        .path()
+        .join(format!("{SETTINGS_FILE}.bad"))
+        .exists());
+}
