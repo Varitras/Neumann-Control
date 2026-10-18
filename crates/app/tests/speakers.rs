@@ -6,11 +6,13 @@ use std::path::Path;
 use std::time::Duration;
 
 use egui_kittest::kittest::{NodeT, Queryable};
+use egui_kittest::Harness;
+use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
 use neumann_control_core::address::{parse_address, AddressError, SSC_PORT};
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_host;
-use neumann_control_core::settings::{self, ManualSpeaker};
+use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use support::*;
 
@@ -296,5 +298,50 @@ fn add_address_names_an_address_already_listed() {
     harness.run_steps(2);
     harness.get_by_label(texts::ADDRESS_ALREADY_LISTED);
     harness.get_by_label(texts::ADD_ADDRESS_TITLE);
+    assert_eq!(settings::load(&path).manual.len(), 1);
+}
+
+/// Opens "Mehr" on the only card and asks to remove it.
+fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.get_by_label(texts::MORE).click();
+    wait_for_label(harness, texts::REMOVE);
+    harness.get_by_label(texts::REMOVE).click();
+    wait_for_label(harness, texts::REMOVE_TITLE);
+}
+
+#[test]
+fn remove_needs_confirmation_and_forgets_speaker() {
+    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let path = directory.path().join(SETTINGS_FILE);
+    ask_to_remove(&mut harness);
+    harness.get_by_label(&texts::speaker_count(1));
+    assert_eq!(settings::load(&path).manual.len(), 1);
+    let confirm = harness
+        .query_all_by_label(texts::REMOVE)
+        .last()
+        .expect("the dialog's button");
+    confirm.click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::REMOVE_TITLE).is_none());
+    harness.get_by_label(&texts::speaker_count(0));
+    assert!(settings::load(&path).manual.is_empty());
+    drop(harness);
+    let mut restarted = support::harness(path, Vec::new());
+    restarted.run_steps(2);
+    restarted.get_by_label(&texts::speaker_count(0));
+}
+
+#[test]
+fn cancel_remove_keeps_speaker() {
+    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let path = directory.path().join(SETTINGS_FILE);
+    ask_to_remove(&mut harness);
+    harness.get_by_label(texts::CANCEL).click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::REMOVE_TITLE).is_none());
+    harness.get_by_label(&texts::speaker_count(1));
+    harness.get_by_label(&readout(100.0));
+    harness.get_by_label(texts::LESS);
     assert_eq!(settings::load(&path).manual.len(), 1);
 }

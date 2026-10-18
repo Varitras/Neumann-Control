@@ -5,5 +5,6 @@ pub mod details;
 mod details_fields;
 pub mod fader;
 mod meters;
+pub mod remove_speaker;
 pub mod scan_choice;
 pub mod toolbar;

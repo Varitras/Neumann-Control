@@ -53,6 +53,9 @@ pub const SCAN_CHOICE_TITLE: &str = "Gefundene Lautsprecher";
 pub const NOTHING_FOUND: &str = "Keine Lautsprecher gefunden";
 pub const ALREADY_ADDED: &str = "bereits hinzugefügt";
 
+pub const REMOVE: &str = "Entfernen";
+pub const REMOVE_TITLE: &str = "Lautsprecher entfernen?";
+
 pub const UNREACHABLE: &str = "nicht erreichbar (aus oder Standby)";
 pub const WRITE_FAILED: &str = "Schreiben fehlgeschlagen";
 const SERIAL_MISMATCH_PREFIX: &str = "Anderes Gerät unter dieser Adresse (Seriennummer ";

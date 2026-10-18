@@ -1,6 +1,6 @@
 //! One speaker as a channel strip: name, status, level fader with input meters, mute and
-//! identify, the "Mehr" toggle with the settings it opens, and a status line. The card only
-//! reports what was clicked; `writes` decides whether it becomes a command.
+//! identify, the "Mehr" toggle with the settings it opens and "Entfernen", and a status line.
+//! The card only reports what was clicked; `writes` decides whether it becomes a command.
 
 use eframe::egui::{self, Button, CornerRadius, Label, RichText, Sense, Stroke, Ui, Vec2};
 use neumann_control_core::catalog::Catalog;
@@ -26,22 +26,33 @@ const STATUS_DOT_RADIUS: f32 = 4.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const DETAILS_ID: &str = "details";
 
-/// Draws the card and returns the writes the user asked for that the write policy allowed.
-pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
+pub struct CardResponse {
+    /// The writes the user asked for that the write policy allowed.
+    pub commands: Vec<Command>,
+    pub remove_clicked: bool,
+}
+
+pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> CardResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     // The parent lays cards out in a wrapping row; the content must not inherit that flow.
-    ui.vertical(|ui| card_frame(ui, speaker, catalog, &mut commands, &tokens));
-    commands
+    let remove_clicked = ui
+        .vertical(|ui| card_frame(ui, speaker, catalog, &mut commands, &tokens))
+        .inner;
+    CardResponse {
+        commands,
+        remove_clicked,
+    }
 }
 
+/// True when "Entfernen" was clicked.
 fn card_frame(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     commands: &mut Vec<Command>,
     tokens: &Tokens,
-) {
+) -> bool {
     let inner_width = CARD_WIDTH - 2.0 * (f32::from(CARD_MARGIN) + BORDER_WIDTH);
     egui::Frame::new()
         .fill(tokens.card)
@@ -59,15 +70,18 @@ fn card_frame(
             more_toggle(ui, speaker);
             // The scope exists collapsed too, so opening it never renumbers the widgets after it.
             let expanded = ui.push_id(DETAILS_ID, |ui| {
-                if speaker.expanded {
-                    details::show(ui, speaker, catalog)
-                } else {
-                    Vec::new()
+                if !speaker.expanded {
+                    return (Vec::new(), false);
                 }
+                let commands = details::show(ui, speaker, catalog);
+                (commands, ui.button(texts::REMOVE).clicked())
             });
-            commands.extend(expanded.inner);
+            let (expanded_commands, remove_clicked) = expanded.inner;
+            commands.extend(expanded_commands);
             status_line(ui, speaker, tokens);
-        });
+            remove_clicked
+        })
+        .inner
 }
 
 fn header(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {

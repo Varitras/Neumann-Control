@@ -18,10 +18,11 @@ use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
-use crate::targets::{duplicate_cards, follow_moves, remember_serial, targets};
+use crate::targets::{duplicate_cards, follow_moves, forget, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
+use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, card};
@@ -32,6 +33,14 @@ struct Speaker {
     state: SpeakerState,
     handle: SpeakerHandle,
     events: Receiver<Event>,
+}
+
+/// The card "Entfernen" was clicked on, while the confirmation is open. Key and address both,
+/// because connecting can change the key meanwhile.
+struct Removal {
+    key: SpeakerKey,
+    address: SocketAddrV6,
+    name: String,
 }
 
 pub struct NeumannApp {
@@ -46,6 +55,7 @@ pub struct NeumannApp {
     scan_choice: Option<ScanChoice>,
     notice: Option<&'static str>,
     add_address: Option<AddAddressForm>,
+    removal: Option<Removal>,
     window: Option<WindowGeometry>,
 }
 
@@ -72,6 +82,7 @@ impl NeumannApp {
             scan_choice: None,
             notice: None,
             add_address: None,
+            removal: None,
         };
         app.sync_targets();
         app
@@ -228,6 +239,25 @@ impl NeumannApp {
         self.sync_targets();
     }
 
+    /// Stops the card's worker and forgets every settings entry of its speaker.
+    fn remove_speaker(&mut self, removal: Removal) {
+        let position = self.speakers.iter().position(|speaker| {
+            speaker.state.key == removal.key || speaker.state.address == removal.address
+        });
+        let (key, address) = match position {
+            Some(position) => {
+                let speaker = self.speakers.remove(position);
+                retire(speaker.handle);
+                (speaker.state.key, speaker.state.address)
+            }
+            None => (removal.key, removal.address),
+        };
+        log::info!("speaker at {} removed", mask_host(&address));
+        if forget(&mut self.settings.manual, &key, address) {
+            self.save_settings();
+        }
+    }
+
     fn save_settings(&mut self) {
         if let Err(error) = settings::save(&self.settings, &self.settings_path) {
             log::warn!("settings could not be saved ({})", error.kind());
@@ -253,6 +283,7 @@ impl NeumannApp {
         egui::CentralPanel::default().show(ui, |ui| self.show_cards(ui));
         self.show_dialog(ui);
         self.show_scan_choice(ui);
+        self.show_removal(ui);
         self.show_all_values(ui.ctx());
     }
 
@@ -274,6 +305,7 @@ impl NeumannApp {
             return;
         }
         let catalog = Catalog::embedded();
+        let mut removal = None;
         ScrollArea::vertical()
             .id_salt(CARDS_SCROLL_ID)
             .auto_shrink([false, false])
@@ -283,16 +315,41 @@ impl NeumannApp {
                     |ui| {
                         for speaker in &mut self.speakers {
                             let key = speaker.state.key.clone();
-                            let commands = ui
+                            let response = ui
                                 .push_id(key, |ui| card::show(ui, &mut speaker.state, catalog))
                                 .inner;
-                            for command in commands {
+                            for command in response.commands {
                                 speaker.handle.send(command);
+                            }
+                            if response.remove_clicked {
+                                removal = Some(Removal {
+                                    key: speaker.state.key.clone(),
+                                    address: speaker.state.address,
+                                    name: speaker.state.display_name(),
+                                });
                             }
                         }
                     },
                 );
             });
+        if removal.is_some() {
+            self.removal = removal;
+        }
+    }
+
+    fn show_removal(&mut self, ui: &mut Ui) {
+        let Some(removal) = &self.removal else {
+            return;
+        };
+        match remove_speaker::show(ui, &removal.name) {
+            RemoveAction::None => {}
+            RemoveAction::Cancel => self.removal = None,
+            RemoveAction::Confirm => {
+                if let Some(removal) = self.removal.take() {
+                    self.remove_speaker(removal);
+                }
+            }
+        }
     }
 
     fn show_dialog(&mut self, ui: &mut Ui) {
