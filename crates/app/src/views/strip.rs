@@ -26,7 +26,6 @@ use crate::writes::{self, Intent, Switch};
 pub const STRIP_WIDTH: f32 = 140.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
-const GROUP_BORDER_WIDTH: f32 = 2.0;
 const GRIP_ID: &str = "grip";
 const GRIP_ROWS: usize = 3;
 const GRIP_DOT_SPACING: f32 = 4.0;
@@ -67,11 +66,10 @@ pub fn show(
     let frame = egui::Frame::new()
         .fill(tokens.card)
         // A member of a group is framed in the group's colour.
-        .stroke(
-            group_color.map_or(Stroke::new(BORDER_WIDTH, tokens.border), |color| {
-                Stroke::new(GROUP_BORDER_WIDTH, color)
-            }),
-        )
+        .stroke(Stroke::new(
+            BORDER_WIDTH,
+            group_color.unwrap_or(tokens.border),
+        ))
         .corner_radius(CornerRadius::same(STRIP_RADIUS))
         .inner_margin(STRIP_MARGIN)
         .show(ui, |ui| {

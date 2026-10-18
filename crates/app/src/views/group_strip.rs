@@ -16,7 +16,7 @@ use crate::ui_kit::theme::Tokens;
 const STRIP_WIDTH: f32 = 96.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
-const BORDER_WIDTH: f32 = 2.0;
+const BORDER_WIDTH: f32 = 1.0;
 
 #[derive(Default)]
 pub struct GroupStripResponse {
