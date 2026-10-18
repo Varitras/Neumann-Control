@@ -322,11 +322,11 @@ fn check_entry(entry: &Entry, classes: &ModelClasses) -> Result<(), CatalogError
     if !entry.kind.can_be_written() && !entry.writable_on.is_empty() {
         return Err(invalid("read-only kind lists writable models"));
     }
-    let writable_without_path = entry
+    let writable_outside_class = entry
         .writable_on
         .iter()
         .any(|product| !classes.contains(entry.class, product));
-    if writable_without_path {
+    if writable_outside_class {
         return Err(invalid("writable on a model outside its class"));
     }
     if entry.kind == Kind::Select && entry.options.is_empty() {
