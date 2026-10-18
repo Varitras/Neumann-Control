@@ -204,3 +204,33 @@ fn each_mode_keeps_its_own_window() {
     assert_eq!(settings.switch_mode(None), Some(compact));
     assert_eq!(settings.window_of_mode(), Some(compact));
 }
+
+#[test]
+fn a_value_this_version_does_not_know_costs_only_that_value() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    // As a later version or a hand edit might leave it: an unknown language and meter floor,
+    // a group without a colour, a speaker entry without a port.
+    let text = r#"{
+        "manual": [{"address": "fe80::1%7", "port": 45, "serial": "SIM1"}, {"address": "fe80::2%7"}],
+        "desk": {"language": "French", "meter_floor": "Minus200", "show_response_times": false},
+        "groups": [{"name": "Front", "members": ["serial:SIM1"]}, {"name": "Sub", "color": 1, "members": []}],
+        "order": ["serial:SIM1"]
+    }"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load(&path);
+    assert_eq!(loaded.manual.len(), 1, "the readable speaker stays");
+    assert_eq!(loaded.desk.language, Language::German);
+    assert_eq!(loaded.desk.meter_floor, MeterFloor::Minus120);
+    assert!(
+        !loaded.desk.show_response_times,
+        "a readable neighbour stays"
+    );
+    assert_eq!(loaded.groups.len(), 1);
+    assert_eq!(loaded.groups[0].name, "Sub");
+    assert_eq!(loaded.order, vec!["serial:SIM1".to_owned()]);
+    // The original stays readable for whoever wants the dropped values back.
+    let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert_eq!(fs::read_to_string(copy).unwrap(), text);
+    assert!(path.exists());
+}
