@@ -1,8 +1,10 @@
 //! Level meters: the shown level and a peak held for a while. Times are seconds of the UI clock.
 
+use neumann_control_core::settings::MeterFloor;
+
 pub const PEAK_HOLD_SECONDS: f64 = 1.5;
 /// Low enough that quiet room volume (inputs around -90 dB on the KH 120 II) still moves.
-pub const METER_FLOOR_DB: f64 = -120.0;
+pub const METER_FLOOR_DB: f64 = MeterFloor::Minus120.db();
 pub const METER_CEILING_DB: f64 = 6.0;
 
 /// Below this a level is safe, up to `OVER_FROM_DB` hot, above over.

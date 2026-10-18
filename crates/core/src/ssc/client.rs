@@ -187,7 +187,7 @@ pub struct Client {
     connection: Connection,
     next_xid: u64,
     closed: bool,
-    /// Send to matching reply of the last answered request, until taken.
+    /// Time from sending the last answered request to its matching reply, until taken.
     round_trip: Option<Duration>,
 }
 

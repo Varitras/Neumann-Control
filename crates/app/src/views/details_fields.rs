@@ -1,4 +1,4 @@
-//! The controls of the "Mehr" area, one per writable kind: number, switch, selection and text.
+//! The device panel's controls, one per writable kind: number, switch, selection and text.
 //! Every write goes through `writes`.
 
 use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Event, Key, TextEdit, Ui};

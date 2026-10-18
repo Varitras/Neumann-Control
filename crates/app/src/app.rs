@@ -20,7 +20,7 @@ use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::status_leds::average_response_time;
-use crate::targets::{duplicate_cards, follow_moves, forget, remember_serial, targets};
+use crate::targets::{duplicate_speakers, follow_moves, forget, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
@@ -66,7 +66,7 @@ pub struct NeumannApp {
     spawner: Box<dyn SpeakerSpawner>,
     wake: Arc<dyn Fn() + Send + Sync>,
     speakers: Vec<Speaker>,
-    /// Everything scans reported this session; names and models for the cards.
+    /// Everything scans reported this session; names and models for the strips.
     found: Vec<Found>,
     scan: Option<Receiver<ScanResult>>,
     scan_choice: Option<ScanChoice>,
@@ -112,7 +112,7 @@ impl NeumannApp {
         app
     }
 
-    /// Starts workers for remembered speakers without a card and moves cards whose entry now
+    /// Starts workers for remembered speakers not shown yet and moves speakers whose entry now
     /// points at another address.
     fn sync_targets(&mut self) {
         for (key, address) in targets(&self.settings.manual) {
@@ -190,7 +190,7 @@ impl NeumannApp {
         if changed {
             self.save_settings();
         }
-        self.drop_duplicate_cards();
+        self.drop_duplicate_speakers();
     }
 
     /// A speaker's key changed (its serial became known): its group, its place in the order and
@@ -204,14 +204,14 @@ impl NeumannApp {
         rename_member(&mut settings.groups, &mut settings.order, &old, &new)
     }
 
-    /// One speaker reached at two addresses shows up as two cards until both connected.
-    fn drop_duplicate_cards(&mut self) {
+    /// One speaker reached at two addresses shows up twice until both connected.
+    fn drop_duplicate_speakers(&mut self) {
         let keys: Vec<SpeakerKey> = self
             .speakers
             .iter()
             .map(|speaker| speaker.state.key.clone())
             .collect();
-        for position in duplicate_cards(&keys).into_iter().rev() {
+        for position in duplicate_speakers(&keys).into_iter().rev() {
             let speaker = self.speakers.remove(position);
             log::info!(
                 "{} is a speaker already shown",
@@ -248,7 +248,7 @@ impl NeumannApp {
         }
         self.sync_targets();
         if self.scan_choice.is_some() {
-            self.scan_choice = Some(ScanChoice::offer(&found, &self.cards()));
+            self.scan_choice = Some(ScanChoice::offer(&found, &self.shown_speakers()));
         }
     }
 
@@ -260,7 +260,7 @@ impl NeumannApp {
         }
     }
 
-    fn cards(&self) -> Vec<(SpeakerKey, SocketAddrV6)> {
+    fn shown_speakers(&self) -> Vec<(SpeakerKey, SocketAddrV6)> {
         self.speakers
             .iter()
             .map(|speaker| (speaker.state.key.clone(), speaker.state.address))

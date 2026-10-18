@@ -32,10 +32,10 @@ pub fn targets(manual: &[ManualSpeaker]) -> Vec<(SpeakerKey, SocketAddrV6)> {
     targets
 }
 
-/// Whether a scanned speaker already has a card: by serial when the scan reported one, by
+/// Whether a scanned speaker is already shown: by serial when the scan reported one, by
 /// address otherwise.
-pub fn has_card(found: &Found, cards: &[(SpeakerKey, SocketAddrV6)]) -> bool {
-    cards.iter().any(|(key, address)| match &found.serial {
+pub fn is_shown(found: &Found, shown: &[(SpeakerKey, SocketAddrV6)]) -> bool {
+    shown.iter().any(|(key, address)| match &found.serial {
         Some(serial) => *key == SpeakerKey::Serial(serial.clone()) || *address == found.address,
         None => *address == found.address,
     })
@@ -80,7 +80,7 @@ pub fn follow_moves(manual: &mut Vec<ManualSpeaker>, found: &[Found]) -> bool {
     changed
 }
 
-/// Drops every remembered entry of a removed card: those with its serial and those at its
+/// Drops every remembered entry of a removed speaker: those with its serial and those at its
 /// address. True when an entry was removed.
 pub fn forget(manual: &mut Vec<ManualSpeaker>, key: &SpeakerKey, address: SocketAddrV6) -> bool {
     let before = manual.len();
@@ -119,9 +119,9 @@ pub fn remember_serial(manual: &mut [ManualSpeaker], serial: &str, address: Sock
     changed
 }
 
-/// Positions of cards whose serial an earlier card already has: one speaker reached at two
-/// addresses. The first card stays.
-pub fn duplicate_cards(keys: &[SpeakerKey]) -> Vec<usize> {
+/// Positions of speakers whose serial an earlier one already has: one speaker reached at two
+/// addresses. The first stays.
+pub fn duplicate_speakers(keys: &[SpeakerKey]) -> Vec<usize> {
     keys.iter()
         .enumerate()
         .filter(|(position, key)| {
@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn later_cards_with_a_known_serial_are_duplicates() {
+    fn later_speakers_with_a_known_serial_are_duplicates() {
         let keys = [
             SpeakerKey::Address(address(ADDRESS_TEXT)),
             SpeakerKey::Serial(SERIAL.to_owned()),
@@ -195,7 +195,7 @@ mod tests {
             SpeakerKey::Serial(OTHER_SERIAL.to_owned()),
             SpeakerKey::Serial(SERIAL.to_owned()),
         ];
-        assert_eq!(duplicate_cards(&keys), vec![4]);
+        assert_eq!(duplicate_speakers(&keys), vec![4]);
     }
 
     #[test]
@@ -223,25 +223,25 @@ mod tests {
     }
 
     #[test]
-    fn a_scanned_speaker_has_a_card_by_serial_or_else_by_address() {
-        let cards = [
+    fn a_scanned_speaker_is_shown_by_serial_or_else_by_address() {
+        let shown = [
             (SpeakerKey::Serial(SERIAL.to_owned()), address(ADDRESS_TEXT)),
             (
                 SpeakerKey::Address(address(OTHER_ADDRESS_TEXT)),
                 address(OTHER_ADDRESS_TEXT),
             ),
         ];
-        assert!(has_card(&found(UNUSED_ADDRESS_TEXT, Some(SERIAL)), &cards));
-        assert!(has_card(&found(OTHER_ADDRESS_TEXT, None), &cards));
-        assert!(has_card(
+        assert!(is_shown(&found(UNUSED_ADDRESS_TEXT, Some(SERIAL)), &shown));
+        assert!(is_shown(&found(OTHER_ADDRESS_TEXT, None), &shown));
+        assert!(is_shown(
             &found(OTHER_ADDRESS_TEXT, Some(OTHER_SERIAL)),
-            &cards
+            &shown
         ));
-        assert!(!has_card(
+        assert!(!is_shown(
             &found(UNUSED_ADDRESS_TEXT, Some(OTHER_SERIAL)),
-            &cards
+            &shown
         ));
-        assert!(!has_card(&found(UNUSED_ADDRESS_TEXT, None), &cards));
+        assert!(!is_shown(&found(UNUSED_ADDRESS_TEXT, None), &shown));
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn forgetting_a_card_drops_its_serial_and_its_address() {
+    fn forgetting_a_speaker_drops_its_serial_and_its_address() {
         let mut entries = vec![
             manual(ADDRESS_TEXT, None),
             manual(OTHER_ADDRESS_TEXT, Some(SERIAL)),

@@ -1,4 +1,4 @@
-//! UI-independent state of one speaker card: what the worker events add up to.
+//! UI-independent state of one speaker: what the worker events add up to.
 //! All times are seconds of the UI clock passed in by the caller.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,13 +28,13 @@ pub enum SpeakerKey {
     Address(SocketAddrV6),
 }
 
-/// What the card's message is about, which decides when it ends.
+/// What the speaker's message is about, which decides when it ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MessageSource {
     /// Connecting, unreachable, another device: replaced by the next connection event.
     Connection,
     /// A refused, rejected or failed write. It stays until the user's next write request on
-    /// this card (or a connection event): the worker re-reads a path right after a rejection
+    /// this speaker (or a connection event): the worker re-reads a path right after a rejection
     /// and polls it every few seconds, so ending it on a fresh value hid it at once; and the
     /// texts do not name the path, so they are stale after any later request.
     Write,
@@ -165,7 +165,7 @@ impl SpeakerState {
                 self.status = Status::Connected;
                 self.set_message(None, MessageSource::Connection);
             }
-            // The masked reason is for the log; the card only shows the generic text.
+            // The masked reason is for the log; the strip only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
                 self.set_message(Some(Message::Unreachable), MessageSource::Connection);
@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn unreachable_event_greys_card_and_keeps_values() {
+    fn unreachable_event_greys_the_speaker_and_keeps_values() {
         let mut speaker = state();
         speaker.apply(
             Event::Value {
@@ -423,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    fn a_huge_device_name_is_shortened_for_the_card() {
+    fn a_huge_device_name_is_shortened_for_the_strip() {
         let mut speaker = state();
         let huge = "n".repeat(1_000_000);
         speaker.apply(Event::Connected(identity(&huge, "KH 120 II")), 0.0);

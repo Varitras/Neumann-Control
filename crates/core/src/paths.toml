@@ -8,7 +8,7 @@
 # strings as the device reports them) and how often it is polled (`poll`). A product that is
 # not listed in `writable_on` is read-only, so unmeasured models never get a write.
 #
-# Labels are German UI copy. Out of scope (not listed): EQ, restore, save_settings, out5,
+# `label` is the German UI copy, `label_en` the English one. Out of scope (not listed): EQ, restore, save_settings, out5,
 # mixer, mute_persist, update, auth, system, time, macs.
 
 [models]

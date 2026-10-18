@@ -98,10 +98,10 @@ fn groups<'a>(entries: Vec<&'a Entry>, speaker: &SpeakerState) -> Groups<'a> {
 /// Meters sit on the strip and clip lists light their lamps, so neither gets a row here.
 fn is_shown(entry: &Entry, speaker: &SpeakerState) -> bool {
     let path = entry.path.to_string();
-    let on_card = SHOWN_ELSEWHERE.contains(&path.as_str());
+    let on_strip = SHOWN_ELSEWHERE.contains(&path.as_str());
     let absent = speaker.absent.contains(&entry.path);
     let drawable = !matches!(entry.kind, Kind::Clip | Kind::Meter);
-    drawable && !on_card && !absent
+    drawable && !on_strip && !absent
 }
 
 fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {

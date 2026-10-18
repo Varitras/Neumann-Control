@@ -33,7 +33,7 @@ fn drag_level(harness: &mut Harness<'static, NeumannApp>, label: &str, by: f32) 
 
 #[test]
 fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
-    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     harness.get_by_label(texts::ADD_GROUP.get());
     press_compact_shortcut(&mut harness);
@@ -52,7 +52,7 @@ fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
 
 #[test]
 fn a_compact_row_writes_its_level_once_when_let_go() {
-    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, texts::LEVEL.get(), -40.0);
     wait_until(&mut harness, "a level set", |_| {
@@ -106,7 +106,7 @@ fn compact_rows_are_one_line_high_and_follow_each_other() {
 
 #[test]
 fn compact_columns_line_up_between_speaker_and_master_rows() {
-    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     let bars: Vec<f32> = harness
         .query_all_by_label(texts::INPUT_METERS.get())
@@ -118,7 +118,7 @@ fn compact_columns_line_up_between_speaker_and_master_rows() {
 
 #[test]
 fn mute_stays_reachable_in_the_narrowest_compact_window() {
-    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     harness.set_size(egui::vec2(480.0, 360.0));
     harness.run_steps(2);
@@ -132,7 +132,7 @@ fn mute_stays_reachable_in_the_narrowest_compact_window() {
 
 #[test]
 fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
-    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     harness.set_size(egui::vec2(480.0, 360.0));
     harness.run_steps(2);
     let toolbar = [
@@ -163,7 +163,7 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
 
 #[test]
 fn a_compact_row_says_why_a_write_was_refused() {
-    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     simulator.set_value("ui/control_mode", serde_json::json!("LOCAL"));
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, texts::LEVEL.get(), -40.0);

@@ -32,7 +32,7 @@ pub const WAIT_LIMIT: Duration = Duration::from_secs(15);
 // Paces the polling loop only; every outcome is decided by the condition.
 pub const POLL_PAUSE: Duration = Duration::from_millis(10);
 pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
-/// Tall enough for a card with "Mehr" open, so every control in it can be clicked.
+/// Tall enough for an open device panel, so every control in it can be clicked.
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
@@ -168,7 +168,7 @@ pub fn level_sets(simulator: &Simulator) -> Vec<f64> {
         .collect()
 }
 
-pub fn connected_card(
+pub fn connected_speaker(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
@@ -207,7 +207,7 @@ pub fn readouts(harness: &Harness<'static, NeumannApp>) -> usize {
     harness.query_all_by_label(&readout(100.0)).count()
 }
 
-pub fn has_one_card(harness: &Harness<'static, NeumannApp>) -> bool {
+pub fn shows_one_speaker(harness: &Harness<'static, NeumannApp>) -> bool {
     readouts(harness) == 1 && harness.query_by_label(&texts::speaker_count(1)).is_some()
 }
 

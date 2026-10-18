@@ -118,7 +118,7 @@ fn group_dialog_renames_and_deletes() {
 
 #[test]
 fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
-    let (simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
     wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
     harness.get_by_label(texts::CLOSE.get()).click();
@@ -275,7 +275,7 @@ fn group_mute_leaves_an_unreachable_member_alone() {
 
 #[test]
 fn a_new_group_never_repeats_the_name_or_colour_of_another() {
-    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     for _ in 0..2 {
         harness.get_by_label(texts::ADD_GROUP.get()).click();

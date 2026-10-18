@@ -328,7 +328,7 @@ impl NeumannApp {
 /// speakers of its section (its group, or the ungrouped ones), placed by where their strips were
 /// last frame. Before every one of them was drawn once, the desk stays as it is.
 fn previewed(
-    ctx: &Context,
+    context: &Context,
     items: Vec<DeskItem>,
     dragged: usize,
     ids: &[String],
@@ -343,14 +343,14 @@ fn previewed(
         })
         .filter(|index| group_of(groups, &ids[*index]) == section)
         .collect();
-    let centers: HashMap<String, f32> = ctx
+    let centers: HashMap<String, f32> = context
         .data(|data| data.get_temp(Id::new(STRIP_CENTERS_ID)))
         .unwrap_or_default();
     let known: Option<Vec<f32>> = others
         .iter()
         .map(|index| centers.get(&ids[*index]).copied())
         .collect();
-    let (Some(known), Some(pointer)) = (known, ctx.pointer_interact_pos()) else {
+    let (Some(known), Some(pointer)) = (known, context.pointer_interact_pos()) else {
         return items;
     };
     with_moved(&items, dragged, &others, insertion_slot(&known, pointer.x))

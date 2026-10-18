@@ -1,5 +1,5 @@
 //! The "Gefundene Lautsprecher" dialog after "Suchen": a spinner while the scan runs, then one
-//! row per found speaker to check. Speakers that already have a card are shown but not offered.
+//! row per found speaker to check. Speakers already shown are listed but not offered.
 
 use eframe::egui::{Button, Checkbox, Grid, Id, Modal, Ui};
 

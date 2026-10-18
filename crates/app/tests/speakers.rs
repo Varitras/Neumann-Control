@@ -1,4 +1,4 @@
-//! Which cards the window shows: addresses, speakers chosen from a scan, one card per speaker.
+//! Which speakers the window shows: addresses, speakers chosen from a scan, each once.
 
 mod support;
 
@@ -45,7 +45,7 @@ fn saved_at(path: &Path, simulator: &Simulator) -> bool {
 }
 
 #[test]
-fn scan_shows_choices_without_adding_cards() {
+fn scan_shows_choices_without_adding_speakers() {
     let simulator = Simulator::start(SimModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
@@ -92,7 +92,7 @@ fn a_failed_scan_says_so_in_the_dialog() {
 }
 
 #[test]
-fn only_checked_speakers_get_cards() {
+fn only_checked_speakers_are_added() {
     let unchosen = Simulator::start(SimModel::Kh120Ii);
     let chosen = Simulator::start(SimModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
@@ -191,7 +191,7 @@ fn rescan_updates_saved_address() {
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     harness.get_by_label(&texts::speaker_count(1));
     harness.get_by_label(texts::SCAN.get()).click();
-    // Not the name: the unconnected card shows the announced name as well.
+    // Not the name: the unconnected strip shows the announced name as well.
     wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
     assert!(saved_at(&path, &simulator));
     assert_eq!(settings::load(&path).manual.len(), 1);
@@ -222,7 +222,7 @@ fn add_address_refuses_ipv4_with_hint() {
 }
 
 #[test]
-fn add_address_saves_the_speaker_and_shows_its_card() {
+fn add_address_saves_the_speaker_and_shows_it() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), Vec::new());
@@ -247,9 +247,9 @@ fn add_address_saves_the_speaker_and_shows_its_card() {
 }
 
 #[test]
-fn a_manual_speaker_found_at_a_second_address_stays_one_card() {
+fn a_manual_speaker_found_at_a_second_address_is_shown_once() {
     let manual_simulator = Simulator::start(SimModel::Kh120Ii);
-    // The manual card connects only after the chosen card for the second address started.
+    // The manual entry connects only after the chosen one for the second address started.
     manual_simulator.set_reply_delay(Duration::from_millis(300));
     let second_simulator = Simulator::start(SimModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
@@ -259,17 +259,25 @@ fn a_manual_speaker_found_at_a_second_address_stays_one_card() {
     wait_until(&mut harness, "the serial in both entries", |_| {
         serials_remembered(&path, 2)
     });
-    wait_until(&mut harness, "one card after the first scan", has_one_card);
+    wait_until(
+        &mut harness,
+        "one speaker after the first scan",
+        shows_one_speaker,
+    );
     harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
     harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(5);
-    wait_until(&mut harness, "one card after the second scan", has_one_card);
+    wait_until(
+        &mut harness,
+        "one speaker after the second scan",
+        shows_one_speaker,
+    );
     assert!(serials_remembered(&path, 1));
 }
 
 #[test]
-fn two_manual_entries_for_one_speaker_stay_one_card() {
+fn two_manual_entries_for_one_speaker_are_shown_once() {
     let first = Simulator::start(SimModel::Kh120Ii);
     let second = Simulator::start(SimModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
@@ -281,7 +289,7 @@ fn two_manual_entries_for_one_speaker_stay_one_card() {
     wait_until(&mut harness, "both serials remembered", |_| {
         serials_remembered(&path, 2)
     });
-    wait_until(&mut harness, "one card", has_one_card);
+    wait_until(&mut harness, "one speaker", shows_one_speaker);
 }
 
 #[test]
@@ -318,7 +326,7 @@ fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
 
 #[test]
 fn remove_needs_confirmation_and_forgets_speaker() {
-    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     ask_to_remove(&mut harness);
     harness.get_by_label(&texts::speaker_count(1));
@@ -340,7 +348,7 @@ fn remove_needs_confirmation_and_forgets_speaker() {
 
 #[test]
 fn cancel_remove_keeps_speaker() {
-    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     ask_to_remove(&mut harness);
     harness.get_by_label(texts::CANCEL.get()).click();

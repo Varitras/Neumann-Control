@@ -9,9 +9,10 @@ This is an independent project. It is not affiliated with or endorsed by Neumann
 ## Status
 
 Version 0.1.0. The protocol layer, the polling and the interface are covered by automated tests
-against a built-in speaker simulator for the KH 120 II and the KH 750. The app has not yet been
-verified against real speakers; the model support described below follows the protocol
-knowledge the path catalog is built from and the simulator, not a hardware test.
+against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
+KH 750 speakers the app was checked for scanning, reading, metering and writing level, mute,
+identify and standby time. Groups, the compact mode and the English interface are so far
+covered by the simulator tests only.
 
 ## Features
 
@@ -21,7 +22,7 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 - One channel strip per speaker, side by side: name, four LEDs (connection, clip, device
   warning, LOCAL), knobs for delay (shown in ms) and standby time, output level fader
   (0-120 dB SPL in 0.5 dB steps), input level meters for channels A and B with clip lamps (on
-  the KH 750 also its output meters A, B and Sub, marked "Aus"), response time, "Stumm" (mute)
+  the KH 750 also its output meters A, B and Sub, marked "Ausg."), response time, "Stumm" (mute)
   and "Ident." (identify). On the KH 120 II the input meters are captioned with the rear input
   switch (Analog, AES3 L, AES3 R, Mono) and a dot marks the channels the speaker plays; that A
   is the left AES3 channel is assumed, not measured.
@@ -31,30 +32,35 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 - Knobs: turn them by moving the pointer around the knob (clockwise is more; one and a half
   turns cover the whole range), Shift for fine steps, the mouse wheel, or a double-click to type
   a value (the delay in ms). The value stands beside the knob while it moves.
-- Fader and knobs write once when you let go, stop the wheel or press Enter; Escape cancels.
+- Fader and knobs write once when you let go (only if the value changed), stop the wheel or
+  press Enter; Escape cancels a drag or a typed value. A typed value outside the range is
+  refused with the reason instead of being cut to the range's end.
 - Clicking a speaker's name opens its device panel with every setting the catalog knows for
   that model (output, input, standby, device, rear panel), grouped in two columns; settings a
   model may write get a control, the rest are shown greyed. The panel also shows model,
   firmware and masked serial number. Escape, "Schließen" or a click outside closes it.
 - Groups: "+ Gruppe" creates a group; a speaker joins one in its device panel ("Gruppe"). Group
   members are framed in the group's colour and followed by a group strip: its fader moves every
-  member by the same amount (each stays within its own range), "Stumm" mutes them all, and the
-  buttons under "Gekoppelt" link level, mute, standby or input, so a change on one member goes
-  to the others whose model may write it. "Für Gruppe übernehmen" in the panel copies a linked
-  value to the other members. Clicking the group's name renames or deletes it.
+  member by the same amount (each stays within its own range; with the loudest member at its
+  maximum the others still follow), "Stumm" mutes them all, and the buttons under "Gekoppelt"
+  link level, mute, auto standby or input interface, so a change on one member goes to the others
+  whose model may write it. Members that are not connected are left out. "Für Gruppe übernehmen"
+  in the panel copies a linked value to the other members. Clicking the group's name renames or
+  deletes it.
 - A master strip at the end moves and mutes all connected speakers the same way.
 - Drag a strip by the dots before its name; the other strips of its group (or the ungrouped
   ones) make room where it would land, and the order is remembered when you let go. Escape
   cancels.
 - "Einstellungen" sets the theme (like Windows, light, dark), the language (Deutsch, English;
-  it changes at once), the lowest level the meters show (-120, -90 or -60 dB) and whether
-  response times are shown; the toolbar shows the average response time of the connected
+  it changes at once; German shows a decimal comma, and typed values take a comma or a point),
+  the lowest level the meters show (-120, -90 or -60 dB) and whether response times are shown; the toolbar shows the average response time of the connected
   speakers.
 - "Kompakt" (or Ctrl+K) switches to a compact window and back: one row per ungrouped speaker
   and per group, each with LEDs (a group: its colour), name, a lying level fader with its value,
   the loudest input as a small meter and "Stumm", and the master row at the bottom. A group row
-  moves its members like the group strip. The compact window keeps its own size and position;
-  scanning and adding speakers or groups stay on the desk.
+  moves its members like the group strip; a "!" stands for a speaker's message, which shows on
+  hover. The compact window keeps its own size and position and scrolls sideways when narrower
+  than its rows; scanning and adding speakers or groups stay on the desk.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
 - Shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the speaker
@@ -99,7 +105,8 @@ Added speakers, whether chosen from a scan or entered by address, are remembered
 at every start without a scan. When a later scan finds a remembered speaker at a different
 address (link-local addresses and interface indexes can change), the stored address is updated.
 
-To remove a speaker, open its device panel, press "Entfernen" and confirm with "Entfernen".
+To remove a speaker, open its device panel, press "Entfernen" and confirm with "Entfernen". It
+also leaves its group and its place in the order.
 The strip disappears and the speaker is no longer remembered.
 
 IPv4 addresses are not accepted: the speakers are reachable only over IPv6.

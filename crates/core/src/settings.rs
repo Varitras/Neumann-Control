@@ -155,7 +155,7 @@ impl MeterFloor {
         MeterFloor::Minus60,
     ];
 
-    pub fn db(self) -> f64 {
+    pub const fn db(self) -> f64 {
         match self {
             MeterFloor::Minus120 => -120.0,
             MeterFloor::Minus90 => -90.0,

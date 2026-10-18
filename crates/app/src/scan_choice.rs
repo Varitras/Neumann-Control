@@ -1,5 +1,5 @@
 //! What the "Gefundene Lautsprecher" dialog offers after "Suchen": the speakers a scan found,
-//! which of them already have a card, and which the user checked.
+//! which of them are already shown, and which the user checked.
 
 use std::net::SocketAddrV6;
 
@@ -8,7 +8,7 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::ManualSpeaker;
 
 use crate::state::SpeakerKey;
-use crate::targets::{entry_for, has_card};
+use crate::targets::{entry_for, is_shown};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScanChoice {
@@ -20,26 +20,26 @@ pub enum ScanChoice {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Offer {
     pub found: Found,
-    /// Already has a card, so it cannot be chosen again.
+    /// Already shown, so it cannot be chosen again.
     pub known: bool,
     pub checked: bool,
 }
 
 impl ScanChoice {
-    /// `cards` are the key and address of every card in the window.
-    pub fn offer(found: &[Found], cards: &[(SpeakerKey, SocketAddrV6)]) -> ScanChoice {
+    /// `shown` are the key and address of every speaker in the window.
+    pub fn offer(found: &[Found], shown: &[(SpeakerKey, SocketAddrV6)]) -> ScanChoice {
         let offers = found
             .iter()
             .map(|found| Offer {
                 found: found.clone(),
-                known: has_card(found, cards),
+                known: is_shown(found, shown),
                 checked: false,
             })
             .collect();
         ScanChoice::Offered(offers)
     }
 
-    /// Flips the check of one row; rows of speakers with a card stay unchecked.
+    /// Flips the check of one row; rows of speakers already shown stay unchecked.
     pub fn toggle(&mut self, index: usize) {
         let ScanChoice::Offered(offers) = self else {
             return;
@@ -124,7 +124,7 @@ mod tests {
     }
 
     fn choice() -> ScanChoice {
-        let cards = [(
+        let shown = [(
             SpeakerKey::Serial(KNOWN_SERIAL.to_owned()),
             address(KNOWN_ADDRESS_TEXT),
         )];
@@ -133,12 +133,12 @@ mod tests {
                 found("Desk", KNOWN_SERIAL, KNOWN_ADDRESS_TEXT),
                 found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT),
             ],
-            &cards,
+            &shown,
         )
     }
 
     #[test]
-    fn speakers_with_a_card_are_offered_as_known_and_nothing_is_checked() {
+    fn speakers_already_shown_are_offered_as_known_and_nothing_is_checked() {
         let ScanChoice::Offered(offers) = choice() else {
             panic!("a finished scan offers its speakers");
         };

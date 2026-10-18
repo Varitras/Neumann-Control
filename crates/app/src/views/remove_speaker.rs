@@ -1,4 +1,4 @@
-//! The confirmation before a card's speaker is removed and forgotten.
+//! The confirmation before a speaker is removed and forgotten.
 
 use eframe::egui::{Id, Modal, Ui};
 
@@ -13,7 +13,7 @@ pub enum RemoveAction {
     Cancel,
 }
 
-/// `name` is the card's display name, so the user sees which speaker goes.
+/// `name` is the speaker's display name, so the user sees which speaker goes.
 pub fn show(ui: &mut Ui, name: &str) -> RemoveAction {
     let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name));
     if modal.should_close() {

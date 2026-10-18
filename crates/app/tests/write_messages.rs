@@ -1,5 +1,5 @@
-//! The card's write messages across the seam worker -> events -> speaker state: a rejection
-//! must still be on the card after everything the worker sends in reply has been applied.
+//! A speaker's write messages across the seam worker -> events -> speaker state: a rejection
+//! must still be shown after everything the worker sends in reply has been applied.
 
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Arc;
@@ -32,7 +32,7 @@ fn quiet_timing() -> Timing {
     }
 }
 
-/// A worker for the simulator and the card state it feeds, once the worker is connected and
+/// A worker for the simulator and the speaker state it feeds, once the worker is connected and
 /// has read the values it reads on connecting.
 fn connected(simulator: &Simulator) -> (SpeakerHandle, Events, SpeakerState) {
     let address = simulator.address();

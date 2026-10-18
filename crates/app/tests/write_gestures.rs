@@ -46,7 +46,7 @@ fn levels(simulator: &neumann_control_core::simulator::Simulator) -> Vec<Value> 
 
 #[test]
 fn a_click_on_a_fader_without_moving_writes_nothing() {
-    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     simulator.set_value(LEVEL_PATH, json!(90.3));
     wait_for_level(&mut harness, 90.3);
     let center = slider_center(&harness, texts::LEVEL.get());
@@ -78,7 +78,7 @@ fn a_click_on_a_group_fader_without_moving_writes_nothing() {
 
 #[test]
 fn a_typed_level_outside_the_range_is_refused_not_clamped() {
-    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -100,7 +100,7 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
 
 #[test]
 fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
-    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     // Short enough that the panel scrolls; `open_panel` makes the window tall.
     harness.set_size(egui::vec2(1200.0, 420.0));

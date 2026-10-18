@@ -18,7 +18,7 @@ const UNITS_KEY: &str = "units";
 const MINIMUM_KEY: &str = "min";
 const MAXIMUM_KEY: &str = "max";
 const OPTIONS_KEY: &str = "option";
-/// Leaves that name the device itself; shown masked like the serial on the card.
+/// Leaves that name the device itself; shown masked like the serial in the device panel.
 const IDENTIFIER_PATHS: &[&str] = &[paths::SERIAL, paths::MAC_ADDRESSES];
 
 #[derive(Clone, Debug, PartialEq)]

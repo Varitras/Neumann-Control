@@ -1,6 +1,6 @@
 //! The write policy: what the user asked for becomes a `Command` only for a connected speaker
 //! whose model the catalog lists as writable for the path, with a value the catalog accepts.
-//! Anything else is refused: `request` puts the reason on the card's message line, and
+//! Anything else is refused: `request` puts the reason on the speaker's message line, and
 //! `try_request` hands it to the caller (a text field shows it under itself).
 
 use neumann_control_core::catalog::{Catalog, Entry, ValueError};
@@ -26,7 +26,7 @@ impl Switch {
     }
 }
 
-/// What a control on the card asks for.
+/// What a control of a speaker asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Intent {
     /// Flip a switch to the opposite of its current value.
@@ -101,7 +101,7 @@ pub fn check(
 }
 
 impl SpeakerState {
-    /// The command for `intent`, or `None` after putting the refusal on the card.
+    /// The command for `intent`, or `None` after putting the refusal on the speaker's message.
     /// A sent level is held on the fader until the speaker reports it (`now` is the UI clock).
     pub fn request(&mut self, intent: Intent, catalog: &Catalog, now: f64) -> Option<Command> {
         match self.try_request(intent, catalog, now) {
@@ -113,7 +113,7 @@ impl SpeakerState {
         }
     }
 
-    /// Like `request`, but the refusal goes back to the caller instead of onto the card.
+    /// Like `request`, but the refusal goes back to the caller instead of onto the message.
     pub fn try_request(
         &mut self,
         intent: Intent,
