@@ -82,6 +82,8 @@ remove a manually added speaker, delete its entry from `settings.json` while the
   every speaker; use the app only on a network you trust.
 - A speaker in standby does not answer on the network, so it looks the same as a speaker that is
   switched off ("nicht erreichbar (aus oder Standby)").
+- A speaker accepts only a few TCP connections at a time (about four). With more clients
+  connected (vendor app, home automation), it can look unreachable as well.
 - On the KH 750, auto-standby, standby time and standby level are shown but not written; writing
   them is untested on that model.
 - Models other than the KH 120 II and the KH 750 are read-only.
