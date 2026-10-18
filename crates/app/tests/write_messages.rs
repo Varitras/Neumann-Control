@@ -1,7 +1,7 @@
 //! The card's write messages across the seam worker -> events -> speaker state: a rejection
 //! must still be on the card after everything the worker sends in reply has been applied.
 
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -9,7 +9,7 @@ use neumann_control_app::state::{SpeakerKey, SpeakerState, Status};
 use neumann_control_app::writes::Intent;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::simulator::{SimModel, Simulator};
-use neumann_control_core::speaker::{self, Command, Event, SpeakerHandle, Target, Timing};
+use neumann_control_core::speaker::{self, Command, Event, Events, SpeakerHandle, Target, Timing};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
 
@@ -27,12 +27,13 @@ fn quiet_timing() -> Timing {
         fast: LONG_INTERVAL,
         slow: LONG_INTERVAL,
         reconnect: LONG_INTERVAL,
+        ..Timing::default()
     }
 }
 
 /// A worker for the simulator and the card state it feeds, once the worker is connected and
 /// has read the values it reads on connecting.
-fn connected(simulator: &Simulator) -> (SpeakerHandle, Receiver<Event>, SpeakerState) {
+fn connected(simulator: &Simulator) -> (SpeakerHandle, Events, SpeakerState) {
     let address = simulator.address();
     let target = Target {
         address,
@@ -48,7 +49,7 @@ fn connected(simulator: &Simulator) -> (SpeakerHandle, Receiver<Event>, SpeakerS
     (handle, events, state)
 }
 
-fn apply_until(events: &Receiver<Event>, state: &mut SpeakerState, done: impl Fn(&Event) -> bool) {
+fn apply_until(events: &Events, state: &mut SpeakerState, done: impl Fn(&Event) -> bool) {
     let end = Instant::now() + EVENT_DEADLINE;
     loop {
         let remaining = end.saturating_duration_since(Instant::now());
@@ -61,7 +62,7 @@ fn apply_until(events: &Receiver<Event>, state: &mut SpeakerState, done: impl Fn
     }
 }
 
-fn apply_until_quiet(events: &Receiver<Event>, state: &mut SpeakerState) {
+fn apply_until_quiet(events: &Events, state: &mut SpeakerState) {
     loop {
         match events.recv_timeout(QUIET_PERIOD) {
             Ok(event) => state.apply(event, 0.0),
@@ -72,7 +73,7 @@ fn apply_until_quiet(events: &Receiver<Event>, state: &mut SpeakerState) {
 }
 
 /// Applies the rejection of `path`, the worker's re-read of it and anything after that.
-fn apply_reply_to_write(events: &Receiver<Event>, state: &mut SpeakerState, path: &SscPath) {
+fn apply_reply_to_write(events: &Events, state: &mut SpeakerState, path: &SscPath) {
     apply_until(
         events,
         state,

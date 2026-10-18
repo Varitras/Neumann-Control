@@ -13,7 +13,7 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeometry};
-use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
+use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
@@ -32,7 +32,7 @@ const CARDS_SCROLL_ID: &str = "cards";
 struct Speaker {
     state: SpeakerState,
     handle: SpeakerHandle,
-    events: Receiver<Event>,
+    events: Events,
 }
 
 /// The card "Entfernen" was clicked on, while the confirmation is open. Key and address both,
@@ -117,7 +117,7 @@ impl NeumannApp {
         }
     }
 
-    fn spawn(&self, key: &SpeakerKey, address: SocketAddrV6) -> (SpeakerHandle, Receiver<Event>) {
+    fn spawn(&self, key: &SpeakerKey, address: SocketAddrV6) -> (SpeakerHandle, Events) {
         let expected_serial = match key {
             SpeakerKey::Serial(serial) => Some(serial.clone()),
             SpeakerKey::Address(_) => None,

@@ -5,7 +5,8 @@ mod inbox;
 
 use std::collections::HashSet;
 use std::net::SocketAddrV6;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -23,6 +24,8 @@ use inbox::Inbox;
 const DEFAULT_METER_INTERVAL: Duration = Duration::from_millis(100);
 const DEFAULT_FAST_INTERVAL: Duration = Duration::from_secs(2);
 const DEFAULT_SLOW_INTERVAL: Duration = Duration::from_secs(30);
+/// About half a minute of KH 750 meter events.
+const DEFAULT_UNREAD_EVENTS_LIMIT: usize = 1000;
 const DEFAULT_RECONNECT_INTERVAL: Duration = Duration::from_secs(10);
 
 const PRODUCT_PATH: &str = "device/identity/product";
@@ -47,6 +50,9 @@ pub struct Timing {
     pub fast: Duration,
     pub slow: Duration,
     pub reconnect: Duration,
+    /// Polling pauses while this many events wait unread, e.g. while the window is not drawn,
+    /// so they cannot pile up; commands still run.
+    pub unread_events_limit: usize,
 }
 
 impl Default for Timing {
@@ -56,6 +62,7 @@ impl Default for Timing {
             fast: DEFAULT_FAST_INTERVAL,
             slow: DEFAULT_SLOW_INTERVAL,
             reconnect: DEFAULT_RECONNECT_INTERVAL,
+            unread_events_limit: DEFAULT_UNREAD_EVENTS_LIMIT,
         }
     }
 }
@@ -136,15 +143,20 @@ pub fn spawn(
     target: Target,
     timing: Timing,
     wake: Arc<dyn Fn() + Send + Sync>,
-) -> (SpeakerHandle, Receiver<Event>) {
+) -> (SpeakerHandle, Events) {
     let (command_sender, commands) = mpsc::channel();
     let (events, event_receiver) = mpsc::channel();
+    let unread = Arc::new(AtomicUsize::new(0));
     let worker = Worker {
         host: mask_host(&target.address),
         target,
         timing,
         inbox: Inbox::new(commands),
-        outbox: Outbox { events, wake },
+        outbox: Outbox {
+            events,
+            unread: Arc::clone(&unread),
+            wake,
+        },
         reported: None,
     };
     let thread = thread::Builder::new()
@@ -155,19 +167,57 @@ pub fn spawn(
         commands: command_sender,
         thread: Some(thread),
     };
-    (handle, event_receiver)
+    let events = Events {
+        receiver: event_receiver,
+        unread,
+    };
+    (handle, events)
+}
+
+/// The worker's events, counting what is still unread so the worker can pause polling.
+pub struct Events {
+    receiver: Receiver<Event>,
+    unread: Arc<AtomicUsize>,
+}
+
+impl Events {
+    pub fn try_recv(&self) -> Result<Event, TryRecvError> {
+        let event = self.receiver.try_recv()?;
+        self.unread.fetch_sub(1, Ordering::Relaxed);
+        Ok(event)
+    }
+
+    /// Every event that is already there, without waiting.
+    pub fn try_iter(&self) -> impl Iterator<Item = Event> + '_ {
+        std::iter::from_fn(|| self.try_recv().ok())
+    }
+
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<Event, RecvTimeoutError> {
+        let event = self.receiver.recv_timeout(timeout)?;
+        self.unread.fetch_sub(1, Ordering::Relaxed);
+        Ok(event)
+    }
 }
 
 struct Outbox {
     events: Sender<Event>,
+    unread: Arc<AtomicUsize>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Outbox {
     fn emit(&self, event: Event) {
+        // Counted first, so the reader never takes it below zero.
+        self.unread.fetch_add(1, Ordering::Relaxed);
         // A dropped receiver means the app is closing; the handle's Drop stops this thread.
-        let _ = self.events.send(event);
+        if self.events.send(event).is_err() {
+            self.unread.fetch_sub(1, Ordering::Relaxed);
+        }
         (self.wake)();
+    }
+
+    fn unread(&self) -> usize {
+        self.unread.load(Ordering::Relaxed)
     }
 }
 
@@ -278,22 +328,32 @@ impl Worker {
 
     /// A pending command, or else what the schedule has due; waits for whichever comes first.
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
-        let wait = match session.walk {
-            Some(_) => Duration::ZERO,
-            None => session.schedule.time_until_due(Instant::now()),
+        let walking = session.walk.is_some() && !self.paused();
+        let wait = if walking {
+            Duration::ZERO
+        } else {
+            session.schedule.time_until_due(Instant::now())
         };
         match self.inbox.next(wait) {
             Ok(command) => return self.execute(session, command),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
         }
-        match session.schedule.take_due(Instant::now()) {
+        let due = session.schedule.take_due(Instant::now());
+        if self.paused() {
+            return Ok(());
+        }
+        match due {
             Due::Meters(paths) => paths.iter().try_for_each(|path| self.read(session, path))?,
             Due::Path(path) => self.read(session, &path)?,
             Due::Nothing => {}
         }
         // One step per round, so neither the walk nor the meters can starve the other.
         self.advance_walk(session)
+    }
+
+    fn paused(&self) -> bool {
+        self.outbox.unread() >= self.timing.unread_events_limit
     }
 
     fn execute(&self, session: &mut Session, command: Command) -> Result<(), Interruption> {

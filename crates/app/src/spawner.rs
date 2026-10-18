@@ -6,7 +6,7 @@ use std::thread;
 
 use eframe::egui::Context;
 use neumann_control_core::discovery::{self, Found, SCAN_DURATION};
-use neumann_control_core::speaker::{self, Event, SpeakerHandle, Target, Timing};
+use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 
 const SCAN_THREAD_NAME: &str = "scan";
 
@@ -14,11 +14,7 @@ pub type ScanResult = Result<Vec<Found>, String>;
 
 pub trait SpeakerSpawner {
     /// Starts a worker for `target`; `wake` runs after each of its events.
-    fn spawn(
-        &self,
-        target: Target,
-        wake: Arc<dyn Fn() + Send + Sync>,
-    ) -> (SpeakerHandle, Receiver<Event>);
+    fn spawn(&self, target: Target, wake: Arc<dyn Fn() + Send + Sync>) -> (SpeakerHandle, Events);
 
     /// Starts a scan in the background; the receiver gets exactly one result.
     fn scan(&self) -> Receiver<ScanResult>;
@@ -37,11 +33,7 @@ impl CoreSpawner {
 }
 
 impl SpeakerSpawner for CoreSpawner {
-    fn spawn(
-        &self,
-        target: Target,
-        wake: Arc<dyn Fn() + Send + Sync>,
-    ) -> (SpeakerHandle, Receiver<Event>) {
+    fn spawn(&self, target: Target, wake: Arc<dyn Fn() + Send + Sync>) -> (SpeakerHandle, Events) {
         speaker::spawn(target, Timing::default(), wake)
     }
 

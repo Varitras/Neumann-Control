@@ -1,6 +1,6 @@
 use std::net::{Ipv6Addr, SocketAddrV6, TcpListener};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -9,7 +9,7 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::schema_walk::{read_all, WalkError, MAX_SCHEMA_DEPTH, MAX_SCHEMA_NODES};
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 use neumann_control_core::speaker::{
-    spawn, Command, Event, Identity, SpeakerHandle, Target, Timing,
+    spawn, Command, Event, Events, Identity, SpeakerHandle, Target, Timing,
 };
 use neumann_control_core::ssc::client::Client;
 use neumann_control_core::ssc::wire::SscPath;
@@ -39,6 +39,7 @@ fn short_timing() -> Timing {
         fast: Duration::from_millis(50),
         slow: Duration::from_millis(200),
         reconnect: Duration::from_millis(100),
+        ..Timing::default()
     }
 }
 
@@ -48,6 +49,7 @@ fn quiet_timing() -> Timing {
         fast: LONG_INTERVAL,
         slow: LONG_INTERVAL,
         reconnect: Duration::from_millis(100),
+        ..Timing::default()
     }
 }
 
@@ -59,7 +61,7 @@ fn start_worker(
     address: SocketAddrV6,
     expected_serial: Option<&str>,
     timing: Timing,
-) -> (SpeakerHandle, Receiver<Event>) {
+) -> (SpeakerHandle, Events) {
     let target = Target {
         address,
         expected_serial: expected_serial.map(str::to_owned),
@@ -69,7 +71,7 @@ fn start_worker(
 
 /// Every event up to and including the first that matches; panics when none comes in time.
 fn collect_until(
-    events: &Receiver<Event>,
+    events: &Events,
     deadline: Duration,
     matches: impl Fn(&Event) -> bool,
 ) -> Vec<Event> {
@@ -383,6 +385,7 @@ fn commands_run_before_polling() {
         fast: Duration::from_millis(1),
         slow: Duration::from_millis(1),
         reconnect: Duration::from_millis(100),
+        ..Timing::default()
     };
     let (handle, events) = start_worker(simulator.address(), None, busy);
     // A fast path read twice means the connect-time read is over and polling runs nonstop.
@@ -423,6 +426,7 @@ fn meters_are_polled_between_slow_paths() {
         fast: Duration::from_millis(1),
         slow: Duration::from_millis(1),
         reconnect: Duration::from_millis(100),
+        ..Timing::default()
     };
     let (_handle, events) = start_worker(simulator.address(), None, busy);
     let last = last_initial_path(KH_120_II_PRODUCT);
@@ -434,6 +438,8 @@ fn meters_are_polled_between_slow_paths() {
     let slow_before = count_requests(&simulator, &slow);
     let end = Instant::now() + Duration::from_secs(1);
     while Instant::now() < end && count_requests(&simulator, &meter) < meters_before + 10 {
+        // Read like the app does; unread events would pause polling.
+        events.try_iter().for_each(drop);
         thread::sleep(REQUEST_POLL_INTERVAL);
     }
 
@@ -657,6 +663,30 @@ fn connection_loss_during_read_all_is_answered() {
         matches!(event, Event::AllValues(_) | Event::AllValuesFailed(_))
     });
     assert!(matches!(seen.last(), Some(Event::AllValuesFailed(_))));
+}
+
+#[test]
+fn polling_pauses_while_nobody_reads_the_events() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let timing = Timing {
+        unread_events_limit: 30,
+        ..short_timing()
+    };
+    let (_handle, events) = start_worker(simulator.address(), None, timing);
+    let meter = path("m/in/level");
+    wait_for_requests(&simulator, &meter, 1, EVENT_DEADLINE);
+
+    thread::sleep(QUIET_PERIOD);
+    let paused_at = count_requests(&simulator, &meter);
+    thread::sleep(QUIET_PERIOD);
+    assert_eq!(
+        count_requests(&simulator, &meter),
+        paused_at,
+        "polling went on"
+    );
+
+    while events.try_recv().is_ok() {}
+    wait_for_requests(&simulator, &meter, paused_at + 3, EVENT_DEADLINE);
 }
 
 #[test]

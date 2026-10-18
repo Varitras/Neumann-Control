@@ -19,7 +19,7 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
-use neumann_control_core::speaker::{self, Event, SpeakerHandle, Target, Timing};
+use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 use serde_json::Value;
 
 pub const SIMULATED_SERIAL: &str = "SIM0001234";
@@ -41,11 +41,7 @@ pub struct SimulatorSpawner {
 }
 
 impl SpeakerSpawner for SimulatorSpawner {
-    fn spawn(
-        &self,
-        target: Target,
-        wake: Arc<dyn Fn() + Send + Sync>,
-    ) -> (SpeakerHandle, Receiver<Event>) {
+    fn spawn(&self, target: Target, wake: Arc<dyn Fn() + Send + Sync>) -> (SpeakerHandle, Events) {
         speaker::spawn(target, Timing::default(), wake)
     }
 
