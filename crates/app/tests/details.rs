@@ -415,3 +415,15 @@ fn all_values_button_reads_the_whole_tree() {
             .any(|request| request.pointer("/osc/schema").is_some())
     });
 }
+
+#[test]
+fn panel_number_rows_keep_their_labels_on_one_line() {
+    let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
+    for label in [STANDBY_TIME_LABEL, LOGO_LABEL, DELAY_LABEL] {
+        let rect = harness.get_by_role_and_label(Role::Label, label).rect();
+        assert!(rect.width() > rect.height(), "{label} wraps: {rect:?}");
+    }
+    // The number field shows the value; the knob beside it does not repeat it, and the strip
+    // shows a whole number as a whole number.
+    assert!(harness.query_by_label_contains("60.0 min").is_none());
+}

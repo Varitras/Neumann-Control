@@ -5,7 +5,8 @@ use std::f32::consts::PI;
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Id, Key, Label, RichText, Sense, Shape, Stroke, TextEdit, Ui, WidgetInfo,
+    pos2, vec2, Align, Id, Key, Label, Layout, RichText, Sense, Shape, Stroke, TextEdit, Ui,
+    WidgetInfo,
 };
 
 use neumann_control_core::catalog::{Catalog, Entry};
@@ -32,6 +33,8 @@ const ARC_SEGMENTS: usize = 32;
 const DRAG_VALUE_ID: &str = "knob_drag_value";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
+/// Room for the value line under the knob.
+const CELL_MIN_WIDTH: f32 = 56.0;
 /// Grid for entries without a catalog step.
 const UNSTEPPED_DIVISIONS: f64 = 1000.0;
 
@@ -52,7 +55,11 @@ pub fn for_entry(
     let step = entry
         .step
         .unwrap_or((maximum - minimum) / UNSTEPPED_DIVISIONS);
-    let format = |value: f64| shown_value(entry, &Value::from(value));
+    // Through the write's own type, so a whole-number entry reads "60 min", not "60.0 min".
+    let format = |value: f64| {
+        let typed = writes::number_value(entry, reported.as_ref(), value);
+        shown_value(entry, &typed)
+    };
     let knob = Knob {
         label,
         caption,
@@ -76,7 +83,7 @@ pub fn for_entry(
 pub struct Knob<'a> {
     /// Names the knob for screen readers and its tooltip.
     pub label: &'a str,
-    /// Whether the label also stands under the knob.
+    /// Whether label and value stand under the knob; beside a number field they would repeat it.
     pub caption: bool,
     pub range: RangeInclusive<f64>,
     /// The catalog step; values sent are on this grid.
@@ -95,8 +102,10 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
     let device = knob.device.unwrap_or(*knob.range.start());
     let enabled = knob.enabled && knob.device.is_some();
     let mut sent = None;
+    // A cell of its own width: a centred layout would take the whole row from its neighbours.
+    let cell = vec2(knob.diameter.max(CELL_MIN_WIDTH), 0.0);
     let response = ui
-        .vertical_centered(|ui| {
+        .allocate_ui_with_layout(cell, Layout::top_down(Align::Center), |ui| {
             let size = vec2(knob.diameter, knob.diameter);
             let sense = if enabled {
                 Sense::click_and_drag()
@@ -152,12 +161,10 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             }
             let edited = exact_entry(ui, id, &response, knob, value);
             sent = sent.or(edited);
-            if exact_entry_open(ui, id) {
-                return response;
+            if knob.caption && !exact_entry_open(ui, id) {
+                let text = RichText::new((knob.format)(value)).small().monospace();
+                ui.add(Label::new(text));
             }
-            ui.add(Label::new(
-                RichText::new((knob.format)(value)).small().monospace(),
-            ));
             response
         })
         .inner;
