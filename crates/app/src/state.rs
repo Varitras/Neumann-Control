@@ -11,10 +11,15 @@ use neumann_control_core::speaker::{Command, Event, Identity};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use crate::display::capped;
 use crate::fader::FaderState;
 use crate::meter::{MeterState, METER_FLOOR_DB};
 use crate::paths;
 use crate::texts;
+
+/// The KH 750 reports three output channels; a longer list from a faulty device would draw a
+/// meter per element.
+pub const MAX_METER_CHANNELS: usize = 8;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SpeakerKey {
@@ -105,7 +110,7 @@ impl SpeakerState {
             .into_iter()
             .flatten()
             .find(|name| !name.is_empty())
-            .map(str::to_owned)
+            .map(capped)
             .unwrap_or_else(|| mask_host(&self.address))
     }
 
@@ -230,6 +235,7 @@ impl SpeakerState {
         let Some(levels) = value.as_array() else {
             return;
         };
+        let levels = &levels[..levels.len().min(MAX_METER_CHANNELS)];
         if meters.len() < levels.len() {
             meters.resize_with(levels.len(), MeterState::default);
         }
@@ -242,6 +248,7 @@ impl SpeakerState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::display::VALUE_CHARACTER_LIMIT;
     use neumann_control_core::address::parse_address;
     use neumann_control_core::ssc::wire::DeviceError;
     use serde_json::json;
@@ -363,6 +370,28 @@ mod tests {
         let message = speaker.message.unwrap();
         assert!(message.contains(&mask_serial(OTHER_SERIAL)));
         assert!(!message.contains(OTHER_SERIAL));
+    }
+
+    #[test]
+    fn a_long_meter_list_draws_a_bounded_number_of_meters() {
+        let mut speaker = state();
+        let levels: Vec<f64> = vec![-20.0; 500];
+        speaker.apply(
+            Event::Value {
+                path: path("m/in/level"),
+                value: json!(levels),
+            },
+            0.0,
+        );
+        assert_eq!(speaker.input_meters.len(), MAX_METER_CHANNELS);
+    }
+
+    #[test]
+    fn a_huge_device_name_is_shortened_for_the_card() {
+        let mut speaker = state();
+        let huge = "n".repeat(1_000_000);
+        speaker.apply(Event::Connected(identity(&huge, "KH 120 II")), 0.0);
+        assert!(speaker.display_name().chars().count() <= VALUE_CHARACTER_LIMIT + 1);
     }
 
     #[test]

@@ -6,11 +6,10 @@ use neumann_control_core::mask::mask_serial;
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::Value;
 
+use crate::display::capped;
 use crate::paths;
 
 /// A device can answer with any amount of text; one table cell must not grow with it.
-pub const VALUE_CHARACTER_LIMIT: usize = 200;
-const ELLIPSIS: char = '…';
 const COPY_SEPARATOR: &str = " = ";
 const RANGE_SEPARATOR: &str = "  ";
 const OPTION_SEPARATOR: &str = " | ";
@@ -116,19 +115,10 @@ fn options_text(options: &Value) -> String {
     }
 }
 
-/// At most `VALUE_CHARACTER_LIMIT` characters, cut on a character boundary.
-fn capped(text: &str) -> String {
-    let mut characters = text.chars();
-    let kept: String = characters.by_ref().take(VALUE_CHARACTER_LIMIT).collect();
-    if characters.next().is_none() {
-        return text.to_owned();
-    }
-    format!("{kept}{ELLIPSIS}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::display::{ELLIPSIS, VALUE_CHARACTER_LIMIT};
     use neumann_control_core::ssc::wire::SscPath;
     use serde_json::json;
 

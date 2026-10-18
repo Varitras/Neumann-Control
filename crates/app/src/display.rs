@@ -6,6 +6,9 @@ use serde_json::Value;
 
 use crate::texts;
 
+/// Device text can be up to a line's 1 MiB; laid out whole it would stall every frame.
+pub const VALUE_CHARACTER_LIMIT: usize = 200;
+pub const ELLIPSIS: char = '…';
 const LIST_SEPARATOR: &str = ", ";
 const DEVICE_VERSION_SEPARATOR: char = '_';
 const SHOWN_VERSION_SEPARATOR: char = '.';
@@ -22,11 +25,21 @@ pub fn shown_value(entry: &Entry, value: &Value) -> String {
     if let (Some(conversion), Some(number)) = (entry.conversion, value.as_f64()) {
         return converted(conversion, number);
     }
-    let text = raw_text(value);
+    let text = capped(&raw_text(value));
     match entry.unit.as_deref() {
         Some(unit) if !text.is_empty() => format!("{text} {unit}"),
         _ => text,
     }
+}
+
+/// At most `VALUE_CHARACTER_LIMIT` characters, cut on a character boundary.
+pub fn capped(text: &str) -> String {
+    let mut characters = text.chars();
+    let kept: String = characters.by_ref().take(VALUE_CHARACTER_LIMIT).collect();
+    if characters.next().is_none() {
+        return text.to_owned();
+    }
+    format!("{kept}{ELLIPSIS}")
 }
 
 /// The device reports whole kelvin, so tenths of a degree would only show rounding noise.
@@ -64,6 +77,16 @@ mod tests {
 
     fn entry(path: &str) -> &'static Entry {
         paths::catalog_entry(Catalog::embedded(), &paths::path(path)).unwrap()
+    }
+
+    #[test]
+    fn a_long_device_text_is_shortened_on_a_character_boundary() {
+        let long = "ä".repeat(VALUE_CHARACTER_LIMIT + 50);
+        let shown = shown_value(entry("device/name"), &json!(long));
+        assert_eq!(shown.chars().count(), VALUE_CHARACTER_LIMIT + 1);
+        assert!(shown.ends_with(ELLIPSIS));
+        let exact = "x".repeat(VALUE_CHARACTER_LIMIT);
+        assert_eq!(capped(&exact), exact);
     }
 
     #[test]

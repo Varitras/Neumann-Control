@@ -6,6 +6,7 @@ use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
+use crate::display::capped;
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
@@ -179,7 +180,7 @@ impl Fields<'_> {
             .unwrap_or_default();
         let focused = ui.memory(|memory| memory.has_focus(field_id));
         if !draft.edited && !focused {
-            draft.text = reported.unwrap_or_default();
+            draft.text = reported.as_deref().map(capped).unwrap_or_default();
         }
         let label = ui.label(&entry.label);
         let field = TextEdit::singleline(&mut draft.text)
