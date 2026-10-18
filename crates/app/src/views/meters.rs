@@ -50,14 +50,24 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
             .and_then(|clips| clips.get(channel))
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        // The channel's name goes below `height`, so the scale beside stays level with it.
-        let size = vec2(METER_WIDTH, height + CHANNEL_NAME_HEIGHT);
+        // The channel's name goes below `height`, so the scale beside stays level with it; the
+        // column is as wide as the name ("Sub"), with the meter in its middle.
+        let name = texts::channel_name(channels, channel);
+        let font = FontId::proportional(CHANNEL_NAME_SIZE);
+        let name_width = ui
+            .painter()
+            .layout_no_wrap(name.clone(), font, tokens.text_dim)
+            .size()
+            .x;
+        let size = vec2(METER_WIDTH.max(name_width), height + CHANNEL_NAME_HEIGHT);
         let (cell, response) = ui.allocate_exact_size(size, Sense::hover());
         covered = covered.union(cell);
-        let rect = Rect::from_min_size(cell.min, vec2(METER_WIDTH, height));
-        let name = texts::channel_name(channels, channel);
+        let rect = Rect::from_center_size(
+            pos2(cell.center().x, cell.top() + height / 2.0),
+            vec2(METER_WIDTH, height),
+        );
         let name_rect = Rect::from_min_max(pos2(cell.left(), rect.bottom()), cell.max);
-        let caption = Label::new(RichText::new(&name).size(CHANNEL_NAME_SIZE).weak()).extend();
+        let caption = Label::new(RichText::new(&name).size(CHANNEL_NAME_SIZE).weak());
         ui.put(name_rect, caption);
         let label = texts::meter_label(name_of_group, &name);
         response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label));

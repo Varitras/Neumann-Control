@@ -161,8 +161,10 @@ fn level(
     let unit = paths::catalog_entry(catalog, &path)
         .and_then(|entry| entry.unit.clone())
         .unwrap_or_default();
+    // Top-aligned: the meter groups are taller than the fader (names, caption) and a centred
+    // row would shift them against it and against each other.
     let shown = ui
-        .horizontal(|ui| {
+        .with_layout(Layout::left_to_right(Align::Min), |ui| {
             let range = output_level_range();
             let shown = fader::show(ui, speaker, catalog, commands, device, range, &unit);
             meters(ui, speaker, desk, tokens);
@@ -225,7 +227,7 @@ struct MeterGroup<'a> {
 }
 
 fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
-    ui.horizontal(|ui| {
+    ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         ui.spacing_mut().item_spacing.x = METER_SPACING;
         if group.with_scale {
             meters::scale(ui, FADER_HEIGHT, floor, tokens);

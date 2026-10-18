@@ -766,3 +766,33 @@ fn meters_name_their_channels_as_the_speaker_does() {
     }
     assert_eq!(harness.query_all_by_label("Sub").count(), 1);
 }
+
+#[test]
+fn fader_and_meter_groups_line_up_at_the_top() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    let top = |label: String| harness.get_by_label(&label).rect().top();
+    let input = top(texts::meter_label(texts::INPUT_METERS, "A"));
+    let output = top(texts::meter_label(texts::OUTPUT_METERS, "A"));
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .top();
+    assert!(
+        (input - output).abs() < 1.0,
+        "input {input}, output {output}"
+    );
+    assert!((input - fader).abs() < 1.0, "input {input}, fader {fader}");
+}
+
+#[test]
+fn channel_names_do_not_touch() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    // The output B is the right one of the two.
+    let b = harness
+        .query_all_by_label("B")
+        .map(|node| node.rect())
+        .max_by(|first, second| first.left().total_cmp(&second.left()))
+        .unwrap();
+    let sub = harness.get_by_label("Sub").rect();
+    assert!(sub.left() > b.right(), "B {b:?}, Sub {sub:?}");
+}
