@@ -23,12 +23,14 @@ use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing}
 use serde_json::Value;
 
 pub const SIMULATED_SERIAL: &str = "SIM0001234";
+pub const KH120_DEVICE_NAME: &str = "Simulated KH 120 II";
+pub const KH750_DEVICE_NAME: &str = "Simulated KH 750";
 pub const WAIT_LIMIT: Duration = Duration::from_secs(15);
 // Paces the polling loop only; every outcome is decided by the condition.
 pub const POLL_PAUSE: Duration = Duration::from_millis(10);
 pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 /// Tall enough for a card with "Mehr" open, so every control in it can be clicked.
-pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [900.0, 1600.0];
+pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
 const PRODUCT_PATH: &str = "device/identity/product";
@@ -212,4 +214,23 @@ pub fn serials_remembered(path: &Path, count: usize) -> bool {
         && manual
             .iter()
             .all(|entry| entry.serial.as_deref() == Some(SIMULATED_SERIAL))
+}
+
+pub fn device_name(model: SimModel) -> &'static str {
+    match model {
+        SimModel::Kh120Ii => KH120_DEVICE_NAME,
+        SimModel::Kh750 => KH750_DEVICE_NAME,
+    }
+}
+
+/// Clicks the strip's name and waits until the device panel shows its settings.
+pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    // The panel takes its size from the window it opens in.
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness.get_by_label(name).click();
+    wait_until(harness, "the device panel", |harness| {
+        harness.query_by_label(texts::ALL_VALUES).is_some()
+    });
+    harness.run_steps(1);
 }

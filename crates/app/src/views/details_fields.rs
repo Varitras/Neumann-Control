@@ -185,7 +185,7 @@ impl Fields<'_> {
         let label = ui.label(&entry.label);
         let field = TextEdit::singleline(&mut draft.text)
             .id(field_id)
-            .desired_width(f32::INFINITY);
+            .desired_width(ui.available_width());
         let field = ui.add_enabled(enabled, field).labelled_by(label.id);
         if field.changed() {
             draft.edited = true;

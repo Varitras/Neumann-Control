@@ -69,10 +69,11 @@ pub struct SpeakerState {
     pub status: Status,
     pub message: Option<String>,
     message_source: MessageSource,
-    pub expanded: bool,
     pub input_meters: Vec<MeterState>,
     pub output_meters: Vec<MeterState>,
     pub fader: GestureState,
+    /// One per knob the user turned, so a sent value stays shown until the speaker reports it.
+    pub knobs: BTreeMap<SscPath, GestureState>,
     pub all_values: AllValuesState,
     /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
     pub all_values_filter: String,
@@ -92,10 +93,10 @@ impl SpeakerState {
             status: Status::Connecting,
             message: None,
             message_source: MessageSource::Connection,
-            expanded: false,
             input_meters: Vec::new(),
             output_meters: Vec::new(),
             fader: GestureState::default(),
+            knobs: BTreeMap::new(),
             all_values: AllValuesState::Idle,
             all_values_filter: String::new(),
             response_time: None,
@@ -165,6 +166,9 @@ impl SpeakerState {
             Event::Value { path, value } => {
                 if path == paths::path(paths::OUTPUT_LEVEL) {
                     self.fader.confirmed();
+                }
+                if let Some(knob) = self.knobs.get_mut(&path) {
+                    knob.confirmed();
                 }
                 self.absent.remove(&path);
                 self.feed_meters(&path, &value, now);

@@ -133,8 +133,6 @@ fn known_speaker_is_marked_and_not_selectable() {
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
-    harness.get_by_label(texts::MORE).click();
-    harness.run_steps(2);
     harness.get_by_label(texts::SCAN).click();
     wait_for_label(&mut harness, KH120_NAME);
     harness.get_by_label(texts::ALREADY_ADDED);
@@ -151,8 +149,8 @@ fn known_speaker_is_marked_and_not_selectable() {
     harness.run_steps(2);
     harness.get_by_label(&texts::speaker_count(1));
     assert_eq!(settings::load(&path).manual.len(), 1);
-    // The card kept its state, so it was not recreated.
-    harness.get_by_label(texts::LESS);
+    // The strip kept its values, so it was not recreated.
+    harness.get_by_label(&readout(100.0));
 }
 
 #[test]
@@ -168,7 +166,7 @@ fn chosen_speaker_survives_restart() {
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
     harness.get_by_label(&texts::speaker_count(1));
-    harness.get_by_label("KH 750");
+    harness.get_by_label(KH750_DEVICE_NAME);
     assert!(saved_at(&path, &simulator));
 }
 
@@ -301,11 +299,9 @@ fn add_address_names_an_address_already_listed() {
     assert_eq!(settings::load(&path).manual.len(), 1);
 }
 
-/// Opens "Mehr" on the only card and asks to remove it.
+/// Opens the device panel of the only speaker and asks to remove it.
 fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.get_by_label(texts::MORE).click();
-    wait_for_label(harness, texts::REMOVE);
+    open_panel(harness, KH120_DEVICE_NAME);
     harness.get_by_label(texts::REMOVE).click();
     wait_for_label(harness, texts::REMOVE_TITLE);
 }
@@ -342,6 +338,5 @@ fn cancel_remove_keeps_speaker() {
     assert!(harness.query_by_label(texts::REMOVE_TITLE).is_none());
     harness.get_by_label(&texts::speaker_count(1));
     harness.get_by_label(&readout(100.0));
-    harness.get_by_label(texts::LESS);
     assert_eq!(settings::load(&path).manual.len(), 1);
 }

@@ -19,20 +19,23 @@ use serde_json::Value;
 use support::*;
 
 #[test]
-fn card_shows_level_and_name() {
-    let (_simulator, _directory, harness) = connected_card(SimModel::Kh120Ii);
-    harness.get_by_label("KH 120 II");
-    harness.get_by_label("Simulated KH 120 II");
+fn strip_shows_name_and_level_and_panel_the_masked_serial() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    harness.get_by_label(KH120_DEVICE_NAME);
     harness.get_by_label(&readout(100.0));
+    harness.get_by_label(&texts::speaker_count(1));
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label_contains("KH 120 II ·");
     harness.get_by_label_contains(&mask_serial(SIMULATED_SERIAL));
     assert!(harness.query_by_label_contains(SIMULATED_SERIAL).is_none());
-    harness.get_by_label(&texts::speaker_count(1));
 }
 
 #[test]
 fn fader_drag_sends_once_on_release() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let rect = harness.get_by_role(Role::Slider).rect();
+    let rect = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect();
     let start = rect.center();
     harness.drag_at(start);
     for frame in 1..=10 {
@@ -45,7 +48,7 @@ fn fader_drag_sends_once_on_release() {
         "a Set went out while dragging"
     );
     let shown = harness
-        .get_by_role(Role::Slider)
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
         .accesskit_node()
         .numeric_value()
         .unwrap();
@@ -64,14 +67,17 @@ fn fader_drag_sends_once_on_release() {
 #[test]
 fn fader_value_is_shown_at_the_handle_while_dragging() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness.get_by_role(Role::Slider).rect().center();
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .center();
     harness.drag_at(start);
     for frame in 1..=5 {
         harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
         harness.step();
     }
     let dragged = harness
-        .get_by_role(Role::Slider)
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
         .accesskit_node()
         .numeric_value()
         .unwrap();
@@ -87,7 +93,10 @@ fn fader_value_is_shown_at_the_handle_while_dragging() {
 #[test]
 fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let center = harness.get_by_role(Role::Slider).rect().center();
+    let center = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .center();
     harness.hover_at(center);
     for _ in 0..2 {
         harness.event(egui::Event::MouseWheel {
@@ -112,7 +121,10 @@ fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
 #[test]
 fn escape_during_a_drag_sends_nothing() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness.get_by_role(Role::Slider).rect().center();
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .center();
     harness.drag_at(start);
     for frame in 1..=5 {
         harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
@@ -146,7 +158,10 @@ fn escape_during_a_drag_sends_nothing() {
 #[test]
 fn a_drag_replaces_wheel_steps_not_yet_sent() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness.get_by_role(Role::Slider).rect().center();
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .center();
     harness.hover_at(start);
     harness.event(egui::Event::MouseWheel {
         unit: MouseWheelUnit::Line,
@@ -189,13 +204,27 @@ fn identify_button_sends_set() {
 }
 
 #[test]
-fn more_toggles_to_less_and_back() {
+fn panel_opens_from_strip_name_and_closes_on_escape() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    harness.get_by_label(texts::MORE).click();
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(texts::CLOSE);
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
-    harness.get_by_label(texts::LESS).click();
+    assert!(harness.query_by_label(texts::ALL_VALUES).is_none());
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(texts::CLOSE).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::MORE);
+    assert!(harness.query_by_label(texts::ALL_VALUES).is_none());
+}
+
+#[test]
+fn panel_closes_when_its_speaker_goes_away() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    simulator.stop();
+    wait_until(&mut harness, "the panel to close", |harness| {
+        harness.query_by_label(texts::ALL_VALUES).is_none()
+    });
 }
 
 #[test]
@@ -214,7 +243,7 @@ fn unreachable_card_is_disabled() {
         .accesskit_node()
         .is_disabled());
     assert!(harness
-        .get_by_role(Role::Slider)
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
         .accesskit_node()
         .is_disabled());
 }
@@ -244,12 +273,7 @@ fn all_values_window(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_card(model);
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.get_by_label(texts::MORE).click();
-    wait_until(&mut harness, "the expanded area", |harness| {
-        harness.query_by_label(texts::ALL_VALUES).is_some()
-    });
-    harness.run_steps(1);
+    open_panel(&mut harness, device_name(model));
     harness.get_by_label(texts::ALL_VALUES).click();
     wait_until(&mut harness, "the loaded table", |harness| {
         harness
@@ -327,7 +351,7 @@ fn failure_is_shown() {
 }
 
 #[test]
-fn card_content_stacks_top_down() {
+fn strip_content_stacks_top_down() {
     let first = Simulator::start(SimModel::Kh120Ii);
     let second = Simulator::start(SimModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
@@ -336,40 +360,181 @@ fn card_content_stacks_top_down() {
         vec![manual_for(&first), manual_for(&second)],
     );
     let mut harness = harness(path, Vec::new());
-    wait_until(&mut harness, "both cards connected", |harness| {
-        harness.query_all_by_role(Role::Slider).count() == 2
-            && harness.query_by_label("KH 120 II").is_some()
-            && harness.query_by_label("KH 750").is_some()
+    wait_until(&mut harness, "both strips connected", |harness| {
+        harness
+            .query_all_by_role_and_label(Role::Slider, texts::LEVEL)
+            .count()
+            == 2
+            && harness.query_by_label(KH120_DEVICE_NAME).is_some()
+            && harness.query_by_label(KH750_DEVICE_NAME).is_some()
     });
     harness.run_steps(3);
     let names = [
-        harness.get_by_label("KH 120 II").rect(),
-        harness.get_by_label("KH 750").rect(),
+        harness.get_by_label(KH120_DEVICE_NAME).rect(),
+        harness.get_by_label(KH750_DEVICE_NAME).rect(),
     ];
     let mutes: Vec<_> = harness
         .query_all_by_label(texts::MUTE)
         .map(|node| node.rect())
         .collect();
-    let mores: Vec<_> = harness
-        .query_all_by_label(texts::MORE)
+    let delays: Vec<_> = harness
+        .query_all_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
         .map(|node| node.rect())
         .collect();
     assert_eq!(mutes.len(), 2);
-    assert_eq!(mores.len(), 2);
+    assert_eq!(delays.len(), 2);
     for (index, name) in names.iter().enumerate() {
-        let card = if mutes[0].center().x < mutes[1].center().x {
+        let strip = if mutes[0].center().x < mutes[1].center().x {
             index
         } else {
             1 - index
         };
-        assert!(name.bottom() <= mutes[card].top(), "name above Stumm");
+        assert!(name.bottom() <= delays[strip].top(), "name above the knobs");
         assert!(
-            mutes[card].bottom() <= mores[card].top(),
-            "Mehr below Stumm"
+            delays[strip].bottom() <= mutes[strip].top(),
+            "knobs above Stumm"
         );
     }
     assert!(
         (names[0].top() - names[1].top()).abs() < 1.0,
-        "cards start at the same height: {names:?}"
+        "strips start at the same height: {names:?}"
     );
+}
+
+fn delay_sets(simulator: &Simulator) -> Vec<Value> {
+    simulator
+        .requests()
+        .iter()
+        .filter_map(|request| {
+            request
+                .pointer("/audio/out/delay")
+                .filter(|value| !value.is_null())
+        })
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn strip_shows_leds_knobs_fader_and_buttons() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh120Ii);
+    for label in [
+        texts::LED_CONNECTION,
+        texts::LED_CLIP,
+        texts::LED_WARNING,
+        texts::LED_LOCAL,
+    ] {
+        harness.get_by_label(label);
+    }
+    harness.get_by_role_and_label(Role::Slider, texts::KNOB_DELAY);
+    harness.get_by_role_and_label(Role::Slider, texts::KNOB_STANDBY);
+    harness.get_by_label(texts::MUTE);
+    harness.get_by_label(texts::IDENTIFY);
+    harness.get_by_label(&readout(100.0));
+}
+
+#[test]
+fn kh750_standby_knob_is_read_only() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
+    let standby = harness.get_by_role_and_label(Role::Slider, texts::KNOB_STANDBY);
+    assert!(standby.accesskit_node().is_disabled());
+    let delay = harness.get_by_role_and_label(Role::Slider, texts::KNOB_DELAY);
+    assert!(!delay.accesskit_node().is_disabled());
+}
+
+#[test]
+fn knob_drag_writes_once_on_release() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
+        .rect()
+        .center();
+    harness.drag_at(start);
+    for frame in 1..=5 {
+        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    barrier(&simulator);
+    assert!(
+        delay_sets(&simulator).is_empty(),
+        "a Set went out while dragging"
+    );
+    harness.drop_at(start - egui::vec2(0.0, 20.0));
+    wait_until(&mut harness, "the delay Set", |_| {
+        !delay_sets(&simulator).is_empty()
+    });
+    harness.run_steps(10);
+    barrier(&simulator);
+    let sets = delay_sets(&simulator);
+    assert_eq!(sets.len(), 1, "{sets:?}");
+    assert!(sets[0].as_i64().is_some_and(|delay| delay > 0), "{sets:?}");
+}
+
+#[test]
+fn escape_during_knob_drag_sends_nothing() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
+        .rect()
+        .center();
+    harness.drag_at(start);
+    for frame in 1..=3 {
+        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.step();
+    harness.drop_at(start - egui::vec2(0.0, 20.0));
+    harness.run_steps(10);
+    barrier(&simulator);
+    assert!(delay_sets(&simulator).is_empty());
+}
+
+#[test]
+fn knob_wheel_writes_after_idle() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let center = harness
+        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
+        .rect()
+        .center();
+    harness.hover_at(center);
+    harness.event(egui::Event::MouseWheel {
+        unit: MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 1.0),
+        phase: TouchPhase::Move,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.step();
+    barrier(&simulator);
+    assert!(delay_sets(&simulator).is_empty(), "the wheel wrote at once");
+    wait_until(&mut harness, "the wheel Set", |_| {
+        !delay_sets(&simulator).is_empty()
+    });
+    harness.run_steps(10);
+    barrier(&simulator);
+    assert_eq!(delay_sets(&simulator), vec![serde_json::json!(58)]);
+}
+
+#[test]
+fn desk_scrolls_when_narrow() {
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let second = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(
+        directory.path(),
+        vec![manual_for(&first), manual_for(&second)],
+    );
+    let mut harness = harness(path, Vec::new());
+    harness.set_size(egui::vec2(160.0, 700.0));
+    wait_until(&mut harness, "both strips", |harness| {
+        harness.query_by_label(KH120_DEVICE_NAME).is_some()
+            && harness.query_by_label(KH750_DEVICE_NAME).is_some()
+    });
+    harness.run_steps(3);
+    let first_strip = harness.get_by_label(KH120_DEVICE_NAME).rect();
+    let second_strip = harness.get_by_label(KH750_DEVICE_NAME).rect();
+    assert!(
+        first_strip.right() <= second_strip.left() || second_strip.right() <= first_strip.left(),
+        "strips overlap: {first_strip:?} {second_strip:?}"
+    );
+    harness.get_by_role(Role::ScrollBar);
 }

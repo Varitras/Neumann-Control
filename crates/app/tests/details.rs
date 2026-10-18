@@ -27,12 +27,7 @@ const IDLE_FRAMES: usize = 10;
 /// A connected card with "Mehr" open, in a window tall enough for the whole area.
 fn expanded_card(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_card(model);
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.get_by_label(texts::MORE).click();
-    wait_until(&mut harness, "the expanded area", |harness| {
-        harness.query_by_label(texts::ALL_VALUES).is_some()
-    });
-    harness.run_steps(1);
+    open_panel(&mut harness, device_name(model));
     (simulator, directory, harness)
 }
 
@@ -155,11 +150,7 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     scan_and_add(&mut harness, &["KH 120 II"]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
-    harness.get_by_label(texts::MORE).click();
-    wait_until(&mut harness, "the expanded area", |harness| {
-        harness.query_by_label(texts::ALL_VALUES).is_some()
-    });
-    harness.run_steps(1);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     assert_eq!(role_of(&harness, STANDBY_LABEL), Role::Label);
     assert!(harness.query_by_label(LOGO_LABEL).is_none());
 }
@@ -274,9 +265,13 @@ fn a_number_typed_and_entered_in_one_frame_is_sent() {
 fn abandoned_number_edit_is_not_sent_on_reopen() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");
-    harness.get_by_label(texts::LESS).click();
+    // The first Escape cancels the edit, the second closes the panel.
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
-    harness.get_by_label(texts::MORE).click();
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::CLOSE).is_none());
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
     let sets = sets_to(&simulator, STANDBY_TIME_PATH);
@@ -361,13 +356,14 @@ fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
 }
 
 #[test]
-fn card_controls_are_not_repeated_in_the_area() {
+fn strip_controls_are_not_repeated_in_the_panel() {
     let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
     assert_eq!(harness.query_all_by_label(texts::MUTE).count(), 1);
     assert_eq!(harness.query_all_by_label(texts::IDENTIFY).count(), 1);
     assert!(harness.query_by_label("Identifizieren").is_none());
     assert!(harness.query_by_label("Eingangspegel").is_none());
-    assert_eq!(harness.query_all_by_role(Role::Slider).count(), 1);
+    let faders = harness.query_all_by_role_and_label(Role::Slider, texts::LEVEL);
+    assert_eq!(faders.count(), 1);
     assert!(harness.query_all_by_role(Role::SpinButton).all(|node| node
         .accesskit_node()
         .label()
@@ -392,9 +388,7 @@ fn kh750_output_meters_sit_next_to_the_input_meters() {
             .count(),
         2
     );
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.get_by_label(texts::MORE).click();
-    wait_for_label(&mut harness, texts::ALL_VALUES);
+    open_panel(&mut harness, KH750_DEVICE_NAME);
     assert_eq!(harness.query_all_by_label(&output_meter).count(), 1);
 }
 

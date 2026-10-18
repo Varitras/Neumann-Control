@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use eframe::egui::{
     self, Align2, Area, Event, Frame, Key, MouseWheelUnit, Order, Response, Slider, SliderClamping,
-    Ui, Vec2,
+    Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
@@ -49,6 +49,7 @@ pub fn show(
         // value the speaker does not have.
         .clamping(SliderClamping::Edits);
     let response = ui.add_enabled(enabled, slider);
+    response.widget_info(|| WidgetInfo::slider(enabled, value, texts::LEVEL));
     if response.drag_started() {
         speaker.fader.drag_started();
     }
@@ -107,7 +108,7 @@ fn handle_label(ui: &Ui, response: &Response, text: &str) {
 /// Escape ends egui's drag but leaves the button down, and the slider keeps following the
 /// pointer until it is released; none of that may reach the speaker. True from the Escape
 /// frame through the release frame.
-fn drag_aborted(ui: &Ui, response: &Response) -> bool {
+pub(super) fn drag_aborted(ui: &Ui, response: &Response) -> bool {
     let id = response.id.with(DRAG_ABORTED_ID);
     let was_aborted = ui.data(|data| data.get_temp::<bool>(id)).unwrap_or(false);
     let escape = ui.input(|input| input.key_pressed(Key::Escape));
@@ -123,7 +124,7 @@ const POINTS_PER_NOTCH: f32 = 40.0;
 const NOTCHES_PER_PAGE: f32 = 10.0;
 
 /// Each wheel event of this frame in notches (lines), upwards positive.
-fn wheel_notches(ui: &Ui) -> Vec<f64> {
+pub(super) fn wheel_notches(ui: &Ui) -> Vec<f64> {
     ui.input(|input| {
         input
             .events

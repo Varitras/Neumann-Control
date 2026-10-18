@@ -17,12 +17,18 @@ pub const NO_SPEAKERS: &str =
 
 pub const MUTE: &str = "Stumm";
 pub const IDENTIFY: &str = "Ident.";
-pub const MORE: &str = "Mehr";
-pub const LESS: &str = "Weniger";
 pub const CONNECTING: &str = "verbinde …";
 pub const CONNECTED: &str = "verbunden";
 pub const LEVEL: &str = "Pegel";
 pub const CLIP: &str = "Übersteuert";
+pub const LED_CONNECTION: &str = "Verbindung";
+pub const LED_CLIP: &str = "Übersteuerung";
+pub const LED_WARNING: &str = "Warnung des Geräts";
+pub const LED_LOCAL: &str = "LOCAL: Schalter hinten, Schreiben gesperrt";
+pub const KNOB_DELAY: &str = "Delay";
+pub const KNOB_STANDBY: &str = "Standby";
+pub const CLOSE: &str = "Schließen";
+pub const PANEL_TITLE: &str = "Einstellungen";
 pub const INPUT_METERS: &str = "Eingangspegel";
 pub const OUTPUT_METERS: &str = "Ausgangspegel";
 
@@ -86,6 +92,15 @@ pub fn port(port: u16) -> String {
 /// Names one meter for screen readers, counting channels from 1.
 pub fn meter_label(group: &str, channel: usize) -> String {
     format!("{group} {channel}")
+}
+
+/// The panel's knob beside a number field, named apart from the field.
+pub fn knob_label(label: &str) -> String {
+    format!("{label} (Regler)")
+}
+
+pub fn response_time(milliseconds: u128) -> String {
+    format!("{milliseconds} ms")
 }
 
 pub fn readout(value: f64, unit: &str) -> String {

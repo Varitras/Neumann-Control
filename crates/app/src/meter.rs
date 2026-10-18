@@ -6,9 +6,9 @@ pub const METER_FLOOR_DB: f64 = -120.0;
 pub const METER_CEILING_DB: f64 = 6.0;
 
 /// Maps a dB value linearly from the floor..ceiling range to 0..1; the device reports silence
-/// as -160, which lands below the floor and gives 0.
-pub fn fraction(db: f64) -> f32 {
-    let position = (db - METER_FLOOR_DB) / (METER_CEILING_DB - METER_FLOOR_DB);
+/// as -160, which lands below any floor and gives 0. `floor` comes from the desk settings.
+pub fn fraction(db: f64, floor: f64) -> f32 {
+    let position = (db - floor) / (METER_CEILING_DB - floor);
     position.clamp(0.0, 1.0) as f32
 }
 
@@ -104,9 +104,9 @@ mod tests {
 
     #[test]
     fn meter_fraction_clamps_below_floor_and_above_ceiling() {
-        assert_eq!(fraction(-160.0), 0.0);
-        assert_eq!(fraction(10.0), 1.0);
-        assert_eq!(fraction(-57.0), 0.5);
+        assert_eq!(fraction(-160.0, METER_FLOOR_DB), 0.0);
+        assert_eq!(fraction(10.0, METER_FLOOR_DB), 1.0);
+        assert_eq!(fraction(-57.0, METER_FLOOR_DB), 0.5);
     }
 
     #[test]
@@ -134,6 +134,13 @@ mod tests {
     #[test]
     fn quiet_room_level_is_visible() {
         // Measured on a KH 120 II at quiet room volume: the input meter reads about -90 dB.
-        assert!(fraction(-90.0) > 0.2);
+        assert!(fraction(-90.0, METER_FLOOR_DB) > 0.2);
+    }
+
+    #[test]
+    fn meter_floor_setting_changes_the_scale() {
+        assert_eq!(fraction(-60.0, -60.0), 0.0);
+        assert_eq!(fraction(-27.0, -60.0), 0.5);
+        assert!(fraction(-60.0, -120.0) > 0.4);
     }
 }

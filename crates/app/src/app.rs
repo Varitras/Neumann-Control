@@ -7,7 +7,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui::{self, Align, Context, Layout, ScrollArea, Ui, ViewportInfo};
+use eframe::egui::{self, Align, Context, Layout, Pos2, ScrollArea, Ui, ViewportInfo};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
@@ -17,7 +17,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
-use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
+use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::targets::{duplicate_cards, follow_moves, forget, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
@@ -25,9 +25,9 @@ use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
-use crate::views::{all_values, card};
+use crate::views::{all_values, panel, strip};
 
-const CARDS_SCROLL_ID: &str = "cards";
+const DESK_SCROLL_ID: &str = "desk";
 
 struct Speaker {
     state: SpeakerState,
@@ -35,7 +35,15 @@ struct Speaker {
     events: Events,
 }
 
-/// The card "Entfernen" was clicked on, while the confirmation is open. Key and address both,
+/// The speaker whose device panel is open and where it opens.
+struct OpenPanel {
+    key: SpeakerKey,
+    anchor: Pos2,
+    /// The opening click is still in this frame's input and must not close the panel.
+    opened_now: bool,
+}
+
+/// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
 /// because connecting can change the key meanwhile.
 struct Removal {
     key: SpeakerKey,
@@ -56,6 +64,7 @@ pub struct NeumannApp {
     notice: Option<&'static str>,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
+    panel: Option<OpenPanel>,
     window: Option<WindowGeometry>,
 }
 
@@ -83,6 +92,7 @@ impl NeumannApp {
             notice: None,
             add_address: None,
             removal: None,
+            panel: None,
         };
         app.sync_targets();
         app
@@ -280,7 +290,8 @@ impl NeumannApp {
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::None => {}
         }
-        egui::CentralPanel::default().show(ui, |ui| self.show_cards(ui));
+        egui::CentralPanel::default().show(ui, |ui| self.show_desk(ui));
+        self.show_panel(ui.ctx());
         self.show_dialog(ui);
         self.show_scan_choice(ui);
         self.show_removal(ui);
@@ -299,41 +310,79 @@ impl NeumannApp {
         }
     }
 
-    fn show_cards(&mut self, ui: &mut Ui) {
+    fn show_desk(&mut self, ui: &mut Ui) {
         if self.speakers.is_empty() {
             ui.weak(texts::NO_SPEAKERS);
             return;
         }
         let catalog = Catalog::embedded();
-        let mut removal = None;
-        ScrollArea::vertical()
-            .id_salt(CARDS_SCROLL_ID)
+        let desk = self.settings.desk;
+        let mut opened = None;
+        ScrollArea::both()
+            .id_salt(DESK_SCROLL_ID)
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                ui.with_layout(
-                    Layout::left_to_right(Align::Min).with_main_wrap(true),
-                    |ui| {
-                        for speaker in &mut self.speakers {
-                            let key = speaker.state.key.clone();
-                            let response = ui
-                                .push_id(key, |ui| card::show(ui, &mut speaker.state, catalog))
-                                .inner;
-                            for command in response.commands {
-                                speaker.handle.send(command);
-                            }
-                            if response.remove_clicked {
-                                removal = Some(Removal {
-                                    key: speaker.state.key.clone(),
-                                    address: speaker.state.address,
-                                    name: speaker.state.display_name(),
-                                });
-                            }
+                ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                    for speaker in &mut self.speakers {
+                        let key = speaker.state.key.clone();
+                        let response = ui
+                            .push_id(&key, |ui| {
+                                strip::show(ui, &mut speaker.state, catalog, &desk)
+                            })
+                            .inner;
+                        for command in response.commands {
+                            speaker.handle.send(command);
                         }
-                    },
-                );
+                        if let Some(anchor) = response.open_panel {
+                            opened = Some(OpenPanel {
+                                key,
+                                anchor,
+                                opened_now: true,
+                            });
+                        }
+                    }
+                });
             });
-        if removal.is_some() {
-            self.removal = removal;
+        if opened.is_some() {
+            self.panel = opened;
+        }
+    }
+
+    /// The open device panel; it closes when its speaker is gone or unreachable.
+    fn show_panel(&mut self, context: &Context) {
+        let Some(open) = &mut self.panel else {
+            return;
+        };
+        let speaker = self
+            .speakers
+            .iter_mut()
+            .find(|speaker| speaker.state.key == open.key)
+            .filter(|speaker| speaker.state.status != Status::Unreachable);
+        let Some(speaker) = speaker else {
+            self.panel = None;
+            return;
+        };
+        let catalog = Catalog::embedded();
+        let response = panel::show(
+            context,
+            &mut speaker.state,
+            catalog,
+            open.anchor,
+            open.opened_now,
+        );
+        open.opened_now = false;
+        for command in response.commands {
+            speaker.handle.send(command);
+        }
+        if response.remove {
+            self.removal = Some(Removal {
+                key: speaker.state.key.clone(),
+                address: speaker.state.address,
+                name: speaker.state.display_name(),
+            });
+        }
+        if response.close || response.remove {
+            self.panel = None;
         }
     }
 

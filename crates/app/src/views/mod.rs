@@ -1,10 +1,12 @@
 pub mod add_address;
 pub mod all_values;
-pub mod card;
-pub mod details;
+mod details;
 mod details_fields;
 pub mod fader;
+mod knob;
 mod meters;
+pub mod panel;
 pub mod remove_speaker;
 pub mod scan_choice;
+pub mod strip;
 pub mod toolbar;
