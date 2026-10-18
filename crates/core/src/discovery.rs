@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use mdns_sd::{IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use crate::address::is_link_local;
+use crate::mask::mask_serial;
 
 pub const SCAN_DURATION: Duration = Duration::from_secs(4);
 pub const MAX_SERVICES: usize = 32;
@@ -18,6 +19,7 @@ const NO_SCOPE: u32 = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Found {
+    /// The announced instance name with the serial masked; speakers put their serial in it.
     pub name: String,
     pub product: Option<String>,
     pub serial: Option<String>,
@@ -100,10 +102,15 @@ fn found_from_parts(
     product: Option<&str>,
     serial: Option<&str>,
 ) -> Option<Found> {
+    let serial = txt_value(serial);
+    let mut name = instance_name(fullname, service_type).to_owned();
+    if let Some(serial) = &serial {
+        name = name.replace(serial.as_str(), &mask_serial(serial));
+    }
     Some(Found {
-        name: capped(instance_name(fullname, service_type)),
+        name: capped(&name),
         product: txt_value(product),
-        serial: txt_value(serial),
+        serial,
         address: pick_address(addresses, port)?,
     })
 }
@@ -222,6 +229,26 @@ mod tests {
         .unwrap();
         assert_eq!(found.serial, None);
         assert_eq!(found.product, None);
+    }
+
+    #[test]
+    fn the_serial_in_the_instance_name_is_masked() {
+        let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let found = found_from_parts(
+            "KH 120 II SIM0001234._ssc._tcp.local.",
+            SERVICE_TYPE,
+            45,
+            &[(address, 0)],
+            Some("KH 120 II"),
+            Some("SIM0001234"),
+        )
+        .unwrap();
+        assert!(!found.name.contains("SIM0001234"), "{}", found.name);
+        assert_eq!(
+            found.name,
+            format!("KH 120 II {}", mask_serial("SIM0001234"))
+        );
+        assert_eq!(found.serial.as_deref(), Some("SIM0001234"));
     }
 
     #[test]

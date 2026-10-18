@@ -1,4 +1,5 @@
-//! Prints the speakers found on the LAN, with serial and address masked.
+//! Prints the speakers found on the LAN, with serial and address masked (discovery already
+//! masks the serial inside the announced name).
 
 use neumann_control_core::discovery::{scan, SCAN_DURATION};
 use neumann_control_core::mask::{mask_host, mask_serial};
