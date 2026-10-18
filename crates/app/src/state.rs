@@ -57,6 +57,8 @@ pub struct SpeakerState {
     pub output_meters: Vec<MeterState>,
     pub fader: FaderState,
     pub all_values: AllValuesState,
+    /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
+    pub all_values_filter: String,
 }
 
 impl SpeakerState {
@@ -76,6 +78,7 @@ impl SpeakerState {
             output_meters: Vec::new(),
             fader: FaderState::default(),
             all_values: AllValuesState::Idle,
+            all_values_filter: String::new(),
         }
     }
 
@@ -154,8 +157,10 @@ impl SpeakerState {
                 let text = texts::serial_mismatch(&mask_serial(&found));
                 self.set_message(Some(text), None);
             }
-            Event::AllValues(reports) => self.all_values = AllValuesState::Loaded(reports),
-            Event::AllValuesFailed(reason) => self.all_values = AllValuesState::Failed(reason),
+            Event::AllValues(reports) => self.finish_all_values(AllValuesState::Loaded(reports)),
+            Event::AllValuesFailed(reason) => {
+                self.finish_all_values(AllValuesState::Failed(reason));
+            }
         }
     }
 
@@ -163,6 +168,19 @@ impl SpeakerState {
     pub fn read_all_values(&mut self) -> Command {
         self.all_values = AllValuesState::Loading;
         Command::ReadAll
+    }
+
+    /// Closes the "Alle Werte" window and forgets its filter.
+    pub fn close_all_values(&mut self) {
+        self.all_values = AllValuesState::Idle;
+        self.all_values_filter.clear();
+    }
+
+    /// An answer that comes after the window was closed would reopen it.
+    fn finish_all_values(&mut self, outcome: AllValuesState) {
+        if self.all_values == AllValuesState::Loading {
+            self.all_values = outcome;
+        }
     }
 
     pub(crate) fn set_message(&mut self, message: Option<String>, path: Option<SscPath>) {
@@ -399,6 +417,17 @@ mod tests {
             speaker.all_values,
             AllValuesState::Failed("refused".to_owned())
         );
+    }
+
+    #[test]
+    fn an_answer_after_closing_does_not_reopen_the_window() {
+        let mut speaker = state();
+        speaker.read_all_values();
+        speaker.all_values_filter = "standby".to_owned();
+        speaker.close_all_values();
+        speaker.apply(Event::AllValues(Vec::new()), 0.0);
+        assert_eq!(speaker.all_values, AllValuesState::Idle);
+        assert!(speaker.all_values_filter.is_empty());
     }
 
     fn identity(name: &str, product: &str) -> Identity {

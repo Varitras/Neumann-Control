@@ -30,6 +30,18 @@ pub const CELSIUS: &str = "°C";
 pub const SWITCH_MODE: &str = "Umschalten";
 pub const LOCAL_MODE_WARNING: &str = "Im Modus LOCAL kann die Netzwerksteuerung gesperrt sein, bis am Gerät zurückgestellt wird. Trotzdem umschalten?";
 
+pub const ALL_VALUES_FILTER_LABEL: &str = "Pfad enthält";
+pub const ALL_VALUES_RELOAD: &str = "Neu einlesen";
+pub const ALL_VALUES_LOADING: &str = "Lese alle Werte …";
+pub const ALL_VALUES_FAILED: &str =
+    "Die Werte konnten nicht gelesen werden. Das Gerät ist nicht erreichbar oder hat die Abfrage abgelehnt.";
+pub const ALL_VALUES_PATH_COLUMN: &str = "Pfad";
+pub const ALL_VALUES_VALUE_COLUMN: &str = "Wert";
+pub const ALL_VALUES_RANGE_COLUMN: &str = "Einheit / Bereich";
+pub const ALL_VALUES_KNOWN_COLUMN: &str = "Katalog";
+pub const ALL_VALUES_KNOWN: &str = "bekannt";
+pub const ALL_VALUES_COPY: &str = "Kopieren";
+
 pub const ADD_ADDRESS_TITLE: &str = "Lautsprecher per Adresse hinzufügen";
 pub const ADDRESS_FIELD: &str = "IPv6-Adresse";
 pub const ADDRESS_HINT: &str = "z. B. fe80::1%7";
@@ -47,6 +59,14 @@ const REJECTED_WRONG_VALUE_CODE: i64 = 406;
 
 pub fn speaker_count(count: usize) -> String {
     format!("{count} Lautsprecher")
+}
+
+pub fn all_values_title(name: &str) -> String {
+    format!("Alle Werte – {name}")
+}
+
+pub fn all_values_count(shown: usize, total: usize) -> String {
+    format!("{shown} von {total} Werten")
 }
 
 pub fn port(port: u16) -> String {

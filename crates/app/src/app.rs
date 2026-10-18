@@ -16,13 +16,13 @@ use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeomet
 use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
 
 use crate::spawner::{ScanResult, SpeakerSpawner};
-use crate::state::{SpeakerKey, SpeakerState};
+use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
 use crate::targets::{duplicate_cards, merge_targets, remember_serial};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
-use crate::views::card;
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
+use crate::views::{all_values, card};
 
 const CARDS_SCROLL_ID: &str = "cards";
 
@@ -220,6 +220,19 @@ impl NeumannApp {
         }
         egui::CentralPanel::default().show(ui, |ui| self.show_cards(ui));
         self.show_dialog(ui);
+        self.show_all_values(ui.ctx());
+    }
+
+    fn show_all_values(&mut self, context: &Context) {
+        let catalog = Catalog::embedded();
+        for speaker in &mut self.speakers {
+            if speaker.state.all_values == AllValuesState::Idle {
+                continue;
+            }
+            for command in all_values::show(context, &mut speaker.state, catalog) {
+                speaker.handle.send(command);
+            }
+        }
     }
 
     fn show_cards(&mut self, ui: &mut Ui) {

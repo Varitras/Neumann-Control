@@ -4,9 +4,17 @@ mod support;
 
 use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::{NodeT, Queryable};
+use egui_kittest::Harness;
+use neumann_control_app::app::NeumannApp;
+use neumann_control_app::paths;
+use neumann_control_app::state::{SpeakerKey, SpeakerState};
 use neumann_control_app::texts;
+use neumann_control_app::views::all_values;
+use neumann_control_core::address::parse_address;
+use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::speaker::Event;
 use serde_json::Value;
 use support::*;
 
@@ -200,4 +208,97 @@ fn out_of_range_level_is_not_written_back() {
         "{:?}",
         level_sets(&simulator)
     );
+}
+
+const KH120II_LEAF_COUNT: usize = 50;
+const STANDBY_LEAF_COUNT: usize = 4;
+const SPEAKER_NAME: &str = "Simulated KH 120 II";
+const STANDBY_ENABLED_PATH: &str = "device/standby/enabled";
+/// A refusal text as the worker produces it from a lost connection, address included.
+const RAW_FAILURE: &str = "connection error: could not read from fe80::2a36:38ff:fe12:3456%7";
+
+fn all_values_window(
+    model: SimModel,
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let (simulator, directory, mut harness) = connected_card(model);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.get_by_label(texts::MORE).click();
+    wait_until(&mut harness, "the expanded area", |harness| {
+        harness.query_by_label(texts::ALL_VALUES).is_some()
+    });
+    harness.run_steps(1);
+    harness.get_by_label(texts::ALL_VALUES).click();
+    wait_until(&mut harness, "the loaded table", |harness| {
+        harness
+            .query_by_label(texts::ALL_VALUES_PATH_COLUMN)
+            .is_some()
+    });
+    (simulator, directory, harness)
+}
+
+fn filter_all_values(harness: &mut Harness<'static, NeumannApp>, text: &str) {
+    harness.get_by_label(texts::ALL_VALUES_FILTER_LABEL).click();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness
+        .get_by_label(texts::ALL_VALUES_FILTER_LABEL)
+        .type_text(text);
+    harness.run_steps(3);
+}
+
+#[test]
+fn all_values_lists_50_leaves_for_kh120ii() {
+    let (_simulator, _directory, harness) = all_values_window(SimModel::Kh120Ii);
+    harness.get_by_label(&texts::all_values_title(SPEAKER_NAME));
+    harness.get_by_label(&texts::all_values_count(
+        KH120II_LEAF_COUNT,
+        KH120II_LEAF_COUNT,
+    ));
+}
+
+#[test]
+fn filter_narrows_rows() {
+    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    filter_all_values(&mut harness, "standby");
+    harness.get_by_label(&texts::all_values_count(
+        STANDBY_LEAF_COUNT,
+        KH120II_LEAF_COUNT,
+    ));
+    harness.get_by_label(STANDBY_ENABLED_PATH);
+    assert!(harness.query_by_label("audio/out/level").is_none());
+}
+
+#[test]
+fn known_column_marks_catalog_paths() {
+    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    filter_all_values(&mut harness, STANDBY_ENABLED_PATH);
+    harness.get_by_label(texts::ALL_VALUES_KNOWN);
+    filter_all_values(&mut harness, "restore");
+    harness.get_by_label("device/restore");
+    assert!(harness.query_by_label(texts::ALL_VALUES_KNOWN).is_none());
+}
+
+#[test]
+fn serial_is_masked_in_the_table() {
+    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    filter_all_values(&mut harness, paths::SERIAL);
+    harness.get_by_label(paths::SERIAL);
+    harness.get_by_label(&mask_serial(SIMULATED_SERIAL));
+    assert!(harness.query_by_label_contains(SIMULATED_SERIAL).is_none());
+}
+
+#[test]
+fn failure_is_shown() {
+    let address = parse_address("fe80::2a36:38ff:fe12:3456%7", 45).unwrap();
+    let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+    speaker.read_all_values();
+    speaker.apply(Event::AllValuesFailed(RAW_FAILURE.to_owned()), 0.0);
+    let catalog = Catalog::embedded();
+    let harness = Harness::new_ui(|ui| {
+        all_values::show(ui.ctx(), &mut speaker, catalog);
+    });
+    harness.get_by_label(texts::ALL_VALUES_FAILED);
+    assert!(harness.query_by_label_contains("fe12:3456").is_none());
+    assert!(harness
+        .query_by_label_contains("connection error")
+        .is_none());
 }
