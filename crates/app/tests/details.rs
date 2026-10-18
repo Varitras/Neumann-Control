@@ -219,6 +219,26 @@ fn visiting_an_out_of_range_number_field_writes_nothing() {
 }
 
 #[test]
+fn a_number_typed_and_entered_in_one_frame_is_sent() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_label(STANDBY_TIME_LABEL).click();
+    harness.run_steps(2);
+    let events = &mut harness.input_mut().events;
+    events.push(egui::Event::Text("50".to_owned()));
+    events.push(egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(1);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    assert_eq!(sets_to(&simulator, STANDBY_TIME_PATH), vec![json!(50)]);
+}
+
+#[test]
 fn abandoned_number_edit_is_not_sent_on_reopen() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");

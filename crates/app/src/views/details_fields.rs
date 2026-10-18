@@ -1,7 +1,7 @@
 //! The controls of the "Mehr" area, one per writable kind: number, switch, selection and text,
 //! plus the confirmation a risky selection waits for. Every write goes through `writes`.
 
-use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Id, Key, Modal, TextEdit, Ui};
+use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Event, Id, Key, Modal, TextEdit, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
@@ -16,6 +16,16 @@ const CONFIRMATION_WIDTH: f32 = 320.0;
 const PENDING_NUMBER_ID: &str = "pending_number";
 const TEXT_DRAFT_ID: &str = "text_draft";
 const TEXT_FIELD_ID: &str = "text_field";
+
+fn is_text_edit(event: &Event) -> bool {
+    match event {
+        Event::Text(_) | Event::Paste(_) | Event::Cut => true,
+        Event::Key {
+            key, pressed: true, ..
+        } => matches!(key, Key::Backspace | Key::Delete),
+        _ => false,
+    }
+}
 
 /// What the user typed into a text field and has not yet written.
 #[derive(Clone, Debug, Default)]
@@ -82,14 +92,16 @@ impl Fields<'_> {
             return;
         }
         // egui also reports a change on the frame focus leaves, when it reparses and clamps
-        // the shown text; only changes during the gesture are the user's.
+        // the shown text; that one is the user's only if the same frame carried their typing.
+        let typed_this_frame = ui.input(|input| input.events.iter().any(is_text_edit));
+        let changed_by_user = response.changed() && (active || typed_this_frame);
+        if changed_by_user {
+            ui.data_mut(|data| data.insert_temp(pending_id, value));
+        }
         if active {
-            if response.changed() {
-                ui.data_mut(|data| data.insert_temp(pending_id, value));
-            }
             return;
         }
-        let Some(number) = held else {
+        let Some(number) = changed_by_user.then_some(value).or(held) else {
             return;
         };
         ui.data_mut(|data| data.remove::<f64>(pending_id));
