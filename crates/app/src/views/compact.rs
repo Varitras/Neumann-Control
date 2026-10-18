@@ -177,10 +177,8 @@ fn row<R>(ui: &mut Ui, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> 
         .stroke(Stroke::new(BORDER_WIDTH, border))
         .corner_radius(CornerRadius::same(ROW_RADIUS))
         .inner_margin(ROW_MARGIN)
-        .show(ui, |ui| {
-            ui.with_layout(Layout::left_to_right(Align::Center), contents)
-                .inner
-        })
+        // `horizontal` starts one line high; a centred layout would fill all the height left.
+        .show(ui, |ui| ui.horizontal(contents).inner)
         .inner
 }
 

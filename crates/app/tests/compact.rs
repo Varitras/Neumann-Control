@@ -86,3 +86,20 @@ fn a_group_has_one_row_instead_of_its_members() {
         sets(&kh750, "/audio/out/level")
     );
 }
+
+#[test]
+fn compact_rows_are_one_line_high_and_follow_each_other() {
+    let (_kh120, _kh750, _directory, mut harness) = grouped(Vec::new());
+    press_compact_shortcut(&mut harness);
+    let center = |harness: &Harness<'static, NeumannApp>, label: &str| {
+        harness
+            .get_by_role_and_label(Role::Slider, label)
+            .rect()
+            .center()
+            .y
+    };
+    let group = center(&harness, &texts::group_level(GROUP_NAME));
+    let master = center(&harness, texts::MASTER_LEVEL.get());
+    // Neighbouring rows: their faders are about one row apart, not a window height.
+    assert!(master - group < 60.0, "group {group}, master {master}");
+}
