@@ -302,3 +302,51 @@ fn failure_is_shown() {
         .query_by_label_contains("connection error")
         .is_none());
 }
+
+#[test]
+fn card_content_stacks_top_down() {
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let second = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(
+        directory.path(),
+        vec![manual_for(&first), manual_for(&second)],
+    );
+    let mut harness = harness(path, Vec::new());
+    wait_until(&mut harness, "both cards connected", |harness| {
+        harness.query_all_by_role(Role::Slider).count() == 2
+            && harness.query_by_label("KH 120 II").is_some()
+            && harness.query_by_label("KH 750").is_some()
+    });
+    harness.run_steps(3);
+    let names = [
+        harness.get_by_label("KH 120 II").rect(),
+        harness.get_by_label("KH 750").rect(),
+    ];
+    let mutes: Vec<_> = harness
+        .query_all_by_label(texts::MUTE)
+        .map(|node| node.rect())
+        .collect();
+    let mores: Vec<_> = harness
+        .query_all_by_label(texts::MORE)
+        .map(|node| node.rect())
+        .collect();
+    assert_eq!(mutes.len(), 2);
+    assert_eq!(mores.len(), 2);
+    for (index, name) in names.iter().enumerate() {
+        let card = if mutes[0].center().x < mutes[1].center().x {
+            index
+        } else {
+            1 - index
+        };
+        assert!(name.bottom() <= mutes[card].top(), "name above Stumm");
+        assert!(
+            mutes[card].bottom() <= mores[card].top(),
+            "Mehr below Stumm"
+        );
+    }
+    assert!(
+        (names[0].top() - names[1].top()).abs() < 1.0,
+        "cards start at the same height: {names:?}"
+    );
+}

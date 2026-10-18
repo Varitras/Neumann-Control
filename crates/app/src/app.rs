@@ -7,7 +7,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui::{self, Context, ScrollArea, Ui, ViewportInfo};
+use eframe::egui::{self, Align, Context, Layout, ScrollArea, Ui, ViewportInfo};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
@@ -245,17 +245,20 @@ impl NeumannApp {
             .id_salt(CARDS_SCROLL_ID)
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    for speaker in &mut self.speakers {
-                        let key = speaker.state.key.clone();
-                        let commands = ui
-                            .push_id(key, |ui| card::show(ui, &mut speaker.state, catalog))
-                            .inner;
-                        for command in commands {
-                            speaker.handle.send(command);
+                ui.with_layout(
+                    Layout::left_to_right(Align::Min).with_main_wrap(true),
+                    |ui| {
+                        for speaker in &mut self.speakers {
+                            let key = speaker.state.key.clone();
+                            let commands = ui
+                                .push_id(key, |ui| card::show(ui, &mut speaker.state, catalog))
+                                .inner;
+                            for command in commands {
+                                speaker.handle.send(command);
+                            }
                         }
-                    }
-                });
+                    },
+                );
             });
     }
 

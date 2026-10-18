@@ -30,6 +30,18 @@ const DETAILS_ID: &str = "details";
 pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
+    // The parent lays cards out in a wrapping row; the content must not inherit that flow.
+    ui.vertical(|ui| card_frame(ui, speaker, catalog, &mut commands, &tokens));
+    commands
+}
+
+fn card_frame(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    commands: &mut Vec<Command>,
+    tokens: &Tokens,
+) {
     let inner_width = CARD_WIDTH - 2.0 * (f32::from(CARD_MARGIN) + BORDER_WIDTH);
     egui::Frame::new()
         .fill(tokens.card)
@@ -41,9 +53,9 @@ pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<C
             if speaker.status == Status::Unreachable {
                 ui.multiply_opacity(UNREACHABLE_OPACITY);
             }
-            header(ui, speaker, &tokens);
-            strip(ui, speaker, catalog, &mut commands, &tokens);
-            buttons(ui, speaker, catalog, &mut commands);
+            header(ui, speaker, tokens);
+            strip(ui, speaker, catalog, commands, tokens);
+            buttons(ui, speaker, catalog, commands);
             more_toggle(ui, speaker);
             // The scope exists collapsed too, so opening it never renumbers the widgets after it.
             let expanded = ui.push_id(DETAILS_ID, |ui| {
@@ -54,9 +66,8 @@ pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<C
                 }
             });
             commands.extend(expanded.inner);
-            status_line(ui, speaker, &tokens);
+            status_line(ui, speaker, tokens);
         });
-    commands
 }
 
 fn header(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
