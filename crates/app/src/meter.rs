@@ -1,7 +1,8 @@
 //! Level meters: the shown level and a peak held for a while. Times are seconds of the UI clock.
 
 pub const PEAK_HOLD_SECONDS: f64 = 1.5;
-pub const METER_FLOOR_DB: f64 = -60.0;
+/// Low enough that quiet room volume (inputs around -90 dB on the KH 120 II) still moves.
+pub const METER_FLOOR_DB: f64 = -120.0;
 pub const METER_CEILING_DB: f64 = 6.0;
 
 /// Maps a dB value linearly from the floor..ceiling range to 0..1; the device reports silence
@@ -74,6 +75,12 @@ mod tests {
     fn meter_fraction_clamps_below_floor_and_above_ceiling() {
         assert_eq!(fraction(-160.0), 0.0);
         assert_eq!(fraction(10.0), 1.0);
-        assert_eq!(fraction(-27.0), 0.5);
+        assert_eq!(fraction(-57.0), 0.5);
+    }
+
+    #[test]
+    fn quiet_room_level_is_visible() {
+        // Measured on a KH 120 II at quiet room volume: the input meter reads about -90 dB.
+        assert!(fraction(-90.0) > 0.2);
     }
 }
