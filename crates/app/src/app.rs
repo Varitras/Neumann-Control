@@ -15,12 +15,14 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, SpeakerHandle, Target};
 
+use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
-use crate::targets::{duplicate_cards, merge_targets, remember_serial};
+use crate::targets::{duplicate_cards, follow_moves, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
+use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, card};
 
@@ -38,15 +40,17 @@ pub struct NeumannApp {
     spawner: Box<dyn SpeakerSpawner>,
     wake: Arc<dyn Fn() + Send + Sync>,
     speakers: Vec<Speaker>,
+    /// Everything scans reported this session; names and models for the cards.
     found: Vec<Found>,
     scan: Option<Receiver<ScanResult>>,
+    scan_choice: Option<ScanChoice>,
     notice: Option<&'static str>,
     add_address: Option<AddAddressForm>,
     window: Option<WindowGeometry>,
 }
 
 impl NeumannApp {
-    /// Loads the settings and starts a worker for every manual speaker.
+    /// Loads the settings and starts a worker for every remembered speaker.
     pub fn new(
         context: &Context,
         settings_path: PathBuf,
@@ -65,6 +69,7 @@ impl NeumannApp {
             speakers: Vec::new(),
             found: Vec::new(),
             scan: None,
+            scan_choice: None,
             notice: None,
             add_address: None,
         };
@@ -72,9 +77,10 @@ impl NeumannApp {
         app
     }
 
-    /// Starts workers for targets without a card and moves cards whose speaker changed address.
+    /// Starts workers for remembered speakers without a card and moves cards whose entry now
+    /// points at another address.
     fn sync_targets(&mut self) {
-        for (key, address) in merge_targets(&self.settings.manual, &self.found) {
+        for (key, address) in targets(&self.settings.manual) {
             let discovered = self.found.iter().find(|found| found.address == address);
             let existing = self
                 .speakers
@@ -171,28 +177,53 @@ impl NeumannApp {
             Err(TryRecvError::Disconnected) => Err("the scan ended without a result".to_owned()),
         };
         self.scan = None;
-        match result {
-            Ok(found) => {
-                log::info!("scan found {} speakers", found.len());
-                let mut all = std::mem::take(&mut self.found);
-                all.extend(found);
-                self.found = merge_found(all);
-                self.sync_targets();
-            }
+        let found = match result {
+            Ok(found) => merge_found(found),
             Err(reason) => {
                 log::warn!("scan failed: {reason}");
-                self.notice = Some(texts::SCAN_FAILED);
+                self.show_scan_failure();
+                return;
             }
+        };
+        log::info!("scan found {} speakers", found.len());
+        let mut all = std::mem::take(&mut self.found);
+        all.extend(found.iter().cloned());
+        self.found = merge_found(all);
+        if follow_moves(&mut self.settings.manual, &found) {
+            self.save_settings();
+        }
+        self.sync_targets();
+        if self.scan_choice.is_some() {
+            self.scan_choice = Some(ScanChoice::offer(&found, &self.cards()));
         }
     }
 
-    /// The dialog already refused unparsable and listed addresses.
-    fn add_manual(&mut self, manual: ManualSpeaker) {
-        let Ok(address) = parse_address(&manual.address, manual.port) else {
+    /// The dialog shows the failure; after it was cancelled, the toolbar does.
+    fn show_scan_failure(&mut self) {
+        match &mut self.scan_choice {
+            Some(choice) => *choice = ScanChoice::Failed,
+            None => self.notice = Some(texts::SCAN_FAILED),
+        }
+    }
+
+    fn cards(&self) -> Vec<(SpeakerKey, SocketAddrV6)> {
+        self.speakers
+            .iter()
+            .map(|speaker| (speaker.state.key.clone(), speaker.state.address))
+            .collect()
+    }
+
+    /// The dialogs already refused unparsable and listed addresses.
+    fn add_speakers(&mut self, entries: Vec<ManualSpeaker>) {
+        if entries.is_empty() {
             return;
-        };
-        log::info!("manual speaker added at {}", mask_host(&address));
-        self.settings.manual.push(manual);
+        }
+        for entry in &entries {
+            if let Ok(address) = parse_address(&entry.address, entry.port) {
+                log::info!("speaker added at {}", mask_host(&address));
+            }
+        }
+        self.settings.manual.extend(entries);
         self.save_settings();
         self.sync_targets();
     }
@@ -214,12 +245,14 @@ impl NeumannApp {
             ToolbarAction::Scan => {
                 self.notice = None;
                 self.scan = Some(self.spawner.scan());
+                self.scan_choice = Some(ScanChoice::Scanning);
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::None => {}
         }
         egui::CentralPanel::default().show(ui, |ui| self.show_cards(ui));
         self.show_dialog(ui);
+        self.show_scan_choice(ui);
         self.show_all_values(ui.ctx());
     }
 
@@ -271,7 +304,23 @@ impl NeumannApp {
             AddAddressAction::Cancel => self.add_address = None,
             AddAddressAction::Add(manual) => {
                 self.add_address = None;
-                self.add_manual(manual);
+                self.add_speakers(vec![manual]);
+            }
+        }
+    }
+
+    fn show_scan_choice(&mut self, ui: &mut Ui) {
+        let Some(choice) = &mut self.scan_choice else {
+            return;
+        };
+        match scan_choice_view::show(ui, choice) {
+            ScanChoiceAction::None => {}
+            ScanChoiceAction::Toggle(index) => choice.toggle(index),
+            ScanChoiceAction::Cancel => self.scan_choice = None,
+            ScanChoiceAction::Add => {
+                let chosen = choice.chosen();
+                self.scan_choice = None;
+                self.add_speakers(chosen);
             }
         }
     }

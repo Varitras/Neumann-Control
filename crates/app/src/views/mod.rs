@@ -5,4 +5,5 @@ pub mod details;
 mod details_fields;
 pub mod fader;
 mod meters;
+pub mod scan_choice;
 pub mod toolbar;

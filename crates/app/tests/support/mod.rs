@@ -30,13 +30,14 @@ pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 /// Tall enough for a card with "Mehr" open, so every control in it can be clicked.
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [900.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
+const DIALOG_SETTLE_FRAMES: usize = 2;
 const PRODUCT_PATH: &str = "device/identity/product";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
 const REPLY_DELAY: Duration = Duration::from_millis(5);
 
 pub struct SimulatorSpawner {
-    pub found: Vec<Found>,
+    pub scan_result: ScanResult,
 }
 
 impl SpeakerSpawner for SimulatorSpawner {
@@ -50,7 +51,7 @@ impl SpeakerSpawner for SimulatorSpawner {
 
     fn scan(&self) -> Receiver<ScanResult> {
         let (sender, receiver) = mpsc::channel();
-        sender.send(Ok(self.found.clone())).unwrap();
+        sender.send(self.scan_result.clone()).unwrap();
         receiver
     }
 }
@@ -74,13 +75,20 @@ pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
 }
 
 pub fn harness(settings_path: PathBuf, found: Vec<Found>) -> Harness<'static, NeumannApp> {
+    harness_scanning(settings_path, Ok(found))
+}
+
+pub fn harness_scanning(
+    settings_path: PathBuf,
+    scan_result: ScanResult,
+) -> Harness<'static, NeumannApp> {
     Harness::builder()
         .with_size(WINDOW_SIZE)
         .build_eframe(move |creation_context| {
             NeumannApp::new(
                 &creation_context.egui_ctx,
                 settings_path,
-                Box::new(SimulatorSpawner { found }),
+                Box::new(SimulatorSpawner { scan_result }),
             )
         })
 }
@@ -99,6 +107,27 @@ pub fn wait_until(
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         thread::sleep(POLL_PAUSE);
     }
+}
+
+/// Also steps the frames a newly opened dialog needs to settle: egui sizes a new modal in its
+/// first frame and centres it in a later one, so a click right away lands beside the widget.
+pub fn wait_for_label(harness: &mut Harness<'static, NeumannApp>, label: &str) {
+    wait_until(harness, label, |harness| {
+        harness.query_by_label(label).is_some()
+    });
+    harness.run_steps(DIALOG_SETTLE_FRAMES);
+}
+
+/// Scans, checks the named speakers in the dialog and adds them.
+pub fn scan_and_add(harness: &mut Harness<'static, NeumannApp>, names: &[&str]) {
+    harness.get_by_label(texts::SCAN).click();
+    for name in names {
+        wait_for_label(harness, name);
+        harness.get_by_label(name).click();
+        harness.run_steps(2);
+    }
+    harness.get_by_label(texts::ADD).click();
+    harness.run_steps(2);
 }
 
 pub fn readout(value: f64) -> String {

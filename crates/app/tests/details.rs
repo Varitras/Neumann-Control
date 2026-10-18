@@ -151,7 +151,8 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     };
     let mut harness = harness(path, vec![found]);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.get_by_label(texts::SCAN).click();
+    // Without an announced name the dialog names the speaker by its announced model.
+    scan_and_add(&mut harness, &["KH 120 II"]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
     harness.get_by_label(texts::MORE).click();

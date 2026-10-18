@@ -16,6 +16,8 @@ const QUARANTINE_SUFFIX: &str = ".bad";
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// Every remembered speaker, added by address or chosen from a scan. The key keeps its
+    /// first name so that files written before scans were remembered load unchanged.
     pub manual: Vec<ManualSpeaker>,
     pub window: Option<WindowGeometry>,
 }

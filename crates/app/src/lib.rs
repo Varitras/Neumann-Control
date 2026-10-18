@@ -4,6 +4,7 @@ pub mod display;
 pub mod fader;
 pub mod meter;
 pub mod paths;
+pub mod scan_choice;
 pub mod spawner;
 pub mod state;
 pub mod targets;
