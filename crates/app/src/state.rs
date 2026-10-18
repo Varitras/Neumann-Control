@@ -109,7 +109,15 @@ impl SpeakerState {
             .unwrap_or_else(|| mask_host(&self.address))
     }
 
-    /// The reported product, else the announced one.
+    /// The product the speaker itself reported. Writes and the catalog rows use only this,
+    /// like the worker's polling: the announced model is unchecked mDNS text.
+    pub fn product(&self) -> &str {
+        self.identity
+            .as_ref()
+            .map_or("", |identity| identity.product.as_str())
+    }
+
+    /// The reported product, else the announced one; for showing only.
     pub fn model(&self) -> Option<&str> {
         let reported = self
             .identity

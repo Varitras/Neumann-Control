@@ -35,7 +35,7 @@ pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<C
 
 fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
     let tokens = Tokens::current(ui.ctx());
-    let product = speaker.model().unwrap_or_default().to_owned();
+    let product = speaker.product().to_owned();
     let groups = groups(catalog.entries_for(&product), speaker);
     let mut commands = Vec::new();
     let mut fields = Fields {
@@ -83,7 +83,7 @@ fn is_shown(entry: &Entry, speaker: &SpeakerState) -> bool {
 }
 
 fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry, tokens: &Tokens) {
-    let product = fields.speaker.model().unwrap_or_default();
+    let product = fields.speaker.product();
     if !entry.is_writable(product) {
         display(ui, fields.speaker, entry, tokens);
         return;

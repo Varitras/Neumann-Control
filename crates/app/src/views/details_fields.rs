@@ -60,7 +60,7 @@ impl Fields<'_> {
         let reported = self.speaker.values.get(&entry.path).cloned();
         let device = reported.as_ref().and_then(Value::as_f64);
         let enabled = self.enabled(entry, device.is_some());
-        let product = self.speaker.model().unwrap_or_default();
+        let product = self.speaker.product();
         let min = entry.min.unwrap_or(f64::NEG_INFINITY);
         let max = entry
             .max_for(product, &self.catalog.classes)

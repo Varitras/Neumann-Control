@@ -76,7 +76,7 @@ pub enum Refusal {
 
 /// Whether a control for `path` may be offered at all.
 pub fn can_write(speaker: &SpeakerState, catalog: &Catalog, path: &SscPath) -> bool {
-    let product = speaker.model().unwrap_or_default();
+    let product = speaker.product();
     let writable =
         paths::catalog_entry(catalog, path).is_some_and(|entry| entry.is_writable(product));
     speaker.status == Status::Connected && writable
@@ -92,7 +92,7 @@ pub fn check(
     if speaker.status != Status::Connected {
         return Err(Refusal::NotConnected);
     }
-    let product = speaker.model().unwrap_or_default();
+    let product = speaker.product();
     let entry = paths::catalog_entry(catalog, path)
         .filter(|entry| entry.is_writable(product))
         .ok_or(Refusal::NotWritable)?;
@@ -151,6 +151,7 @@ impl SpeakerState {
 mod tests {
     use super::*;
     use neumann_control_core::address::parse_address;
+    use neumann_control_core::discovery::Found;
     use neumann_control_core::speaker::{Event, Identity};
 
     use crate::state::SpeakerKey;
@@ -301,6 +302,23 @@ mod tests {
             .try_request(intent, Catalog::embedded(), 2.0)
             .is_err());
         assert_eq!(speaker.message.as_deref(), Some(texts::UNREACHABLE));
+    }
+
+    #[test]
+    fn the_announced_model_does_not_allow_writes() {
+        let mut speaker = speaker("");
+        speaker.discovered = Some(Found {
+            name: String::new(),
+            product: Some("KH 120 II".to_owned()),
+            serial: None,
+            address: parse_address(ADDRESS_TEXT, 45).unwrap(),
+        });
+        let level = paths::path(paths::OUTPUT_LEVEL);
+        assert!(!can_write(&speaker, Catalog::embedded(), &level));
+        assert_eq!(
+            check(&speaker, Catalog::embedded(), &level, &Value::from(80.0)),
+            Err(Refusal::NotWritable)
+        );
     }
 
     #[test]

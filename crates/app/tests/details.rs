@@ -8,6 +8,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
 use neumann_control_core::catalog::ValueError;
+use neumann_control_core::discovery::Found;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
 use support::*;
@@ -15,6 +16,7 @@ use support::*;
 const STANDBY_LABEL: &str = "Auto-Standby";
 const DELAY_LABEL: &str = "Verzögerung";
 const CONTROL_MODE_LABEL: &str = "Steuermodus";
+const LOGO_LABEL: &str = "Logo-Helligkeit";
 const NAME_PATH: &str = "/device/name";
 const DELAY_PATH: &str = "/audio/out/delay";
 const STANDBY_TIME_LABEL: &str = "Standby-Zeit";
@@ -133,6 +135,31 @@ fn control_mode_is_shown_read_only_on_both_models() {
         );
         harness.get_by_label("NETWORK");
     }
+}
+
+#[test]
+fn an_announced_model_gives_no_write_controls_or_model_rows() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_value("device/identity/product", json!(""));
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let found = Found {
+        name: String::new(),
+        product: Some("KH 120 II".to_owned()),
+        serial: Some(SIMULATED_SERIAL.to_owned()),
+        address: simulator.address(),
+    };
+    let mut harness = harness(path, vec![found]);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.get_by_label(texts::SCAN).click();
+    wait_for_level(&mut harness, 100.0);
+    harness.get_by_label(texts::MORE).click();
+    wait_until(&mut harness, "the expanded area", |harness| {
+        harness.query_by_label(texts::ALL_VALUES).is_some()
+    });
+    harness.run_steps(1);
+    assert_eq!(role_of(&harness, STANDBY_LABEL), Role::Label);
+    assert!(harness.query_by_label(LOGO_LABEL).is_none());
 }
 
 #[test]
