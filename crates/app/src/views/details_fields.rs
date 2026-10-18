@@ -81,14 +81,17 @@ impl Fields<'_> {
             ui.data_mut(|data| data.remove::<f64>(pending_id));
             return;
         }
-        let edited = response.changed().then_some(value);
-        let Some(number) = edited.or(held) else {
-            return;
-        };
+        // egui also reports a change on the frame focus leaves, when it reparses and clamps
+        // the shown text; only changes during the gesture are the user's.
         if active {
-            ui.data_mut(|data| data.insert_temp(pending_id, number));
+            if response.changed() {
+                ui.data_mut(|data| data.insert_temp(pending_id, value));
+            }
             return;
         }
+        let Some(number) = held else {
+            return;
+        };
         ui.data_mut(|data| data.remove::<f64>(pending_id));
         if ui.input(|input| input.key_pressed(Key::Escape)) {
             return;
