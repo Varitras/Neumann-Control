@@ -4,8 +4,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, Align2, Area, Event, Frame, Id, Key, MouseWheelUnit, Order, Rect, Response, Slider,
-    SliderClamping, Ui, Vec2, WidgetInfo,
+    self, Align2, Area, Event, Frame, Id, Key, Label, MouseWheelUnit, Order, Rect, Response,
+    Slider, SliderClamping, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
@@ -109,7 +109,8 @@ pub(super) fn value_beside(ui: &Ui, id: Id, rect: Rect, y: f32, text: &str) {
         .pivot(Align2::LEFT_CENTER)
         .interactable(false)
         .show(ui.ctx(), |ui| {
-            Frame::popup(ui.style()).show(ui, |ui| ui.label(text));
+            // One line: the area is narrow and would wrap the value letter by letter.
+            Frame::popup(ui.style()).show(ui, |ui| ui.add(Label::new(text).extend()));
         });
 }
 

@@ -15,6 +15,8 @@ const PRINTABLE_ASCII: std::ops::RangeInclusive<char> = ' '..='~';
 /// Relative to the step size; absorbs binary rounding of decimal steps.
 const STEP_TOLERANCE: f64 = 1e-9;
 const KELVIN_OFFSET: f64 = 273.15;
+/// The speakers count delay in samples at 48 kHz.
+const SAMPLES_PER_MILLISECOND: f64 = 48.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -88,12 +90,23 @@ pub enum ModelClass {
 #[serde(rename_all = "snake_case")]
 pub enum Conversion {
     KelvinToCelsius,
+    SamplesToMilliseconds,
 }
 
 impl Conversion {
+    /// From the device's unit to the one shown.
     pub fn apply(&self, value: f64) -> f64 {
         match self {
             Conversion::KelvinToCelsius => value - KELVIN_OFFSET,
+            Conversion::SamplesToMilliseconds => value / SAMPLES_PER_MILLISECOND,
+        }
+    }
+
+    /// From the unit shown back to the device's, for values the user types.
+    pub fn invert(&self, value: f64) -> f64 {
+        match self {
+            Conversion::KelvinToCelsius => value + KELVIN_OFFSET,
+            Conversion::SamplesToMilliseconds => value * SAMPLES_PER_MILLISECOND,
         }
     }
 }

@@ -427,3 +427,30 @@ fn panel_number_rows_keep_their_labels_on_one_line() {
     // shows a whole number as a whole number.
     assert!(harness.query_by_label_contains("60.0 min").is_none());
 }
+
+#[test]
+fn delay_is_typed_in_milliseconds_and_sent_in_samples() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    type_number(&mut harness, DELAY_LABEL, "10");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the delay Set", |_| {
+        !sets_to(&simulator, DELAY_PATH).is_empty()
+    });
+    assert_eq!(sets_to(&simulator, DELAY_PATH), vec![json!(480)]);
+}
+
+#[test]
+fn visiting_a_delay_in_milliseconds_writes_nothing() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    // One sample is 0.0208333… ms, which no decimal text holds exactly.
+    simulator.set_value("audio/out/delay", json!(1));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        harness.query_by_label_contains("0.02").is_some()
+    });
+    harness.get_by_label(DELAY_LABEL).click();
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    assert!(sets_to(&simulator, DELAY_PATH).is_empty());
+}

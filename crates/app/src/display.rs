@@ -42,14 +42,24 @@ pub fn capped(text: &str) -> String {
     format!("{kept}{ELLIPSIS}")
 }
 
-/// The device reports whole kelvin, so tenths of a degree would only show rounding noise.
-fn converted(conversion: Conversion, number: f64) -> String {
-    let unit = match conversion {
+/// In the unit shown. The device reports whole kelvin, so tenths of a degree would only show
+/// rounding noise; a delay sample is about 0.02 ms, so it needs two decimals.
+pub fn converted(conversion: Conversion, number: f64) -> String {
+    let shown = conversion.apply(number);
+    let unit = converted_unit(conversion);
+    match conversion {
+        // Adding zero turns the -0 of a slightly negative reading into 0.
+        Conversion::KelvinToCelsius => format!("{} {unit}", shown.round() + 0.0),
+        Conversion::SamplesToMilliseconds => format!("{shown:.2} {unit}"),
+    }
+}
+
+/// The unit a converted value is shown in.
+pub fn converted_unit(conversion: Conversion) -> &'static str {
+    match conversion {
         Conversion::KelvinToCelsius => texts::CELSIUS,
-    };
-    // Adding zero turns the -0 of a slightly negative reading into 0.
-    let whole = conversion.apply(number).round() + 0.0;
-    format!("{whole} {unit}")
+        Conversion::SamplesToMilliseconds => texts::MILLISECONDS,
+    }
 }
 
 fn raw_text(value: &Value) -> String {
@@ -87,6 +97,13 @@ mod tests {
         assert!(shown.ends_with(ELLIPSIS));
         let exact = "x".repeat(VALUE_CHARACTER_LIMIT);
         assert_eq!(capped(&exact), exact);
+    }
+
+    #[test]
+    fn delay_is_shown_in_milliseconds() {
+        let delay = entry("audio/out/delay");
+        assert_eq!(shown_value(delay, &json!(3732)), "77.75 ms");
+        assert_eq!(shown_value(delay, &json!(0)), "0.00 ms");
     }
 
     #[test]

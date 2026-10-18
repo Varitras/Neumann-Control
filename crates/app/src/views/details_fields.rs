@@ -6,7 +6,7 @@ use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use crate::display::capped;
+use crate::display::{capped, converted_unit};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
@@ -69,13 +69,25 @@ impl Fields<'_> {
         let pending_id = ui.id().with(entry.path.to_string()).with(PENDING_NUMBER_ID);
         let held = ui.data(|data| data.get_temp::<f64>(pending_id));
         let mut value = held.or(device).unwrap_or(entry.min.unwrap_or_default());
+        let step = entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED);
         let mut drag = DragValue::new(&mut value)
             .range(min..=max)
             .clamp_existing_to_range(false)
             .custom_formatter(|number, _| number.to_string())
-            .speed(entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED));
+            .speed(step);
         if let Some(unit) = &entry.unit {
             drag = drag.suffix(format!(" {unit}"));
+        }
+        if let Some(conversion) = entry.conversion {
+            // Typed and shown in the converted unit; back on the device's step grid, so the
+            // shown text parses to exactly the device value and a visit writes nothing.
+            drag = drag
+                .custom_formatter(move |number, _| conversion.apply(number).to_string())
+                .custom_parser(move |text| {
+                    let typed: f64 = text.trim().replace(',', ".").parse().ok()?;
+                    Some((conversion.invert(typed) / step).round() * step)
+                })
+                .suffix(format!(" {}", converted_unit(conversion)));
         }
         let response = ui
             .horizontal_wrapped(|ui| {

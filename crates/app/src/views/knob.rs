@@ -1,12 +1,12 @@
-//! A rotary knob for a catalog number: drag (up or right is more), mouse wheel, double-click
-//! for exact entry. While it moves, the value floats beside it. It writes once at the end of a
+//! A rotary knob for a catalog number: turn it by moving the pointer around it (clockwise is
+//! more), mouse wheel, double-click for exact entry. While it moves, the value floats beside it. It writes once at the end of a
 //! gesture and shows a device value outside its range as is.
 
 use std::f32::consts::PI;
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Align, CursorIcon, Id, Key, Label, Layout, RichText, Sense, Shape, Stroke,
+    pos2, vec2, Align, CursorIcon, Id, Key, Label, Layout, Pos2, RichText, Sense, Shape, Stroke,
     TextEdit, Ui, WidgetInfo,
 };
 
@@ -21,9 +21,10 @@ use crate::state::SpeakerState;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
-/// Points of drag for the whole range; Shift makes it this many times finer.
-const FULL_RANGE_DRAG_POINTS: f64 = 300.0;
+/// Shift makes turning this many times finer.
 const FINE_DIVISOR: f64 = 10.0;
+/// Closer to the centre than this the pointer's angle jumps around, so it is ignored.
+const DEAD_ZONE_RADIUS: f32 = 4.0;
 /// Wheel notches for the whole range, so wide ranges (delay in samples) stay usable.
 const FULL_RANGE_NOTCHES: f64 = 100.0;
 /// The ring leaves a gap at the bottom, from -135° to +135° around the top.
@@ -37,6 +38,7 @@ const INDICATOR_WIDTH: f32 = 2.0;
 const INDICATOR_START: f32 = 0.3;
 const ARC_SEGMENTS: usize = 32;
 const DRAG_VALUE_ID: &str = "knob_drag_value";
+const DRAG_ANGLE_ID: &str = "knob_drag_angle";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
 /// Room for the value line under the knob.
@@ -121,22 +123,36 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             };
             let (rect, response) = ui.allocate_exact_size(size, sense);
             let drag_id = id.with(DRAG_VALUE_ID);
+            let angle_id = id.with(DRAG_ANGLE_ID);
+            let pointer = ui.input(|input| input.pointer.interact_pos());
+            let angle = pointer.and_then(|pointer| pointer_angle(rect.center(), pointer));
             let mut value = state.shown(device, now);
             if response.drag_started() {
                 state.drag_started();
-                ui.data_mut(|data| data.insert_temp(drag_id, value));
+                ui.data_mut(|data| {
+                    data.insert_temp(drag_id, value);
+                    data.remove::<f32>(angle_id);
+                });
             }
             let aborted = drag_aborted(ui, &response);
             if response.dragged() && !aborted {
                 let held = ui
                     .data(|data| data.get_temp::<f64>(drag_id))
                     .unwrap_or(value);
+                let last = ui.data(|data| data.get_temp::<f32>(angle_id));
                 let fine = ui.input(|input| input.modifiers.shift);
-                let delta = response.drag_delta();
-                let points = f64::from(delta.x - delta.y);
-                let moved = drag_change(&knob.range, points, fine);
+                let turned = last
+                    .zip(angle)
+                    .map_or(0.0, |(last, angle)| angle_change(last, angle));
+                let moved = turn_change(&knob.range, turned, fine);
                 value = (held + moved).clamp(*knob.range.start(), *knob.range.end());
-                ui.data_mut(|data| data.insert_temp(drag_id, value));
+                ui.data_mut(|data| {
+                    data.insert_temp(drag_id, value);
+                    // Inside the dead zone the last good angle stays the reference.
+                    if let Some(angle) = angle {
+                        data.insert_temp(angle_id, angle);
+                    }
+                });
             }
             if response.drag_stopped() && !aborted {
                 let dragged = ui.data(|data| data.get_temp::<f64>(drag_id));
@@ -163,7 +179,12 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                     .request_repaint_after_secs((deadline - now).max(0.0) as f32);
             }
             if enabled && response.hovered() {
-                ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+                let icon = if response.dragged() {
+                    CursorIcon::Grabbing
+                } else {
+                    CursorIcon::Grab
+                };
+                ui.ctx().set_cursor_icon(icon);
             }
             let moving = (response.dragged() && !aborted) || state.wheel_pending();
             if moving {
@@ -191,12 +212,32 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
     sent
 }
 
-/// The value change for a vertical drag of `points` (upwards positive).
-pub fn drag_change(range: &RangeInclusive<f64>, points: f64, fine: bool) -> f64 {
+/// The pointer's angle around `center`, clockwise from the top; none too close to the centre.
+pub fn pointer_angle(center: Pos2, pointer: Pos2) -> Option<f32> {
+    let offset = pointer - center;
+    if offset.length() < DEAD_ZONE_RADIUS {
+        return None;
+    }
+    Some(offset.x.atan2(-offset.y))
+}
+
+/// The turn from `previous` to `current`, the short way round (across the bottom too).
+pub fn angle_change(previous: f32, current: f32) -> f32 {
+    let change = current - previous;
+    if change > PI {
+        return change - 2.0 * PI;
+    }
+    if change < -PI {
+        return change + 2.0 * PI;
+    }
+    change
+}
+
+/// The value change for a turn of `radians`: the knob's whole sweep is the whole range.
+pub fn turn_change(range: &RangeInclusive<f64>, radians: f32, fine: bool) -> f64 {
     let span = range.end() - range.start();
-    let per_point = span / FULL_RANGE_DRAG_POINTS;
     let divisor = if fine { FINE_DIVISOR } else { 1.0 };
-    points * per_point / divisor
+    f64::from(radians) / f64::from(SWEEP_RADIANS) * span / divisor
 }
 
 /// One wheel notch: a whole number of catalog steps, at least one, about a hundredth of the
@@ -311,12 +352,28 @@ mod tests {
     const DELAY_RANGE: RangeInclusive<f64> = 0.0..=5760.0;
 
     #[test]
-    fn a_full_drag_covers_the_range_and_shift_is_finer() {
+    fn pointer_angle_is_measured_clockwise_from_the_top() {
+        let center = pos2(50.0, 50.0);
+        assert_eq!(pointer_angle(center, pos2(50.0, 20.0)), Some(0.0));
+        assert_eq!(pointer_angle(center, pos2(80.0, 50.0)), Some(PI / 2.0));
         assert_eq!(
-            drag_change(&DELAY_RANGE, FULL_RANGE_DRAG_POINTS, false),
-            5760.0
+            pointer_angle(center, pos2(52.0, 51.0)),
+            None,
+            "too close to the centre"
         );
-        assert_eq!(drag_change(&DELAY_RANGE, 10.0, true), 19.2);
+    }
+
+    #[test]
+    fn turning_takes_the_short_way_across_the_bottom() {
+        let small = 0.1;
+        assert!((angle_change(PI - small, -PI + small) - 2.0 * small).abs() < 1e-5);
+        assert!((angle_change(-PI + small, PI - small) + 2.0 * small).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_full_sweep_covers_the_range_and_shift_is_finer() {
+        assert_eq!(turn_change(&DELAY_RANGE, SWEEP_RADIANS, false), 5760.0);
+        assert!((turn_change(&DELAY_RANGE, SWEEP_RADIANS, true) - 576.0).abs() < 1e-9);
     }
 
     #[test]

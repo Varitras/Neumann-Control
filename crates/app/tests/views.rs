@@ -401,6 +401,34 @@ fn strip_content_stacks_top_down() {
     );
 }
 
+/// Point on a circle of `radius` around `center` at `degrees` clockwise from the top.
+fn around(center: egui::Pos2, radius: f32, degrees: f32) -> egui::Pos2 {
+    let radians = degrees.to_radians();
+    center + radius * egui::vec2(radians.sin(), -radians.cos())
+}
+
+/// Presses at `from` degrees on the knob's rim and moves clockwise to `to` without releasing.
+fn turn_knob(
+    harness: &mut Harness<'static, NeumannApp>,
+    label: &str,
+    from: f32,
+    to: f32,
+) -> egui::Pos2 {
+    let center = harness
+        .get_by_role_and_label(Role::Slider, label)
+        .rect()
+        .center();
+    let radius = 14.0;
+    harness.drag_at(around(center, radius, from));
+    let steps = 6;
+    for step in 1..=steps {
+        let degrees = from + (to - from) * step as f32 / steps as f32;
+        harness.hover_at(around(center, radius, degrees));
+        harness.step();
+    }
+    around(center, radius, to)
+}
+
 fn delay_sets(simulator: &Simulator) -> Vec<Value> {
     simulator
         .requests()
@@ -444,21 +472,13 @@ fn kh750_standby_knob_is_read_only() {
 #[test]
 fn knob_drag_writes_once_on_release() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness
-        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
-        .rect()
-        .center();
-    harness.drag_at(start);
-    for frame in 1..=5 {
-        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
-        harness.step();
-    }
+    let end = turn_knob(&mut harness, texts::KNOB_DELAY, 90.0, 150.0);
     barrier(&simulator);
     assert!(
         delay_sets(&simulator).is_empty(),
-        "a Set went out while dragging"
+        "a Set went out while turning"
     );
-    harness.drop_at(start - egui::vec2(0.0, 20.0));
+    harness.drop_at(end);
     wait_until(&mut harness, "the delay Set", |_| {
         !delay_sets(&simulator).is_empty()
     });
@@ -472,18 +492,10 @@ fn knob_drag_writes_once_on_release() {
 #[test]
 fn escape_during_knob_drag_sends_nothing() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness
-        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
-        .rect()
-        .center();
-    harness.drag_at(start);
-    for frame in 1..=3 {
-        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
-        harness.step();
-    }
+    let end = turn_knob(&mut harness, texts::KNOB_DELAY, 90.0, 150.0);
     harness.key_press(egui::Key::Escape);
     harness.step();
-    harness.drop_at(start - egui::vec2(0.0, 20.0));
+    harness.drop_at(end);
     harness.run_steps(10);
     barrier(&simulator);
     assert!(delay_sets(&simulator).is_empty());
@@ -581,21 +593,32 @@ fn toolbar_shows_average_response_time_until_turned_off() {
 #[test]
 fn knob_value_is_shown_beside_it_while_dragging() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let start = harness
-        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
-        .rect()
-        .center();
-    let unit = "1/48 kHz";
-    assert_eq!(harness.query_all_by_label_contains(unit).count(), 1);
-    harness.drag_at(start);
-    for frame in 1..=4 {
-        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
-        harness.step();
-    }
-    // Under the knob and beside it.
-    assert_eq!(harness.query_all_by_label_contains(unit).count(), 2);
+    let unit = " ms";
+    let shown = |harness: &Harness<'static, NeumannApp>| {
+        harness
+            .query_all_by_label_contains(unit)
+            .filter(|node| node.accesskit_node().role() == Role::Label)
+            // The delay has decimals; the response time ("14 ms") has none.
+            .filter(|node| {
+                // egui puts a label's text into the node's value.
+                node.accesskit_node()
+                    .value()
+                    .is_some_and(|text| text.contains('.'))
+            })
+            .map(|node| node.rect())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shown(&harness).len(), 1);
+    let end = turn_knob(&mut harness, texts::KNOB_DELAY, 90.0, 150.0);
+    // Under the knob and beside it, each on one line.
+    let labels = shown(&harness);
+    assert_eq!(labels.len(), 2);
+    assert!(
+        labels.iter().all(|rect| rect.width() > rect.height()),
+        "{labels:?}"
+    );
     harness.key_press(egui::Key::Escape);
-    harness.drop_at(start);
+    harness.drop_at(end);
     harness.run_steps(2);
-    assert_eq!(harness.query_all_by_label_contains(unit).count(), 1);
+    assert_eq!(shown(&harness).len(), 1);
 }
