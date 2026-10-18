@@ -74,7 +74,7 @@ fn contents(
     }
 }
 
-fn table(ui: &mut Ui, shown: &[Row]) {
+fn table(ui: &mut Ui, shown: &[Row<'_>]) {
     header(ui);
     let row_height = ui.spacing().interact_size.y;
     ScrollArea::vertical()
@@ -95,7 +95,7 @@ fn header(ui: &mut Ui) {
     });
 }
 
-fn row_cells(ui: &mut Ui, row: &Row) {
+fn row_cells(ui: &mut Ui, row: &Row<'_>) {
     ui.horizontal(|ui| {
         cell(ui, PATH_WIDTH, &row.path);
         cell(ui, VALUE_WIDTH, &row.value);
@@ -107,12 +107,12 @@ fn row_cells(ui: &mut Ui, row: &Row) {
         };
         cell(ui, KNOWN_WIDTH, known);
         if ui.button(texts::ALL_VALUES_COPY).clicked() {
-            ui.ctx().copy_text(row.copy_text.clone());
+            ui.ctx().copy_text(row.copy_text());
         }
     });
 }
 
-/// A label in a fixed-width column; what does not fit is cut, the full text is on hover.
+/// A label in a fixed-width column; what does not fit is cut, the cell's text is on hover.
 fn cell(ui: &mut Ui, width: f32, text: &str) {
     let height = ui.spacing().interact_size.y;
     ui.add_sized([width, height], Label::new(text).truncate())

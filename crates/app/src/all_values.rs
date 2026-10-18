@@ -22,20 +22,27 @@ const OPTIONS_KEY: &str = "option";
 /// Leaves that name the device itself; shown masked like the serial on the card.
 const IDENTIFIER_PATHS: &[&str] = &[paths::SERIAL, paths::MAC_ADDRESSES];
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Row {
+#[derive(Clone, Debug, PartialEq)]
+pub struct Row<'a> {
+    report: &'a LeafReport,
     pub path: String,
     /// Capped for the cell.
     pub value: String,
     /// Units, range and options from the leaf's limits.
     pub range: String,
     pub known: bool,
-    /// `path = value`, whole.
-    pub copy_text: String,
+}
+
+impl Row<'_> {
+    /// `path = value`, whole; built on demand because only a click needs it.
+    pub fn copy_text(&self) -> String {
+        let value = value_text(self.report, &self.path);
+        format!("{}{COPY_SEPARATOR}{value}", self.path)
+    }
 }
 
 /// The reports whose path contains `filter`, ignoring case and surrounding blanks.
-pub fn rows(reports: &[LeafReport], filter: &str, catalog: &Catalog) -> Vec<Row> {
+pub fn rows<'a>(reports: &'a [LeafReport], filter: &str, catalog: &Catalog) -> Vec<Row<'a>> {
     let wanted = filter.trim().to_lowercase();
     reports
         .iter()
@@ -44,14 +51,13 @@ pub fn rows(reports: &[LeafReport], filter: &str, catalog: &Catalog) -> Vec<Row>
         .collect()
 }
 
-fn row(report: &LeafReport, catalog: &Catalog) -> Row {
+fn row<'a>(report: &'a LeafReport, catalog: &Catalog) -> Row<'a> {
     let path = report.path.to_string();
-    let full = value_text(report, &path);
     Row {
-        value: capped(&full),
+        report,
+        value: capped(&value_text(report, &path)),
         range: capped(&range_text(report.limits.as_ref())),
         known: paths::catalog_entry(catalog, &report.path).is_some(),
-        copy_text: format!("{path}{COPY_SEPARATOR}{full}"),
         path,
     }
 }
@@ -134,8 +140,10 @@ mod tests {
         }
     }
 
-    fn one(report: LeafReport) -> Row {
-        rows(&[report], "", Catalog::embedded()).remove(0)
+    /// The report is leaked so the row may outlive the call; tests only.
+    fn one(report: LeafReport) -> Row<'static> {
+        let leaked: &'static [LeafReport] = Box::leak(Box::new([report]));
+        rows(leaked, "", Catalog::embedded()).remove(0)
     }
 
     #[test]
@@ -156,7 +164,7 @@ mod tests {
         let row = one(report("device/name", Ok(json!(long)), None));
         assert_eq!(row.value.chars().count(), VALUE_CHARACTER_LIMIT + 1);
         assert!(row.value.ends_with(ELLIPSIS));
-        assert_eq!(row.copy_text, format!("device/name = {long}"));
+        assert_eq!(row.copy_text(), format!("device/name = {long}"));
     }
 
     #[test]
@@ -171,7 +179,7 @@ mod tests {
         for path in IDENTIFIER_PATHS {
             let row = one(report(path, Ok(json!("SIM0001234")), None));
             assert_eq!(row.value, "…234", "{path}");
-            assert_eq!(row.copy_text, format!("{path} = …234"));
+            assert_eq!(row.copy_text(), format!("{path} = …234"));
         }
     }
 
