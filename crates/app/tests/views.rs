@@ -622,3 +622,101 @@ fn knob_value_is_shown_beside_it_while_dragging() {
     harness.run_steps(2);
     assert_eq!(shown(&harness).len(), 1);
 }
+
+/// How far the level moves while dragging the fader `points` down, without releasing.
+fn level_change_while_dragging(
+    harness: &mut Harness<'static, NeumannApp>,
+    points: f32,
+    modifiers: egui::Modifiers,
+) -> f64 {
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .rect()
+        .center();
+    let before = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .accesskit_node()
+        .numeric_value()
+        .unwrap();
+    harness.drag_at(start);
+    // After the press, which carries no modifiers of its own.
+    harness.event(egui::Event::ModifiersChanged(modifiers));
+    for frame in 1..=4 {
+        harness.hover_at(start + egui::vec2(0.0, points * frame as f32 / 4.0));
+        harness.step();
+    }
+    let during = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL)
+        .accesskit_node()
+        .numeric_value()
+        .unwrap();
+    harness.key_press(egui::Key::Escape);
+    harness.drop_at(start);
+    harness.run_steps(2);
+    before - during
+}
+
+#[test]
+fn fader_moves_ten_times_finer_with_shift() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let coarse = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::NONE);
+    let fine = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::SHIFT);
+    assert!(coarse > 10.0, "coarse {coarse}");
+    assert!(
+        fine > 0.0 && fine <= coarse / 5.0,
+        "coarse {coarse}, fine {fine}"
+    );
+}
+
+#[test]
+fn double_click_on_the_level_readout_enters_a_value() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("87.5");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the typed level", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(level_sets(&simulator), vec![87.5]);
+}
+
+/// The harness clock moves about half a second per frame, more than egui allows between the
+/// two clicks of a double click, so the allowance is widened for the test.
+fn double_click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
+    harness
+        .ctx
+        .options_mut(|options| options.input_options.max_double_click_delay = 2.0);
+    harness.hover_at(position);
+    for pressed in [true, false, true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    harness.run_steps(2);
+}
+
+#[test]
+fn double_click_on_the_delay_knob_takes_milliseconds() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let position = harness
+        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
+        .rect()
+        .center();
+    double_click_at(&mut harness, position);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("10");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the typed delay", |_| {
+        !delay_sets(&simulator).is_empty()
+    });
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(delay_sets(&simulator), vec![serde_json::json!(480)]);
+}

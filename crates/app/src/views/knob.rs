@@ -10,25 +10,25 @@ use eframe::egui::{
     TextEdit, Ui, WidgetInfo,
 };
 
-use neumann_control_core::catalog::{Catalog, Entry};
+use neumann_control_core::catalog::{Catalog, Conversion, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::fader::{drag_aborted, value_beside, wheel_notches};
+use super::fader::{drag_aborted, value_beside, wheel_notches, FINE_DIVISOR};
 use crate::display::shown_value;
 use crate::gesture::GestureState;
 use crate::state::SpeakerState;
+use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
-/// Shift makes turning this many times finer.
-const FINE_DIVISOR: f64 = 10.0;
 /// Closer to the centre than this the pointer's angle jumps around, so it is ignored.
 const DEAD_ZONE_RADIUS: f32 = 4.0;
 /// Wheel notches for the whole range, so wide ranges (delay in samples) stay usable.
 const FULL_RANGE_NOTCHES: f64 = 100.0;
 /// The ring leaves a gap at the bottom, from -135° to +135° around the top.
 const SWEEP_RADIANS: f32 = 1.5 * PI;
+const FULL_RANGE_TURN_RADIANS: f32 = 3.0 * PI;
 const ARC_WIDTH: f32 = 3.0;
 /// Space between the value arc and the knob's body.
 const ARC_GAP: f32 = 2.0;
@@ -78,6 +78,7 @@ pub fn for_entry(
         enabled: writes::can_write(speaker, catalog, &entry.path),
         diameter,
         format: &format,
+        conversion: entry.conversion,
     };
     let mut state = speaker.knobs.remove(&entry.path).unwrap_or_default();
     let id = ui.id().with(entry.path.to_string());
@@ -102,6 +103,8 @@ pub struct Knob<'a> {
     pub diameter: f32,
     /// Formats a value for the line under the knob.
     pub format: &'a dyn Fn(f64) -> String,
+    /// The unit typed values are in, when it is not the device's.
+    pub conversion: Option<Conversion>,
 }
 
 /// Draws the knob; returns the value to send when a gesture ended.
@@ -196,16 +199,23 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             if knob.caption {
                 ui.add(Label::new(RichText::new(knob.label).small().weak()));
             }
-            let edited = exact_entry(ui, id, &response, knob, value);
+            let open_now = response.double_clicked();
+            let range = &knob.range;
+            let edited = value_entry(ui, id, open_now, value, range, knob.step, knob.conversion);
             sent = sent.or(edited);
-            if knob.caption && !exact_entry_open(ui, id) {
+            if knob.caption && !value_entry_open(ui, id) {
                 let text = RichText::new((knob.format)(value)).small().monospace();
                 ui.add(Label::new(text));
             }
             response
         })
         .inner;
-    response.on_hover_text(knob.label);
+    response.on_hover_text(format!(
+        "{}
+{}",
+        knob.label,
+        texts::CONTROL_HINT
+    ));
     if let Some(value) = sent {
         state.sent(value, now);
     }
@@ -233,11 +243,12 @@ pub fn angle_change(previous: f32, current: f32) -> f32 {
     change
 }
 
-/// The value change for a turn of `radians`: the knob's whole sweep is the whole range.
+/// The value change for a turn of `radians`: one and a half turns cover the whole range, finer
+/// than the drawn sweep so a value can be met.
 pub fn turn_change(range: &RangeInclusive<f64>, radians: f32, fine: bool) -> f64 {
     let span = range.end() - range.start();
     let divisor = if fine { FINE_DIVISOR } else { 1.0 };
-    f64::from(radians) / f64::from(SWEEP_RADIANS) * span / divisor
+    f64::from(radians) / f64::from(FULL_RANGE_TURN_RADIANS) * span / divisor
 }
 
 /// One wheel notch: a whole number of catalog steps, at least one, about a hundredth of the
@@ -252,18 +263,22 @@ pub fn on_grid(value: f64, step: f64) -> f64 {
     (value / step).round() * step
 }
 
-/// Double-click opens a text field under the knob; Enter sends, Escape or leaving cancels.
-fn exact_entry(
+/// A text field for an exact value, open from `open_now` until Enter (returns the value, clamped
+/// and on the step grid) or until Escape or leaving it (returns nothing). Knob and fader use it.
+/// With a `conversion`, the text is in the converted unit (the delay in ms).
+pub(super) fn value_entry(
     ui: &mut Ui,
     id: Id,
-    response: &eframe::egui::Response,
-    knob: &Knob,
+    open_now: bool,
     value: f64,
+    range: &RangeInclusive<f64>,
+    step: f64,
+    conversion: Option<Conversion>,
 ) -> Option<f64> {
     let text_id = id.with(EDIT_TEXT_ID);
-    if response.double_clicked() {
-        ui.data_mut(|data| data.insert_temp(text_id, value.to_string()));
-        ui.memory_mut(|memory| memory.request_focus(text_id));
+    if open_now {
+        let shown = conversion.map_or(value, |conversion| conversion.apply(value));
+        ui.data_mut(|data| data.insert_temp(text_id, shown.to_string()));
     }
     let mut text = ui.data(|data| data.get_temp::<String>(text_id))?;
     let field = ui.add(
@@ -271,6 +286,10 @@ fn exact_entry(
             .id(text_id)
             .desired_width(EDIT_WIDTH),
     );
+    // Asked of the drawn field: a request before it exists is lost to the opening click.
+    if open_now {
+        field.request_focus();
+    }
     let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
     if field.lost_focus() {
         ui.data_mut(|data| data.remove::<String>(text_id));
@@ -281,11 +300,12 @@ fn exact_entry(
         return None;
     }
     let typed: f64 = text.trim().replace(',', ".").parse().ok()?;
-    let clamped = typed.clamp(*knob.range.start(), *knob.range.end());
-    Some(on_grid(clamped, knob.step))
+    let typed = conversion.map_or(typed, |conversion| conversion.invert(typed));
+    let clamped = typed.clamp(*range.start(), *range.end());
+    Some(on_grid(clamped, step))
 }
 
-fn exact_entry_open(ui: &Ui, id: Id) -> bool {
+pub(super) fn value_entry_open(ui: &Ui, id: Id) -> bool {
     ui.data(|data| data.get_temp::<String>(id.with(EDIT_TEXT_ID)))
         .is_some()
 }
@@ -371,9 +391,9 @@ mod tests {
     }
 
     #[test]
-    fn a_full_sweep_covers_the_range_and_shift_is_finer() {
-        assert_eq!(turn_change(&DELAY_RANGE, SWEEP_RADIANS, false), 5760.0);
-        assert!((turn_change(&DELAY_RANGE, SWEEP_RADIANS, true) - 576.0).abs() < 1e-9);
+    fn one_and_a_half_turns_cover_the_range_and_shift_is_finer() {
+        assert_eq!(turn_change(&DELAY_RANGE, 3.0 * PI, false), 5760.0);
+        assert!((turn_change(&DELAY_RANGE, 3.0 * PI, true) - 576.0).abs() < 1e-9);
     }
 
     #[test]

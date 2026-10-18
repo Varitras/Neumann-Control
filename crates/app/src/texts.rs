@@ -28,6 +28,7 @@ pub const LED_LOCAL: &str = "LOCAL: Schalter hinten, Schreiben gesperrt";
 pub const KNOB_DELAY: &str = "Delay";
 pub const KNOB_STANDBY: &str = "Standby";
 pub const CLOSE: &str = "Schließen";
+pub const CONTROL_HINT: &str = "Shift: fein · Doppelklick: Wert eingeben";
 pub const PANEL_TITLE: &str = "Lautsprecher";
 pub const SETTINGS: &str = "Einstellungen";
 pub const SETTINGS_TITLE: &str = "Einstellungen";

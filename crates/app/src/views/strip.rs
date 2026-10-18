@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::fader::{self, FADER_HEIGHT};
 use super::{knob, meters};
-use crate::fader::output_level_range;
+use crate::fader::{output_level_range, WHEEL_STEP_DB};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
@@ -30,6 +30,7 @@ const LED_SPACING: f32 = 6.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
 const DELAY_PATH: &str = "audio/out/delay";
+const LEVEL_ENTRY_ID: &str = "level_entry";
 const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
 
 pub struct StripResponse {
@@ -166,10 +167,20 @@ fn level(
             shown
         })
         .inner;
-    let readout = device.map(|_| texts::readout(shown, &unit));
-    ui.add(Label::new(
-        RichText::new(readout.unwrap_or_default()).monospace(),
-    ));
+    let readout = device
+        .map(|_| texts::readout(shown, &unit))
+        .unwrap_or_default();
+    let label = Label::new(RichText::new(readout).monospace()).sense(Sense::click());
+    let response = ui.add(label).on_hover_text(texts::CONTROL_HINT);
+    let entry_id = response.id.with(LEVEL_ENTRY_ID);
+    let open_now = response.double_clicked() && device.is_some();
+    let range = output_level_range();
+    if let Some(level) =
+        knob::value_entry(ui, entry_id, open_now, shown, &range, WHEEL_STEP_DB, None)
+    {
+        let now = ui.input(|input| input.time);
+        commands.extend(speaker.request(Intent::Level(level), catalog, now));
+    }
 }
 
 /// Input meters, then the output meters of models that report them (KH 750), set apart.

@@ -1,11 +1,11 @@
-//! The card's level fader: a vertical slider that writes once it settles, and the mouse wheel
-//! in 0.5 dB steps per notch.
+//! The strip's level fader: dragged relative to the pointer (Shift for fine moves), written once
+//! when let go, and the mouse wheel in 0.5 dB steps per notch.
 
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, Align2, Area, Event, Frame, Id, Key, Label, MouseWheelUnit, Order, Rect, Response,
-    Slider, SliderClamping, Ui, Vec2, WidgetInfo,
+    self, vec2, Align2, Area, CornerRadius, CursorIcon, Event, Frame, Id, Key, Label,
+    MouseWheelUnit, Order, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
@@ -14,18 +14,31 @@ use crate::fader::WHEEL_STEP_DB;
 use crate::paths;
 use crate::state::SpeakerState;
 use crate::texts;
+use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
 const DRAG_ABORTED_ID: &str = "fader_drag_aborted";
 const HANDLE_LABEL_ID: &str = "fader_handle_label";
+const DRAG_VALUE_ID: &str = "fader_drag_value";
+const FADER_WIDTH: f32 = 24.0;
+const TRACK_WIDTH: f32 = 4.0;
+const TRACK_RADIUS: u8 = 2;
+const CAP_WIDTH: f32 = 22.0;
+const CAP_HEIGHT: f32 = 12.0;
+const CAP_RADIUS: u8 = 3;
+const CAP_BORDER_WIDTH: f32 = 1.0;
+const CAP_LINE_WIDTH: f32 = 1.5;
+/// Shift makes a drag this many times finer, on the fader and on knobs.
+pub(super) const FINE_DIVISOR: f64 = 10.0;
 /// Space between the fader and the value shown beside its handle while dragging.
 const HANDLE_LABEL_GAP: f32 = 6.0;
 
-/// The slider's length.
-pub const FADER_HEIGHT: f32 = 150.0;
+/// The fader's length; the whole range spans it.
+pub const FADER_HEIGHT: f32 = 200.0;
 
-/// The vertical level fader; returns the value it shows. While dragging, the value also stands
-/// beside the handle, where the eye is.
+/// The vertical level fader; returns the value it shows. It moves relative to the pointer from
+/// wherever it is grabbed, never jumping to the pointer; Shift makes it `FINE_DIVISOR` times
+/// finer. While dragging, the value also stands beside the fader, where the eye is.
 pub fn show(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
@@ -35,37 +48,51 @@ pub fn show(
     range: RangeInclusive<f64>,
     unit: &str,
 ) -> f64 {
+    let tokens = Tokens::current(ui.ctx());
     let path = paths::path(paths::OUTPUT_LEVEL);
     let enabled = device.is_some() && writes::can_write(speaker, catalog, &path);
     let device = device.unwrap_or(*range.start());
     let now = ui.input(|input| input.time);
     let mut value = speaker.fader.shown(device, now);
-    ui.spacing_mut().slider_width = FADER_HEIGHT;
-    let slider = Slider::new(&mut value, range.clone())
-        .vertical()
-        .show_value(false)
-        .step_by(WHEEL_STEP_DB)
-        // The default also clamps and snaps the reported level, so the readout would show a
-        // value the speaker does not have.
-        .clamping(SliderClamping::Edits);
-    let response = ui.add_enabled(enabled, slider);
-    response.widget_info(|| WidgetInfo::slider(enabled, value, texts::LEVEL));
+    // Drag only: a drag then starts on the press itself, so a wheel step pending from just
+    // before cannot fall due in between and reach the speaker.
+    let sense = if enabled {
+        Sense::drag()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(FADER_WIDTH, FADER_HEIGHT), sense);
+    let drag_id = response.id.with(DRAG_VALUE_ID);
     if response.drag_started() {
         speaker.fader.drag_started();
+        ui.data_mut(|data| data.insert_temp(drag_id, value));
     }
     let aborted = drag_aborted(ui, &response);
-    if aborted {
-        value = speaker.fader.shown(device, now);
+    let dragging = response.dragged() && !aborted;
+    if dragging {
+        let held = ui
+            .data(|data| data.get_temp::<f64>(drag_id))
+            .unwrap_or(value);
+        let fine = ui.input(|input| input.modifiers.shift);
+        let moved = drag_change(&range, -f64::from(response.drag_delta().y), fine);
+        let unsnapped = (held + moved).clamp(*range.start(), *range.end());
+        ui.data_mut(|data| data.insert_temp(drag_id, unsnapped));
+        value = on_level_grid(unsnapped);
     }
-    // While dragging, the slider follows the pointer and the speaker hears nothing. The release
-    // frame still moves the value but no longer counts as dragged, so this one condition sends
-    // the final value of a drag, a click on the track and a key press alike.
-    let settled = response.changed() && !response.dragged() && !aborted;
-    if settled {
-        commands.extend(speaker.request(Intent::Level(value), catalog, now));
+    // The speaker hears nothing while dragging; the release sends the value once.
+    if response.drag_stopped() {
+        let dragged = ui.data(|data| data.get_temp::<f64>(drag_id));
+        ui.data_mut(|data| data.remove::<f64>(drag_id));
+        if let Some(dragged) = dragged.filter(|_| !aborted) {
+            value = on_level_grid(dragged);
+            commands.extend(speaker.request(Intent::Level(value), catalog, now));
+        }
     }
-    if enabled && response.hovered() {
-        // The cards sit in a scroll area, which would scroll along with the fader.
+    // A held fader ignores the wheel: steps added now would overwrite the drag's value.
+    let held = response.is_pointer_button_down_on() || response.dragged();
+    if enabled && response.hovered() && !held {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+        // The strips sit in a scroll area, which would scroll along with the fader.
         ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
         let wheel = wheel_notches(ui);
         for notches in &wheel {
@@ -73,21 +100,17 @@ pub fn show(
                 .fader
                 .on_wheel(*notches, WHEEL_STEP_DB, device, range.clone(), now);
         }
-        // Only the wheel changes what is shown here; a drag keeps its own value.
         if !wheel.is_empty() {
             value = speaker.fader.shown(device, now);
         }
     }
-    if response.dragged() && !aborted {
-        let pointer = ui.input(|input| input.pointer.interact_pos());
-        let y = pointer.map_or(response.rect.center().y, |position| position.y);
-        value_beside(
-            ui,
-            response.id,
-            response.rect,
-            y,
-            &texts::readout(value, unit),
-        );
+    paint(ui, rect, &range, value, enabled, &tokens);
+    response.widget_info(|| WidgetInfo::slider(enabled, value, texts::LEVEL));
+    let id = response.id;
+    response.on_hover_text(texts::CONTROL_HINT);
+    if dragging {
+        let y = value_y(rect, &range, value);
+        value_beside(ui, id, rect, y, &texts::readout(value, unit));
     }
     if let Some(due) = speaker.fader.due(now) {
         commands.extend(speaker.request(Intent::Level(due), catalog, now));
@@ -97,6 +120,54 @@ pub fn show(
         ui.ctx().request_repaint_after_secs(wait as f32);
     }
     value
+}
+
+/// The value change for a drag of `points` (upwards positive): the fader's length is the
+/// whole range.
+pub fn drag_change(range: &RangeInclusive<f64>, points: f64, fine: bool) -> f64 {
+    let span = range.end() - range.start();
+    let divisor = if fine { FINE_DIVISOR } else { 1.0 };
+    points / f64::from(FADER_HEIGHT) * span / divisor
+}
+
+fn on_level_grid(value: f64) -> f64 {
+    (value / WHEEL_STEP_DB).round() * WHEEL_STEP_DB
+}
+
+fn value_y(rect: Rect, range: &RangeInclusive<f64>, value: f64) -> f32 {
+    let span = range.end() - range.start();
+    let position = ((value - range.start()) / span).clamp(0.0, 1.0) as f32;
+    rect.bottom() - position * rect.height()
+}
+
+fn paint(
+    ui: &Ui,
+    rect: Rect,
+    range: &RangeInclusive<f64>,
+    value: f64,
+    enabled: bool,
+    tokens: &Tokens,
+) {
+    let painter = ui.painter();
+    let track = Rect::from_center_size(rect.center(), vec2(TRACK_WIDTH, rect.height()));
+    painter.rect_filled(track, CornerRadius::same(TRACK_RADIUS), tokens.meter_track);
+    let y = value_y(rect, range, value);
+    let fill = Rect::from_min_max(egui::pos2(track.left(), y), track.right_bottom());
+    let color = if enabled {
+        tokens.accent
+    } else {
+        tokens.text_dim
+    };
+    painter.rect_filled(fill, CornerRadius::same(TRACK_RADIUS), color);
+    let cap = Rect::from_center_size(egui::pos2(rect.center().x, y), vec2(CAP_WIDTH, CAP_HEIGHT));
+    painter.rect(
+        cap,
+        CornerRadius::same(CAP_RADIUS),
+        tokens.field,
+        Stroke::new(CAP_BORDER_WIDTH, tokens.border),
+        StrokeKind::Inside,
+    );
+    painter.hline(cap.x_range(), y, Stroke::new(CAP_LINE_WIDTH, tokens.text));
 }
 
 /// A value floating right of `rect` at height `y` while a control is being moved, where the
