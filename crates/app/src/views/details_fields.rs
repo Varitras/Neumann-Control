@@ -186,10 +186,11 @@ impl Fields<'_> {
         if apply.clicked() || (entered && !dialog_open) {
             self.submit_text(ui, entry, &mut draft);
         }
-        // Leaving the field without writing gives it back to the device, unless the press
-        // that took the focus is on "Übernehmen" or a refusal still explains the text.
-        let abandoned = field.lost_focus() && !entered && !apply.is_pointer_button_down_on();
-        if abandoned && draft.refusal.is_none() {
+        // The draft belongs to the field and "Übernehmen" together: only when focus has left
+        // both (and no press is on the button) is it given back to the device, unless a
+        // refusal still explains the text.
+        let in_use = field.has_focus() || apply.has_focus() || apply.is_pointer_button_down_on();
+        if !in_use && draft.refusal.is_none() {
             draft.edited = false;
         }
         if let Some(refusal) = &draft.refusal {

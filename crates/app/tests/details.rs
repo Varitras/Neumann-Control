@@ -243,6 +243,39 @@ fn an_abandoned_name_draft_follows_the_device_again() {
 }
 
 #[test]
+fn a_name_typed_then_tabbed_to_apply_is_sent() {
+    let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_role(Role::TextInput).click();
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("Studio");
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the Set after Enter on Übernehmen", |_| {
+        !sets_to(&simulator, NAME_PATH).is_empty()
+    });
+    barrier(&simulator);
+    assert_eq!(sets_to(&simulator, NAME_PATH), vec![json!("Studio")]);
+}
+
+#[test]
+fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
+    let (_simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
+    harness.get_by_role(Role::TextInput).click();
+    harness.run_steps(1);
+    harness.get_by_role(Role::TextInput).type_text("draft");
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(3);
+    let shown = harness.get_by_role(Role::TextInput).value();
+    assert_eq!(shown.as_deref(), Some("Simulated KH 120 II"));
+}
+
+#[test]
 fn card_controls_are_not_repeated_in_the_area() {
     let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
     assert_eq!(harness.query_all_by_label(texts::MUTE).count(), 1);
