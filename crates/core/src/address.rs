@@ -64,6 +64,15 @@ pub fn parse_address(input: &str, port: u16) -> Result<SocketAddrV6, AddressErro
     Ok(SocketAddrV6::new(ip, port, 0, scope))
 }
 
+/// The host part as `parse_address` reads it back, with the scope as `%index` when there is one;
+/// the port is stored separately.
+pub fn format_host(address: &SocketAddrV6) -> String {
+    match address.scope_id() {
+        NO_SCOPE => address.ip().to_string(),
+        scope => format!("{}{SCOPE_SEPARATOR}{scope}", address.ip()),
+    }
+}
+
 // `u32::from_str` accepts a leading `+`, which Windows would not.
 fn parse_scope(text: &str) -> Result<u32, AddressError> {
     if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {

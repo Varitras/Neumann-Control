@@ -1,6 +1,8 @@
 use std::net::{Ipv6Addr, SocketAddrV6};
 
-use neumann_control_core::address::{is_link_local, parse_address, AddressError, SSC_PORT};
+use neumann_control_core::address::{
+    format_host, is_link_local, parse_address, AddressError, SSC_PORT,
+};
 use neumann_control_core::mask::{mask_host, mask_serial};
 
 const SIMULATED_ADDRESS: &str = "fe80::2a36:38ff:fe12:3456";
@@ -105,4 +107,15 @@ fn serial_mask_keeps_last_three() {
 #[test]
 fn short_serial_is_unchanged() {
     assert_eq!(mask_serial("123"), "123");
+}
+
+#[test]
+fn a_formatted_host_parses_back_to_the_same_address() {
+    let link_local = SocketAddrV6::new(SIMULATED_ADDRESS.parse().unwrap(), SSC_PORT, 0, 7);
+    let global = SocketAddrV6::new("2001:db8::1".parse().unwrap(), SSC_PORT, 0, 0);
+    assert_eq!(format_host(&link_local), format!("{SIMULATED_ADDRESS}%7"));
+    assert_eq!(format_host(&global), "2001:db8::1");
+    for address in [link_local, global] {
+        assert_eq!(parse_address(&format_host(&address), SSC_PORT), Ok(address));
+    }
 }
