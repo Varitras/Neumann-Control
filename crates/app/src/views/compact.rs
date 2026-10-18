@@ -30,7 +30,8 @@ const BORDER_WIDTH: f32 = 1.0;
 /// The columns line up from row to row; the LED column is as wide as four LEDs.
 const MARK_WIDTH: f32 = 50.0;
 const NAME_WIDTH: f32 = 120.0;
-const READOUT_WIDTH: f32 = 72.0;
+/// Wide enough for the longest readout, "120.0 dB SPL".
+const READOUT_WIDTH: f32 = 96.0;
 const ROW_HEIGHT: f32 = 22.0;
 const SWATCH_SIZE: f32 = 10.0;
 const SWATCH_RADIUS: u8 = 2;
@@ -73,7 +74,7 @@ pub fn speaker(
         let readout = device
             .map(|_| texts::readout(shown, &unit))
             .unwrap_or_default();
-        cell(ui, READOUT_WIDTH, |ui| ui.monospace(readout));
+        cell(ui, READOUT_WIDTH, |ui| readout_label(ui, readout));
         let floor = desk.meter_floor.db();
         meters::bar(ui, loudest, floor, texts::INPUT_METERS.get(), &tokens);
         let mute = texts::MUTE.get();
@@ -152,7 +153,7 @@ fn shared_controls(
     let range = shown.range;
     let moved = fader::shared(ui, level_label, level, range, Orientation::Horizontal);
     let readout = shared_readout(level);
-    cell(ui, READOUT_WIDTH, |ui| ui.monospace(readout));
+    cell(ui, READOUT_WIDTH, |ui| readout_label(ui, readout));
     meters::bar(
         ui,
         shown.loudest,
@@ -184,6 +185,11 @@ fn cell<R>(ui: &mut Ui, width: f32, contents: impl FnOnce(&mut Ui) -> R) -> R {
         contents(ui)
     })
     .inner
+}
+
+/// Cut rather than pushing the columns behind it out of line.
+fn readout_label(ui: &mut Ui, readout: String) {
+    ui.add(egui::Label::new(RichText::new(readout).monospace()).truncate());
 }
 
 fn swatch(ui: &mut Ui, color: Color32) {

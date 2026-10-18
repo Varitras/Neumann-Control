@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use eframe::egui::{self, Align, Button, Layout, RichText, Ui};
+use eframe::egui::{self, containers::Sides, Button, RichText, TextWrapMode, Ui};
 
 use crate::texts;
 
@@ -32,11 +32,25 @@ pub struct ToolbarFacts {
 
 pub fn show(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     egui::Panel::top(PANEL_ID)
-        .show(ui, |ui| ui.horizontal(|ui| controls(ui, facts)).inner)
+        .show(ui, |ui| controls(ui, facts))
         .inner
 }
 
+/// The right side is placed first, so in a narrow window the count and a notice on the left are
+/// cut (whole on hover) instead of being drawn under the buttons.
 fn controls(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
+    let (left, right) = Sides::new()
+        .shrink_left()
+        .wrap_mode(TextWrapMode::Truncate)
+        .show(ui, |ui| left_side(ui, facts), |ui| right_side(ui, facts));
+    if right == ToolbarAction::None {
+        left
+    } else {
+        right
+    }
+}
+
+fn left_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     let mut action = ToolbarAction::None;
     if !facts.compact {
         action = adding(ui, facts);
@@ -47,19 +61,22 @@ fn controls(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
         ui.separator();
         ui.colored_label(ui.visuals().error_fg_color, notice);
     }
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if ui.button(texts::SETTINGS).clicked() {
-            action = ToolbarAction::Settings;
-        }
-        let compact = Button::new(texts::COMPACT).selected(facts.compact);
-        if ui.add(compact).on_hover_text(texts::COMPACT_HINT).clicked() {
-            action = ToolbarAction::ToggleCompact;
-        }
-        if let Some(time) = facts.average_response_time {
-            let text = texts::average_response_time(time.as_millis());
-            ui.label(RichText::new(text).monospace().weak());
-        }
-    });
+    action
+}
+
+fn right_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
+    let mut action = ToolbarAction::None;
+    if ui.button(texts::SETTINGS).clicked() {
+        action = ToolbarAction::Settings;
+    }
+    let compact = Button::new(texts::COMPACT).selected(facts.compact);
+    if ui.add(compact).on_hover_text(texts::COMPACT_HINT).clicked() {
+        action = ToolbarAction::ToggleCompact;
+    }
+    if let Some(time) = facts.average_response_time {
+        let text = texts::average_response_time(time.as_millis());
+        ui.label(RichText::new(text).monospace().weak());
+    }
     action
 }
 

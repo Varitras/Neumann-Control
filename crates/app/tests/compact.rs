@@ -103,3 +103,60 @@ fn compact_rows_are_one_line_high_and_follow_each_other() {
     // Neighbouring rows: their faders are about one row apart, not a window height.
     assert!(master - group < 60.0, "group {group}, master {master}");
 }
+
+#[test]
+fn compact_columns_line_up_between_speaker_and_master_rows() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    press_compact_shortcut(&mut harness);
+    let bars: Vec<f32> = harness
+        .query_all_by_label(texts::INPUT_METERS.get())
+        .map(|node| node.rect().left())
+        .collect();
+    assert_eq!(bars.len(), 2, "speaker and master row");
+    assert!((bars[0] - bars[1]).abs() < 0.5, "{bars:?}");
+}
+
+#[test]
+fn mute_stays_reachable_in_the_narrowest_compact_window() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    press_compact_shortcut(&mut harness);
+    harness.set_size(egui::vec2(480.0, 360.0));
+    harness.run_steps(2);
+    let mute = harness.get_by_label(texts::MUTE.get()).rect();
+    let fits = mute.right() <= 480.0;
+    let scrolls = harness
+        .query_all_by_role(Role::ScrollBar)
+        .any(|bar| bar.rect().width() > bar.rect().height());
+    assert!(fits || scrolls, "mute at {mute:?} without a way there");
+}
+
+#[test]
+fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    harness.set_size(egui::vec2(480.0, 360.0));
+    harness.run_steps(2);
+    let toolbar = [
+        texts::SCAN.get(),
+        texts::ADD_ADDRESS.get(),
+        texts::ADD_GROUP.get(),
+        texts::COMPACT.get(),
+        texts::SETTINGS.get(),
+    ];
+    let rects: Vec<egui::Rect> = toolbar
+        .iter()
+        .map(|label| harness.get_by_label(label).rect())
+        .collect();
+    for (index, rect) in rects.iter().enumerate() {
+        assert!(rect.right() <= 480.0, "{} at {rect:?}", toolbar[index]);
+        for other in &rects[index + 1..] {
+            assert!(!rect.intersects(*other), "{rect:?} and {other:?}");
+        }
+    }
+    if let Some(count) = harness.query_by_label(&texts::speaker_count(1)) {
+        let count = count.rect();
+        assert!(
+            rects.iter().all(|rect| !rect.intersects(count)),
+            "{count:?}"
+        );
+    }
+}

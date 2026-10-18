@@ -27,7 +27,8 @@ impl NeumannApp {
         let floor = desk.meter_floor.db();
         let now = ui.input(|input| input.time);
         let mut actions = Vec::new();
-        ScrollArea::vertical()
+        // Both ways: below the rows' width the window scrolls instead of hiding mute.
+        ScrollArea::both()
             .id_salt(COMPACT_SCROLL_ID)
             .auto_shrink([false, false])
             .show(ui, |ui| {
