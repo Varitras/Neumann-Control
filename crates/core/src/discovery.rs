@@ -15,11 +15,13 @@ const SERVICE_TYPE: &str = "_ssc._tcp.local.";
 const MAX_TXT_CHARACTERS: usize = 64;
 const TXT_PRODUCT_KEY: &str = "model";
 const TXT_SERIAL_KEY: &str = "id";
+const SERIAL_SEPARATOR: char = '-';
 const NO_SCOPE: u32 = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Found {
-    /// The announced instance name with the serial masked; speakers put their serial in it.
+    /// The announced instance name without its "-<serial>" suffix; any other occurrence of the
+    /// serial is masked.
     pub name: String,
     pub product: Option<String>,
     pub serial: Option<String>,
@@ -94,6 +96,15 @@ fn add_found(mut found: Vec<Found>, candidate: Found) -> Vec<Found> {
     merge_found(found)
 }
 
+/// Speakers announce "<device name>-<serial>"; the suffix only repeats the TXT serial. A name
+/// that is nothing but the suffix is kept, so the speaker never loses its announced name.
+fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
+    let suffix = format!("{SERIAL_SEPARATOR}{serial}");
+    name.strip_suffix(&suffix)
+        .filter(|rest| !rest.is_empty())
+        .unwrap_or(name)
+}
+
 fn found_from_parts(
     fullname: &str,
     service_type: &str,
@@ -105,7 +116,7 @@ fn found_from_parts(
     let serial = txt_value(serial);
     let mut name = instance_name(fullname, service_type).to_owned();
     if let Some(serial) = &serial {
-        name = name.replace(serial.as_str(), &mask_serial(serial));
+        name = without_serial_suffix(&name, serial).replace(serial.as_str(), &mask_serial(serial));
     }
     Some(Found {
         name: capped(&name),
@@ -249,6 +260,53 @@ mod tests {
             format!("KH 120 II {}", mask_serial("SIM0001234"))
         );
         assert_eq!(found.serial.as_deref(), Some("SIM0001234"));
+    }
+
+    fn announced_name(fullname: &str, serial: Option<&str>) -> String {
+        let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        found_from_parts(
+            fullname,
+            SERVICE_TYPE,
+            45,
+            &[(address, 0)],
+            Some("KH 120 II"),
+            serial,
+        )
+        .unwrap()
+        .name
+    }
+
+    #[test]
+    fn a_trailing_dash_serial_is_stripped_from_the_instance_name() {
+        assert_eq!(
+            announced_name("Desk left-SIM0001234._ssc._tcp.local.", Some("SIM0001234")),
+            "Desk left"
+        );
+    }
+
+    #[test]
+    fn a_serial_elsewhere_in_the_instance_name_is_masked() {
+        assert_eq!(
+            announced_name(
+                "SIM0001234 desk-SIM0001234._ssc._tcp.local.",
+                Some("SIM0001234")
+            ),
+            format!("{} desk", mask_serial("SIM0001234"))
+        );
+    }
+
+    #[test]
+    fn without_a_txt_serial_the_instance_name_stays_unchanged() {
+        assert_eq!(
+            announced_name("Desk left-SIM0001234._ssc._tcp.local.", None),
+            "Desk left-SIM0001234"
+        );
+    }
+
+    #[test]
+    fn an_instance_name_that_is_only_the_suffix_keeps_its_masked_serial() {
+        let name = announced_name("-SIM0001234._ssc._tcp.local.", Some("SIM0001234"));
+        assert_eq!(name, format!("-{}", mask_serial("SIM0001234")));
     }
 
     #[test]
