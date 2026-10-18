@@ -298,7 +298,7 @@ impl Catalog {
             if !seen.insert(entry.path.clone()) {
                 return Err(CatalogError::DuplicatePath(entry.path.clone()));
             }
-            check_entry(entry)?;
+            check_entry(entry, &file.models)?;
         }
         Ok(Catalog {
             entries: file.entry,
@@ -314,7 +314,7 @@ impl Catalog {
     }
 }
 
-fn check_entry(entry: &Entry) -> Result<(), CatalogError> {
+fn check_entry(entry: &Entry, classes: &ModelClasses) -> Result<(), CatalogError> {
     let invalid = |reason| CatalogError::Invalid {
         path: entry.path.clone(),
         reason,
@@ -322,15 +322,23 @@ fn check_entry(entry: &Entry) -> Result<(), CatalogError> {
     if !entry.kind.can_be_written() && !entry.writable_on.is_empty() {
         return Err(invalid("read-only kind lists writable models"));
     }
+    let writable_without_path = entry
+        .writable_on
+        .iter()
+        .any(|product| !classes.contains(entry.class, product));
+    if writable_without_path {
+        return Err(invalid("writable on a model outside its class"));
+    }
     if entry.kind == Kind::Select && entry.options.is_empty() {
         return Err(invalid("select without options"));
     }
     if entry.kind == Kind::Text && entry.max_length.is_none() {
         return Err(invalid("text without max_length"));
     }
-    let reversed = matches!((entry.min, entry.max), (Some(min), Some(max)) if min > max);
-    if reversed {
-        return Err(invalid("min above max"));
+    let empty_range =
+        |max: Option<f64>| matches!((entry.min, max), (Some(min), Some(max)) if min >= max);
+    if empty_range(entry.max) || empty_range(entry.max_subwoofer) {
+        return Err(invalid("min not below max"));
     }
     Ok(())
 }

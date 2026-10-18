@@ -258,3 +258,47 @@ fn delay_must_be_whole_steps() {
         Ok(())
     );
 }
+
+/// The reason `Catalog::parse` gives for the one entry in `entry`, a TOML table body.
+fn invalid_reason(entry: &str) -> Option<&'static str> {
+    let text = format!("[models]\nsubwoofer = [\"KH 750\"]\nlogo = []\n\n[[entry]]\n{entry}");
+    match Catalog::parse(&text) {
+        Err(CatalogError::Invalid { reason, .. }) => Some(reason),
+        Err(other) => panic!("expected Invalid, got {other:?}"),
+        Ok(_) => None,
+    }
+}
+
+const SUBWOOFER_OUTPUT: &str = r#"
+    path = "audio/out1/mute"
+    label = "Stumm"
+    group = "output1"
+    kind = "switch"
+    poll = "fast"
+    class = "subwoofer"
+"#;
+
+const LEVEL: &str = r#"
+    path = "audio/out/level"
+    label = "Pegel"
+    group = "output"
+    kind = "number"
+    poll = "fast"
+    class = "all"
+"#;
+
+#[test]
+fn writable_on_a_product_outside_the_class_is_an_error() {
+    assert!(invalid_reason(&format!("{SUBWOOFER_OUTPUT}writable_on = [\"KH 120 II\"]")).is_some());
+    assert_eq!(
+        invalid_reason(&format!("{SUBWOOFER_OUTPUT}writable_on = [\"KH 750\"]")),
+        None
+    );
+}
+
+#[test]
+fn an_empty_number_range_is_an_error() {
+    assert!(invalid_reason(&format!("{LEVEL}min = 5\nmax = 5")).is_some());
+    assert!(invalid_reason(&format!("{LEVEL}min = 5\nmax = 10\nmax_subwoofer = 5")).is_some());
+    assert_eq!(invalid_reason(&format!("{LEVEL}min = 0\nmax = 120")), None);
+}
