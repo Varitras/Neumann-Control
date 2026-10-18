@@ -21,6 +21,30 @@ pub struct Settings {
     pub manual: Vec<ManualSpeaker>,
     pub window: Option<WindowGeometry>,
     pub desk: DeskSettings,
+    pub groups: Vec<GroupSettings>,
+    /// Speaker identities (`serial:<serial>` or `address:<address>`) in the order of the desk.
+    pub order: Vec<String>,
+}
+
+/// A group of speakers with a group strip; a speaker is in at most one group.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupSettings {
+    pub name: String,
+    /// Index into the app's group colour palette.
+    pub color: u8,
+    /// Speaker identities, as in `Settings::order`.
+    pub members: Vec<String>,
+    /// Settings a change on one member sends to all members.
+    #[serde(default)]
+    pub linked: Vec<Linkable>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Linkable {
+    Level,
+    Mute,
+    Standby,
+    Input,
 }
 
 /// What the settings dialog changes.

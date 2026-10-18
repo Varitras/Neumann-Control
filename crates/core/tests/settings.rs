@@ -1,6 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, DeskSettings, ManualSpeaker, MeterFloor, Settings, ThemeChoice, WindowGeometry,
-    SETTINGS_FILE,
+    load, save, DeskSettings, GroupSettings, Linkable, ManualSpeaker, MeterFloor, Settings,
+    ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -25,6 +25,7 @@ fn sample() -> Settings {
             height: 600.0,
         }),
         desk: DeskSettings::default(),
+        ..Settings::default()
     }
 }
 
@@ -130,6 +131,37 @@ fn desk_settings_round_trip() {
             meter_floor: MeterFloor::Minus60,
             show_response_times: false,
         },
+        ..Settings::default()
+    };
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path), settings);
+}
+
+#[test]
+fn old_settings_file_loads_without_groups() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[],"window":null}"#).unwrap();
+    let loaded = load(&path);
+    assert!(loaded.groups.is_empty());
+    assert!(loaded.order.is_empty());
+}
+
+#[test]
+fn groups_and_order_round_trip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let settings = Settings {
+        groups: vec![GroupSettings {
+            name: "Front".to_owned(),
+            color: 1,
+            members: vec!["serial:SIM0001234".to_owned()],
+            linked: vec![Linkable::Level, Linkable::Mute],
+        }],
+        order: vec![
+            "serial:SIM0001234".to_owned(),
+            "serial:SIM0007500".to_owned(),
+        ],
         ..Settings::default()
     };
     save(&settings, &path).unwrap();
