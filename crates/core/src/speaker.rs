@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::catalog::{Catalog, Entry};
 use crate::mask::{mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
-use crate::schema_walk::{self, LeafReport, WalkError};
+use crate::schema_walk::{LeafReport, Progress, Walk, WalkError};
 use crate::ssc::client::{Client, SscError};
 use crate::ssc::wire::{DeviceError, SscPath};
 use inbox::Inbox;
@@ -192,6 +192,8 @@ struct Session {
     client: Client,
     schedule: Schedule,
     absent: HashSet<SscPath>,
+    /// A running "read everything", advanced whenever no command or poll is due.
+    walk: Option<Walk>,
 }
 
 struct Worker {
@@ -244,8 +246,15 @@ impl Worker {
             client,
             schedule: Schedule::new(&entries, &self.timing, Instant::now()),
             absent: HashSet::new(),
+            walk: None,
         };
-        match self.serve(&mut session, &entries) {
+        let interruption = self.serve(&mut session, &entries);
+        // The app waits for an answer to every "read everything".
+        if session.walk.is_some() {
+            self.outbox
+                .emit(Event::AllValuesFailed(NOT_CONNECTED_MESSAGE.to_owned()));
+        }
+        match interruption {
             Interruption::Stopped => Err(Stopped),
             Interruption::Lost(error) => {
                 self.report_unreachable(&error);
@@ -269,23 +278,31 @@ impl Worker {
 
     /// A pending command, or else what the schedule has due; waits for whichever comes first.
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
-        let wait = session.schedule.time_until_due(Instant::now());
+        let wait = match session.walk {
+            Some(_) => Duration::ZERO,
+            None => session.schedule.time_until_due(Instant::now()),
+        };
         match self.inbox.next(wait) {
             Ok(command) => return self.execute(session, command),
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
         }
         match session.schedule.take_due(Instant::now()) {
-            Due::Meters(paths) => paths.iter().try_for_each(|path| self.read(session, path)),
-            Due::Path(path) => self.read(session, &path),
-            Due::Nothing => Ok(()),
+            Due::Meters(paths) => paths.iter().try_for_each(|path| self.read(session, path))?,
+            Due::Path(path) => self.read(session, &path)?,
+            Due::Nothing => {}
         }
+        // One step per round, so neither the walk nor the meters can starve the other.
+        self.advance_walk(session)
     }
 
     fn execute(&self, session: &mut Session, command: Command) -> Result<(), Interruption> {
         match command {
             Command::Set { path, value } => self.write(session, path, value),
-            Command::ReadAll => self.read_all(session),
+            Command::ReadAll => {
+                session.walk.get_or_insert_with(Walk::new);
+                Ok(())
+            }
             Command::Stop => Err(Interruption::Stopped),
         }
     }
@@ -360,10 +377,18 @@ impl Worker {
         }
     }
 
-    fn read_all(&self, session: &mut Session) -> Result<(), Interruption> {
+    fn advance_walk(&self, session: &mut Session) -> Result<(), Interruption> {
+        let Some(walk) = session.walk.as_mut() else {
+            return Ok(());
+        };
         let should_stop = || self.inbox.stop_requested();
-        match schema_walk::read_all(&mut session.client, &should_stop) {
-            Ok(reports) => {
+        let outcome = walk.advance(&mut session.client, &should_stop);
+        if !matches!(outcome, Ok(Progress::Running)) {
+            session.walk = None;
+        }
+        match outcome {
+            Ok(Progress::Running) => Ok(()),
+            Ok(Progress::Done(reports)) => {
                 self.outbox.emit(Event::AllValues(reports));
                 Ok(())
             }

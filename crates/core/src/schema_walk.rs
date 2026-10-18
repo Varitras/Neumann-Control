@@ -50,22 +50,66 @@ pub fn read_all(
     client: &mut Client,
     should_stop: &dyn Fn() -> bool,
 ) -> Result<Vec<LeafReport>, WalkError> {
-    let leaves = leaf_paths(client, should_stop)?;
-    let mut reports = Vec::with_capacity(leaves.len());
-    for path in leaves {
-        reports.push(report(client, path, should_stop)?);
+    let mut walk = Walk::new();
+    loop {
+        if let Progress::Done(reports) = walk.advance(client, should_stop)? {
+            return Ok(reports);
+        }
     }
-    Ok(reports)
 }
 
-fn leaf_paths(
-    client: &mut Client,
-    should_stop: &dyn Fn() -> bool,
-) -> Result<Vec<SscPath>, WalkError> {
-    let mut leaves = Vec::new();
-    let mut containers: VecDeque<Option<SscPath>> = VecDeque::from([None]);
-    let mut visited = 0usize;
-    while let Some(container) = containers.pop_front() {
+pub enum Progress {
+    Running,
+    Done(Vec<LeafReport>),
+}
+
+/// The same walk taken one step at a time (one container, or one leaf with its limits), so
+/// the caller can answer commands and poll meters in between.
+pub struct Walk {
+    containers: VecDeque<Option<SscPath>>,
+    leaves: VecDeque<SscPath>,
+    reports: Vec<LeafReport>,
+    visited: usize,
+}
+
+impl Default for Walk {
+    fn default() -> Walk {
+        Walk::new()
+    }
+}
+
+impl Walk {
+    pub fn new() -> Walk {
+        Walk {
+            containers: VecDeque::from([None]),
+            leaves: VecDeque::new(),
+            reports: Vec::new(),
+            visited: 0,
+        }
+    }
+
+    pub fn advance(
+        &mut self,
+        client: &mut Client,
+        should_stop: &dyn Fn() -> bool,
+    ) -> Result<Progress, WalkError> {
+        if let Some(container) = self.containers.pop_front() {
+            self.expand(client, container, should_stop)?;
+            return Ok(Progress::Running);
+        }
+        if let Some(path) = self.leaves.pop_front() {
+            self.reports.push(report(client, path, should_stop)?);
+            return Ok(Progress::Running);
+        }
+        Ok(Progress::Done(std::mem::take(&mut self.reports)))
+    }
+
+    fn expand(
+        &mut self,
+        client: &mut Client,
+        container: Option<SscPath>,
+        should_stop: &dyn Fn() -> bool,
+    ) -> Result<(), WalkError> {
         if should_stop() {
             return Err(WalkError::Stopped);
         }
@@ -73,8 +117,8 @@ fn leaf_paths(
             if container.is_none() && name == PROTOCOL_CONTAINER {
                 continue;
             }
-            visited += 1;
-            if visited > MAX_SCHEMA_NODES {
+            self.visited += 1;
+            if self.visited > MAX_SCHEMA_NODES {
                 return Err(WalkError::Refused(format!(
                     "schema has more than {MAX_SCHEMA_NODES} nodes"
                 )));
@@ -82,17 +126,17 @@ fn leaf_paths(
             let path = child_path(container.as_ref(), &name)?;
             let depth = path.segments().len();
             match kind {
-                NodeKind::Leaf => leaves.push(path),
+                NodeKind::Leaf => self.leaves.push_back(path),
                 NodeKind::Container if depth >= MAX_SCHEMA_DEPTH => {
                     return Err(WalkError::Refused(format!(
                         "schema is deeper than {MAX_SCHEMA_DEPTH} levels"
                     )));
                 }
-                NodeKind::Container => containers.push_back(Some(path)),
+                NodeKind::Container => self.containers.push_back(Some(path)),
             }
         }
+        Ok(())
     }
-    Ok(leaves)
 }
 
 fn report(

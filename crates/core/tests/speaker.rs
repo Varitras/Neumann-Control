@@ -582,6 +582,83 @@ fn read_all_command_reports_all_values() {
     assert_eq!(reports.len(), KH_120_II_LEAVES);
 }
 
+/// Long enough per request that the KH 750 walk (about 260 requests) takes over a second.
+const WALK_REPLY_DELAY: Duration = Duration::from_millis(5);
+
+#[test]
+fn set_during_read_all_is_written_before_the_walk_ends() {
+    let simulator = Simulator::start(SimModel::Kh750);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+    simulator.set_reply_delay(WALK_REPLY_DELAY);
+
+    handle.send(Command::ReadAll);
+    wait_for_requests(&simulator, &path("audio/out/level"), 2, EVENT_DEADLINE);
+    let level = path("audio/out/level");
+    handle.send(Command::Set {
+        path: level.clone(),
+        value: json!(90.0),
+    });
+    let seen = collect_until(&events, RECOVERY_DEADLINE, |event| {
+        matches!(event, Event::AllValues(_) | Event::AllValuesFailed(_))
+    });
+    let written = seen.iter().position(|event| {
+        *event
+            == Event::Value {
+                path: level.clone(),
+                value: json!(90.0),
+            }
+    });
+    assert!(written.is_some(), "the set waited for the walk");
+    assert!(matches!(seen.last(), Some(Event::AllValues(_))));
+}
+
+#[test]
+fn meters_keep_running_during_read_all() {
+    let simulator = Simulator::start(SimModel::Kh750);
+    let timing = Timing {
+        meter: Duration::from_millis(20),
+        ..quiet_timing()
+    };
+    let (handle, events) = start_worker(simulator.address(), None, timing);
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+    simulator.set_reply_delay(WALK_REPLY_DELAY);
+
+    handle.send(Command::ReadAll);
+    let meter = path("m/in/level");
+    let seen = collect_until(&events, RECOVERY_DEADLINE, |event| {
+        matches!(event, Event::AllValues(_) | Event::AllValuesFailed(_))
+    });
+    let meter_values = seen
+        .iter()
+        .filter(|event| is_value_of(event, &meter))
+        .count();
+    assert!(
+        meter_values >= 5,
+        "only {meter_values} meter values during the walk"
+    );
+}
+
+#[test]
+fn connection_loss_during_read_all_is_answered() {
+    let simulator = Simulator::start(SimModel::Kh750);
+    let timing = Timing {
+        meter: Duration::from_millis(20),
+        ..quiet_timing()
+    };
+    let (handle, events) = start_worker(simulator.address(), None, timing);
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+    simulator.set_reply_delay(WALK_REPLY_DELAY);
+
+    handle.send(Command::ReadAll);
+    wait_for_requests(&simulator, &path("audio/out/level"), 2, EVENT_DEADLINE);
+    simulator.inject(Fault::CloseConnection);
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        matches!(event, Event::AllValues(_) | Event::AllValuesFailed(_))
+    });
+    assert!(matches!(seen.last(), Some(Event::AllValuesFailed(_))));
+}
+
 #[test]
 fn drop_stops_the_thread() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
