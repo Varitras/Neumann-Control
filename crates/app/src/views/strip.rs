@@ -3,8 +3,8 @@
 //! last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, RichText, Sense, Stroke,
-    Ui, Vec2, WidgetInfo, WidgetType,
+    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, Rect, RichText, Sense,
+    Stroke, Ui, Vec2, WidgetInfo, WidgetType,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::DeskSettings;
@@ -32,6 +32,7 @@ const LED_SPACING: f32 = 6.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
 const METER_SPACING: f32 = 3.0;
+const CAPTION_HEIGHT: f32 = 16.0;
 const DELAY_PATH: &str = "audio/out/delay";
 const LEVEL_ENTRY_ID: &str = "level_entry";
 const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
@@ -244,9 +245,20 @@ fn meter_group(ui: &mut Ui, group: &MeterGroup, floor: f64, tokens: &Tokens) {
             let meters = ui
                 .horizontal(|ui| meters::show(ui, &group.meters, FADER_HEIGHT, floor, tokens))
                 .inner;
-            let caption = Label::new(RichText::new(group.caption).small().weak());
-            let cell = vec2(meters.width(), 0.0);
-            ui.allocate_ui_with_layout(cell, Layout::top_down(Align::Center), |ui| ui.add(caption));
+            // Centred on the meters but never wrapped: "Analog" is wider than two meters.
+            let caption = RichText::new(group.caption).small().weak();
+            let width = ui
+                .painter()
+                .layout_no_wrap(caption.text().to_owned(), small_font(ui), tokens.text_dim)
+                .size()
+                .x;
+            let size = vec2(meters.width(), CAPTION_HEIGHT);
+            let (reserved, _) = ui.allocate_exact_size(size, Sense::hover());
+            let row = Rect::from_center_size(
+                egui::pos2(meters.center().x, reserved.center().y),
+                vec2(width.max(meters.width()), CAPTION_HEIGHT),
+            );
+            ui.put(row, Label::new(caption).extend());
         });
     });
 }
@@ -301,4 +313,8 @@ fn message(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     if let Some(message) = &speaker.message {
         ui.add(Label::new(RichText::new(message).small().color(tokens.danger)).wrap());
     }
+}
+
+fn small_font(ui: &Ui) -> egui::FontId {
+    egui::TextStyle::Small.resolve(ui.style())
 }

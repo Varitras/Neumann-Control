@@ -818,3 +818,15 @@ fn played_input_channels_are_marked_with_the_source() {
     kh750.get_by_label(texts::METER_INPUT_SHORT);
     assert_eq!(kh750.query_all_by_label(texts::PLAYED_CHANNEL).count(), 0);
 }
+
+#[test]
+fn input_source_caption_stays_on_one_line() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh120Ii);
+    let caption = harness.get_by_label(texts::SOURCE_ANALOG).rect();
+    assert!(caption.width() > caption.height(), "{caption:?}");
+    let level = harness.get_by_label(&readout(100.0)).rect();
+    assert!(
+        caption.bottom() <= level.top(),
+        "caption {caption:?}, level {level:?}"
+    );
+}
