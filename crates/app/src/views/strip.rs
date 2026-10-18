@@ -21,13 +21,12 @@ use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent, Switch};
 
-pub const STRIP_WIDTH: f32 = 112.0;
+pub const STRIP_WIDTH: f32 = 124.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
 const BORDER_WIDTH: f32 = 1.0;
 const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
-const KNOB_DIAMETER: f32 = 26.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
 const DELAY_PATH: &str = "audio/out/delay";
@@ -132,7 +131,15 @@ fn knobs(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog, commands: &
             let Some(entry) = entry(path) else {
                 continue;
             };
-            let sent = knob::for_entry(column, speaker, catalog, entry, label, true, KNOB_DIAMETER);
+            let sent = knob::for_entry(
+                column,
+                speaker,
+                catalog,
+                entry,
+                label,
+                true,
+                knob::KNOB_DIAMETER,
+            );
             commands.extend(sent);
         }
     });

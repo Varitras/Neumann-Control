@@ -48,6 +48,11 @@ impl GestureState {
         self.pending = Some(target.clamp(*range.start(), *range.end()));
     }
 
+    /// Wheel steps wait to be sent.
+    pub fn wheel_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+
     pub fn due(&mut self, now: f64) -> Option<f64> {
         let idle = now - self.last_step >= WHEEL_IDLE_SECONDS - DUE_SLACK_SECONDS;
         if self.pending.is_some() && idle {

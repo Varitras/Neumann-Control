@@ -577,3 +577,25 @@ fn toolbar_shows_average_response_time_until_turned_off() {
     harness.run_steps(2);
     assert!(harness.query_by_label_contains("Ø ").is_none());
 }
+
+#[test]
+fn knob_value_is_shown_beside_it_while_dragging() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness
+        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY)
+        .rect()
+        .center();
+    let unit = "1/48 kHz";
+    assert_eq!(harness.query_all_by_label_contains(unit).count(), 1);
+    harness.drag_at(start);
+    for frame in 1..=4 {
+        harness.hover_at(start - egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    // Under the knob and beside it.
+    assert_eq!(harness.query_all_by_label_contains(unit).count(), 2);
+    harness.key_press(egui::Key::Escape);
+    harness.drop_at(start);
+    harness.run_steps(2);
+    assert_eq!(harness.query_all_by_label_contains(unit).count(), 1);
+}

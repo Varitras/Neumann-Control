@@ -4,8 +4,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, Align2, Area, Event, Frame, Key, MouseWheelUnit, Order, Response, Slider, SliderClamping,
-    Ui, Vec2, WidgetInfo,
+    self, Align2, Area, Event, Frame, Id, Key, MouseWheelUnit, Order, Rect, Response, Slider,
+    SliderClamping, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
@@ -79,7 +79,15 @@ pub fn show(
         }
     }
     if response.dragged() && !aborted {
-        handle_label(ui, &response, &texts::readout(value, unit));
+        let pointer = ui.input(|input| input.pointer.interact_pos());
+        let y = pointer.map_or(response.rect.center().y, |position| position.y);
+        value_beside(
+            ui,
+            response.id,
+            response.rect,
+            y,
+            &texts::readout(value, unit),
+        );
     }
     if let Some(due) = speaker.fader.due(now) {
         commands.extend(speaker.request(Intent::Level(due), catalog, now));
@@ -91,11 +99,11 @@ pub fn show(
     value
 }
 
-fn handle_label(ui: &Ui, response: &Response, text: &str) {
-    let pointer = ui.input(|input| input.pointer.interact_pos());
-    let y = pointer.map_or(response.rect.center().y, |position| position.y);
-    let anchor = egui::pos2(response.rect.right() + HANDLE_LABEL_GAP, y);
-    Area::new(response.id.with(HANDLE_LABEL_ID))
+/// A value floating right of `rect` at height `y` while a control is being moved, where the
+/// eye is; fader and knob both use it.
+pub(super) fn value_beside(ui: &Ui, id: Id, rect: Rect, y: f32, text: &str) {
+    let anchor = egui::pos2(rect.right() + HANDLE_LABEL_GAP, y);
+    Area::new(id.with(HANDLE_LABEL_ID))
         .order(Order::Tooltip)
         .fixed_pos(anchor)
         .pivot(Align2::LEFT_CENTER)

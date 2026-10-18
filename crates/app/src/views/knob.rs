@@ -1,40 +1,47 @@
-//! A rotary knob for a catalog number: vertical drag, mouse wheel, double-click for exact entry.
-//! It writes once at the end of a gesture and shows a device value outside its range as is.
+//! A rotary knob for a catalog number: drag (up or right is more), mouse wheel, double-click
+//! for exact entry. While it moves, the value floats beside it. It writes once at the end of a
+//! gesture and shows a device value outside its range as is.
 
 use std::f32::consts::PI;
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Align, Id, Key, Label, Layout, RichText, Sense, Shape, Stroke, TextEdit, Ui,
-    WidgetInfo,
+    pos2, vec2, Align, CursorIcon, Id, Key, Label, Layout, RichText, Sense, Shape, Stroke,
+    TextEdit, Ui, WidgetInfo,
 };
 
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::fader::{drag_aborted, wheel_notches};
+use super::fader::{drag_aborted, value_beside, wheel_notches};
 use crate::display::shown_value;
 use crate::gesture::GestureState;
 use crate::state::SpeakerState;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
-/// Points of vertical drag for the whole range; Shift makes it this many times finer.
-const FULL_RANGE_DRAG_POINTS: f64 = 200.0;
+/// Points of drag for the whole range; Shift makes it this many times finer.
+const FULL_RANGE_DRAG_POINTS: f64 = 300.0;
 const FINE_DIVISOR: f64 = 10.0;
 /// Wheel notches for the whole range, so wide ranges (delay in samples) stay usable.
 const FULL_RANGE_NOTCHES: f64 = 100.0;
 /// The ring leaves a gap at the bottom, from -135° to +135° around the top.
 const SWEEP_RADIANS: f32 = 1.5 * PI;
-const RING_WIDTH: f32 = 2.0;
+const ARC_WIDTH: f32 = 3.0;
+/// Space between the value arc and the knob's body.
+const ARC_GAP: f32 = 2.0;
+const BODY_BORDER_WIDTH: f32 = 1.0;
 const INDICATOR_WIDTH: f32 = 2.0;
+/// The pointer line runs from this fraction of the body radius outwards.
+const INDICATOR_START: f32 = 0.3;
 const ARC_SEGMENTS: usize = 32;
 const DRAG_VALUE_ID: &str = "knob_drag_value";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
 /// Room for the value line under the knob.
-const CELL_MIN_WIDTH: f32 = 56.0;
+const CELL_MIN_WIDTH: f32 = 52.0;
+pub const KNOB_DIAMETER: f32 = 34.0;
 /// Grid for entries without a catalog step.
 const UNSTEPPED_DIVISIONS: f64 = 1000.0;
 
@@ -125,7 +132,9 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                     .data(|data| data.get_temp::<f64>(drag_id))
                     .unwrap_or(value);
                 let fine = ui.input(|input| input.modifiers.shift);
-                let moved = drag_change(&knob.range, -f64::from(response.drag_delta().y), fine);
+                let delta = response.drag_delta();
+                let points = f64::from(delta.x - delta.y);
+                let moved = drag_change(&knob.range, points, fine);
                 value = (held + moved).clamp(*knob.range.start(), *knob.range.end());
                 ui.data_mut(|data| data.insert_temp(drag_id, value));
             }
@@ -152,6 +161,13 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             if let Some(deadline) = state.deadline() {
                 ui.ctx()
                     .request_repaint_after_secs((deadline - now).max(0.0) as f32);
+            }
+            if enabled && response.hovered() {
+                ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+            }
+            let moving = (response.dragged() && !aborted) || state.wheel_pending();
+            if moving {
+                value_beside(ui, id, rect, rect.center().y, &(knob.format)(value));
             }
             paint(ui, rect, knob, value, enabled, &tokens);
             let label = knob.label.to_owned();
@@ -243,30 +259,45 @@ fn paint(
 ) {
     let painter = ui.painter();
     let center = rect.center();
-    let radius = knob.diameter / 2.0 - RING_WIDTH;
+    let arc_radius = knob.diameter / 2.0 - ARC_WIDTH / 2.0;
+    let body_radius = arc_radius - ARC_WIDTH / 2.0 - ARC_GAP;
     let span = knob.range.end() - knob.range.start();
     let position = ((value - knob.range.start()) / span).clamp(0.0, 1.0) as f32;
     let start = -SWEEP_RADIANS / 2.0;
     let angle = start + position * SWEEP_RADIANS;
-    let point = |angle: f32| center + radius * vec2(angle.sin(), -angle.cos());
-    let track: Vec<_> = (0..=ARC_SEGMENTS)
-        .map(|segment| point(start + SWEEP_RADIANS * segment as f32 / ARC_SEGMENTS as f32))
-        .collect();
+    let on_circle = |radius: f32, angle: f32| center + radius * vec2(angle.sin(), -angle.cos());
+    let arc = |from: f32, to: f32| -> Vec<_> {
+        (0..=ARC_SEGMENTS)
+            .map(|segment| {
+                on_circle(
+                    arc_radius,
+                    from + (to - from) * segment as f32 / ARC_SEGMENTS as f32,
+                )
+            })
+            .collect()
+    };
+    let end = start + SWEEP_RADIANS;
     painter.add(Shape::line(
-        track,
-        Stroke::new(RING_WIDTH, tokens.meter_track),
+        arc(start, end),
+        Stroke::new(ARC_WIDTH, tokens.meter_track),
     ));
     let color = if enabled {
         tokens.accent
     } else {
         tokens.text_dim
     };
-    let filled: Vec<_> = (0..=ARC_SEGMENTS)
-        .map(|segment| point(start + (angle - start) * segment as f32 / ARC_SEGMENTS as f32))
-        .collect();
-    painter.add(Shape::line(filled, Stroke::new(RING_WIDTH, color)));
-    let tip = point(angle);
-    let inner = center + (tip - center) * 0.35;
+    painter.add(Shape::line(
+        arc(start, angle),
+        Stroke::new(ARC_WIDTH, color),
+    ));
+    painter.circle(
+        center,
+        body_radius,
+        tokens.field,
+        Stroke::new(BODY_BORDER_WIDTH, tokens.border),
+    );
+    let tip = on_circle(body_radius, angle);
+    let inner = on_circle(body_radius * INDICATOR_START, angle);
     painter.line_segment(
         [pos2(inner.x, inner.y), tip],
         Stroke::new(INDICATOR_WIDTH, tokens.text),
@@ -285,7 +316,7 @@ mod tests {
             drag_change(&DELAY_RANGE, FULL_RANGE_DRAG_POINTS, false),
             5760.0
         );
-        assert_eq!(drag_change(&DELAY_RANGE, 10.0, true), 28.8);
+        assert_eq!(drag_change(&DELAY_RANGE, 10.0, true), 19.2);
     }
 
     #[test]

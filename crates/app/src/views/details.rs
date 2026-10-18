@@ -14,7 +14,6 @@ use crate::paths;
 use crate::state::{AllValuesState, SpeakerState, Status};
 use crate::texts;
 
-const KNOB_DIAMETER: f32 = 30.0;
 const COLUMNS: usize = 2;
 const GROUP_GAP: f32 = 8.0;
 
@@ -117,8 +116,15 @@ fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {
                 let catalog = fields.catalog;
                 let label = texts::knob_label(&entry.label);
                 let speaker = &mut *fields.speaker;
-                let sent =
-                    knob::for_entry(ui, speaker, catalog, entry, &label, false, KNOB_DIAMETER);
+                let sent = knob::for_entry(
+                    ui,
+                    speaker,
+                    catalog,
+                    entry,
+                    &label,
+                    false,
+                    knob::KNOB_DIAMETER,
+                );
                 fields.commands.extend(sent);
                 fields.number(ui, entry);
             });
