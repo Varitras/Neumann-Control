@@ -91,7 +91,7 @@ impl Fields<'_> {
         }
         let response = ui
             .horizontal_wrapped(|ui| {
-                let label = ui.label(&entry.label);
+                let label = ui.label(entry.label(texts::language()));
                 ui.add_enabled(enabled, drag).labelled_by(label.id)
             })
             .inner;
@@ -131,7 +131,7 @@ impl Fields<'_> {
             .and_then(Value::as_bool);
         let enabled = self.enabled(entry, current.is_some());
         let mut checked = current.unwrap_or(false);
-        let checkbox = Checkbox::new(&mut checked, &entry.label);
+        let checkbox = Checkbox::new(&mut checked, entry.label(texts::language()));
         if ui.add_enabled(enabled, checkbox).clicked() {
             let path = entry.path.clone();
             let value = Value::Bool(checked);
@@ -149,7 +149,7 @@ impl Fields<'_> {
         let enabled = self.enabled(entry, current.is_some());
         let current = current.unwrap_or_default();
         let mut chosen = None;
-        let label = ui.label(&entry.label);
+        let label = ui.label(entry.label(texts::language()));
         ui.add_enabled_ui(enabled, |ui| {
             ComboBox::from_id_salt(entry.path.to_string())
                 .selected_text(&current)
@@ -194,7 +194,7 @@ impl Fields<'_> {
         if !draft.edited && !focused {
             draft.text = reported.as_deref().map(capped).unwrap_or_default();
         }
-        let label = ui.label(&entry.label);
+        let label = ui.label(entry.label(texts::language()));
         let field = TextEdit::singleline(&mut draft.text)
             .id(field_id)
             .desired_width(ui.available_width());

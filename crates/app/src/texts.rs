@@ -1,126 +1,232 @@
-//! The app's German UI strings. Not here: group titles (`catalog::Group::title`), entry labels
-//! and units (`paths.toml`), and the separators that format device values (`all_values`,
-//! `display`).
+//! The app's UI strings in German and English, side by side so that no text lacks a translation.
+//! Not here: group titles (`catalog::Group::title`), entry labels and units (`paths.toml`), and
+//! the separators that format device values (`all_values`, `display`). Log texts stay English
+//! and never come from here.
 
+use std::cell::Cell;
+use std::fmt;
+
+use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
-use neumann_control_core::settings::Linkable;
+use neumann_control_core::settings::{Language, Linkable};
 
+use crate::state::Message;
 use crate::writes::Refusal;
 
+thread_local! {
+    /// UI texts are only read on the UI thread; per thread rather than per process so that UI
+    /// tests running in parallel each keep their own language.
+    static LANGUAGE: Cell<Language> = const { Cell::new(Language::German) };
+}
+
+/// The language every text of this thread is read in from now on.
+pub fn set_language(language: Language) {
+    LANGUAGE.with(|current| current.set(language));
+}
+
+pub fn language() -> Language {
+    LANGUAGE.with(Cell::get)
+}
+
+fn pick<T>(german: T, english: T) -> T {
+    match language() {
+        Language::German => german,
+        Language::English => english,
+    }
+}
+
+/// One UI text in both languages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Text {
+    german: &'static str,
+    english: &'static str,
+}
+
+impl Text {
+    pub const fn new(german: &'static str, english: &'static str) -> Text {
+        Text { german, english }
+    }
+
+    /// The text in the current language.
+    pub fn get(self) -> &'static str {
+        pick(self.german, self.english)
+    }
+}
+
+impl fmt::Display for Text {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.get())
+    }
+}
+
+impl From<Text> for WidgetText {
+    fn from(text: Text) -> WidgetText {
+        text.get().into()
+    }
+}
+
+impl From<Text> for RichText {
+    fn from(text: Text) -> RichText {
+        RichText::new(text.get())
+    }
+}
+
+impl From<Text> for String {
+    fn from(text: Text) -> String {
+        text.get().to_owned()
+    }
+}
+
 pub const WINDOW_TITLE: &str = "Neumann Control";
-pub const SCAN: &str = "Suchen";
-pub const ADD_ADDRESS: &str = "+ Adresse";
-pub const SCAN_FAILED: &str = "Suche fehlgeschlagen";
-pub const SETTINGS_NOT_SAVED: &str = "Einstellungen konnten nicht gespeichert werden";
-pub const NO_SPEAKERS: &str =
-    "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.";
+pub const SCAN: Text = Text::new("Suchen", "Scan");
+pub const ADD_ADDRESS: Text = Text::new("+ Adresse", "+ Address");
+pub const SCAN_FAILED: Text = Text::new("Suche fehlgeschlagen", "Scan failed");
+pub const SETTINGS_NOT_SAVED: Text = Text::new(
+    "Einstellungen konnten nicht gespeichert werden",
+    "Settings could not be saved",
+);
+pub const NO_SPEAKERS: Text = Text::new(
+    "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.",
+    "No speakers. “Scan” finds them on the network, “+ Address” adds one by hand.",
+);
 
-pub const MUTE: &str = "Stumm";
-pub const IDENTIFY: &str = "Ident.";
-pub const CONNECTING: &str = "verbinde …";
-pub const CONNECTED: &str = "verbunden";
-pub const LEVEL: &str = "Pegel";
-pub const CLIP: &str = "Übersteuert";
-pub const LED_CONNECTION: &str = "Verbindung";
-pub const LED_CLIP: &str = "Übersteuerung";
-pub const LED_WARNING: &str = "Warnung des Geräts";
-pub const LED_LOCAL: &str = "LOCAL: Schalter hinten, Schreiben gesperrt";
-pub const KNOB_DELAY: &str = "Delay";
-pub const KNOB_STANDBY: &str = "Standby";
-pub const CLOSE: &str = "Schließen";
-pub const ADD_GROUP: &str = "+ Gruppe";
-pub const MOVE_STRIP: &str = "Verschieben";
-pub const GROUP_DIALOG_TITLE: &str = "Gruppe";
-pub const GROUP_NAME: &str = "Name";
-pub const DELETE_GROUP: &str = "Gruppe löschen";
-pub const NEW_GROUP_NAME: &str = "Gruppe";
-pub const GROUP: &str = "Gruppe";
-pub const NO_GROUP: &str = "keine";
-pub const LINKED: &str = "Gekoppelt";
-pub const LINK_LEVEL: &str = "Pegel";
-pub const LINK_MUTE: &str = "Stumm";
-pub const LINK_STANDBY: &str = "Standby";
-pub const LINK_INPUT: &str = "Eingang";
-pub const COPY_TO_GROUP: &str = "Für Gruppe übernehmen";
-pub const MASTER: &str = "Master";
-pub const MASTER_LEVEL: &str = "Master-Pegel";
-pub const MUTE_ALL: &str = "Alle stumm";
-pub const CONTROL_HINT: &str = "Shift: fein · Doppelklick: Wert eingeben";
-pub const PANEL_TITLE: &str = "Lautsprecher";
-pub const SETTINGS: &str = "Einstellungen";
-pub const SETTINGS_TITLE: &str = "Einstellungen";
-pub const THEME: &str = "Darstellung";
-pub const THEME_SYSTEM: &str = "wie Windows";
-pub const THEME_LIGHT: &str = "Hell";
-pub const THEME_DARK: &str = "Dunkel";
-pub const LANGUAGE: &str = "Sprache";
+pub const MUTE: Text = Text::new("Stumm", "Mute");
+pub const IDENTIFY: Text = Text::new("Ident.", "Ident.");
+pub const CONNECTING: Text = Text::new("verbinde …", "connecting …");
+pub const CONNECTED: Text = Text::new("verbunden", "connected");
+pub const LEVEL: Text = Text::new("Pegel", "Level");
+pub const CLIP: Text = Text::new("Übersteuert", "Clipping");
+pub const LED_CONNECTION: Text = Text::new("Verbindung", "Connection");
+pub const LED_CLIP: Text = Text::new("Übersteuerung", "Clipping");
+pub const LED_WARNING: Text = Text::new("Warnung des Geräts", "Device warning");
+pub const LED_LOCAL: Text = Text::new(
+    "LOCAL: Schalter hinten, Schreiben gesperrt",
+    "LOCAL: rear switch, writing locked",
+);
+pub const KNOB_DELAY: Text = Text::new("Delay", "Delay");
+pub const KNOB_STANDBY: Text = Text::new("Standby", "Standby");
+pub const CLOSE: Text = Text::new("Schließen", "Close");
+pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
+pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
+pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
+pub const GROUP_NAME: Text = Text::new("Name", "Name");
+pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
+pub const NEW_GROUP_NAME: Text = Text::new("Gruppe", "Group");
+pub const GROUP: Text = Text::new("Gruppe", "Group");
+pub const NO_GROUP: Text = Text::new("keine", "none");
+pub const LINKED: Text = Text::new("Gekoppelt", "Linked");
+pub const LINK_LEVEL: Text = Text::new("Pegel", "Level");
+pub const LINK_MUTE: Text = Text::new("Stumm", "Mute");
+pub const LINK_STANDBY: Text = Text::new("Standby", "Standby");
+pub const LINK_INPUT: Text = Text::new("Eingang", "Input");
+pub const COPY_TO_GROUP: Text = Text::new("Für Gruppe übernehmen", "Apply to group");
+pub const MASTER: Text = Text::new("Master", "Master");
+pub const MASTER_LEVEL: Text = Text::new("Master-Pegel", "Master level");
+pub const MUTE_ALL: Text = Text::new("Alle stumm", "Mute all");
+pub const CONTROL_HINT: Text = Text::new(
+    "Shift: fein · Doppelklick: Wert eingeben",
+    "Shift: fine · Double-click: type a value",
+);
+pub const PANEL_TITLE: Text = Text::new("Lautsprecher", "Speaker");
+pub const SETTINGS: Text = Text::new("Einstellungen", "Settings");
+pub const SETTINGS_TITLE: Text = Text::new("Einstellungen", "Settings");
+pub const THEME: Text = Text::new("Darstellung", "Appearance");
+pub const THEME_SYSTEM: Text = Text::new("wie Windows", "like Windows");
+pub const THEME_LIGHT: Text = Text::new("Hell", "Light");
+pub const THEME_DARK: Text = Text::new("Dunkel", "Dark");
+pub const LANGUAGE_LABEL: Text = Text::new("Sprache", "Language");
+/// Each language is named in itself, so it can be found from either.
 pub const LANGUAGE_GERMAN: &str = "Deutsch";
-pub const LANGUAGE_ENGLISH: &str = "English (folgt)";
-pub const METER_RANGE: &str = "Pegelanzeige ab";
-pub const SHOW_RESPONSE_TIMES: &str = "Antwortzeiten anzeigen";
-pub const INPUT_METERS: &str = "Eingangspegel";
-pub const OUTPUT_METERS: &str = "Ausgangspegel";
-pub const METER_INPUT_SHORT: &str = "Ein";
-pub const METER_OUTPUT_SHORT: &str = "Aus";
-pub const SOURCE_ANALOG: &str = "Analog";
-pub const SOURCE_AES3_LEFT: &str = "AES3 L";
-pub const SOURCE_AES3_RIGHT: &str = "AES3 R";
-pub const SOURCE_MONO: &str = "Mono (A+B)";
-pub const PLAYED_CHANNEL: &str = "Wird wiedergegeben (Annahme: A = links, B = rechts)";
+pub const LANGUAGE_ENGLISH: &str = "English";
+pub const METER_RANGE: Text = Text::new("Pegelanzeige ab", "Meters from");
+pub const SHOW_RESPONSE_TIMES: Text = Text::new("Antwortzeiten anzeigen", "Show response times");
+pub const INPUT_METERS: Text = Text::new("Eingangspegel", "Input level");
+pub const OUTPUT_METERS: Text = Text::new("Ausgangspegel", "Output level");
+pub const METER_INPUT_SHORT: Text = Text::new("Ein", "In");
+pub const METER_OUTPUT_SHORT: Text = Text::new("Aus", "Out");
+pub const SOURCE_ANALOG: Text = Text::new("Analog", "Analog");
+pub const SOURCE_AES3_LEFT: Text = Text::new("AES3 L", "AES3 L");
+pub const SOURCE_AES3_RIGHT: Text = Text::new("AES3 R", "AES3 R");
+pub const SOURCE_MONO: Text = Text::new("Mono (A+B)", "Mono (A+B)");
+pub const PLAYED_CHANNEL: Text = Text::new(
+    "Wird wiedergegeben (Annahme: A = links, B = rechts)",
+    "Played (assumed: A = left, B = right)",
+);
 
-pub const ALL_VALUES: &str = "Alle Werte…";
-pub const APPLY: &str = "Übernehmen";
-pub const ON: &str = "an";
-pub const OFF: &str = "aus";
+pub const ALL_VALUES: Text = Text::new("Alle Werte…", "All values…");
+pub const APPLY: Text = Text::new("Übernehmen", "Apply");
+pub const ON: Text = Text::new("an", "on");
+pub const OFF: Text = Text::new("aus", "off");
 pub const CELSIUS: &str = "°C";
 pub const MILLISECONDS: &str = "ms";
 
-pub const ALL_VALUES_FILTER_LABEL: &str = "Pfad enthält";
-pub const ALL_VALUES_RELOAD: &str = "Neu einlesen";
-pub const ALL_VALUES_LOADING: &str = "Lese alle Werte …";
-pub const ALL_VALUES_FAILED: &str =
-    "Die Werte konnten nicht gelesen werden. Das Gerät ist nicht erreichbar oder hat die Abfrage abgelehnt.";
-pub const ALL_VALUES_PATH_COLUMN: &str = "Pfad";
-pub const ALL_VALUES_VALUE_COLUMN: &str = "Wert";
-pub const ALL_VALUES_RANGE_COLUMN: &str = "Einheit / Bereich";
-pub const ALL_VALUES_KNOWN_COLUMN: &str = "Katalog";
-pub const ALL_VALUES_KNOWN: &str = "bekannt";
-pub const ALL_VALUES_COPY: &str = "Kopieren";
+pub const ALL_VALUES_FILTER_LABEL: Text = Text::new("Pfad enthält", "Path contains");
+pub const ALL_VALUES_RELOAD: Text = Text::new("Neu einlesen", "Read again");
+pub const ALL_VALUES_LOADING: Text = Text::new("Lese alle Werte …", "Reading all values …");
+pub const ALL_VALUES_FAILED: Text = Text::new(
+    "Die Werte konnten nicht gelesen werden. Das Gerät ist nicht erreichbar oder hat die Abfrage abgelehnt.",
+    "The values could not be read. The device is unreachable or refused the request.",
+);
+pub const ALL_VALUES_PATH_COLUMN: Text = Text::new("Pfad", "Path");
+pub const ALL_VALUES_VALUE_COLUMN: Text = Text::new("Wert", "Value");
+pub const ALL_VALUES_RANGE_COLUMN: Text = Text::new("Einheit / Bereich", "Unit / range");
+pub const ALL_VALUES_KNOWN_COLUMN: Text = Text::new("Katalog", "Catalog");
+pub const ALL_VALUES_KNOWN: Text = Text::new("bekannt", "known");
+pub const ALL_VALUES_COPY: Text = Text::new("Kopieren", "Copy");
 
-pub const ADD_ADDRESS_TITLE: &str = "Lautsprecher per Adresse hinzufügen";
-pub const ADDRESS_FIELD: &str = "IPv6-Adresse";
-pub const ADDRESS_HINT: &str = "z. B. fe80::1%7";
-pub const ADD: &str = "Hinzufügen";
-pub const CANCEL: &str = "Abbrechen";
-pub const ADDRESS_ALREADY_LISTED: &str = "Diese Adresse ist schon eingetragen.";
+pub const ADD_ADDRESS_TITLE: Text = Text::new(
+    "Lautsprecher per Adresse hinzufügen",
+    "Add a speaker by address",
+);
+pub const ADDRESS_FIELD: Text = Text::new("IPv6-Adresse", "IPv6 address");
+pub const ADDRESS_HINT: Text = Text::new("z. B. fe80::1%7", "e.g. fe80::1%7");
+pub const ADD: Text = Text::new("Hinzufügen", "Add");
+pub const CANCEL: Text = Text::new("Abbrechen", "Cancel");
+pub const ADDRESS_ALREADY_LISTED: Text = Text::new(
+    "Diese Adresse ist schon eingetragen.",
+    "This address is already listed.",
+);
 
-pub const SCAN_CHOICE_TITLE: &str = "Gefundene Lautsprecher";
-pub const NOTHING_FOUND: &str = "Keine Lautsprecher gefunden";
-pub const ALREADY_ADDED: &str = "bereits hinzugefügt";
+pub const SCAN_CHOICE_TITLE: Text = Text::new("Gefundene Lautsprecher", "Speakers found");
+pub const NOTHING_FOUND: Text = Text::new("Keine Lautsprecher gefunden", "No speakers found");
+pub const ALREADY_ADDED: Text = Text::new("bereits hinzugefügt", "already added");
 
-pub const REMOVE: &str = "Entfernen";
-pub const REMOVE_TITLE: &str = "Lautsprecher entfernen?";
+pub const REMOVE: Text = Text::new("Entfernen", "Remove");
+pub const REMOVE_TITLE: Text = Text::new("Lautsprecher entfernen?", "Remove speaker?");
 
-pub const UNREACHABLE: &str = "nicht erreichbar (aus oder Standby)";
-pub const WRITE_FAILED: &str = "Schreiben fehlgeschlagen";
-const SERIAL_MISMATCH_PREFIX: &str = "Anderes Gerät unter dieser Adresse (Seriennummer ";
-const SERIAL_MISMATCH_SUFFIX: &str = ")";
+pub const UNREACHABLE: Text = Text::new(
+    "nicht erreichbar (aus oder Standby)",
+    "unreachable (off or standby)",
+);
+pub const WRITE_FAILED: Text = Text::new("Schreiben fehlgeschlagen", "Write failed");
 
 const REJECTED_LOCAL_MODE_CODE: i64 = 401;
 const REJECTED_READ_ONLY_CODE: i64 = 405;
 const REJECTED_WRONG_VALUE_CODE: i64 = 406;
 
 pub fn speaker_count(count: usize) -> String {
-    format!("{count} Lautsprecher")
+    pick(
+        format!("{count} Lautsprecher"),
+        match count {
+            1 => format!("{count} speaker"),
+            _ => format!("{count} speakers"),
+        },
+    )
 }
 
 pub fn all_values_title(name: &str) -> String {
-    format!("Alle Werte – {name}")
+    pick(
+        format!("Alle Werte – {name}"),
+        format!("All values – {name}"),
+    )
 }
 
 pub fn all_values_count(shown: usize, total: usize) -> String {
-    format!("{shown} von {total} Werten")
+    pick(
+        format!("{shown} von {total} Werten"),
+        format!("{shown} of {total} values"),
+    )
 }
 
 pub fn port(port: u16) -> String {
@@ -146,7 +252,7 @@ pub fn meter_label(group: &str, channel: &str) -> String {
 
 /// The panel's knob beside a number field, named apart from the field.
 pub fn knob_label(label: &str) -> String {
-    format!("{label} (Regler)")
+    pick(format!("{label} (Regler)"), format!("{label} (knob)"))
 }
 
 /// A mark on the meter scale, without unit to fit beside the meters.
@@ -165,10 +271,10 @@ pub fn average_response_time(milliseconds: u128) -> String {
 
 /// Names a group's link button for screen readers, apart from the strips' own buttons.
 pub fn link_label(name: &str) -> String {
-    format!("{name} koppeln")
+    pick(format!("{name} koppeln"), format!("Link {name}"))
 }
 
-pub fn linkable_name(linkable: Linkable) -> &'static str {
+pub fn linkable_name(linkable: Linkable) -> Text {
     match linkable {
         Linkable::Level => LINK_LEVEL,
         Linkable::Mute => LINK_MUTE,
@@ -182,11 +288,11 @@ pub fn copy_to_group(setting: &str) -> String {
 }
 
 pub fn group_level(group: &str) -> String {
-    format!("Pegel {group}")
+    pick(format!("Pegel {group}"), format!("Level {group}"))
 }
 
 pub fn group_mute(group: &str) -> String {
-    format!("{group} stumm")
+    pick(format!("{group} stumm"), format!("Mute {group}"))
 }
 
 pub fn response_time(milliseconds: u128) -> String {
@@ -208,51 +314,119 @@ pub fn status_line(firmware: &str, masked_serial: &str) -> String {
 
 pub fn describe_address_error(error: &AddressError) -> String {
     let text = match error {
-        AddressError::Ipv4NotSupported => {
-            "IPv4 geht nicht: die Lautsprecher sind nur über IPv6 erreichbar, z. B. fe80::1%7."
+        AddressError::Ipv4NotSupported => Text::new(
+            "IPv4 geht nicht: die Lautsprecher sind nur über IPv6 erreichbar, z. B. fe80::1%7.",
+            "IPv4 does not work: the speakers are only reachable over IPv6, e.g. fe80::1%7.",
+        ),
+        AddressError::MissingScope => Text::new(
+            "Bei fe80-Adressen fehlt der Schnittstellenindex nach dem %, z. B. fe80::1%7.",
+            "An fe80 address needs the interface index after the %, e.g. fe80::1%7.",
+        ),
+        AddressError::ScopeNotNumeric => Text::new(
+            "Nach dem % muss der Schnittstellenindex als Zahl stehen.",
+            "The interface index after the % must be a number.",
+        ),
+        AddressError::Invalid => {
+            Text::new("Keine gültige IPv6-Adresse.", "Not a valid IPv6 address.")
         }
-        AddressError::MissingScope => {
-            "Bei fe80-Adressen fehlt der Schnittstellenindex nach dem %, z. B. fe80::1%7."
-        }
-        AddressError::ScopeNotNumeric => "Nach dem % muss der Schnittstellenindex als Zahl stehen.",
-        AddressError::Invalid => "Keine gültige IPv6-Adresse.",
     };
-    text.to_owned()
+    text.get().to_owned()
+}
+
+pub fn describe_message(message: &Message) -> String {
+    match message {
+        Message::Unreachable => UNREACHABLE.into(),
+        Message::WriteFailed => WRITE_FAILED.into(),
+        Message::Rejected(code) => describe_rejection(*code),
+        Message::SerialMismatch(masked_serial) => serial_mismatch(masked_serial),
+        Message::Refused(refusal) => describe_refusal(refusal),
+    }
 }
 
 pub fn serial_mismatch(masked_serial: &str) -> String {
-    format!("{SERIAL_MISMATCH_PREFIX}{masked_serial}{SERIAL_MISMATCH_SUFFIX}")
+    pick(
+        format!("Anderes Gerät unter dieser Adresse (Seriennummer {masked_serial})"),
+        format!("Another device at this address (serial number {masked_serial})"),
+    )
 }
 
 pub fn describe_value_error(error: &ValueError) -> String {
     match error {
-        ValueError::OutOfRange { min, max } => format!("Wert außerhalb von {min} bis {max}."),
-        ValueError::NotAnOption => "Wert ist keine der Auswahlmöglichkeiten.".to_owned(),
-        ValueError::NotAStep => "Wert passt nicht zur Schrittweite.".to_owned(),
-        ValueError::TooLong(limit) => format!("Höchstens {limit} Zeichen."),
-        ValueError::NotPrintableAscii => {
-            "Nur Buchstaben A–Z, Ziffern und Satzzeichen ohne Umlaute.".to_owned()
+        ValueError::OutOfRange { min, max } => pick(
+            format!("Wert außerhalb von {min} bis {max}."),
+            format!("Value outside {min} to {max}."),
+        ),
+        ValueError::NotAnOption => Text::new(
+            "Wert ist keine der Auswahlmöglichkeiten.",
+            "Value is not one of the choices.",
+        )
+        .into(),
+        ValueError::NotAStep => Text::new(
+            "Wert passt nicht zur Schrittweite.",
+            "Value does not fit the step size.",
+        )
+        .into(),
+        ValueError::TooLong(limit) => pick(
+            format!("Höchstens {limit} Zeichen."),
+            format!("At most {limit} characters."),
+        ),
+        ValueError::NotPrintableAscii => Text::new(
+            "Nur Buchstaben A–Z, Ziffern und Satzzeichen ohne Umlaute.",
+            "Only letters A–Z, digits and punctuation, no accented letters.",
+        )
+        .into(),
+        ValueError::WrongType => {
+            Text::new("Wert hat den falschen Typ.", "Value has the wrong type.").into()
         }
-        ValueError::WrongType => "Wert hat den falschen Typ.".to_owned(),
     }
 }
 
 pub fn describe_refusal(refusal: &Refusal) -> String {
     match refusal {
-        Refusal::NotConnected => "Nicht verbunden".to_owned(),
-        Refusal::NotWritable => "Für dieses Modell nicht freigegeben".to_owned(),
-        Refusal::ValueUnknown => "Wert noch unbekannt".to_owned(),
+        Refusal::NotConnected => Text::new("Nicht verbunden", "Not connected").into(),
+        Refusal::NotWritable => Text::new(
+            "Für dieses Modell nicht freigegeben",
+            "Not enabled for this model",
+        )
+        .into(),
+        Refusal::ValueUnknown => Text::new("Wert noch unbekannt", "Value not known yet").into(),
         Refusal::Invalid(error) => describe_value_error(error),
     }
 }
 
 pub fn describe_rejection(code: i64) -> String {
     match code {
-        REJECTED_LOCAL_MODE_CODE => {
-            "Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt".to_owned()
+        REJECTED_LOCAL_MODE_CODE => Text::new(
+            "Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt",
+            "Device is set to LOCAL (rear switch), writing locked",
+        )
+        .into(),
+        REJECTED_READ_ONLY_CODE => {
+            Text::new("Gerät lehnt ab: nur lesbar", "Device refuses: read only").into()
         }
-        REJECTED_READ_ONLY_CODE => "Gerät lehnt ab: nur lesbar".to_owned(),
-        REJECTED_WRONG_VALUE_CODE => "Gerät lehnt ab: falscher Wert".to_owned(),
-        other => format!("Gerät lehnt ab (Code {other})"),
+        REJECTED_WRONG_VALUE_CODE => Text::new(
+            "Gerät lehnt ab: falscher Wert",
+            "Device refuses: wrong value",
+        )
+        .into(),
+        other => pick(
+            format!("Gerät lehnt ab (Code {other})"),
+            format!("Device refuses (code {other})"),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_text_follows_the_language_of_its_thread() {
+        assert_eq!(MUTE.get(), "Stumm");
+        set_language(Language::English);
+        assert_eq!(MUTE.get(), "Mute");
+        assert_eq!(speaker_count(1), "1 speaker");
+        set_language(Language::German);
+        assert_eq!(MUTE.to_string(), "Stumm");
     }
 }

@@ -88,10 +88,10 @@ fn table(ui: &mut Ui, shown: &[Row<'_>]) {
 
 fn header(ui: &mut Ui) {
     ui.horizontal(|ui| {
-        cell(ui, PATH_WIDTH, texts::ALL_VALUES_PATH_COLUMN);
-        cell(ui, VALUE_WIDTH, texts::ALL_VALUES_VALUE_COLUMN);
-        cell(ui, RANGE_WIDTH, texts::ALL_VALUES_RANGE_COLUMN);
-        cell(ui, KNOWN_WIDTH, texts::ALL_VALUES_KNOWN_COLUMN);
+        cell(ui, PATH_WIDTH, texts::ALL_VALUES_PATH_COLUMN.get());
+        cell(ui, VALUE_WIDTH, texts::ALL_VALUES_VALUE_COLUMN.get());
+        cell(ui, RANGE_WIDTH, texts::ALL_VALUES_RANGE_COLUMN.get());
+        cell(ui, KNOWN_WIDTH, texts::ALL_VALUES_KNOWN_COLUMN.get());
     });
 }
 
@@ -101,7 +101,7 @@ fn row_cells(ui: &mut Ui, row: &Row<'_>) {
         cell(ui, VALUE_WIDTH, &row.value);
         cell(ui, RANGE_WIDTH, &row.range);
         let known = if row.known {
-            texts::ALL_VALUES_KNOWN
+            texts::ALL_VALUES_KNOWN.get()
         } else {
             ""
         };

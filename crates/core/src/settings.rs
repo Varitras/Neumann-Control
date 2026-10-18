@@ -19,7 +19,9 @@ pub struct Settings {
     /// Every remembered speaker, added by address or chosen from a scan. The key keeps its
     /// first name so that files written before scans were remembered load unchanged.
     pub manual: Vec<ManualSpeaker>,
+    /// The window as the desk had it, and as the compact mode had it.
     pub window: Option<WindowGeometry>,
+    pub compact_window: Option<WindowGeometry>,
     pub desk: DeskSettings,
     pub groups: Vec<GroupSettings>,
     /// Speaker identities (`serial:<serial>` or `address:<address>`) in the order of the desk.
@@ -54,6 +56,8 @@ pub struct DeskSettings {
     pub theme: ThemeChoice,
     pub meter_floor: MeterFloor,
     pub show_response_times: bool,
+    pub language: Language,
+    pub compact: bool,
 }
 
 impl Default for DeskSettings {
@@ -62,6 +66,8 @@ impl Default for DeskSettings {
             theme: ThemeChoice::System,
             meter_floor: MeterFloor::Minus120,
             show_response_times: true,
+            language: Language::German,
+            compact: false,
         }
     }
 }
@@ -72,6 +78,17 @@ pub enum ThemeChoice {
     System,
     Light,
     Dark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Language {
+    #[default]
+    German,
+    English,
+}
+
+impl Language {
+    pub const ALL: [Language; 2] = [Language::German, Language::English];
 }
 
 /// The lowest level a meter shows; quiet room volume reads about -90 dB on the inputs.

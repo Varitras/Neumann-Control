@@ -49,7 +49,7 @@ pub fn group(
             let text = texts::linkable_name(linkable);
             let on = group.linked.contains(&linkable);
             let button = ui.add(Button::new(RichText::new(text).small()).selected(on));
-            let label = texts::link_label(text);
+            let label = texts::link_label(text.get());
             button.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, on, &label));
             if button.clicked() {
                 response.toggled_link = Some(linkable);
@@ -81,10 +81,10 @@ pub fn master(
     let mut response = MasterResponse::default();
     frame(ui, tokens.accent, |ui| {
         ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()));
-        response.level = fader::shared(ui, texts::MASTER_LEVEL, reference, range, unit);
+        response.level = fader::shared(ui, texts::MASTER_LEVEL.get(), reference, range, unit);
         let readout = reference.map(texts::shared_readout).unwrap_or_default();
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
-        response.mute = mute_button(ui, texts::MUTE_ALL, muted);
+        response.mute = mute_button(ui, texts::MUTE_ALL.get(), muted);
     });
     response
 }

@@ -118,13 +118,13 @@ pub fn wait_for_label(harness: &mut Harness<'static, NeumannApp>, label: &str) {
 
 /// Scans, checks the named speakers in the dialog and adds them.
 pub fn scan_and_add(harness: &mut Harness<'static, NeumannApp>, names: &[&str]) {
-    harness.get_by_label(texts::SCAN).click();
+    harness.get_by_label(texts::SCAN.get()).click();
     for name in names {
         wait_for_label(harness, name);
         harness.get_by_label(name).click();
         harness.run_steps(2);
     }
-    harness.get_by_label(texts::ADD).click();
+    harness.get_by_label(texts::ADD.get()).click();
     harness.run_steps(2);
 }
 
@@ -230,7 +230,7 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     harness.run_steps(2);
     harness.get_by_label(name).click();
     wait_until(harness, "the device panel", |harness| {
-        harness.query_by_label(texts::ALL_VALUES).is_some()
+        harness.query_by_label(texts::ALL_VALUES.get()).is_some()
     });
     harness.run_steps(1);
 }

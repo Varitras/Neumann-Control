@@ -65,7 +65,7 @@ fn contents(ui: &mut Ui, form: &mut AddAddressForm, listed: &[ManualSpeaker]) ->
     if let Some(error) = &form.error {
         let text = match error {
             FormError::Address(error) => texts::describe_address_error(error),
-            FormError::AlreadyListed => texts::ADDRESS_ALREADY_LISTED.to_owned(),
+            FormError::AlreadyListed => texts::ADDRESS_ALREADY_LISTED.to_string(),
         };
         ui.colored_label(ui.visuals().error_fg_color, text);
     }

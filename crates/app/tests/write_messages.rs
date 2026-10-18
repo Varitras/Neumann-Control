@@ -5,7 +5,7 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use neumann_control_app::state::{SpeakerKey, SpeakerState, Status};
+use neumann_control_app::state::{Message, SpeakerKey, SpeakerState, Status};
 use neumann_control_app::writes::Intent;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -18,8 +18,9 @@ const EVENT_DEADLINE: Duration = Duration::from_secs(5);
 const QUIET_PERIOD: Duration = Duration::from_millis(300);
 /// Polls far apart, so only the reply to the write and its re-read follow it.
 const LONG_INTERVAL: Duration = Duration::from_secs(60);
-const READ_ONLY_TEXT: &str = "Gerät lehnt ab: nur lesbar";
-const LOCAL_MODE_TEXT: &str = "Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt";
+/// The error codes the speakers answer a refused write with.
+const READ_ONLY_CODE: i64 = 405;
+const LOCAL_MODE_CODE: i64 = 401;
 
 fn quiet_timing() -> Timing {
     Timing {
@@ -97,7 +98,7 @@ fn a_rejected_write_keeps_its_message_after_the_reread() {
         value: json!(2.0),
     });
     apply_reply_to_write(&events, &mut state, &path);
-    assert_eq!(state.message.as_deref(), Some(READ_ONLY_TEXT));
+    assert_eq!(state.message, Some(Message::Rejected(READ_ONLY_CODE)));
 }
 
 #[test]
@@ -111,6 +112,6 @@ fn a_write_in_local_mode_shows_the_local_mode_message() {
     handle.send(command);
     let path = SscPath::parse("audio/out/level").unwrap();
     apply_reply_to_write(&events, &mut state, &path);
-    assert_eq!(state.message.as_deref(), Some(LOCAL_MODE_TEXT));
+    assert_eq!(state.message, Some(Message::Rejected(LOCAL_MODE_CODE)));
     assert_eq!(simulator.value("audio/out/level"), Some(json!(100.0)));
 }

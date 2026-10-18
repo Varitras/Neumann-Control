@@ -65,8 +65,8 @@ pub fn converted_unit(conversion: Conversion) -> &'static str {
 fn raw_text(value: &Value) -> String {
     match value {
         Value::Null => String::new(),
-        Value::Bool(true) => texts::ON.to_owned(),
-        Value::Bool(false) => texts::OFF.to_owned(),
+        Value::Bool(true) => texts::ON.to_string(),
+        Value::Bool(false) => texts::OFF.to_string(),
         Value::String(text) => text.clone(),
         Value::Array(items) => items
             .iter()
@@ -143,8 +143,8 @@ mod tests {
         let warnings = json!(["NO_WARNING", "HOT"]);
         assert_eq!(shown_value(entry("warnings"), &warnings), "NO_WARNING, HOT");
         let enabled = entry("device/standby/enabled");
-        assert_eq!(shown_value(enabled, &json!(true)), texts::ON);
-        assert_eq!(shown_value(enabled, &json!(false)), texts::OFF);
+        assert_eq!(shown_value(enabled, &json!(true)), texts::ON.get());
+        assert_eq!(shown_value(enabled, &json!(false)), texts::OFF.get());
     }
 
     #[test]

@@ -94,7 +94,7 @@ fn group_fader_moves_every_member_by_the_same_amount() {
 fn linked_mute_reaches_the_other_member() {
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Mute]);
     harness
-        .get_all_by_label(texts::MUTE)
+        .get_all_by_label(texts::MUTE.get())
         .next()
         .unwrap()
         .click();
@@ -107,7 +107,7 @@ fn linked_mute_reaches_the_other_member() {
 fn unlinked_mute_stays_with_its_speaker() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
     harness
-        .get_all_by_label(texts::MUTE)
+        .get_all_by_label(texts::MUTE.get())
         .next()
         .unwrap()
         .click();
@@ -130,7 +130,7 @@ fn group_and_master_mute_switch_all() {
             && sets(&kh750, "/audio/out/mute") == [Value::Bool(true)]
     });
     // All muted now, so the master switches all back on.
-    harness.get_by_label(texts::MUTE_ALL).click();
+    harness.get_by_label(texts::MUTE_ALL.get()).click();
     let unmuted = [Value::Bool(true), Value::Bool(false)];
     wait_until(&mut harness, "master unmute", |_| {
         sets(&kh120, "/audio/out/mute") == unmuted && sets(&kh750, "/audio/out/mute") == unmuted
@@ -141,7 +141,7 @@ fn group_and_master_mute_switch_all() {
 fn link_buttons_toggle_and_are_saved() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     harness
-        .get_by_label(&texts::link_label(texts::LINK_LEVEL))
+        .get_by_label(&texts::link_label(texts::LINK_LEVEL.get()))
         .click();
     harness.run_steps(2);
     let saved = settings::load(&directory.path().join(SETTINGS_FILE));
@@ -152,18 +152,18 @@ fn link_buttons_toggle_and_are_saved() {
 fn group_dialog_renames_and_deletes() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     harness.get_by_label(GROUP_NAME).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE);
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
     harness.get_by_role(Role::TextInput).click();
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("Hinten");
-    harness.get_by_label(texts::CLOSE).click();
+    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups[0].name, "Hinten");
     harness.get_by_label("Hinten").click();
-    wait_for_label(&mut harness, texts::DELETE_GROUP);
-    harness.get_by_label(texts::DELETE_GROUP).click();
+    wait_for_label(&mut harness, texts::DELETE_GROUP.get());
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
     harness.run_steps(2);
     assert!(settings::load(&path).groups.is_empty());
 }
@@ -171,15 +171,15 @@ fn group_dialog_renames_and_deletes() {
 #[test]
 fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
     let (simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    harness.get_by_label(texts::ADD_GROUP).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE);
-    harness.get_by_label(texts::CLOSE).click();
+    harness.get_by_label(texts::ADD_GROUP.get()).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups.len(), 1);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness
-        .get_by_role_and_label(Role::ComboBox, texts::GROUP)
+        .get_by_role_and_label(Role::ComboBox, texts::GROUP.get())
         .click();
     harness.run_steps(2);
     let name = settings::load(&path).groups[0].name.clone();
@@ -194,7 +194,7 @@ fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
 fn dragging_a_strip_onto_another_puts_it_in_front_and_saves_the_order() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     let handles: Vec<egui::Rect> = harness
-        .query_all_by_label(texts::MOVE_STRIP)
+        .query_all_by_label(texts::MOVE_STRIP.get())
         .map(|node| node.rect())
         .collect();
     assert_eq!(handles.len(), 2);
@@ -215,7 +215,7 @@ fn dragging_a_strip_onto_another_puts_it_in_front_and_saves_the_order() {
 fn a_strip_can_be_dragged_behind_the_last_one_and_the_others_make_room_meanwhile() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     let handle = harness
-        .get_all_by_label(texts::MOVE_STRIP)
+        .get_all_by_label(texts::MOVE_STRIP.get())
         .next()
         .unwrap()
         .rect();
@@ -247,7 +247,7 @@ fn a_strip_can_be_dragged_behind_the_last_one_and_the_others_make_room_meanwhile
 fn escape_while_dragging_keeps_the_order() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     let handles: Vec<egui::Rect> = harness
-        .query_all_by_label(texts::MOVE_STRIP)
+        .query_all_by_label(texts::MOVE_STRIP.get())
         .map(|node| node.rect())
         .collect();
     let (first, second) = (handles[0], handles[1]);

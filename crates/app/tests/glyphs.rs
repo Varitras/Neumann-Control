@@ -6,6 +6,7 @@ use neumann_control_app::ui_kit::fonts;
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::{Catalog, ValueError};
 use neumann_control_core::mask::mask_serial;
+use neumann_control_core::settings::Language;
 
 const SIMULATED_SERIAL: &str = "SIM0001234";
 
@@ -33,7 +34,31 @@ fn all_ui_texts_have_glyphs() {
         .clear();
     let catalog = Catalog::embedded();
     let mut texts_to_check = literals_of_texts_module();
-    texts_to_check.extend([
+    for language in Language::ALL {
+        texts::set_language(language);
+        texts_to_check.extend(formatted_texts());
+        for entry in &catalog.entries {
+            texts_to_check.push(entry.group.title(language).to_owned());
+            texts_to_check.push(entry.label(language).to_owned());
+            texts_to_check.extend(entry.unit.clone());
+        }
+    }
+    let families = [FontFamily::Proportional, fonts::semibold(12.0).family];
+    for family in families {
+        let font = FontId::new(12.0, family.clone());
+        for text in &texts_to_check {
+            let covered = context.fonts_mut(|fonts| fonts.has_glyphs(&font, text));
+            assert!(covered, "{text:?} in {family:?}");
+        }
+    }
+    assert!(texts_to_check
+        .iter()
+        .any(|text| text == texts::NO_SPEAKERS.get()));
+}
+
+/// The texts made by formatting, in the current language.
+fn formatted_texts() -> Vec<String> {
+    let mut texts_to_check = vec![
         texts::speaker_count(12),
         texts::port(45),
         texts::readout(-12.5, "dB SPL"),
@@ -42,7 +67,7 @@ fn all_ui_texts_have_glyphs() {
         texts::describe_rejection(405),
         texts::describe_rejection(406),
         texts::describe_rejection(500),
-    ]);
+    ];
     for error in [
         AddressError::Ipv4NotSupported,
         AddressError::MissingScope,
@@ -61,18 +86,5 @@ fn all_ui_texts_have_glyphs() {
     ] {
         texts_to_check.push(texts::describe_value_error(&error));
     }
-    for entry in &catalog.entries {
-        texts_to_check.push(entry.group.title().to_owned());
-        texts_to_check.push(entry.label.clone());
-        texts_to_check.extend(entry.unit.clone());
-    }
-    let families = [FontFamily::Proportional, fonts::semibold(12.0).family];
-    for family in families {
-        let font = FontId::new(12.0, family.clone());
-        for text in &texts_to_check {
-            let covered = context.fonts_mut(|fonts| fonts.has_glyphs(&font, text));
-            assert!(covered, "{text:?} in {family:?}");
-        }
-    }
-    assert!(texts_to_check.iter().any(|text| text == texts::NO_SPEAKERS));
+    texts_to_check
 }

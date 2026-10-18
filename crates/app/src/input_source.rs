@@ -14,7 +14,7 @@ const MONO: &str = "MONO";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InputSource {
     /// Shown under the input meters instead of the generic caption.
-    pub caption: &'static str,
+    pub caption: texts::Text,
     /// Whether channel A and channel B reach the speaker.
     pub played: [bool; 2],
 }

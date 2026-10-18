@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::settings::Language;
 use crate::ssc::wire::SscPath;
 
 const EMBEDDED_CATALOG: &str = include_str!("paths.toml");
@@ -32,16 +33,20 @@ pub enum Group {
 }
 
 impl Group {
-    pub fn title(&self) -> &'static str {
-        match self {
-            Group::Output => "Ausgang",
-            Group::Output1 => "Ausgang 1",
-            Group::Output2 => "Ausgang 2",
-            Group::Input => "Eingang",
-            Group::Standby => "Standby",
-            Group::Device => "Gerät",
-            Group::RearPanel => "Rückseite",
-            Group::Metering => "Messung",
+    pub fn title(&self, language: Language) -> &'static str {
+        let (german, english) = match self {
+            Group::Output => ("Ausgang", "Output"),
+            Group::Output1 => ("Ausgang 1", "Output 1"),
+            Group::Output2 => ("Ausgang 2", "Output 2"),
+            Group::Input => ("Eingang", "Input"),
+            Group::Standby => ("Standby", "Standby"),
+            Group::Device => ("Gerät", "Device"),
+            Group::RearPanel => ("Rückseite", "Rear panel"),
+            Group::Metering => ("Messung", "Metering"),
+        };
+        match language {
+            Language::German => german,
+            Language::English => english,
         }
     }
 }
@@ -162,7 +167,8 @@ impl std::error::Error for ValueError {}
 #[serde(deny_unknown_fields)]
 pub struct Entry {
     pub path: SscPath,
-    pub label: String,
+    label: String,
+    label_en: String,
     pub group: Group,
     pub kind: Kind,
     pub poll: Poll,
@@ -189,6 +195,13 @@ pub struct Entry {
 }
 
 impl Entry {
+    pub fn label(&self, language: Language) -> &str {
+        match language {
+            Language::German => &self.label,
+            Language::English => &self.label_en,
+        }
+    }
+
     pub fn is_writable(&self, product: &str) -> bool {
         self.writable_on.iter().any(|known| known == product)
     }

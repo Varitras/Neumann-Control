@@ -18,10 +18,10 @@ pub enum ToolbarAction {
     Settings,
 }
 
-pub struct ToolbarFacts<'a> {
+pub struct ToolbarFacts {
     pub scanning: bool,
     pub speaker_count: usize,
-    pub notice: Option<&'a str>,
+    pub notice: Option<texts::Text>,
     /// None while no speaker has measured one or the settings hide it.
     pub average_response_time: Option<Duration>,
 }

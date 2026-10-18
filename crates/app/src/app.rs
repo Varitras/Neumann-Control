@@ -67,7 +67,7 @@ pub struct NeumannApp {
     found: Vec<Found>,
     scan: Option<Receiver<ScanResult>>,
     scan_choice: Option<ScanChoice>,
-    notice: Option<&'static str>,
+    notice: Option<texts::Text>,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panel: Option<OpenPanel>,
@@ -517,6 +517,7 @@ impl eframe::App for NeumannApp {
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        texts::set_language(self.settings.desk.language);
         self.show(ui);
     }
 

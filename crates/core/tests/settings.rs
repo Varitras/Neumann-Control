@@ -1,6 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, DeskSettings, GroupSettings, Linkable, ManualSpeaker, MeterFloor, Settings,
-    ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, save, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, MeterFloor,
+    Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -119,6 +119,9 @@ fn old_settings_file_loads_with_desk_defaults() {
     assert_eq!(loaded.desk.theme, ThemeChoice::System);
     assert_eq!(loaded.desk.meter_floor.db(), -120.0);
     assert!(loaded.desk.show_response_times);
+    assert_eq!(loaded.desk.language, Language::German);
+    assert!(!loaded.desk.compact);
+    assert_eq!(loaded.compact_window, None);
 }
 
 #[test]
@@ -130,7 +133,15 @@ fn desk_settings_round_trip() {
             theme: ThemeChoice::Dark,
             meter_floor: MeterFloor::Minus60,
             show_response_times: false,
+            language: Language::English,
+            compact: true,
         },
+        compact_window: Some(WindowGeometry {
+            x: 10.0,
+            y: 20.0,
+            width: 400.0,
+            height: 300.0,
+        }),
         ..Settings::default()
     };
     save(&settings, &path).unwrap();

@@ -50,9 +50,9 @@ fn scan_shows_choices_without_adding_cards() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), vec![kh750_found(&simulator)]);
-    harness.get_by_label(texts::SCAN).click();
+    harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, KH750_NAME);
-    harness.get_by_label(texts::SCAN_CHOICE_TITLE);
+    harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
     harness.get_by_label("KH 750");
     harness.get_by_label(&mask_host(&simulator.address()));
     harness.run_steps(5);
@@ -66,11 +66,13 @@ fn scan_says_when_nothing_was_found() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path, Vec::new());
-    harness.get_by_label(texts::SCAN).click();
-    wait_for_label(&mut harness, texts::NOTHING_FOUND);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::SCAN_CHOICE_TITLE).is_none());
+    assert!(harness
+        .query_by_label(texts::SCAN_CHOICE_TITLE.get())
+        .is_none());
 }
 
 #[test]
@@ -78,13 +80,15 @@ fn a_failed_scan_says_so_in_the_dialog() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness_scanning(path, Err("no network".to_owned()));
-    harness.get_by_label(texts::SCAN).click();
-    wait_for_label(&mut harness, texts::SCAN_FAILED);
-    harness.get_by_label(texts::SCAN_CHOICE_TITLE);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::SCAN_FAILED.get());
+    harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::SCAN_CHOICE_TITLE).is_none());
-    assert!(harness.query_by_label(texts::SCAN_FAILED).is_none());
+    assert!(harness
+        .query_by_label(texts::SCAN_CHOICE_TITLE.get())
+        .is_none());
+    assert!(harness.query_by_label(texts::SCAN_FAILED.get()).is_none());
 }
 
 #[test]
@@ -96,7 +100,9 @@ fn only_checked_speakers_get_cards() {
     let found = vec![kh120_found(&unchosen), kh750_found(&chosen)];
     let mut harness = harness(path.clone(), found);
     scan_and_add(&mut harness, &[KH750_NAME]);
-    assert!(harness.query_by_label(texts::SCAN_CHOICE_TITLE).is_none());
+    assert!(harness
+        .query_by_label(texts::SCAN_CHOICE_TITLE.get())
+        .is_none());
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &chosen);
     harness.get_by_label(&texts::speaker_count(1));
@@ -113,13 +119,15 @@ fn cancel_adds_nothing() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), vec![kh750_found(&simulator)]);
-    harness.get_by_label(texts::SCAN).click();
+    harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, KH750_NAME);
     harness.get_by_label(KH750_NAME).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(5);
-    assert!(harness.query_by_label(texts::SCAN_CHOICE_TITLE).is_none());
+    assert!(harness
+        .query_by_label(texts::SCAN_CHOICE_TITLE.get())
+        .is_none());
     harness.get_by_label(&texts::speaker_count(0));
     assert!(settings::load(&path).manual.is_empty());
     assert!(simulator.requests().is_empty());
@@ -133,19 +141,19 @@ fn known_speaker_is_marked_and_not_selectable() {
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
-    harness.get_by_label(texts::SCAN).click();
+    harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, KH120_NAME);
-    harness.get_by_label(texts::ALREADY_ADDED);
+    harness.get_by_label(texts::ALREADY_ADDED.get());
     assert!(harness
         .get_by_label(KH120_NAME)
         .accesskit_node()
         .is_disabled());
     harness.get_by_label(KH120_NAME).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::ADD).click();
+    harness.get_by_label(texts::ADD.get()).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::SCAN_CHOICE_TITLE);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(2);
     harness.get_by_label(&texts::speaker_count(1));
     assert_eq!(settings::load(&path).manual.len(), 1);
@@ -182,9 +190,9 @@ fn rescan_updates_saved_address() {
     let path = settings_file(directory.path(), vec![stale]);
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     harness.get_by_label(&texts::speaker_count(1));
-    harness.get_by_label(texts::SCAN).click();
+    harness.get_by_label(texts::SCAN.get()).click();
     // Not the name: the unconnected card shows the announced name as well.
-    wait_for_label(&mut harness, texts::ALREADY_ADDED);
+    wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
     assert!(saved_at(&path, &simulator));
     assert_eq!(settings::load(&path).manual.len(), 1);
     wait_for_level(&mut harness, 100.0);
@@ -196,15 +204,15 @@ fn add_address_refuses_ipv4_with_hint() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), Vec::new());
-    harness.get_by_label(texts::ADD_ADDRESS).click();
+    harness.get_by_label(texts::ADD_ADDRESS.get()).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::ADDRESS_FIELD).click();
+    harness.get_by_label(texts::ADDRESS_FIELD.get()).click();
     harness.run_steps(1);
     harness
-        .get_by_label(texts::ADDRESS_FIELD)
+        .get_by_label(texts::ADDRESS_FIELD.get())
         .type_text("192.168.1.20");
     harness.run_steps(1);
-    harness.get_by_label(texts::ADD).click();
+    harness.get_by_label(texts::ADD.get()).click();
     harness.run_steps(2);
     harness.get_by_label(&texts::describe_address_error(
         &AddressError::Ipv4NotSupported,
@@ -218,17 +226,19 @@ fn add_address_saves_the_speaker_and_shows_its_card() {
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), Vec::new());
-    harness.get_by_label(texts::ADD_ADDRESS).click();
+    harness.get_by_label(texts::ADD_ADDRESS.get()).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::ADDRESS_FIELD).click();
+    harness.get_by_label(texts::ADDRESS_FIELD.get()).click();
     harness.run_steps(1);
     harness
-        .get_by_label(texts::ADDRESS_FIELD)
+        .get_by_label(texts::ADDRESS_FIELD.get())
         .type_text(LOOPBACK);
     harness.run_steps(1);
-    harness.get_by_label(texts::ADD).click();
+    harness.get_by_label(texts::ADD.get()).click();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::ADD_ADDRESS_TITLE).is_none());
+    assert!(harness
+        .query_by_label(texts::ADD_ADDRESS_TITLE.get())
+        .is_none());
     let saved = settings::load(&path).manual;
     assert_eq!(saved.len(), 1);
     assert_eq!(saved[0].address, LOOPBACK);
@@ -250,9 +260,9 @@ fn a_manual_speaker_found_at_a_second_address_stays_one_card() {
         serials_remembered(&path, 2)
     });
     wait_until(&mut harness, "one card after the first scan", has_one_card);
-    harness.get_by_label(texts::SCAN).click();
-    wait_for_label(&mut harness, texts::ALREADY_ADDED);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(5);
     wait_until(&mut harness, "one card after the second scan", has_one_card);
     assert!(serials_remembered(&path, 1));
@@ -284,26 +294,26 @@ fn add_address_names_an_address_already_listed() {
     };
     let path = settings_file(directory.path(), vec![listed]);
     let mut harness = harness(path.clone(), Vec::new());
-    harness.get_by_label(texts::ADD_ADDRESS).click();
+    harness.get_by_label(texts::ADD_ADDRESS.get()).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::ADDRESS_FIELD).click();
+    harness.get_by_label(texts::ADDRESS_FIELD.get()).click();
     harness.run_steps(1);
     harness
-        .get_by_label(texts::ADDRESS_FIELD)
+        .get_by_label(texts::ADDRESS_FIELD.get())
         .type_text("[::1]");
     harness.run_steps(1);
-    harness.get_by_label(texts::ADD).click();
+    harness.get_by_label(texts::ADD.get()).click();
     harness.run_steps(2);
-    harness.get_by_label(texts::ADDRESS_ALREADY_LISTED);
-    harness.get_by_label(texts::ADD_ADDRESS_TITLE);
+    harness.get_by_label(texts::ADDRESS_ALREADY_LISTED.get());
+    harness.get_by_label(texts::ADD_ADDRESS_TITLE.get());
     assert_eq!(settings::load(&path).manual.len(), 1);
 }
 
 /// Opens the device panel of the only speaker and asks to remove it.
 fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
     open_panel(harness, KH120_DEVICE_NAME);
-    harness.get_by_label(texts::REMOVE).click();
-    wait_for_label(harness, texts::REMOVE_TITLE);
+    harness.get_by_label(texts::REMOVE.get()).click();
+    wait_for_label(harness, texts::REMOVE_TITLE.get());
 }
 
 #[test]
@@ -314,12 +324,12 @@ fn remove_needs_confirmation_and_forgets_speaker() {
     harness.get_by_label(&texts::speaker_count(1));
     assert_eq!(settings::load(&path).manual.len(), 1);
     let confirm = harness
-        .query_all_by_label(texts::REMOVE)
+        .query_all_by_label(texts::REMOVE.get())
         .last()
         .expect("the dialog's button");
     confirm.click();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::REMOVE_TITLE).is_none());
+    assert!(harness.query_by_label(texts::REMOVE_TITLE.get()).is_none());
     harness.get_by_label(&texts::speaker_count(0));
     assert!(settings::load(&path).manual.is_empty());
     drop(harness);
@@ -333,9 +343,9 @@ fn cancel_remove_keeps_speaker() {
     let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     ask_to_remove(&mut harness);
-    harness.get_by_label(texts::CANCEL).click();
+    harness.get_by_label(texts::CANCEL.get()).click();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::REMOVE_TITLE).is_none());
+    assert!(harness.query_by_label(texts::REMOVE_TITLE.get()).is_none());
     harness.get_by_label(&texts::speaker_count(1));
     harness.get_by_label(&readout(100.0));
     assert_eq!(settings::load(&path).manual.len(), 1);

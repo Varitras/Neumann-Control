@@ -130,7 +130,7 @@ fn group_choice(ui: &mut Ui, groups: &GroupChoice) -> Option<Option<usize>> {
     let shown = groups
         .current
         .and_then(|index| groups.names.get(index))
-        .map_or(texts::NO_GROUP, String::as_str);
+        .map_or(texts::NO_GROUP.get(), String::as_str);
     let mut chosen = None;
     ui.horizontal(|ui| {
         let label = ui.label(texts::GROUP);
@@ -162,7 +162,7 @@ fn copy_buttons(ui: &mut Ui, groups: &GroupChoice) -> Option<Linkable> {
     let mut copy = None;
     ui.horizontal_wrapped(|ui| {
         for linkable in groups.linked {
-            let text = texts::copy_to_group(texts::linkable_name(*linkable));
+            let text = texts::copy_to_group(texts::linkable_name(*linkable).get());
             if ui.button(text).clicked() {
                 copy = Some(*linkable);
             }

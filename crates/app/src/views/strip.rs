@@ -147,14 +147,14 @@ fn leds(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     let lit = |on: bool, color: Color32| if on { color } else { tokens.clip_off };
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = LED_SPACING;
-        led(ui, connection, texts::LED_CONNECTION);
-        led(ui, lit(state.clip, tokens.danger), texts::LED_CLIP);
+        led(ui, connection, texts::LED_CONNECTION.get());
+        led(ui, lit(state.clip, tokens.danger), texts::LED_CLIP.get());
         led(
             ui,
             lit(state.warning, tokens.connecting),
-            texts::LED_WARNING,
+            texts::LED_WARNING.get(),
         );
-        led(ui, lit(state.local, tokens.accent), texts::LED_LOCAL);
+        led(ui, lit(state.local, tokens.accent), texts::LED_LOCAL.get());
     });
 }
 
@@ -187,7 +187,7 @@ fn knobs(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog, commands: &
                 speaker,
                 catalog,
                 entry,
-                label,
+                label.get(),
                 true,
                 knob::KNOB_DIAMETER,
             );
@@ -244,9 +244,9 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     let floor = desk.meter_floor.db();
     let input = MeterGroup {
         with_scale: true,
-        caption,
+        caption: caption.get(),
         meters: Meters {
-            name: texts::INPUT_METERS,
+            name: texts::INPUT_METERS.get(),
             channels: texts::INPUT_CHANNELS,
             levels: &speaker.input_meters,
             clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
@@ -260,9 +260,9 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     ui.add_space(METER_GROUP_GAP);
     let output = MeterGroup {
         with_scale: false,
-        caption: texts::METER_OUTPUT_SHORT,
+        caption: texts::METER_OUTPUT_SHORT.get(),
         meters: Meters {
-            name: texts::OUTPUT_METERS,
+            name: texts::OUTPUT_METERS.get(),
             channels: texts::OUTPUT_CHANNELS,
             levels: &speaker.output_meters,
             clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
@@ -324,14 +324,21 @@ fn buttons(
     commands: &mut Vec<Command>,
 ) {
     ui.horizontal(|ui| {
-        toggle(ui, speaker, catalog, commands, Switch::Mute, texts::MUTE);
+        toggle(
+            ui,
+            speaker,
+            catalog,
+            commands,
+            Switch::Mute,
+            texts::MUTE.get(),
+        );
         toggle(
             ui,
             speaker,
             catalog,
             commands,
             Switch::Identify,
-            texts::IDENTIFY,
+            texts::IDENTIFY.get(),
         );
     });
 }
@@ -357,7 +364,8 @@ fn toggle(
 
 fn message(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
     if let Some(message) = &speaker.message {
-        ui.add(Label::new(RichText::new(message).small().color(tokens.danger)).wrap());
+        let text = texts::describe_message(message);
+        ui.add(Label::new(RichText::new(text).small().color(tokens.danger)).wrap());
     }
 }
 

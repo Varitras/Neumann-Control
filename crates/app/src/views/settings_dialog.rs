@@ -1,8 +1,8 @@
 //! The settings dialog behind the toolbar's "Einstellungen": theme, language, meter range and
 //! response times. Every change applies at once; the app saves it.
 
-use eframe::egui::{Id, Modal, RadioButton, Ui};
-use neumann_control_core::settings::{DeskSettings, MeterFloor, ThemeChoice};
+use eframe::egui::{Id, Modal, Ui};
+use neumann_control_core::settings::{DeskSettings, Language, MeterFloor, ThemeChoice};
 
 use crate::texts;
 
@@ -32,11 +32,14 @@ fn contents(ui: &mut Ui, desk: &mut DeskSettings) -> SettingsAction {
         ui.radio_value(&mut desk.theme, ThemeChoice::Light, texts::THEME_LIGHT);
         ui.radio_value(&mut desk.theme, ThemeChoice::Dark, texts::THEME_DARK);
     });
-    ui.label(texts::LANGUAGE);
+    ui.label(texts::LANGUAGE_LABEL);
     ui.horizontal(|ui| {
-        // English arrives with stage C; German is the only choice until then.
-        ui.add(RadioButton::new(true, texts::LANGUAGE_GERMAN));
-        ui.add_enabled(false, RadioButton::new(false, texts::LANGUAGE_ENGLISH));
+        ui.radio_value(&mut desk.language, Language::German, texts::LANGUAGE_GERMAN);
+        ui.radio_value(
+            &mut desk.language,
+            Language::English,
+            texts::LANGUAGE_ENGLISH,
+        );
     });
     ui.label(texts::METER_RANGE);
     ui.horizontal(|ui| {

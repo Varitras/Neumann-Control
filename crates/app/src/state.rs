@@ -16,7 +16,7 @@ use crate::display::capped;
 use crate::gesture::GestureState;
 use crate::meter::{MeterState, METER_FLOOR_DB};
 use crate::paths;
-use crate::texts;
+use crate::writes::Refusal;
 
 /// The KH 750 reports three output channels; a longer list from a faulty device would draw a
 /// meter per element.
@@ -57,6 +57,18 @@ pub enum AllValuesState {
     Failed(String),
 }
 
+/// What the strip says about the speaker; worded only when drawn, so it follows the language.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Message {
+    Unreachable,
+    WriteFailed,
+    /// The device refused a write with this error code.
+    Rejected(i64),
+    /// A different device answered at the address; its serial, masked.
+    SerialMismatch(String),
+    Refused(Refusal),
+}
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
@@ -67,7 +79,7 @@ pub struct SpeakerState {
     pub values: BTreeMap<SscPath, Value>,
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
-    pub message: Option<String>,
+    pub message: Option<Message>,
     message_source: MessageSource,
     pub input_meters: Vec<MeterState>,
     pub output_meters: Vec<MeterState>,
@@ -156,10 +168,7 @@ impl SpeakerState {
             // The masked reason is for the log; the card only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
-                self.set_message(
-                    Some(texts::UNREACHABLE.to_owned()),
-                    MessageSource::Connection,
-                );
+                self.set_message(Some(Message::Unreachable), MessageSource::Connection);
                 self.reset_meters();
                 self.response_time = None;
             }
@@ -179,17 +188,17 @@ impl SpeakerState {
                 self.absent.insert(path);
             }
             Event::WriteRejected { error, .. } => {
-                let text = texts::describe_rejection(error.code);
-                self.set_message(Some(text), MessageSource::Write);
+                let message = Message::Rejected(error.code);
+                self.set_message(Some(message), MessageSource::Write);
             }
             Event::WriteFailed { .. } => {
-                self.set_message(Some(texts::WRITE_FAILED.to_owned()), MessageSource::Write);
+                self.set_message(Some(Message::WriteFailed), MessageSource::Write);
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
                 self.response_time = None;
-                let text = texts::serial_mismatch(&mask_serial(&found));
-                self.set_message(Some(text), MessageSource::Connection);
+                let message = Message::SerialMismatch(mask_serial(&found));
+                self.set_message(Some(message), MessageSource::Connection);
             }
             Event::AllValues(reports) => self.finish_all_values(AllValuesState::Loaded(reports)),
             Event::AllValuesFailed(reason) => {
@@ -218,7 +227,7 @@ impl SpeakerState {
         }
     }
 
-    pub(crate) fn set_message(&mut self, message: Option<String>, source: MessageSource) {
+    pub(crate) fn set_message(&mut self, message: Option<Message>, source: MessageSource) {
         self.message = message;
         self.message_source = source;
     }
@@ -329,7 +338,7 @@ mod tests {
         );
         speaker.apply(Event::Unreachable("masked".to_owned()), 1.0);
         assert_eq!(speaker.status, Status::Unreachable);
-        assert_eq!(speaker.message.as_deref(), Some(texts::UNREACHABLE));
+        assert_eq!(speaker.message, Some(Message::Unreachable));
         assert_eq!(speaker.values.len(), 1);
     }
 
@@ -361,10 +370,7 @@ mod tests {
             },
             0.0,
         );
-        assert_eq!(
-            speaker.message.as_deref(),
-            Some("Gerät lehnt ab: nur lesbar")
-        );
+        assert_eq!(speaker.message, Some(Message::Rejected(405)));
     }
 
     #[test]
@@ -378,9 +384,11 @@ mod tests {
             0.0,
         );
         assert_eq!(speaker.status, Status::Unreachable);
-        let message = speaker.message.unwrap();
-        assert!(message.contains(&mask_serial(OTHER_SERIAL)));
-        assert!(!message.contains(OTHER_SERIAL));
+        let Some(Message::SerialMismatch(masked)) = speaker.message else {
+            panic!("{:?}", speaker.message);
+        };
+        assert_eq!(masked, mask_serial(OTHER_SERIAL));
+        assert_ne!(masked, OTHER_SERIAL);
     }
 
     #[test]
@@ -462,10 +470,7 @@ mod tests {
         );
         speaker.apply(value_event("ui/bass_gain", json!(0.0)), 0.1);
         speaker.apply(value_event("ui/bass_gain", json!(0.0)), 30.0);
-        assert_eq!(
-            speaker.message.as_deref(),
-            Some("Gerät lehnt ab: nur lesbar")
-        );
+        assert_eq!(speaker.message, Some(Message::Rejected(405)));
     }
 
     #[test]
@@ -479,7 +484,7 @@ mod tests {
             0.0,
         );
         speaker.apply(value_event("audio/out/level", json!(80.0)), 2.0);
-        assert_eq!(speaker.message.as_deref(), Some(texts::WRITE_FAILED));
+        assert_eq!(speaker.message, Some(Message::WriteFailed));
     }
 
     #[test]
@@ -495,10 +500,7 @@ mod tests {
             },
             0.0,
         );
-        assert_eq!(
-            speaker.message.as_deref(),
-            Some("Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt")
-        );
+        assert_eq!(speaker.message, Some(Message::Rejected(401)));
     }
 
     #[test]

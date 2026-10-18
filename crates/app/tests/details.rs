@@ -91,7 +91,7 @@ fn name_field_shows_refusal() {
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("Küche");
     harness.run_steps(1);
-    harness.get_by_label(texts::APPLY).click();
+    harness.get_by_label(texts::APPLY.get()).click();
     harness.run_steps(2);
     barrier(&simulator);
     let sets = sets_to(&simulator, NAME_PATH);
@@ -104,7 +104,7 @@ fn name_field_shows_refusal() {
         refusal.min.y > field.rect().max.y,
         "the reason is below the field"
     );
-    let next_row = harness.get_by_label(texts::ALL_VALUES).rect();
+    let next_row = harness.get_by_label(texts::ALL_VALUES.get()).rect();
     assert!(
         refusal.max.y < next_row.min.y,
         "the reason is not the card's message"
@@ -270,7 +270,7 @@ fn abandoned_number_edit_is_not_sent_on_reopen() {
     harness.run_steps(2);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::CLOSE).is_none());
+    assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
@@ -358,33 +358,33 @@ fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
 #[test]
 fn strip_controls_are_not_repeated_in_the_panel() {
     let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
-    assert_eq!(harness.query_all_by_label(texts::MUTE).count(), 1);
-    assert_eq!(harness.query_all_by_label(texts::IDENTIFY).count(), 1);
+    assert_eq!(harness.query_all_by_label(texts::MUTE.get()).count(), 1);
+    assert_eq!(harness.query_all_by_label(texts::IDENTIFY.get()).count(), 1);
     assert!(harness.query_by_label("Identifizieren").is_none());
     assert!(harness.query_by_label("Eingangspegel").is_none());
-    let faders = harness.query_all_by_role_and_label(Role::Slider, texts::LEVEL);
+    let faders = harness.query_all_by_role_and_label(Role::Slider, texts::LEVEL.get());
     assert_eq!(faders.count(), 1);
     assert!(harness.query_all_by_role(Role::SpinButton).all(|node| node
         .accesskit_node()
         .label()
         .as_deref()
-        != Some(texts::LEVEL)));
+        != Some(texts::LEVEL.get())));
 }
 
 #[test]
 fn kh750_output_meters_sit_next_to_the_input_meters() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh750);
-    let output_meter = texts::meter_label(texts::OUTPUT_METERS, "A");
+    let output_meter = texts::meter_label(texts::OUTPUT_METERS.get(), "A");
     wait_for_label(&mut harness, &output_meter);
     assert_eq!(
         harness
-            .query_all_by_label_contains(texts::OUTPUT_METERS)
+            .query_all_by_label_contains(texts::OUTPUT_METERS.get())
             .count(),
         3
     );
     assert_eq!(
         harness
-            .query_all_by_label_contains(texts::INPUT_METERS)
+            .query_all_by_label_contains(texts::INPUT_METERS.get())
             .count(),
         2
     );
@@ -395,10 +395,13 @@ fn kh750_output_meters_sit_next_to_the_input_meters() {
 #[test]
 fn kh120ii_card_has_no_output_meters() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    wait_for_label(&mut harness, &texts::meter_label(texts::INPUT_METERS, "B"));
+    wait_for_label(
+        &mut harness,
+        &texts::meter_label(texts::INPUT_METERS.get(), "B"),
+    );
     assert_eq!(
         harness
-            .query_all_by_label_contains(texts::OUTPUT_METERS)
+            .query_all_by_label_contains(texts::OUTPUT_METERS.get())
             .count(),
         0
     );
@@ -407,7 +410,7 @@ fn kh120ii_card_has_no_output_meters() {
 #[test]
 fn all_values_button_reads_the_whole_tree() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    harness.get_by_label(texts::ALL_VALUES).click();
+    harness.get_by_label(texts::ALL_VALUES.get()).click();
     wait_until(&mut harness, "the schema walk", |_| {
         simulator
             .requests()

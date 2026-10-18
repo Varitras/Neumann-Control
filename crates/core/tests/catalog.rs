@@ -1,4 +1,5 @@
 use neumann_control_core::catalog::{Catalog, CatalogError, Conversion, Entry, Kind, ValueError};
+use neumann_control_core::settings::Language;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
 
@@ -201,6 +202,7 @@ fn duplicate_path_in_text_is_an_error() {
         [[entry]]
         path = "audio/out/mute"
         label = "Stumm"
+        label_en = "Mute"
         group = "output"
         kind = "switch"
         poll = "fast"
@@ -209,6 +211,7 @@ fn duplicate_path_in_text_is_an_error() {
         [[entry]]
         path = "audio/out/mute"
         label = "Stumm"
+        label_en = "Mute"
         group = "output"
         kind = "switch"
         poll = "fast"
@@ -232,6 +235,7 @@ fn select_without_options_is_an_error() {
         [[entry]]
         path = "audio/in/interface"
         label = "Eingangs-Interface"
+        label_en = "Input interface"
         group = "input"
         kind = "select"
         poll = "slow"
@@ -272,6 +276,7 @@ fn invalid_reason(entry: &str) -> Option<&'static str> {
 const SUBWOOFER_OUTPUT: &str = r#"
     path = "audio/out1/mute"
     label = "Stumm"
+    label_en = "Mute"
     group = "output1"
     kind = "switch"
     poll = "fast"
@@ -281,6 +286,7 @@ const SUBWOOFER_OUTPUT: &str = r#"
 const LEVEL: &str = r#"
     path = "audio/out/level"
     label = "Pegel"
+    label_en = "Level"
     group = "output"
     kind = "number"
     poll = "fast"
@@ -301,4 +307,13 @@ fn an_empty_number_range_is_an_error() {
     assert!(invalid_reason(&format!("{LEVEL}min = 5\nmax = 5")).is_some());
     assert!(invalid_reason(&format!("{LEVEL}min = 5\nmax = 10\nmax_subwoofer = 5")).is_some());
     assert_eq!(invalid_reason(&format!("{LEVEL}min = 0\nmax = 120")), None);
+}
+
+#[test]
+fn every_entry_has_a_label_in_each_language() {
+    for entry in &Catalog::embedded().entries {
+        for language in Language::ALL {
+            assert!(!entry.label(language).is_empty(), "{}", entry.path);
+        }
+    }
 }

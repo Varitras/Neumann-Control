@@ -9,8 +9,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use crate::paths;
-use crate::state::{MessageSource, SpeakerState, Status};
-use crate::texts;
+use crate::state::{Message, MessageSource, SpeakerState, Status};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Switch {
@@ -108,8 +107,7 @@ impl SpeakerState {
         match self.try_request(intent, catalog, now) {
             Ok(command) => Some(command),
             Err(refusal) => {
-                let text = texts::describe_refusal(&refusal);
-                self.set_message(Some(text), MessageSource::Write);
+                self.set_message(Some(Message::Refused(refusal)), MessageSource::Write);
                 None
             }
         }
@@ -206,8 +204,8 @@ mod tests {
         let mut speaker = speaker("KH 80");
         let command = speaker.request(Intent::Level(80.0), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
-        let expected = texts::describe_refusal(&Refusal::NotWritable);
-        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+        let expected = Message::Refused(Refusal::NotWritable);
+        assert_eq!(speaker.message, Some(expected));
         assert!(!can_write(
             &speaker,
             Catalog::embedded(),
@@ -224,8 +222,8 @@ mod tests {
             min: 0.0,
             max: 120.0,
         };
-        let expected = texts::describe_refusal(&Refusal::Invalid(reason));
-        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+        let expected = Message::Refused(Refusal::Invalid(reason));
+        assert_eq!(speaker.message, Some(expected));
     }
 
     #[test]
@@ -271,8 +269,8 @@ mod tests {
             value: Value::from("Küche"),
         };
         assert_eq!(speaker.request(intent, Catalog::embedded(), 0.0), None);
-        let expected = texts::describe_refusal(&Refusal::Invalid(ValueError::NotPrintableAscii));
-        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+        let expected = Message::Refused(Refusal::Invalid(ValueError::NotPrintableAscii));
+        assert_eq!(speaker.message, Some(expected));
     }
 
     #[test]
@@ -301,7 +299,7 @@ mod tests {
         assert!(speaker
             .try_request(intent, Catalog::embedded(), 2.0)
             .is_err());
-        assert_eq!(speaker.message.as_deref(), Some(texts::UNREACHABLE));
+        assert_eq!(speaker.message, Some(Message::Unreachable));
     }
 
     #[test]
@@ -349,7 +347,7 @@ mod tests {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
-        let expected = texts::describe_refusal(&Refusal::ValueUnknown);
-        assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+        let expected = Message::Refused(Refusal::ValueUnknown);
+        assert_eq!(speaker.message, Some(expected));
     }
 }

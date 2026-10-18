@@ -48,8 +48,8 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
     ui.columns(COLUMNS, |columns| {
         for (column, groups) in columns.iter_mut().zip([left, right]) {
             for (group, entries) in groups {
-                column.push_id(group.title(), |ui| {
-                    ui.label(RichText::new(group.title()).strong());
+                column.push_id(group.title(texts::language()), |ui| {
+                    ui.label(RichText::new(group.title(texts::language())).strong());
                     for entry in entries {
                         row(ui, &mut fields, entry);
                     }
@@ -114,7 +114,7 @@ fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {
         Kind::Number => {
             ui.horizontal(|ui| {
                 let catalog = fields.catalog;
-                let label = texts::knob_label(&entry.label);
+                let label = texts::knob_label(entry.label(texts::language()));
                 let speaker = &mut *fields.speaker;
                 let sent = knob::for_entry(
                     ui,
@@ -143,7 +143,7 @@ fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
         .map(|value| shown_value(entry, value))
         .unwrap_or_default();
     ui.horizontal_wrapped(|ui| {
-        ui.weak(&entry.label);
+        ui.weak(entry.label(texts::language()));
         ui.weak(shown);
     });
 }
