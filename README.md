@@ -27,8 +27,8 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
 - Shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the speaker
-  sets; it cannot be changed over the network. In LOCAL a KH 750 refuses every write (measured;
-  the KH 120 II is assumed to do the same, not measured).
+  sets; it cannot be changed over the network. In LOCAL the speaker refuses every write, and the
+  card says so.
 - A speaker that stops answering is shown as unreachable and reconnected every 10 seconds.
 
 ## Supported models
