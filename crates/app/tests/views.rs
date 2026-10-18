@@ -62,6 +62,29 @@ fn fader_drag_sends_once_on_release() {
 }
 
 #[test]
+fn fader_value_is_shown_at_the_handle_while_dragging() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let start = harness.get_by_role(Role::Slider).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=5 {
+        harness.hover_at(start + egui::vec2(0.0, 4.0 * frame as f32));
+        harness.step();
+    }
+    let dragged = harness
+        .get_by_role(Role::Slider)
+        .accesskit_node()
+        .numeric_value()
+        .unwrap();
+    assert!(dragged < 100.0);
+    // Once under the fader, once at its handle.
+    assert_eq!(harness.query_all_by_label(&readout(dragged)).count(), 2);
+    harness.drop_at(start + egui::vec2(0.0, 20.0));
+    harness.run_steps(2);
+    barrier(&simulator);
+    assert_eq!(harness.query_all_by_label(&readout(dragged)).count(), 1);
+}
+
+#[test]
 fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
     let center = harness.get_by_role(Role::Slider).rect().center();

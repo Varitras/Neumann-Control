@@ -3,21 +3,29 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Event, Key, MouseWheelUnit, Response, Slider, SliderClamping, Ui, Vec2};
+use eframe::egui::{
+    self, Align2, Area, Event, Frame, Key, MouseWheelUnit, Order, Response, Slider, SliderClamping,
+    Ui, Vec2,
+};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
 use crate::fader::WHEEL_STEP_DB;
 use crate::paths;
 use crate::state::SpeakerState;
+use crate::texts;
 use crate::writes::{self, Intent};
 
 const DRAG_ABORTED_ID: &str = "fader_drag_aborted";
+const HANDLE_LABEL_ID: &str = "fader_handle_label";
+/// Space between the fader and the value shown beside its handle while dragging.
+const HANDLE_LABEL_GAP: f32 = 6.0;
 
 /// The slider's length.
 pub const FADER_HEIGHT: f32 = 150.0;
 
-/// The vertical level fader; returns the value it shows.
+/// The vertical level fader; returns the value it shows. While dragging, the value also stands
+/// beside the handle, where the eye is.
 pub fn show(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
@@ -25,6 +33,7 @@ pub fn show(
     commands: &mut Vec<Command>,
     device: Option<f64>,
     range: RangeInclusive<f64>,
+    unit: &str,
 ) -> f64 {
     let path = paths::path(paths::OUTPUT_LEVEL);
     let enabled = device.is_some() && writes::can_write(speaker, catalog, &path);
@@ -57,12 +66,19 @@ pub fn show(
     if enabled && response.hovered() {
         // The cards sit in a scroll area, which would scroll along with the fader.
         ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
-        for notches in wheel_notches(ui) {
+        let wheel = wheel_notches(ui);
+        for notches in &wheel {
             speaker
                 .fader
-                .on_wheel(notches, WHEEL_STEP_DB, device, range.clone(), now);
+                .on_wheel(*notches, WHEEL_STEP_DB, device, range.clone(), now);
         }
-        value = speaker.fader.shown(device, now);
+        // Only the wheel changes what is shown here; a drag keeps its own value.
+        if !wheel.is_empty() {
+            value = speaker.fader.shown(device, now);
+        }
+    }
+    if response.dragged() && !aborted {
+        handle_label(ui, &response, &texts::readout(value, unit));
     }
     if let Some(due) = speaker.fader.due(now) {
         commands.extend(speaker.request(Intent::Level(due), catalog, now));
@@ -72,6 +88,20 @@ pub fn show(
         ui.ctx().request_repaint_after_secs(wait as f32);
     }
     value
+}
+
+fn handle_label(ui: &Ui, response: &Response, text: &str) {
+    let pointer = ui.input(|input| input.pointer.interact_pos());
+    let y = pointer.map_or(response.rect.center().y, |position| position.y);
+    let anchor = egui::pos2(response.rect.right() + HANDLE_LABEL_GAP, y);
+    Area::new(response.id.with(HANDLE_LABEL_ID))
+        .order(Order::Tooltip)
+        .fixed_pos(anchor)
+        .pivot(Align2::LEFT_CENTER)
+        .interactable(false)
+        .show(ui.ctx(), |ui| {
+            Frame::popup(ui.style()).show(ui, |ui| ui.label(text));
+        });
 }
 
 /// Escape ends egui's drag but leaves the button down, and the slider keeps following the

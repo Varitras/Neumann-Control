@@ -119,16 +119,17 @@ fn strip(
 ) {
     let path = paths::path(paths::OUTPUT_LEVEL);
     let device = speaker.values.get(&path).and_then(Value::as_f64);
+    let unit = paths::catalog_entry(catalog, &path)
+        .and_then(|entry| entry.unit.clone())
+        .unwrap_or_default();
     let shown = ui
         .horizontal(|ui| {
-            let shown = fader::show(ui, speaker, catalog, commands, device, output_level_range());
+            let range = output_level_range();
+            let shown = fader::show(ui, speaker, catalog, commands, device, range, &unit);
             meters(ui, speaker, tokens);
             shown
         })
         .inner;
-    let unit = paths::catalog_entry(catalog, &path)
-        .and_then(|entry| entry.unit.clone())
-        .unwrap_or_default();
     let readout = device.map(|_| texts::readout(shown, &unit));
     ui.label(readout.unwrap_or_default());
 }
