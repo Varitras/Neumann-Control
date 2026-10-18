@@ -53,7 +53,8 @@ impl GestureState {
         }
         let base = self.pending.unwrap_or(current);
         let target = base + whole as f64 * step;
-        if let Some(moved) = bounded_move(base, target, &range) {
+        let moved = bounded_move(base, target, &range).filter(|moved| *moved != base);
+        if let Some(moved) = moved {
             self.pending = Some(moved);
         }
     }
@@ -285,6 +286,13 @@ mod tests {
     fn sent_values_sit_on_the_step_grid() {
         assert_eq!(on_grid(12.4, 1.0), 12.0);
         assert_eq!(on_grid(1.26, 0.5), 1.5);
+    }
+
+    #[test]
+    fn a_wheel_against_a_range_end_writes_nothing() {
+        let mut fader = GestureState::default();
+        fader.on_wheel(1.0, LEVEL_STEP, 120.0, LEVEL_RANGE, 0.0);
+        assert_eq!(fader.due(0.5), None);
     }
 
     #[test]

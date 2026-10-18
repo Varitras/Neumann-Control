@@ -172,3 +172,16 @@ fn a_compact_row_says_why_a_write_was_refused() {
         harness.query_by_label(&message).is_some()
     });
 }
+
+#[test]
+fn a_group_row_says_why_a_members_write_was_refused() {
+    let (kh120, _kh750, _directory, mut harness) = grouped(Vec::new());
+    kh120.set_value("ui/control_mode", serde_json::json!("LOCAL"));
+    press_compact_shortcut(&mut harness);
+    drag_level(&mut harness, &texts::group_level(GROUP_NAME), -40.0);
+    let message = texts::describe_rejection(401);
+    // On the group row and on the master row, which both hold the member.
+    wait_until(&mut harness, "the LOCAL message", |harness| {
+        harness.query_all_by_label_contains(&message).count() == 2
+    });
+}

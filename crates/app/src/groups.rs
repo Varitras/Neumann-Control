@@ -144,6 +144,15 @@ pub fn rename_member(
     for group in groups.iter_mut() {
         changed |= rename_in(&mut group.members, old, new);
     }
+    // Known under both ids, it may have been put into two groups; the first keeps it.
+    let first = groups
+        .iter()
+        .position(|group| group.members.iter().any(|id| id == new));
+    for (index, group) in groups.iter_mut().enumerate() {
+        if Some(index) != first {
+            group.members.retain(|id| id != new);
+        }
+    }
     changed | rename_in(order, old, new)
 }
 
@@ -385,6 +394,15 @@ mod tests {
         rename_member(&mut groups, &mut order, "address:a", "serial:a");
         assert_eq!(groups[0].members, ids(&["serial:a"]));
         assert_eq!(order, ids(&["serial:a"]));
+    }
+
+    #[test]
+    fn a_rename_never_leaves_a_speaker_in_two_groups() {
+        let mut groups = [group("Front", &["address:a"]), group("Sub", &["serial:a"])];
+        let mut order = Vec::new();
+        rename_member(&mut groups, &mut order, "address:a", "serial:a");
+        assert_eq!(groups[0].members, ids(&["serial:a"]));
+        assert!(groups[1].members.is_empty());
     }
 
     #[test]

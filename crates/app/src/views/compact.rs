@@ -100,6 +100,8 @@ pub struct SharedRow {
     pub loudest: Option<f64>,
     pub range: RangeInclusive<f64>,
     pub floor: f64,
+    /// A member's message, worded with its name: grouped members have no row of their own.
+    pub message: Option<String>,
 }
 
 pub fn group(
@@ -167,6 +169,9 @@ fn shared_controls(
         tokens,
     );
     let mute = mute_button(ui, mute_label, shown.muted);
+    if let Some(message) = &shown.message {
+        message_mark(ui, message, tokens);
+    }
     (moved, mute)
 }
 

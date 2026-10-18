@@ -230,7 +230,13 @@ fn level(
     let entry_id = response.id.with(LEVEL_ENTRY_ID);
     let open_now = response.double_clicked() && device.is_some();
     if let Some(level) = knob::value_entry(ui, entry_id, open_now, shown, None) {
-        let level = on_grid(level, WHEEL_STEP_DB);
+        // Outside the range the typed value stays as typed, so the write policy refuses it
+        // instead of the grid pulling it in ("120,2" is not 120).
+        let level = if output_level_range().contains(&level) {
+            on_grid(level, WHEEL_STEP_DB)
+        } else {
+            level
+        };
         let now = ui.input(|input| input.time);
         commands.extend(speaker.request(Intent::Level(level), catalog, now));
     }

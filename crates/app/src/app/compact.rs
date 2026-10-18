@@ -83,12 +83,17 @@ impl NeumannApp {
             .filter_map(|state| state.loudest_input(now))
             .collect();
         let range = output_level_range();
+        let message = states.iter().find_map(|state| {
+            let message = texts::describe_message(state.message.as_ref()?);
+            Some(texts::member_message(&state.display_name(), &message))
+        });
         SharedRow {
             level: shared_level(&levels(&states), &range),
             muted: all_muted(&states),
             loudest: reference_level(&inputs),
             range,
             floor,
+            message,
         }
     }
 

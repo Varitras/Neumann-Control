@@ -58,8 +58,8 @@ covered by the simulator tests only.
 - "Kompakt" (or Ctrl+K) switches to a compact window and back: one row per ungrouped speaker
   and per group, each with LEDs (a group: its colour), name, a lying level fader with its value,
   the loudest input as a small meter and "Stumm", and the master row at the bottom. A group row
-  moves its members like the group strip; a "!" stands for a speaker's message, which shows on
-  hover. The compact window keeps its own size and position and scrolls sideways when narrower
+  moves its members like the group strip; a "!" stands for a speaker's message (on a group or
+  the master row, a member's), which shows on hover. The compact window keeps its own size and position and scrolls sideways when narrower
   than its rows; scanning and adding speakers or groups stay on the desk.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.

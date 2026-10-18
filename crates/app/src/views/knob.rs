@@ -14,7 +14,8 @@ use neumann_control_core::catalog::{Catalog, Conversion, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::fader::{drag_aborted, value_beside, wheel_notches, FINE_DIVISOR};
+use super::fader::{drag_aborted, value_beside, FINE_DIVISOR};
+use super::wheel::notches_for;
 use crate::display::shown_value;
 use crate::gesture::{bounded_move, released, typed_value, GestureState};
 use crate::state::SpeakerState;
@@ -85,7 +86,13 @@ pub fn for_entry(
     let id = ui.id().with(entry.path.to_string());
     let sent = show(ui, id, &knob, &mut state);
     speaker.knobs.insert(entry.path.clone(), state);
-    let value = writes::number_value(entry, reported.as_ref(), sent?);
+    let sent = sent?;
+    // A typed value outside the range is sent as typed, for the write policy to refuse.
+    let value = if (minimum..=maximum).contains(&sent) {
+        writes::number_value(entry, reported.as_ref(), sent)
+    } else {
+        Value::from(sent)
+    };
     let now = ui.input(|input| input.time);
     let path = entry.path.clone();
     speaker.request(Intent::Write { path, value }, catalog, now)
@@ -174,7 +181,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 });
             }
             if enabled && response.hovered() {
-                let wheel = wheel_notches(ui);
+                let wheel = notches_for(ui, rect);
                 let step = wheel_step(&knob.range, knob.step);
                 for notches in &wheel {
                     state.on_wheel(*notches, step, device, knob.range.clone(), now);

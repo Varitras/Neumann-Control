@@ -74,7 +74,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             let context = creation_context.egui_ctx.clone();
             let spawner = Box::new(CoreSpawner::new(context.clone()));
-            Ok(Box::new(NeumannApp::new(&context, settings_path, spawner)))
+            let app = NeumannApp::with_settings(&context, settings_path, saved, spawner);
+            Ok(Box::new(app))
         }),
     )?;
     Ok(())

@@ -214,7 +214,10 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
     let text = r#"{
         "manual": [{"address": "fe80::1%7", "port": 45, "serial": "SIM1"}, {"address": "fe80::2%7"}],
         "desk": {"language": "French", "meter_floor": "Minus200", "show_response_times": false},
-        "groups": [{"name": "Front", "members": ["serial:SIM1"]}, {"name": "Sub", "color": 1, "members": []}],
+        "groups": [
+            {"name": "Front", "members": ["serial:SIM1"], "linked": ["Level", "Delay"]},
+            {"name": "Sub", "color": 1, "members": []}
+        ],
         "order": ["serial:SIM1"]
     }"#;
     fs::write(&path, text).unwrap();
@@ -226,8 +229,11 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
         !loaded.desk.show_response_times,
         "a readable neighbour stays"
     );
-    assert_eq!(loaded.groups.len(), 1);
-    assert_eq!(loaded.groups[0].name, "Sub");
+    // A group keeps its members when its colour is missing or a link is unknown.
+    assert_eq!(loaded.groups.len(), 2);
+    assert_eq!(loaded.groups[0].members, vec!["serial:SIM1".to_owned()]);
+    assert_eq!(loaded.groups[0].linked, vec![Linkable::Level]);
+    assert_eq!(loaded.groups[1].color, 1);
     assert_eq!(loaded.order, vec!["serial:SIM1".to_owned()]);
     // The original stays readable for whoever wants the dropped values back.
     let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));

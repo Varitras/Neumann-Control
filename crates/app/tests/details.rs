@@ -491,3 +491,43 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
     barrier(&simulator);
     assert!(sets_to(&simulator, DELAY_PATH).is_empty());
 }
+
+#[test]
+fn a_panel_drag_outside_the_range_writes_nothing() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/delay", json!(6000));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        numeric_value(harness, DELAY_LABEL) == Some(6000.0)
+    });
+    let start = number_field(&harness, DELAY_LABEL).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=10 {
+        harness.hover_at(start + egui::vec2(4.0 * frame as f32, 0.0));
+        harness.step();
+    }
+    harness.drop_at(start + egui::vec2(40.0, 0.0));
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, DELAY_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
+#[test]
+fn a_panel_drag_back_to_its_start_writes_nothing() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    simulator.set_value("audio/out/delay", json!(100.123456));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        numeric_value(harness, DELAY_LABEL) == Some(100.123456)
+    });
+    let start = number_field(&harness, DELAY_LABEL).rect().center();
+    harness.drag_at(start);
+    for offset in [8.0, 16.0, 8.0, 0.0] {
+        harness.hover_at(start + egui::vec2(offset, 0.0));
+        harness.step();
+    }
+    harness.drop_at(start);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, DELAY_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}

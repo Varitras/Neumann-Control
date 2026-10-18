@@ -7,7 +7,7 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use crate::display::{capped, converted_unit};
-use crate::gesture::{bounded_move, on_grid, typed_value};
+use crate::gesture::{bounded_move, on_grid, released, typed_value};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
@@ -124,8 +124,21 @@ impl Fields<'_> {
         if ui.input(|input| input.key_pressed(Key::Escape)) {
             return;
         }
+        // A drag or an edit that ends where it began writes nothing.
+        let unchanged = match (entry.step, device) {
+            (Some(step), Some(device)) => released(device, number, step).is_none(),
+            _ => Some(number) == device,
+        };
+        if unchanged {
+            return;
+        }
         let path = entry.path.clone();
-        let value = writes::number_value(entry, reported.as_ref(), number);
+        // A typed value outside the range is sent as typed, for the write policy to refuse.
+        let value = if (min..=max).contains(&number) {
+            writes::number_value(entry, reported.as_ref(), number)
+        } else {
+            Value::from(number)
+        };
         self.send(ui, Intent::Write { path, value });
     }
 

@@ -76,11 +76,13 @@ impl Settings {
 pub struct GroupSettings {
     pub name: String,
     /// Index into the app's group colour palette.
+    #[serde(default, deserialize_with = "or_default")]
     pub color: u8,
     /// Speaker identities, as in `Settings::order`.
+    #[serde(default, deserialize_with = "readable_items")]
     pub members: Vec<String>,
     /// Settings a change on one member sends to all members.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "readable_items")]
     pub linked: Vec<Linkable>,
 }
 

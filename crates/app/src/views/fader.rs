@@ -5,12 +5,13 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, vec2, Align2, Area, CornerRadius, CursorIcon, Event, Frame, Id, Key, Label,
-    MouseWheelUnit, Order, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo,
+    self, vec2, Align2, Area, CornerRadius, CursorIcon, Frame, Id, Key, Label, Order, Rect,
+    Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
+use super::wheel::notches_for;
 use crate::fader::WHEEL_STEP_DB;
 use crate::gesture::{self, bounded_move, on_grid};
 use crate::groups::SharedLevel;
@@ -136,7 +137,7 @@ pub fn show(
     let held = response.is_pointer_button_down_on() || response.dragged();
     if enabled && response.hovered() && !held {
         ui.ctx().set_cursor_icon(orientation.cursor());
-        let wheel = wheel_notches(ui);
+        let wheel = notches_for(ui, rect);
         for notches in &wheel {
             speaker
                 .fader
@@ -196,7 +197,9 @@ pub fn shared(
     let id = response.id;
     response.on_hover_text(texts::FADER_HINT);
     if drag.current.is_some() {
-        let text = texts::level_move(value - reference);
+        let moved = gesture::released(drag.started, value, WHEEL_STEP_DB)
+            .map_or(0.0, |end| end - drag.started);
+        let text = texts::level_move(moved);
         dragged_value(ui, id, rect, &range, value, orientation, &text);
     }
     drag.released.map(|released| released - drag.started)
@@ -392,49 +395,4 @@ pub(super) fn drag_aborted(ui: &Ui, response: &Response) -> bool {
     let button_down = ui.input(|input| input.pointer.primary_down());
     ui.data_mut(|data| data.insert_temp(id, aborted && button_down));
     aborted
-}
-
-/// Lines and pixels of a precision touchpad come as many small events, pages as rare large
-/// ones; egui scrolls this many points per line.
-const POINTS_PER_NOTCH: f32 = 40.0;
-const NOTCHES_PER_PAGE: f32 = 10.0;
-
-/// Each wheel event of this frame in notches (lines), upwards positive. Taken by the hovered
-/// control: the scroll area around it would otherwise scroll as well and bring another control
-/// under the pointer for the next notches.
-pub(super) fn wheel_notches(ui: &Ui) -> Vec<f64> {
-    ui.input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
-    ui.input(|input| {
-        input
-            .events
-            .iter()
-            .filter_map(|event| match event {
-                Event::MouseWheel { unit, delta, .. } if delta.y != 0.0 => {
-                    Some(notches(*unit, delta.y))
-                }
-                _ => None,
-            })
-            .collect()
-    })
-}
-
-fn notches(unit: MouseWheelUnit, delta: f32) -> f64 {
-    let lines = match unit {
-        MouseWheelUnit::Line => delta,
-        MouseWheelUnit::Point => delta / POINTS_PER_NOTCH,
-        MouseWheelUnit::Page => delta * NOTCHES_PER_PAGE,
-    };
-    f64::from(lines)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn wheel_units_become_notches() {
-        assert_eq!(notches(MouseWheelUnit::Line, 0.25), 0.25);
-        assert_eq!(notches(MouseWheelUnit::Point, -80.0), -2.0);
-        assert_eq!(notches(MouseWheelUnit::Page, 1.0), 10.0);
-    }
 }

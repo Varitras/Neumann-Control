@@ -357,6 +357,11 @@ pub fn describe_message(message: &Message) -> String {
     }
 }
 
+/// A group row's note about one of its members.
+pub fn member_message(name: &str, message: &str) -> String {
+    format!("{name}: {message}")
+}
+
 pub fn serial_mismatch(masked_serial: &str) -> String {
     pick(
         format!("Anderes Gerät unter dieser Adresse (Seriennummer {masked_serial})"),

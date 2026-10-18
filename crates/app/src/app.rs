@@ -29,7 +29,7 @@ use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
-use crate::views::{all_values, panel};
+use crate::views::{all_values, panel, wheel};
 
 mod compact;
 mod desk;
@@ -86,9 +86,20 @@ impl NeumannApp {
         settings_path: PathBuf,
         spawner: Box<dyn SpeakerSpawner>,
     ) -> NeumannApp {
+        let settings = settings::load(&settings_path);
+        NeumannApp::with_settings(context, settings_path, settings, spawner)
+    }
+
+    /// With settings already loaded from `settings_path`, as the start does to place the window:
+    /// a second load would set a file with values it does not understand aside a second time.
+    pub fn with_settings(
+        context: &Context,
+        settings_path: PathBuf,
+        settings: Settings,
+        spawner: Box<dyn SpeakerSpawner>,
+    ) -> NeumannApp {
         fonts::install(context);
         theme::apply(context);
-        let settings = settings::load(&settings_path);
         context.set_theme(theme::preference(settings.desk.theme));
         let repaint_context = context.clone();
         let mut app = NeumannApp {
@@ -555,6 +566,7 @@ impl eframe::App for NeumannApp {
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         texts::set_language(self.settings.desk.language);
+        wheel::track_burst(ui.ctx());
         self.show(ui, frame);
     }
 

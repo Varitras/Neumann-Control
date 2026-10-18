@@ -410,33 +410,6 @@ fn strip_content_stacks_top_down() {
 }
 
 /// Point on a circle of `radius` around `center` at `degrees` clockwise from the top.
-fn around(center: egui::Pos2, radius: f32, degrees: f32) -> egui::Pos2 {
-    let radians = degrees.to_radians();
-    center + radius * egui::vec2(radians.sin(), -radians.cos())
-}
-
-/// Presses at `from` degrees on the knob's rim and moves clockwise to `to` without releasing.
-fn turn_knob(
-    harness: &mut Harness<'static, NeumannApp>,
-    label: &str,
-    from: f32,
-    to: f32,
-) -> egui::Pos2 {
-    let center = harness
-        .get_by_role_and_label(Role::Slider, label)
-        .rect()
-        .center();
-    let radius = 14.0;
-    harness.drag_at(around(center, radius, from));
-    let steps = 6;
-    for step in 1..=steps {
-        let degrees = from + (to - from) * step as f32 / steps as f32;
-        harness.hover_at(around(center, radius, degrees));
-        harness.step();
-    }
-    around(center, radius, to)
-}
-
 #[test]
 fn strip_shows_leds_knobs_fader_and_buttons() {
     let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);
