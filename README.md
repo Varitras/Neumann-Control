@@ -15,7 +15,8 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
 ## Features
 
 - Finds speakers on the local network with mDNS (`_ssc._tcp`) when you press "Suchen" (a scan
-  takes 4 seconds), or adds a speaker by its IPv6 address with "+ Adresse".
+  takes 4 seconds) and lets you choose which of them to add, or adds a speaker by its IPv6
+  address with "+ Adresse". Added speakers are remembered.
 - One card per speaker: connection state, output level fader (0-120 dB SPL, mouse wheel in
   0.5 dB steps), input level meters with clip lamps, "Stumm" (mute) and "Ident." (identify),
   firmware version and masked serial number.
@@ -52,15 +53,22 @@ on some models (subwoofer outputs, logo brightness) appear only for those models
 
 ## Usage
 
-1. Start `neumann-control.exe` and press "Suchen". Found speakers get a card.
+1. Start `neumann-control.exe` and press "Suchen". After the scan the dialog "Gefundene
+   Lautsprecher" lists every speaker found with its name, model and masked address. Check the
+   ones you want and press "Hinzufügen"; each gets a card. Speakers that already have a card are
+   marked "bereits hinzugefügt" and cannot be checked again. "Abbrechen" adds nothing.
 2. If the scan finds nothing (for example mDNS is blocked), press "+ Adresse" and enter the
    speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`.
 3. Find the index in PowerShell with `Get-NetAdapter | Select-Object Name, ifIndex`, or with
    `netsh interface ipv6 show interfaces` (column `Idx`).
 
-Manually added speakers are remembered and reconnected at every start. Speakers found by a scan
-are listed for the current session only; they are not saved unless added by address.
+Added speakers, whether chosen from a scan or entered by address, are remembered and reconnected
+at every start without a scan. When a later scan finds a remembered speaker at a different
+address (link-local addresses and interface indexes can change), the stored address is updated.
+
+To remove a speaker, open "Mehr" on its card, press "Entfernen" and confirm with "Entfernen".
+The card disappears and the speaker is no longer remembered.
 
 IPv4 addresses are not accepted: the speakers are reachable only over IPv6.
 
@@ -70,12 +78,11 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Manually added speakers (address, port, serial) and the window position and size |
+| `settings.json` | Remembered speakers (address, port, serial) and the window position and size |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable
-or malformed `settings.json` is renamed to `settings.json.bad` and replaced by defaults. To
-remove a manually added speaker, delete its entry from `settings.json` while the app is closed.
+or malformed `settings.json` is renamed to `settings.json.bad` and replaced by defaults.
 
 ## Known limits
 
