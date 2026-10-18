@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::{NeumannApp, OpenPanel, DESK_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{
-    insertion_slot, layout, linkable_of, linked_path, member_id, order_of, shared_level,
+    insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of, shared_level,
     shifted_levels, with_moved, DeskItem,
 };
 use crate::paths;
@@ -284,8 +284,13 @@ impl NeumannApp {
             .collect()
     }
 
+    /// A write on behalf of a gesture elsewhere (group, master, link, copy): a member that is
+    /// not connected is left out, so its own message ("nicht erreichbar") stays.
     fn request_and_send(&mut self, index: usize, intent: Intent, catalog: &Catalog, now: f64) {
         let speaker = &mut self.speakers[index];
+        if speaker.state.status != Status::Connected {
+            return;
+        }
         if let Some(command) = speaker.state.request(intent, catalog, now) {
             speaker.handle.send(command);
         }
@@ -299,17 +304,16 @@ impl NeumannApp {
     }
 
     pub(super) fn add_group(&mut self) {
-        let count = self.settings.groups.len();
-        let name = format!("{} {}", texts::NEW_GROUP_NAME, count + 1);
-        let color = (count % usize::from(group_color_count())) as u8;
-        self.settings.groups.push(GroupSettings {
-            name: name.clone(),
-            color,
-            members: Vec::new(),
-            linked: Vec::new(),
-        });
+        let group = new_group(
+            &self.settings.groups,
+            texts::NEW_GROUP_NAME.get(),
+            group_color_count(),
+        );
+        let name = group.name.clone();
+        self.settings.groups.push(group);
         self.save_settings();
-        self.group_draft = Some(GroupDraft { index: count, name });
+        let index = self.settings.groups.len() - 1;
+        self.group_draft = Some(GroupDraft { index, name });
     }
 
     pub(super) fn states(&self, indexes: &[usize]) -> Vec<&SpeakerState> {

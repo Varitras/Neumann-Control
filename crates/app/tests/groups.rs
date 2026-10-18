@@ -258,3 +258,41 @@ fn removing_a_speaker_also_forgets_its_group() {
     let saved = settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.groups[0].members, vec![KH750_ID.to_owned()]);
 }
+
+#[test]
+fn group_mute_leaves_an_unreachable_member_alone() {
+    let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
+    kh750.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
+    wait_until(&mut harness, "the reachable member's mute", |_| {
+        !sets(&kh120, "/audio/out/mute").is_empty()
+    });
+    harness.run_steps(2);
+    harness.get_by_label(texts::UNREACHABLE.get());
+}
+
+#[test]
+fn a_new_group_never_repeats_the_name_or_colour_of_another() {
+    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    let path = directory.path().join(SETTINGS_FILE);
+    for _ in 0..2 {
+        harness.get_by_label(texts::ADD_GROUP.get()).click();
+        wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+        harness.get_by_label(texts::CLOSE.get()).click();
+        harness.run_steps(2);
+    }
+    let first = settings::load(&path).groups[0].name.clone();
+    harness.get_by_label(&first).click();
+    wait_for_label(&mut harness, texts::DELETE_GROUP.get());
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::ADD_GROUP.get()).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    let groups = settings::load(&path).groups;
+    assert_eq!(groups.len(), 2);
+    assert_ne!(groups[0].name, groups[1].name);
+    assert_ne!(groups[0].color, groups[1].color);
+}

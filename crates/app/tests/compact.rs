@@ -160,3 +160,15 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
         );
     }
 }
+
+#[test]
+fn a_compact_row_says_why_a_write_was_refused() {
+    let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    simulator.set_value("ui/control_mode", serde_json::json!("LOCAL"));
+    press_compact_shortcut(&mut harness);
+    drag_level(&mut harness, texts::LEVEL.get(), -40.0);
+    let message = texts::describe_rejection(401);
+    wait_until(&mut harness, "the LOCAL message", |harness| {
+        harness.query_by_label(&message).is_some()
+    });
+}

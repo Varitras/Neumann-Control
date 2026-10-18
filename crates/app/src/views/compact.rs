@@ -6,6 +6,7 @@ use std::ops::RangeInclusive;
 
 use eframe::egui::{
     self, vec2, Align, Button, Color32, CornerRadius, Layout, Pos2, RichText, Sense, Stroke, Ui,
+    WidgetInfo, WidgetType,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{DeskSettings, GroupSettings};
@@ -35,6 +36,7 @@ const READOUT_WIDTH: f32 = 96.0;
 const ROW_HEIGHT: f32 = 22.0;
 const SWATCH_SIZE: f32 = 10.0;
 const SWATCH_RADIUS: u8 = 2;
+const MESSAGE_MARK: &str = "!";
 
 pub struct SpeakerRowResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -79,6 +81,9 @@ pub fn speaker(
         meters::bar(ui, loudest, floor, texts::INPUT_METERS.get(), &tokens);
         let mute = texts::MUTE.get();
         strip::toggle(ui, speaker, catalog, &mut commands, Switch::Mute, mute);
+        if let Some(message) = &speaker.message {
+            message_mark(ui, &texts::describe_message(message), &tokens);
+        }
         open_panel
     });
     SpeakerRowResponse {
@@ -185,6 +190,14 @@ fn cell<R>(ui: &mut Ui, width: f32, contents: impl FnOnce(&mut Ui) -> R) -> R {
         contents(ui)
     })
     .inner
+}
+
+/// The strip's message line has no room in a row; a mark stands for it, the text on hover.
+fn message_mark(ui: &mut Ui, text: &str, tokens: &Tokens) {
+    let mark = RichText::new(MESSAGE_MARK).strong().color(tokens.danger);
+    let response = ui.add(egui::Label::new(mark).sense(Sense::hover()));
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, text));
+    response.on_hover_text(text);
 }
 
 /// Cut rather than pushing the columns behind it out of line.

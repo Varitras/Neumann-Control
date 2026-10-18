@@ -175,6 +175,24 @@ pub fn forget_member(
     after != before
 }
 
+/// A new group: named `base` with the lowest number no group has, in the palette colour fewest
+/// groups have, so no two groups look alike until there are more groups than colours.
+pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSettings {
+    let taken = |name: &str| groups.iter().any(|group| group.name == name);
+    let name = (1..)
+        .map(|number| format!("{base} {number}"))
+        .find(|name| !taken(name))
+        .expect("an unbounded range always yields a free name");
+    let uses = |color: u8| groups.iter().filter(|group| group.color == color).count();
+    let color = (0..colors).min_by_key(|color| uses(*color)).unwrap_or(0);
+    GroupSettings {
+        name,
+        color,
+        members: Vec::new(),
+        linked: Vec::new(),
+    }
+}
+
 /// Puts `member` into `group` (or into none), out of any other group.
 pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<usize>) {
     for existing in groups.iter_mut() {
@@ -368,6 +386,17 @@ mod tests {
         assert_eq!(groups[0].members, ids(&["b"]));
         assert_eq!(order, ids(&["b"]));
         assert!(!forget_member(&mut groups, &mut order, &forgotten));
+    }
+
+    #[test]
+    fn a_new_group_takes_a_free_name_and_the_least_used_colour() {
+        let mut groups = vec![group("Gruppe 2", &[])];
+        groups[0].color = 1;
+        let next = new_group(&groups, "Gruppe", 3);
+        assert_eq!((next.name.as_str(), next.color), ("Gruppe 1", 0));
+        groups.push(next);
+        let after = new_group(&groups, "Gruppe", 3);
+        assert_eq!((after.name.as_str(), after.color), ("Gruppe 3", 2));
     }
 
     #[test]
