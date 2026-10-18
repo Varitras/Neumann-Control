@@ -50,7 +50,7 @@ pub fn converted(conversion: Conversion, number: f64) -> String {
     match conversion {
         // Adding zero turns the -0 of a slightly negative reading into 0.
         Conversion::KelvinToCelsius => format!("{} {unit}", shown.round() + 0.0),
-        Conversion::SamplesToMilliseconds => format!("{shown:.2} {unit}"),
+        Conversion::SamplesToMilliseconds => format!("{} {unit}", texts::decimal(shown, 2)),
     }
 }
 
@@ -73,7 +73,8 @@ fn raw_text(value: &Value) -> String {
             .map(raw_text)
             .collect::<Vec<_>>()
             .join(LIST_SEPARATOR),
-        Value::Number(_) | Value::Object(_) => value.to_string(),
+        Value::Number(_) => texts::number_text(value.to_string()),
+        Value::Object(_) => value.to_string(),
     }
 }
 
@@ -102,8 +103,8 @@ mod tests {
     #[test]
     fn delay_is_shown_in_milliseconds() {
         let delay = entry("audio/out/delay");
-        assert_eq!(shown_value(delay, &json!(3732)), "77.75 ms");
-        assert_eq!(shown_value(delay, &json!(0)), "0.00 ms");
+        assert_eq!(shown_value(delay, &json!(3732)), "77,75 ms");
+        assert_eq!(shown_value(delay, &json!(0)), "0,00 ms");
     }
 
     #[test]

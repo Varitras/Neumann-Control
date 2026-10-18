@@ -75,7 +75,8 @@ impl Fields<'_> {
         // speaker as the range's end. A drag is kept inside below; a typed value goes to the write
         // policy as typed and is refused with the reason when outside.
         let mut drag = DragValue::new(&mut value)
-            .custom_formatter(|number, _| number.to_string())
+            .custom_formatter(|number, _| texts::number(number))
+            .custom_parser(|text| typed_value(text, None))
             .speed(step);
         if let Some(unit) = &entry.unit {
             drag = drag.suffix(format!(" {unit}"));
@@ -84,7 +85,7 @@ impl Fields<'_> {
             // Typed and shown in the converted unit; back on the device's step grid, so the
             // shown text parses to exactly the device value and a visit writes nothing.
             drag = drag
-                .custom_formatter(move |number, _| conversion.apply(number).to_string())
+                .custom_formatter(move |number, _| texts::number(conversion.apply(number)))
                 .custom_parser(move |text| {
                     typed_value(text, Some(conversion)).map(|typed| on_grid(typed, step))
                 })

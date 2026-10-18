@@ -9,7 +9,7 @@ use eframe::egui::{
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
 use super::fader::{self, Orientation};
-use crate::groups::{SharedLevel, LINKABLE};
+use crate::groups::{linkable_label, SharedLevel, LINKABLE};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
@@ -45,10 +45,12 @@ pub fn group(
             RichText::new(texts::LINKED).small().weak(),
         ));
         for linkable in LINKABLE {
-            let text = texts::linkable_name(linkable);
+            let text = linkable_label(linkable);
             let on = group.linked.contains(&linkable);
-            let button = ui.add(Button::new(RichText::new(text).small()).selected(on));
-            let label = texts::link_label(text.get());
+            // Wrapped: the panel's names ("Eingangs-Interface") are wider than the strip.
+            let button = Button::new(RichText::new(text).small()).wrap().selected(on);
+            let button = ui.add(button);
+            let label = texts::link_label(text);
             button.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, on, &label));
             if button.clicked() {
                 response.toggled_link = Some(linkable);

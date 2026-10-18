@@ -9,6 +9,7 @@ use neumann_control_core::speaker::Command;
 
 use super::details;
 use crate::display::firmware_version;
+use crate::groups::linkable_label;
 use crate::state::SpeakerState;
 use crate::texts;
 
@@ -162,7 +163,7 @@ fn copy_buttons(ui: &mut Ui, groups: &GroupChoice) -> Option<Linkable> {
     let mut copy = None;
     ui.horizontal_wrapped(|ui| {
         for linkable in groups.linked {
-            let text = texts::copy_to_group(texts::linkable_name(*linkable).get());
+            let text = texts::copy_to_group(linkable_label(*linkable));
             if ui.button(text).clicked() {
                 copy = Some(*linkable);
             }

@@ -4,11 +4,13 @@
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
+use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::ssc::wire::SscPath;
 
 use crate::paths;
 use crate::state::SpeakerKey;
+use crate::texts;
 
 const SERIAL_PREFIX: &str = "serial:";
 const ADDRESS_PREFIX: &str = "address:";
@@ -30,6 +32,14 @@ pub fn linked_path(linkable: Linkable) -> SscPath {
         Linkable::Input => paths::INPUT_INTERFACE,
     };
     paths::path(text)
+}
+
+/// A linked setting is named as the device panel names it, so a link button and the panel
+/// never disagree about which setting it is.
+pub fn linkable_label(linkable: Linkable) -> &'static str {
+    let path = linked_path(linkable);
+    paths::catalog_entry(Catalog::embedded(), &path)
+        .map_or("", |entry| entry.label(texts::language()))
 }
 
 pub const LINKABLE: [Linkable; 4] = [

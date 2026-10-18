@@ -7,6 +7,7 @@ use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::groups::linkable_label;
 use neumann_control_app::texts;
 use neumann_control_core::settings::{self, GroupSettings, Linkable, Settings, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -88,7 +89,7 @@ fn group_and_master_mute_switch_all() {
 fn link_buttons_toggle_and_are_saved() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     harness
-        .get_by_label(&texts::link_label(texts::LINK_LEVEL.get()))
+        .get_by_label(&texts::link_label(linkable_label(Linkable::Level)))
         .click();
     harness.run_steps(2);
     let saved = settings::load(&directory.path().join(SETTINGS_FILE));

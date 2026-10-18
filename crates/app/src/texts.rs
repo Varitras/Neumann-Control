@@ -9,7 +9,7 @@ use std::fmt;
 use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
-use neumann_control_core::settings::{Language, Linkable};
+use neumann_control_core::settings::Language;
 
 use crate::state::Message;
 use crate::writes::Refusal;
@@ -34,6 +34,25 @@ fn pick<T>(german: T, english: T) -> T {
         Language::German => german,
         Language::English => english,
     }
+}
+
+/// A number as written in the language: a decimal comma in German, a point in English. Typed
+/// values accept both (`gesture::typed_value`).
+pub fn number_text(text: String) -> String {
+    match language() {
+        Language::German => text.replace('.', ","),
+        Language::English => text,
+    }
+}
+
+/// `value` with `places` decimals.
+pub fn decimal(value: f64, places: usize) -> String {
+    number_text(format!("{value:.places$}"))
+}
+
+/// The shortest text that reads back as exactly `value`.
+pub fn number(value: f64) -> String {
+    number_text(value.to_string())
 }
 
 /// One UI text in both languages.
@@ -93,8 +112,6 @@ pub const NO_SPEAKERS: Text = Text::new(
 
 pub const MUTE: Text = Text::new("Stumm", "Mute");
 pub const IDENTIFY: Text = Text::new("Ident.", "Ident.");
-pub const CONNECTING: Text = Text::new("verbinde …", "connecting …");
-pub const CONNECTED: Text = Text::new("verbunden", "connected");
 pub const LEVEL: Text = Text::new("Pegel", "Level");
 pub const CLIP: Text = Text::new("Übersteuert", "Clipping");
 pub const LED_CONNECTION: Text = Text::new("Verbindung", "Connection");
@@ -104,8 +121,6 @@ pub const LED_LOCAL: Text = Text::new(
     "LOCAL: Schalter hinten, Schreiben gesperrt",
     "LOCAL: rear switch, writing locked",
 );
-pub const KNOB_DELAY: Text = Text::new("Delay", "Delay");
-pub const KNOB_STANDBY: Text = Text::new("Standby", "Standby");
 pub const CLOSE: Text = Text::new("Schließen", "Close");
 pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
 pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
@@ -116,10 +131,6 @@ pub const NEW_GROUP_NAME: Text = Text::new("Gruppe", "Group");
 pub const GROUP: Text = Text::new("Gruppe", "Group");
 pub const NO_GROUP: Text = Text::new("keine", "none");
 pub const LINKED: Text = Text::new("Gekoppelt", "Linked");
-pub const LINK_LEVEL: Text = Text::new("Pegel", "Level");
-pub const LINK_MUTE: Text = Text::new("Stumm", "Mute");
-pub const LINK_STANDBY: Text = Text::new("Standby", "Standby");
-pub const LINK_INPUT: Text = Text::new("Eingang", "Input");
 pub const COPY_TO_GROUP: Text = Text::new("Für Gruppe übernehmen", "Apply to group");
 pub const MASTER: Text = Text::new("Master", "Master");
 pub const MASTER_LEVEL: Text = Text::new("Master-Pegel", "Master level");
@@ -147,8 +158,8 @@ pub const METER_RANGE: Text = Text::new("Pegelanzeige ab", "Meters from");
 pub const SHOW_RESPONSE_TIMES: Text = Text::new("Antwortzeiten anzeigen", "Show response times");
 pub const INPUT_METERS: Text = Text::new("Eingangspegel", "Input level");
 pub const OUTPUT_METERS: Text = Text::new("Ausgangspegel", "Output level");
-pub const METER_INPUT_SHORT: Text = Text::new("Ein", "In");
-pub const METER_OUTPUT_SHORT: Text = Text::new("Aus", "Out");
+pub const METER_INPUT_SHORT: Text = Text::new("Eing.", "In");
+pub const METER_OUTPUT_SHORT: Text = Text::new("Ausg.", "Out");
 pub const SOURCE_ANALOG: Text = Text::new("Analog", "Analog");
 pub const SOURCE_AES3_LEFT: Text = Text::new("AES3 L", "AES3 L");
 pub const SOURCE_AES3_RIGHT: Text = Text::new("AES3 R", "AES3 R");
@@ -278,15 +289,6 @@ pub fn link_label(name: &str) -> String {
     pick(format!("{name} koppeln"), format!("Link {name}"))
 }
 
-pub fn linkable_name(linkable: Linkable) -> Text {
-    match linkable {
-        Linkable::Level => LINK_LEVEL,
-        Linkable::Mute => LINK_MUTE,
-        Linkable::Standby => LINK_STANDBY,
-        Linkable::Input => LINK_INPUT,
-    }
-}
-
 pub fn copy_to_group(setting: &str) -> String {
     format!("{COPY_TO_GROUP}: {setting}")
 }
@@ -305,16 +307,16 @@ pub fn response_time(milliseconds: u128) -> String {
 
 /// How far a group or master fader has moved while it is dragged.
 pub fn level_move(moved: f64) -> String {
-    format!("{moved:+.1} dB")
+    number_text(format!("{moved:+.1} dB"))
 }
 
 /// A group's or the master's level, without unit: it moves several speakers by the same amount.
 pub fn shared_readout(value: f64) -> String {
-    format!("{value:.1}")
+    decimal(value, 1)
 }
 
 pub fn readout(value: f64, unit: &str) -> String {
-    format!("{value:.1} {unit}")
+    format!("{} {unit}", decimal(value, 1))
 }
 
 pub fn status_line(firmware: &str, masked_serial: &str) -> String {
@@ -362,8 +364,8 @@ pub fn serial_mismatch(masked_serial: &str) -> String {
 pub fn describe_value_error(error: &ValueError) -> String {
     match error {
         ValueError::OutOfRange { min, max } => pick(
-            format!("Wert außerhalb von {min} bis {max}."),
-            format!("Value outside {min} to {max}."),
+            format!("Wert außerhalb von {} bis {}.", number(*min), number(*max)),
+            format!("Value outside {} to {}.", number(*min), number(*max)),
         ),
         ValueError::NotAnOption => Text::new(
             "Wert ist keine der Auswahlmöglichkeiten.",
@@ -437,5 +439,9 @@ mod tests {
         assert_eq!(speaker_count(1), "1 speaker");
         set_language(Language::German);
         assert_eq!(MUTE.to_string(), "Stumm");
+        assert_eq!(readout(87.5, "dB SPL"), "87,5 dB SPL");
+        set_language(Language::English);
+        assert_eq!(readout(87.5, "dB SPL"), "87.5 dB SPL");
+        set_language(Language::German);
     }
 }

@@ -19,6 +19,8 @@ pub const CONTROL_MODE: &str = "ui/control_mode";
 pub const INPUT_SELECT: &str = "ui/input_select";
 pub const STANDBY_ENABLED: &str = "device/standby/enabled";
 pub const INPUT_INTERFACE: &str = "audio/in/interface";
+pub const DELAY: &str = "audio/out/delay";
+pub const STANDBY_TIME: &str = "device/standby/auto_standby_time";
 
 pub fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("constant path is valid")

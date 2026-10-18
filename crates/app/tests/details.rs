@@ -4,7 +4,7 @@ mod support;
 
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
-use egui_kittest::Harness;
+use egui_kittest::{Harness, Node};
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
@@ -159,7 +159,7 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
 #[test]
 fn number_field_sends_once_per_gesture() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    let start = harness.get_by_label(DELAY_LABEL).rect().center();
+    let start = number_field(&harness, DELAY_LABEL).rect().center();
     harness.drag_at(start);
     for frame in 1..=10 {
         harness.hover_at(start + egui::vec2(4.0 * frame as f32, 0.0));
@@ -184,16 +184,23 @@ fn number_field_sends_once_per_gesture() {
     assert!(delay > 0, "dragging right raises the delay: {sets:?}");
 }
 
+/// The panel's number field; the strip's knob for the same setting carries the same name.
+fn number_field<'a>(harness: &'a Harness<'static, NeumannApp>, label: &'a str) -> Node<'a> {
+    harness.get_by_role_and_label(Role::SpinButton, label)
+}
+
 /// Clicks a number field into text editing and types `text` over its value.
 fn type_number(harness: &mut Harness<'static, NeumannApp>, label: &str, text: &str) {
-    harness.get_by_label(label).click();
+    number_field(&harness, label).click();
     harness.run_steps(1);
-    harness.get_by_label(label).type_text(text);
+    number_field(&harness, label).type_text(text);
     harness.run_steps(1);
 }
 
 fn numeric_value(harness: &Harness<'static, NeumannApp>, label: &str) -> Option<f64> {
-    harness.get_by_label(label).accesskit_node().numeric_value()
+    number_field(&harness, label)
+        .accesskit_node()
+        .numeric_value()
 }
 
 #[test]
@@ -216,7 +223,7 @@ fn visiting_a_number_field_does_not_write_its_rounded_text() {
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(100.123456)
     });
-    harness.get_by_label(DELAY_LABEL).click();
+    number_field(&harness, DELAY_LABEL).click();
     harness.run_steps(2);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
@@ -232,7 +239,7 @@ fn visiting_an_out_of_range_number_field_writes_nothing() {
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
-    harness.get_by_label(DELAY_LABEL).click();
+    number_field(&harness, DELAY_LABEL).click();
     harness.run_steps(2);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
@@ -245,7 +252,7 @@ fn visiting_an_out_of_range_number_field_writes_nothing() {
 #[test]
 fn a_number_typed_and_entered_in_one_frame_is_sent() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
-    harness.get_by_label(STANDBY_TIME_LABEL).click();
+    number_field(&harness, STANDBY_TIME_LABEL).click();
     harness.run_steps(2);
     let events = &mut harness.input_mut().events;
     events.push(egui::Event::Text("50".to_owned()));
@@ -284,7 +291,7 @@ fn a_typed_number_is_snapped_only_when_sent() {
     let (simulator, _directory, mut harness) = expanded_card(SimModel::Kh120Ii);
     type_number(&mut harness, STANDBY_TIME_LABEL, "1.5");
     harness.run_steps(2);
-    let shown = harness.get_by_label(STANDBY_TIME_LABEL).value();
+    let shown = number_field(&harness, STANDBY_TIME_LABEL).value();
     assert_eq!(shown.as_deref(), Some("1.5"));
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the Set after Enter", |_| {
@@ -423,9 +430,16 @@ fn all_values_button_reads_the_whole_tree() {
 #[test]
 fn panel_number_rows_keep_their_labels_on_one_line() {
     let (_simulator, _directory, harness) = expanded_card(SimModel::Kh120Ii);
+    // The panel row and the strip knob's caption carry the same name; neither may wrap.
     for label in [STANDBY_TIME_LABEL, LOGO_LABEL, DELAY_LABEL] {
-        let rect = harness.get_by_role_and_label(Role::Label, label).rect();
-        assert!(rect.width() > rect.height(), "{label} wraps: {rect:?}");
+        let rects: Vec<_> = harness
+            .query_all_by_role_and_label(Role::Label, label)
+            .map(|node| node.rect())
+            .collect();
+        assert!(!rects.is_empty(), "{label}");
+        for rect in rects {
+            assert!(rect.width() > rect.height(), "{label} wraps: {rect:?}");
+        }
     }
     // The number field shows the value; the knob beside it does not repeat it, and the strip
     // shows a whole number as a whole number.
@@ -466,9 +480,9 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
     // One sample is 0.0208333… ms, which no decimal text holds exactly.
     simulator.set_value("audio/out/delay", json!(1));
     wait_until(&mut harness, "the reported delay", |harness| {
-        harness.query_by_label_contains("0.02").is_some()
+        harness.query_by_label_contains("0,02").is_some()
     });
-    harness.get_by_label(DELAY_LABEL).click();
+    number_field(&harness, DELAY_LABEL).click();
     harness.run_steps(1);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);

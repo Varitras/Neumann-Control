@@ -40,9 +40,7 @@ pub(super) const UNREACHABLE_OPACITY: f32 = 0.55;
 const METER_GROUP_GAP: f32 = 4.0;
 const METER_SPACING: f32 = 3.0;
 const CAPTION_HEIGHT: f32 = 16.0;
-const DELAY_PATH: &str = "audio/out/delay";
 const LEVEL_ENTRY_ID: &str = "level_entry";
-const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
 
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -175,20 +173,19 @@ fn knobs(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog, commands: &
         entries.iter().copied().find(|entry| entry.path == path)
     };
     ui.columns(2, |columns| {
-        let knobs = [
-            (DELAY_PATH, texts::KNOB_DELAY),
-            (STANDBY_TIME_PATH, texts::KNOB_STANDBY),
-        ];
-        for (column, (path, label)) in columns.iter_mut().zip(knobs) {
+        let knobs = [paths::DELAY, paths::STANDBY_TIME];
+        for (column, path) in columns.iter_mut().zip(knobs) {
             let Some(entry) = entry(path) else {
                 continue;
             };
+            // Named as in the device panel, so one setting has one name.
+            let label = entry.label(texts::language());
             let sent = knob::for_entry(
                 column,
                 speaker,
                 catalog,
                 entry,
-                label.get(),
+                label,
                 true,
                 knob::KNOB_DIAMETER,
             );

@@ -272,7 +272,7 @@ pub(super) fn value_entry(
     let text_id = id.with(EDIT_TEXT_ID);
     if open_now {
         let shown = conversion.map_or(value, |conversion| conversion.apply(value));
-        ui.data_mut(|data| data.insert_temp(text_id, shown.to_string()));
+        ui.data_mut(|data| data.insert_temp(text_id, texts::number(shown)));
     }
     let mut text = ui.data(|data| data.get_temp::<String>(text_id))?;
     let field = ui.add(

@@ -18,6 +18,10 @@ use neumann_control_core::speaker::Event;
 use serde_json::Value;
 use support::*;
 
+/// The strip's knobs carry the device panel's names (paths.toml).
+const DELAY_KNOB: &str = "Verzögerung";
+const STANDBY_KNOB: &str = "Standby-Zeit";
+
 #[test]
 fn strip_shows_name_and_level_and_panel_the_masked_serial() {
     let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
@@ -382,7 +386,7 @@ fn strip_content_stacks_top_down() {
         .map(|node| node.rect())
         .collect();
     let delays: Vec<_> = harness
-        .query_all_by_role_and_label(Role::Slider, texts::KNOB_DELAY.get())
+        .query_all_by_role_and_label(Role::Slider, DELAY_KNOB)
         .map(|node| node.rect())
         .collect();
     assert_eq!(mutes.len(), 2);
@@ -444,8 +448,8 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
     ] {
         harness.get_by_label(label.get());
     }
-    harness.get_by_role_and_label(Role::Slider, texts::KNOB_DELAY.get());
-    harness.get_by_role_and_label(Role::Slider, texts::KNOB_STANDBY.get());
+    harness.get_by_role_and_label(Role::Slider, DELAY_KNOB);
+    harness.get_by_role_and_label(Role::Slider, STANDBY_KNOB);
     harness.get_by_label(texts::MUTE.get());
     harness.get_by_label(texts::IDENTIFY.get());
     harness.get_by_label(&readout(100.0));
@@ -454,16 +458,16 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
 #[test]
 fn kh750_standby_knob_is_read_only() {
     let (_simulator, _directory, harness) = connected_card(SimModel::Kh750);
-    let standby = harness.get_by_role_and_label(Role::Slider, texts::KNOB_STANDBY.get());
+    let standby = harness.get_by_role_and_label(Role::Slider, STANDBY_KNOB);
     assert!(standby.accesskit_node().is_disabled());
-    let delay = harness.get_by_role_and_label(Role::Slider, texts::KNOB_DELAY.get());
+    let delay = harness.get_by_role_and_label(Role::Slider, DELAY_KNOB);
     assert!(!delay.accesskit_node().is_disabled());
 }
 
 #[test]
 fn knob_drag_writes_once_on_release() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let end = turn_knob(&mut harness, texts::KNOB_DELAY.get(), 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
     barrier(&simulator);
     assert!(
         delay_sets(&simulator).is_empty(),
@@ -483,7 +487,7 @@ fn knob_drag_writes_once_on_release() {
 #[test]
 fn escape_during_knob_drag_sends_nothing() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
-    let end = turn_knob(&mut harness, texts::KNOB_DELAY.get(), 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
     harness.key_press(egui::Key::Escape);
     harness.step();
     harness.drop_at(end);
@@ -496,7 +500,7 @@ fn escape_during_knob_drag_sends_nothing() {
 fn knob_wheel_writes_after_idle() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
     let center = harness
-        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY.get())
+        .get_by_role_and_label(Role::Slider, DELAY_KNOB)
         .rect()
         .center();
     harness.hover_at(center);
@@ -618,13 +622,13 @@ fn knob_value_is_shown_beside_it_while_dragging() {
                 // egui puts a label's text into the node's value.
                 node.accesskit_node()
                     .value()
-                    .is_some_and(|text| text.contains('.'))
+                    .is_some_and(|text| text.contains(','))
             })
             .map(|node| node.rect())
             .collect::<Vec<_>>()
     };
     assert_eq!(shown(&harness).len(), 1);
-    let end = turn_knob(&mut harness, texts::KNOB_DELAY.get(), 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
     // Under the knob and beside it, each on one line.
     let labels = shown(&harness);
     assert_eq!(labels.len(), 2);
@@ -703,7 +707,7 @@ fn double_click_on_the_level_readout_enters_a_value() {
 fn double_click_on_the_delay_knob_takes_milliseconds() {
     let (simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
     let position = harness
-        .get_by_role_and_label(Role::Slider, texts::KNOB_DELAY.get())
+        .get_by_role_and_label(Role::Slider, DELAY_KNOB)
         .rect()
         .center();
     double_click_at(&mut harness, position);
@@ -843,4 +847,12 @@ fn input_source_caption_stays_on_one_line() {
         caption.bottom() <= level.top(),
         "caption {caption:?}, level {level:?}"
     );
+}
+
+#[test]
+fn the_strip_knob_captions_stay_apart() {
+    let (_simulator, _directory, harness) = connected_card(SimModel::Kh120Ii);
+    let caption = |label: &str| harness.get_by_role_and_label(Role::Label, label).rect();
+    let (delay, standby) = (caption(DELAY_KNOB), caption(STANDBY_KNOB));
+    assert!(!delay.intersects(standby), "{delay:?} {standby:?}");
 }
