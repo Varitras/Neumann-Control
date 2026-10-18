@@ -538,3 +538,42 @@ fn desk_scrolls_when_narrow() {
     );
     harness.get_by_role(Role::ScrollBar);
 }
+
+fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
+    harness.get_by_label(texts::SETTINGS).click();
+    wait_for_label(harness, texts::THEME);
+}
+
+#[test]
+fn settings_dialog_switches_theme_and_saves_on_change() {
+    let (_simulator, directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    open_settings(&mut harness);
+    // The harness starts dark, so light is the choice that shows an effect.
+    harness.get_by_label(texts::THEME_LIGHT).click();
+    harness.run_steps(2);
+    let preference = harness.ctx.options(|options| options.theme_preference);
+    assert_eq!(preference, egui::ThemePreference::Light);
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    let saved = neumann_control_core::settings::load(&path);
+    assert_eq!(
+        saved.desk.theme,
+        neumann_control_core::settings::ThemeChoice::Light
+    );
+    harness.get_by_label(texts::CLOSE).click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::THEME).is_none());
+}
+
+#[test]
+fn toolbar_shows_average_response_time_until_turned_off() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    wait_until(&mut harness, "the average response time", |harness| {
+        harness.query_by_label_contains("Ø ").is_some()
+    });
+    open_settings(&mut harness);
+    harness.get_by_label(texts::SHOW_RESPONSE_TIMES).click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label_contains("Ø ").is_none());
+}

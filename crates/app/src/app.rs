@@ -18,12 +18,14 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
+use crate::status_leds::average_response_time;
 use crate::targets::{duplicate_cards, follow_moves, forget, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
+use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, panel, strip};
 
@@ -65,6 +67,7 @@ pub struct NeumannApp {
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panel: Option<OpenPanel>,
+    settings_open: bool,
     window: Option<WindowGeometry>,
 }
 
@@ -78,6 +81,7 @@ impl NeumannApp {
         fonts::install(context);
         theme::apply(context);
         let settings = settings::load(&settings_path);
+        context.set_theme(theme::preference(settings.desk.theme));
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window,
@@ -93,6 +97,7 @@ impl NeumannApp {
             add_address: None,
             removal: None,
             panel: None,
+            settings_open: false,
         };
         app.sync_targets();
         app
@@ -280,6 +285,7 @@ impl NeumannApp {
             scanning: self.scan.is_some(),
             speaker_count: self.speakers.len(),
             notice: self.notice,
+            average_response_time: self.average_response_time(),
         };
         match toolbar::show(ui, &facts) {
             ToolbarAction::Scan => {
@@ -288,6 +294,7 @@ impl NeumannApp {
                 self.scan_choice = Some(ScanChoice::Scanning);
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
+            ToolbarAction::Settings => self.settings_open = true,
             ToolbarAction::None => {}
         }
         egui::CentralPanel::default().show(ui, |ui| self.show_desk(ui));
@@ -295,6 +302,7 @@ impl NeumannApp {
         self.show_dialog(ui);
         self.show_scan_choice(ui);
         self.show_removal(ui);
+        self.show_settings(ui);
         self.show_all_values(ui.ctx());
     }
 
@@ -383,6 +391,28 @@ impl NeumannApp {
         }
         if response.close || response.remove {
             self.panel = None;
+        }
+    }
+
+    fn average_response_time(&self) -> Option<std::time::Duration> {
+        if !self.settings.desk.show_response_times {
+            return None;
+        }
+        average_response_time(self.speakers.iter().map(|speaker| &speaker.state))
+    }
+
+    fn show_settings(&mut self, ui: &mut Ui) {
+        if !self.settings_open {
+            return;
+        }
+        match settings_dialog::show(ui, &mut self.settings.desk) {
+            SettingsAction::Changed => {
+                ui.ctx()
+                    .set_theme(theme::preference(self.settings.desk.theme));
+                self.save_settings();
+            }
+            SettingsAction::Close => self.settings_open = false,
+            SettingsAction::None => {}
         }
     }
 

@@ -5,8 +5,11 @@ use std::sync::Arc;
 
 use eframe::egui::style::{Selection, WidgetVisuals};
 use eframe::egui::{
-    vec2, Color32, Context, CornerRadius, FontId, Stroke, Style, TextStyle, Theme, Visuals,
+    vec2, Color32, Context, CornerRadius, FontId, Stroke, Style, TextStyle, Theme, ThemePreference,
+    Visuals,
 };
+
+use neumann_control_core::settings::ThemeChoice;
 
 use super::fonts::semibold;
 
@@ -148,6 +151,15 @@ fn style(theme: Theme) -> Style {
 pub fn apply(context: &Context) {
     for theme in [Theme::Light, Theme::Dark] {
         context.set_style_of(theme, Arc::new(style(theme)));
+    }
+}
+
+/// What the settings dialog's theme choice means for egui.
+pub fn preference(choice: ThemeChoice) -> ThemePreference {
+    match choice {
+        ThemeChoice::System => ThemePreference::System,
+        ThemeChoice::Light => ThemePreference::Light,
+        ThemeChoice::Dark => ThemePreference::Dark,
     }
 }
 

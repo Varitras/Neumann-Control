@@ -28,7 +28,18 @@ pub const LED_LOCAL: &str = "LOCAL: Schalter hinten, Schreiben gesperrt";
 pub const KNOB_DELAY: &str = "Delay";
 pub const KNOB_STANDBY: &str = "Standby";
 pub const CLOSE: &str = "Schließen";
-pub const PANEL_TITLE: &str = "Einstellungen";
+pub const PANEL_TITLE: &str = "Lautsprecher";
+pub const SETTINGS: &str = "Einstellungen";
+pub const SETTINGS_TITLE: &str = "Einstellungen";
+pub const THEME: &str = "Darstellung";
+pub const THEME_SYSTEM: &str = "wie Windows";
+pub const THEME_LIGHT: &str = "Hell";
+pub const THEME_DARK: &str = "Dunkel";
+pub const LANGUAGE: &str = "Sprache";
+pub const LANGUAGE_GERMAN: &str = "Deutsch";
+pub const LANGUAGE_ENGLISH: &str = "English (folgt)";
+pub const METER_RANGE: &str = "Pegelanzeige ab";
+pub const SHOW_RESPONSE_TIMES: &str = "Antwortzeiten anzeigen";
 pub const INPUT_METERS: &str = "Eingangspegel";
 pub const OUTPUT_METERS: &str = "Ausgangspegel";
 
@@ -97,6 +108,15 @@ pub fn meter_label(group: &str, channel: usize) -> String {
 /// The panel's knob beside a number field, named apart from the field.
 pub fn knob_label(label: &str) -> String {
     format!("{label} (Regler)")
+}
+
+pub fn meter_floor(db: f64) -> String {
+    format!("{db} dB")
+}
+
+/// The toolbar's average over all connected speakers.
+pub fn average_response_time(milliseconds: u128) -> String {
+    format!("Ø {milliseconds} ms")
 }
 
 pub fn response_time(milliseconds: u128) -> String {

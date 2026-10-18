@@ -8,5 +8,6 @@ mod meters;
 pub mod panel;
 pub mod remove_speaker;
 pub mod scan_choice;
+pub mod settings_dialog;
 pub mod strip;
 pub mod toolbar;
