@@ -1,4 +1,6 @@
-//! German UI strings; the only place user-visible text lives.
+//! The app's German UI strings. Not here: group titles (`catalog::Group::title`), entry labels
+//! and units (`paths.toml`), and the separators that format device values (`all_values`,
+//! `display`).
 
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
