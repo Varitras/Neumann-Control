@@ -26,6 +26,7 @@ use crate::writes::{self, Intent, Switch};
 pub const STRIP_WIDTH: f32 = 140.0;
 const STRIP_MARGIN: i8 = 6;
 const STRIP_RADIUS: u8 = 6;
+const GROUP_BORDER_WIDTH: f32 = 2.0;
 const BORDER_WIDTH: f32 = 1.0;
 const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
@@ -49,13 +50,19 @@ pub fn show(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     desk: &DeskSettings,
+    group_color: Option<Color32>,
 ) -> StripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let open_panel = egui::Frame::new()
         .fill(tokens.card)
-        .stroke(Stroke::new(BORDER_WIDTH, tokens.border))
+        // A member of a group is framed in the group's colour.
+        .stroke(
+            group_color.map_or(Stroke::new(BORDER_WIDTH, tokens.border), |color| {
+                Stroke::new(GROUP_BORDER_WIDTH, color)
+            }),
+        )
         .corner_radius(CornerRadius::same(STRIP_RADIUS))
         .inner_margin(STRIP_MARGIN)
         .show(ui, |ui| {

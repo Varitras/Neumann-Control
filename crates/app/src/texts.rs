@@ -4,6 +4,7 @@
 
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
+use neumann_control_core::settings::Linkable;
 
 use crate::writes::Refusal;
 
@@ -28,6 +29,22 @@ pub const LED_LOCAL: &str = "LOCAL: Schalter hinten, Schreiben gesperrt";
 pub const KNOB_DELAY: &str = "Delay";
 pub const KNOB_STANDBY: &str = "Standby";
 pub const CLOSE: &str = "Schließen";
+pub const ADD_GROUP: &str = "+ Gruppe";
+pub const GROUP_DIALOG_TITLE: &str = "Gruppe";
+pub const GROUP_NAME: &str = "Name";
+pub const DELETE_GROUP: &str = "Gruppe löschen";
+pub const NEW_GROUP_NAME: &str = "Gruppe";
+pub const GROUP: &str = "Gruppe";
+pub const NO_GROUP: &str = "keine";
+pub const LINKED: &str = "Gekoppelt";
+pub const LINK_LEVEL: &str = "Pegel";
+pub const LINK_MUTE: &str = "Stumm";
+pub const LINK_STANDBY: &str = "Standby";
+pub const LINK_INPUT: &str = "Eingang";
+pub const COPY_TO_GROUP: &str = "Für Gruppe übernehmen";
+pub const MASTER: &str = "Master";
+pub const MASTER_LEVEL: &str = "Master-Pegel";
+pub const MUTE_ALL: &str = "Alle stumm";
 pub const CONTROL_HINT: &str = "Shift: fein · Doppelklick: Wert eingeben";
 pub const PANEL_TITLE: &str = "Lautsprecher";
 pub const SETTINGS: &str = "Einstellungen";
@@ -145,8 +162,39 @@ pub fn average_response_time(milliseconds: u128) -> String {
     format!("Ø {milliseconds} ms")
 }
 
+/// Names a group's link button for screen readers, apart from the strips' own buttons.
+pub fn link_label(name: &str) -> String {
+    format!("{name} koppeln")
+}
+
+pub fn linkable_name(linkable: Linkable) -> &'static str {
+    match linkable {
+        Linkable::Level => LINK_LEVEL,
+        Linkable::Mute => LINK_MUTE,
+        Linkable::Standby => LINK_STANDBY,
+        Linkable::Input => LINK_INPUT,
+    }
+}
+
+pub fn copy_to_group(setting: &str) -> String {
+    format!("{COPY_TO_GROUP}: {setting}")
+}
+
+pub fn group_level(group: &str) -> String {
+    format!("Pegel {group}")
+}
+
+pub fn group_mute(group: &str) -> String {
+    format!("{group} stumm")
+}
+
 pub fn response_time(milliseconds: u128) -> String {
     format!("{milliseconds} ms")
+}
+
+/// A group's or the master's level, without unit: it moves several speakers by the same amount.
+pub fn shared_readout(value: f64) -> String {
+    format!("{value:.1}")
 }
 
 pub fn readout(value: f64, unit: &str) -> String {

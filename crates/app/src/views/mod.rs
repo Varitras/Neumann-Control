@@ -3,6 +3,8 @@ pub mod all_values;
 mod details;
 mod details_fields;
 pub mod fader;
+pub mod group_dialog;
+pub mod group_strip;
 mod knob;
 mod meters;
 pub mod panel;

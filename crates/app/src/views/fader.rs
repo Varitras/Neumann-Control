@@ -122,6 +122,64 @@ pub fn show(
     value
 }
 
+/// A fader for several speakers at once (group, master): it shows `reference` and returns the
+/// value it was let go at; the caller turns the move into one write per speaker. No wheel, so a
+/// group move is always one deliberate gesture.
+pub fn shared(
+    ui: &mut Ui,
+    label: &str,
+    reference: Option<f64>,
+    range: RangeInclusive<f64>,
+    unit: &str,
+) -> Option<f64> {
+    let tokens = Tokens::current(ui.ctx());
+    let enabled = reference.is_some();
+    let mut value = reference.unwrap_or(*range.start());
+    let sense = if enabled {
+        Sense::drag()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(FADER_WIDTH, FADER_HEIGHT), sense);
+    let drag_id = response.id.with(DRAG_VALUE_ID);
+    if response.drag_started() {
+        ui.data_mut(|data| data.insert_temp(drag_id, value));
+    }
+    let aborted = drag_aborted(ui, &response);
+    let dragging = response.dragged() && !aborted;
+    if dragging {
+        let held = ui
+            .data(|data| data.get_temp::<f64>(drag_id))
+            .unwrap_or(value);
+        let fine = ui.input(|input| input.modifiers.shift);
+        let moved = drag_change(&range, -f64::from(response.drag_delta().y), fine);
+        let unsnapped = (held + moved).clamp(*range.start(), *range.end());
+        ui.data_mut(|data| data.insert_temp(drag_id, unsnapped));
+        value = on_level_grid(unsnapped);
+    }
+    let mut released = None;
+    if response.drag_stopped() {
+        let dragged = ui.data(|data| data.get_temp::<f64>(drag_id));
+        ui.data_mut(|data| data.remove::<f64>(drag_id));
+        released = dragged
+            .filter(|_| !aborted)
+            .map(on_level_grid)
+            .filter(|released| Some(*released) != reference);
+    }
+    if enabled && response.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+    }
+    paint(ui, rect, &range, value, enabled, &tokens);
+    response.widget_info(|| WidgetInfo::slider(enabled, value, label));
+    let id = response.id;
+    response.on_hover_text(texts::CONTROL_HINT);
+    if dragging {
+        let y = value_y(rect, &range, value);
+        value_beside(ui, id, rect, y, &texts::readout(value, unit));
+    }
+    released
+}
+
 /// The value change for a drag of `points` (upwards positive): the fader's length is the
 /// whole range.
 pub fn drag_change(range: &RangeInclusive<f64>, points: f64, fine: bool) -> f64 {

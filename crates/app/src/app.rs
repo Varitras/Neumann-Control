@@ -7,7 +7,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui::{self, Align, Context, Layout, Pos2, ScrollArea, Ui, ViewportInfo};
+use eframe::egui::{self, Context, Pos2, Ui, ViewportInfo};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
@@ -15,6 +15,7 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
+use crate::groups::set_membership;
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
@@ -23,11 +24,14 @@ use crate::targets::{duplicate_cards, follow_moves, forget, remember_serial, tar
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
+use crate::views::group_dialog::{self, GroupDialogAction};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
-use crate::views::{all_values, panel, strip};
+use crate::views::{all_values, panel};
+
+mod desk;
 
 const DESK_SCROLL_ID: &str = "desk";
 
@@ -67,6 +71,7 @@ pub struct NeumannApp {
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panel: Option<OpenPanel>,
+    group_draft: Option<desk::GroupDraft>,
     settings_open: bool,
     window: Option<WindowGeometry>,
 }
@@ -97,6 +102,7 @@ impl NeumannApp {
             add_address: None,
             removal: None,
             panel: None,
+            group_draft: None,
             settings_open: false,
         };
         app.sync_targets();
@@ -294,6 +300,7 @@ impl NeumannApp {
                 self.scan_choice = Some(ScanChoice::Scanning);
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
+            ToolbarAction::AddGroup => self.add_group(),
             ToolbarAction::Settings => self.settings_open = true,
             ToolbarAction::None => {}
         }
@@ -303,6 +310,7 @@ impl NeumannApp {
         self.show_scan_choice(ui);
         self.show_removal(ui);
         self.show_settings(ui);
+        self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
     }
 
@@ -318,79 +326,92 @@ impl NeumannApp {
         }
     }
 
-    fn show_desk(&mut self, ui: &mut Ui) {
-        if self.speakers.is_empty() {
-            ui.weak(texts::NO_SPEAKERS);
-            return;
-        }
-        let catalog = Catalog::embedded();
-        let desk = self.settings.desk;
-        let mut opened = None;
-        ScrollArea::both()
-            .id_salt(DESK_SCROLL_ID)
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
-                    for speaker in &mut self.speakers {
-                        let key = speaker.state.key.clone();
-                        let response = ui
-                            .push_id(&key, |ui| {
-                                strip::show(ui, &mut speaker.state, catalog, &desk)
-                            })
-                            .inner;
-                        for command in response.commands {
-                            speaker.handle.send(command);
-                        }
-                        if let Some(anchor) = response.open_panel {
-                            opened = Some(OpenPanel {
-                                key,
-                                anchor,
-                                opened_now: true,
-                            });
-                        }
-                    }
-                });
-            });
-        if opened.is_some() {
-            self.panel = opened;
-        }
-    }
-
     /// The open device panel; it closes when its speaker is gone or unreachable.
     fn show_panel(&mut self, context: &Context) {
         let Some(open) = &mut self.panel else {
             return;
         };
-        let speaker = self
+        let index = self
             .speakers
-            .iter_mut()
-            .find(|speaker| speaker.state.key == open.key)
-            .filter(|speaker| speaker.state.status != Status::Unreachable);
-        let Some(speaker) = speaker else {
+            .iter()
+            .position(|speaker| speaker.state.key == open.key)
+            .filter(|index| self.speakers[*index].state.status != Status::Unreachable);
+        let Some(index) = index else {
             self.panel = None;
             return;
         };
-        let catalog = Catalog::embedded();
-        let response = panel::show(
-            context,
-            &mut speaker.state,
-            catalog,
-            open.anchor,
-            open.opened_now,
-        );
+        let (anchor, opened_now) = (open.anchor, open.opened_now);
         open.opened_now = false;
+        let catalog = Catalog::embedded();
+        let ids = self.member_ids();
+        let names: Vec<String> = self
+            .settings
+            .groups
+            .iter()
+            .map(|group| group.name.clone())
+            .collect();
+        let current = desk::group_of(&self.settings.groups, &ids[index]);
+        let linked = current.map_or(Vec::new(), |group| {
+            self.settings.groups[group].linked.clone()
+        });
+        let choice = panel::GroupChoice {
+            names: &names,
+            current,
+            linked: &linked,
+        };
+        let state = &mut self.speakers[index].state;
+        let response = panel::show(context, state, catalog, anchor, opened_now, &choice);
+        let now = context.input(|input| input.time);
         for command in response.commands {
-            speaker.handle.send(command);
+            self.send_with_links(index, command, catalog, &ids, now);
         }
+        if let Some(group) = response.group {
+            set_membership(&mut self.settings.groups, &ids[index], group);
+            self.save_settings();
+        }
+        if let Some(linkable) = response.copy_to_group {
+            self.copy_to_group(index, linkable, catalog, &ids, now);
+        }
+        let speaker = &self.speakers[index].state;
         if response.remove {
             self.removal = Some(Removal {
-                key: speaker.state.key.clone(),
-                address: speaker.state.address,
-                name: speaker.state.display_name(),
+                key: speaker.key.clone(),
+                address: speaker.address,
+                name: speaker.display_name(),
             });
         }
         if response.close || response.remove {
             self.panel = None;
+        }
+    }
+
+    fn show_group_dialog(&mut self, ui: &mut Ui) {
+        let Some(draft) = &mut self.group_draft else {
+            return;
+        };
+        match group_dialog::show(ui, &mut draft.name) {
+            GroupDialogAction::None => {}
+            GroupDialogAction::Close => {
+                let (index, name) = (draft.index, draft.name.trim().to_owned());
+                if let Some(group) = self
+                    .settings
+                    .groups
+                    .get_mut(index)
+                    .filter(|_| !name.is_empty())
+                {
+                    group.name = name;
+                }
+                self.group_draft = None;
+                self.save_settings();
+            }
+            GroupDialogAction::Delete => {
+                let index = draft.index;
+                if index < self.settings.groups.len() {
+                    self.settings.groups.remove(index);
+                }
+                self.group_draft = None;
+                self.save_settings();
+            }
         }
     }
 

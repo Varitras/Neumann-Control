@@ -14,6 +14,7 @@ pub enum ToolbarAction {
     None,
     Scan,
     AddAddress,
+    AddGroup,
     Settings,
 }
 
@@ -44,6 +45,9 @@ fn controls(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     }
     if ui.button(texts::ADD_ADDRESS).clicked() {
         action = ToolbarAction::AddAddress;
+    }
+    if ui.button(texts::ADD_GROUP).clicked() {
+        action = ToolbarAction::AddGroup;
     }
     ui.separator();
     ui.label(texts::speaker_count(facts.speaker_count));

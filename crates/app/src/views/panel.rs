@@ -1,9 +1,10 @@
 //! The device panel: every setting of one speaker, opened from its strip and floating beside
 //! it. It closes on Escape, its close button, or a click outside it.
 
-use eframe::egui::{Button, Context, Id, Key, Label, Pos2, RichText, Ui, Window};
+use eframe::egui::{Button, ComboBox, Context, Id, Key, Label, Order, Pos2, RichText, Ui, Window};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
+use neumann_control_core::settings::Linkable;
 use neumann_control_core::speaker::Command;
 
 use super::details;
@@ -12,6 +13,7 @@ use crate::state::SpeakerState;
 use crate::texts;
 
 const PANEL_ID: &str = "device_panel";
+const GROUP_CHOICE_ID: &str = "group_choice";
 const EDITING_ID: &str = "editing";
 const PANEL_WIDTH: f32 = 600.0;
 /// Room kept free below the panel and for its header and footer.
@@ -23,6 +25,17 @@ pub struct PanelResponse {
     pub commands: Vec<Command>,
     pub close: bool,
     pub remove: bool,
+    /// A new group for the speaker (`Some(None)`: no group).
+    pub group: Option<Option<usize>>,
+    /// A linked setting whose value goes to the other members.
+    pub copy_to_group: Option<Linkable>,
+}
+
+/// The groups the speaker could be in, which one it is in, and what that group links.
+pub struct GroupChoice<'a> {
+    pub names: &'a [String],
+    pub current: Option<usize>,
+    pub linked: &'a [Linkable],
 }
 
 /// `opened_now` is true in the frame of the click that opened the panel, which must not count
@@ -33,9 +46,12 @@ pub fn show(
     catalog: &Catalog,
     anchor: Pos2,
     opened_now: bool,
+    groups: &GroupChoice,
 ) -> PanelResponse {
     let mut close = false;
     let mut remove = false;
+    let mut group = None;
+    let mut copy_to_group = None;
     // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
     // drops the focus at the start of the Escape frame, so the last frame's state decides.
     let editing_id = Id::new(PANEL_ID).with(EDITING_ID);
@@ -56,6 +72,8 @@ pub fn show(
         .vscroll(true)
         .show(context, |ui| {
             close = header(ui, speaker);
+            group = group_choice(ui, groups);
+            copy_to_group = copy_buttons(ui, groups);
             let commands = details::show(ui, speaker, catalog);
             ui.separator();
             remove = ui.button(texts::REMOVE).clicked();
@@ -67,13 +85,20 @@ pub fn show(
     context.data_mut(|data| data.insert_temp(editing_id, editing_now));
     let pressed = context.input(|input| input.pointer.any_pressed());
     let position = context.input(|input| input.pointer.interact_pos());
-    let outside = position
-        .is_some_and(|position| context.layer_id_at(position) != Some(window.response.layer_id));
+    // Popups the panel opens (a combo box's list) lie on layers above it; a click there
+    // belongs to the panel.
+    let outside = position.is_some_and(|position| {
+        let layer = context.layer_id_at(position);
+        let on_popup = layer.is_some_and(|layer| layer.order > Order::Middle);
+        layer != Some(window.response.layer_id) && !on_popup
+    });
     let clicked_outside = pressed && outside;
     PanelResponse {
         commands: window.inner.unwrap_or_default(),
         close: close || escape || (clicked_outside && !opened_now),
         remove,
+        group,
+        copy_to_group,
     }
 }
 
@@ -98,4 +123,50 @@ fn header(ui: &mut Ui, speaker: &SpeakerState) -> bool {
         ui.add(Label::new(RichText::new(format!("{model} · {line}")).small().weak()).wrap());
     }
     closed
+}
+
+/// "Gruppe: keine / <name>"; returns a different choice.
+fn group_choice(ui: &mut Ui, groups: &GroupChoice) -> Option<Option<usize>> {
+    let shown = groups
+        .current
+        .and_then(|index| groups.names.get(index))
+        .map_or(texts::NO_GROUP, String::as_str);
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        let label = ui.label(texts::GROUP);
+        ComboBox::from_id_salt(GROUP_CHOICE_ID)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(groups.current.is_none(), texts::NO_GROUP)
+                    .clicked()
+                {
+                    chosen = Some(None);
+                }
+                for (index, name) in groups.names.iter().enumerate() {
+                    let selected = groups.current == Some(index);
+                    if ui.selectable_label(selected, name).clicked() {
+                        chosen = Some(Some(index));
+                    }
+                }
+            })
+            .response
+            .labelled_by(label.id);
+    });
+    chosen.filter(|choice| *choice != groups.current)
+}
+
+/// One button per setting the speaker's group links.
+fn copy_buttons(ui: &mut Ui, groups: &GroupChoice) -> Option<Linkable> {
+    groups.current?;
+    let mut copy = None;
+    ui.horizontal_wrapped(|ui| {
+        for linkable in groups.linked {
+            let text = texts::copy_to_group(texts::linkable_name(*linkable));
+            if ui.button(text).clicked() {
+                copy = Some(*linkable);
+            }
+        }
+    });
+    copy
 }

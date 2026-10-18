@@ -161,6 +161,24 @@ pub fn apply(context: &Context) {
     }
 }
 
+/// Group colours, picked in turn for new groups; readable in both themes.
+const GROUP_COLORS: [Color32; 6] = [
+    Color32::from_rgb(55, 138, 221),
+    Color32::from_rgb(216, 90, 48),
+    Color32::from_rgb(29, 158, 117),
+    Color32::from_rgb(127, 119, 221),
+    Color32::from_rgb(186, 117, 23),
+    Color32::from_rgb(212, 83, 126),
+];
+
+pub fn group_color(index: u8) -> Color32 {
+    GROUP_COLORS[usize::from(index) % GROUP_COLORS.len()]
+}
+
+pub fn group_color_count() -> u8 {
+    GROUP_COLORS.len() as u8
+}
+
 /// What the settings dialog's theme choice means for egui.
 pub fn preference(choice: ThemeChoice) -> ThemePreference {
     match choice {
