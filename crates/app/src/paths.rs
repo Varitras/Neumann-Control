@@ -14,6 +14,8 @@ pub const PRODUCT: &str = "device/identity/product";
 pub const FIRMWARE_VERSION: &str = "device/identity/version";
 pub const SERIAL: &str = "device/identity/serial";
 pub const MAC_ADDRESSES: &str = "device/network/ether/macs";
+pub const WARNINGS: &str = "warnings";
+pub const CONTROL_MODE: &str = "ui/control_mode";
 
 pub fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("constant path is valid")
@@ -41,6 +43,8 @@ mod tests {
             PRODUCT,
             FIRMWARE_VERSION,
             SERIAL,
+            WARNINGS,
+            CONTROL_MODE,
         ] {
             assert!(catalog_entry(catalog, &path(text)).is_some(), "{text}");
         }
