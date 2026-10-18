@@ -25,6 +25,7 @@ const BORDER_WIDTH: f32 = 1.0;
 const STATUS_DOT_RADIUS: f32 = 4.0;
 const UNREACHABLE_OPACITY: f32 = 0.55;
 const DETAILS_ID: &str = "details";
+const METER_GROUP_GAP: f32 = 6.0;
 
 pub struct CardResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -132,9 +133,32 @@ fn strip(
     ui.label(readout.unwrap_or_default());
 }
 
+/// Input meters, then the output meters of models that report them (KH 750), set apart.
 fn meters(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
-    let clips = speaker.values.get(&paths::path(paths::INPUT_CLIP));
-    meters::show(ui, &speaker.input_meters, clips, FADER_HEIGHT, tokens);
+    let input_clips = speaker.values.get(&paths::path(paths::INPUT_CLIP));
+    let input = &speaker.input_meters;
+    meters::show(
+        ui,
+        texts::INPUT_METERS,
+        input,
+        input_clips,
+        FADER_HEIGHT,
+        tokens,
+    );
+    if speaker.output_meters.is_empty() {
+        return;
+    }
+    ui.add_space(METER_GROUP_GAP);
+    let output_clips = speaker.values.get(&paths::path(paths::OUTPUT_CLIP));
+    let output = &speaker.output_meters;
+    meters::show(
+        ui,
+        texts::OUTPUT_METERS,
+        output,
+        output_clips,
+        FADER_HEIGHT,
+        tokens,
+    );
 }
 
 fn buttons(

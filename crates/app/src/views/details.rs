@@ -7,12 +7,10 @@ use neumann_control_core::catalog::{Catalog, Entry, Group, Kind};
 use neumann_control_core::speaker::Command;
 
 use super::details_fields::Fields;
-use super::meters;
 use crate::display::shown_value;
 use crate::paths;
 use crate::state::{AllValuesState, SpeakerState, Status};
 use crate::texts;
-use crate::ui_kit::theme::Tokens;
 
 /// Drawn by the card itself: level, mute, identify, input meters, model, firmware and serial.
 const SHOWN_ON_CARD: &[&str] = &[
@@ -25,7 +23,6 @@ const SHOWN_ON_CARD: &[&str] = &[
     paths::FIRMWARE_VERSION,
     paths::SERIAL,
 ];
-const OUTPUT_METER_HEIGHT: f32 = 60.0;
 
 /// Draws the area and returns the writes the user asked for that the write policy allowed.
 pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
@@ -34,7 +31,6 @@ pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<C
 }
 
 fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
-    let tokens = Tokens::current(ui.ctx());
     let product = speaker.product().to_owned();
     let groups = groups(catalog.entries_for(&product), speaker);
     let mut commands = Vec::new();
@@ -48,7 +44,7 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
             ui.separator();
             ui.label(RichText::new(group.title()).strong());
             for entry in entries {
-                row(ui, &mut fields, entry, &tokens);
+                row(ui, &mut fields, entry);
             }
         });
     }
@@ -69,23 +65,19 @@ fn groups<'a>(entries: Vec<&'a Entry>, speaker: &SpeakerState) -> Vec<(Group, Ve
     groups
 }
 
-/// Clip lists light the lamps of their meters, so they get no row of their own.
+/// Meters sit on the card and clip lists light their lamps, so neither gets a row here.
 fn is_shown(entry: &Entry, speaker: &SpeakerState) -> bool {
     let path = entry.path.to_string();
     let on_card = SHOWN_ON_CARD.contains(&path.as_str());
     let absent = speaker.absent.contains(&entry.path);
-    let drawable = match entry.kind {
-        Kind::Clip => false,
-        Kind::Meter => path == paths::OUTPUT_METER,
-        _ => true,
-    };
+    let drawable = !matches!(entry.kind, Kind::Clip | Kind::Meter);
     drawable && !on_card && !absent
 }
 
-fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry, tokens: &Tokens) {
+fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {
     let product = fields.speaker.product();
     if !entry.is_writable(product) {
-        display(ui, fields.speaker, entry, tokens);
+        display(ui, fields.speaker, entry);
         return;
     }
     match entry.kind {
@@ -93,15 +85,11 @@ fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry, tokens: &Tokens) {
         Kind::Switch => fields.switch(ui, entry),
         Kind::Select => fields.select(ui, entry),
         Kind::Text => fields.text(ui, entry),
-        Kind::Display | Kind::Meter | Kind::Clip => display(ui, fields.speaker, entry, tokens),
+        Kind::Display | Kind::Meter | Kind::Clip => display(ui, fields.speaker, entry),
     }
 }
 
-fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry, tokens: &Tokens) {
-    if entry.kind == Kind::Meter {
-        output_meters(ui, speaker, entry, tokens);
-        return;
-    }
+fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
     let shown = speaker
         .values
         .get(&entry.path)
@@ -110,20 +98,6 @@ fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry, tokens: &Tokens) 
     ui.horizontal_wrapped(|ui| {
         ui.weak(&entry.label);
         ui.weak(shown);
-    });
-}
-
-fn output_meters(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry, tokens: &Tokens) {
-    ui.weak(&entry.label);
-    let clips = speaker.values.get(&paths::path(paths::OUTPUT_CLIP));
-    ui.horizontal(|ui| {
-        meters::show(
-            ui,
-            &speaker.output_meters,
-            clips,
-            OUTPUT_METER_HEIGHT,
-            tokens,
-        );
     });
 }
 

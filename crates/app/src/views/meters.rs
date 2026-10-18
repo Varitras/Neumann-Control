@@ -1,6 +1,6 @@
 //! Level meters drawn side by side, one per channel, each with its clip lamp and held peak.
 
-use eframe::egui::{pos2, vec2, CornerRadius, Rect, Sense, Stroke, Ui};
+use eframe::egui::{pos2, vec2, CornerRadius, Rect, Sense, Stroke, Ui, WidgetInfo, WidgetType};
 use serde_json::Value;
 
 use crate::meter::{fraction, MeterState};
@@ -12,9 +12,11 @@ const CLIP_LAMP_RADIUS: f32 = 3.5;
 const CLIP_LAMP_SPACE: f32 = 10.0;
 const PEAK_LINE_WIDTH: f32 = 2.0;
 
-/// `clips` is the speaker's clip list for the same channels, if it reported one.
+/// `clips` is the speaker's clip list for the same channels, if it reported one; `group`
+/// names the meters for screen readers.
 pub fn show(
     ui: &mut Ui,
+    group: &str,
     meters: &[MeterState],
     clips: Option<&Value>,
     height: f32,
@@ -28,6 +30,8 @@ pub fn show(
             .and_then(Value::as_bool)
             .unwrap_or(false);
         let (rect, response) = ui.allocate_exact_size(vec2(METER_WIDTH, height), Sense::hover());
+        let label = texts::meter_label(group, channel + 1);
+        response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label));
         let lamp_color = if clipped {
             tokens.danger
         } else {

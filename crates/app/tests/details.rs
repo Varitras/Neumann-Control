@@ -376,10 +376,38 @@ fn card_controls_are_not_repeated_in_the_area() {
 }
 
 #[test]
-fn kh750_output_meters_are_drawn() {
-    let (_simulator, _directory, harness) = expanded_card(SimModel::Kh750);
-    // One for the meters, one for the rear-panel output level.
-    assert_eq!(harness.query_all_by_label("Ausgangspegel").count(), 2);
+fn kh750_output_meters_sit_next_to_the_input_meters() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh750);
+    let output_meter = texts::meter_label(texts::OUTPUT_METERS, 1);
+    wait_for_label(&mut harness, &output_meter);
+    assert_eq!(
+        harness
+            .query_all_by_label_contains(texts::OUTPUT_METERS)
+            .count(),
+        3
+    );
+    assert_eq!(
+        harness
+            .query_all_by_label_contains(texts::INPUT_METERS)
+            .count(),
+        2
+    );
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.get_by_label(texts::MORE).click();
+    wait_for_label(&mut harness, texts::ALL_VALUES);
+    assert_eq!(harness.query_all_by_label(&output_meter).count(), 1);
+}
+
+#[test]
+fn kh120ii_card_has_no_output_meters() {
+    let (_simulator, _directory, mut harness) = connected_card(SimModel::Kh120Ii);
+    wait_for_label(&mut harness, &texts::meter_label(texts::INPUT_METERS, 2));
+    assert_eq!(
+        harness
+            .query_all_by_label_contains(texts::OUTPUT_METERS)
+            .count(),
+        0
+    );
 }
 
 #[test]

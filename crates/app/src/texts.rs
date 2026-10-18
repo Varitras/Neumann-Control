@@ -23,6 +23,8 @@ pub const CONNECTING: &str = "verbinde …";
 pub const CONNECTED: &str = "verbunden";
 pub const LEVEL: &str = "Pegel";
 pub const CLIP: &str = "Übersteuert";
+pub const INPUT_METERS: &str = "Eingangspegel";
+pub const OUTPUT_METERS: &str = "Ausgangspegel";
 
 pub const ALL_VALUES: &str = "Alle Werte…";
 pub const APPLY: &str = "Übernehmen";
@@ -79,6 +81,11 @@ pub fn all_values_count(shown: usize, total: usize) -> String {
 
 pub fn port(port: u16) -> String {
     format!("Port {port}")
+}
+
+/// Names one meter for screen readers, counting channels from 1.
+pub fn meter_label(group: &str, channel: usize) -> String {
+    format!("{group} {channel}")
 }
 
 pub fn readout(value: f64, unit: &str) -> String {
