@@ -12,6 +12,11 @@ strips on a desk, with level faders, meters, groups and a master.
 > This is an independent project. It is not affiliated with or endorsed by Neumann or
 > Sennheiser.
 
+![The desk: four speakers, a group strip, and the device panel of a KH 750](docs/images/desk.png)
+
+*The desk with four speakers (two KH 120 II, two KH 750), the group strip "Front", and the device
+panel of one KH 750 open. The interface is shown in German.*
+
 ## Contents
 
 - [Highlights](#highlights)
