@@ -184,6 +184,21 @@ fn auto_standby_set_answers_405_on_kh750() {
 }
 
 #[test]
+fn local_control_mode_refuses_every_set_with_401() {
+    let simulator = start_kh120();
+    simulator.set_value("ui/control_mode", json!("LOCAL"));
+    let mut client = Client::connect(&simulator);
+    let refused = client.ask(&json!({"audio":{"out":{"level":100.0}}}));
+    let error = device_error(&refused).expect("an error reply");
+    assert_eq!(
+        (error.code, error.description.as_str()),
+        (401, "authorisation needed")
+    );
+    let read = client.ask(&json!({"audio":{"out":{"level":null}}}));
+    assert_eq!(read, json!({"audio":{"out":{"level":100.0}}}));
+}
+
+#[test]
 fn valid_set_is_stored_and_echoed() {
     let simulator = start_kh120();
     let mut client = Client::connect(&simulator);

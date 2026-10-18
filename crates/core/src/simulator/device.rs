@@ -39,6 +39,10 @@ const NOT_FOUND: ErrorKind = ErrorKind {
     code: 404,
     description: "address not found",
 };
+const NOT_AUTHORISED: ErrorKind = ErrorKind {
+    code: 401,
+    description: "authorisation needed",
+};
 const NOT_ALLOWED: ErrorKind = ErrorKind {
     code: 405,
     description: "method not allowed",
@@ -51,6 +55,10 @@ const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
     code: 454,
     description: "parameter address not found",
 };
+
+/// While the rear CONTROL switch is on LOCAL, every set answers 401 and gets still work.
+const CONTROL_MODE_PATH: &str = "ui/control_mode";
+const LOCAL_CONTROL_MODE: &str = "LOCAL";
 
 const KH_120_II_TREE: &str = include_str!("kh120ii.json");
 const KH_750_TREE: &str = include_str!("kh750.json");
@@ -251,6 +259,9 @@ impl SimulatedDevice {
         if value.is_null() {
             return Ok(nest(path, current));
         }
+        if self.is_in_local_mode() {
+            return Err(error_entry(path, &NOT_AUTHORISED));
+        }
         if self.is_read_only(path) {
             return Err(error_entry(path, &NOT_ALLOWED));
         }
@@ -271,6 +282,13 @@ impl SimulatedDevice {
             }
         }
         path.len()
+    }
+
+    fn is_in_local_mode(&self) -> bool {
+        self.value(CONTROL_MODE_PATH)
+            .as_ref()
+            .and_then(Value::as_str)
+            == Some(LOCAL_CONTROL_MODE)
     }
 
     fn is_read_only(&self, path: &[String]) -> bool {

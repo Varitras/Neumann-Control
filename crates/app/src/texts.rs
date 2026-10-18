@@ -52,6 +52,7 @@ pub const WRITE_FAILED: &str = "Schreiben fehlgeschlagen";
 const SERIAL_MISMATCH_PREFIX: &str = "Anderes Gerät unter dieser Adresse (Seriennummer ";
 const SERIAL_MISMATCH_SUFFIX: &str = ")";
 
+const REJECTED_LOCAL_MODE_CODE: i64 = 401;
 const REJECTED_READ_ONLY_CODE: i64 = 405;
 const REJECTED_WRONG_VALUE_CODE: i64 = 406;
 
@@ -121,6 +122,9 @@ pub fn describe_refusal(refusal: &Refusal) -> String {
 
 pub fn describe_rejection(code: i64) -> String {
     match code {
+        REJECTED_LOCAL_MODE_CODE => {
+            "Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt".to_owned()
+        }
         REJECTED_READ_ONLY_CODE => "Gerät lehnt ab: nur lesbar".to_owned(),
         REJECTED_WRONG_VALUE_CODE => "Gerät lehnt ab: falscher Wert".to_owned(),
         other => format!("Gerät lehnt ab (Code {other})"),

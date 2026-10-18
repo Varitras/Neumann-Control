@@ -9,7 +9,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use crate::paths;
-use crate::state::{SpeakerState, Status};
+use crate::state::{MessageSource, SpeakerState, Status};
 use crate::texts;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,11 +105,11 @@ impl SpeakerState {
     /// The command for `intent`, or `None` after putting the refusal on the card.
     /// A sent level is held on the fader until the speaker reports it (`now` is the UI clock).
     pub fn request(&mut self, intent: Intent, catalog: &Catalog, now: f64) -> Option<Command> {
-        let path = intent.path();
         match self.try_request(intent, catalog, now) {
             Ok(command) => Some(command),
             Err(refusal) => {
-                self.set_message(Some(texts::describe_refusal(&refusal)), Some(path));
+                let text = texts::describe_refusal(&refusal);
+                self.set_message(Some(text), MessageSource::Write);
                 None
             }
         }
@@ -122,6 +122,7 @@ impl SpeakerState {
         catalog: &Catalog,
         now: f64,
     ) -> Result<Command, Refusal> {
+        self.clear_write_message();
         let path = intent.path();
         let checked = self
             .intended_value(&intent, &path)
@@ -271,6 +272,35 @@ mod tests {
         assert_eq!(speaker.request(intent, Catalog::embedded(), 0.0), None);
         let expected = texts::describe_refusal(&Refusal::Invalid(ValueError::NotPrintableAscii));
         assert_eq!(speaker.message.as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn a_refusal_stays_through_polls_until_the_next_request() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.request(Intent::Level(130.0), Catalog::embedded(), 0.0);
+        let level = Event::Value {
+            path: paths::path(paths::OUTPUT_LEVEL),
+            value: Value::from(80.0),
+        };
+        speaker.apply(level, 2.0);
+        assert!(speaker.message.is_some(), "a poll ended the refusal");
+        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 3.0);
+        assert_eq!(command, set(paths::MUTE, Value::Bool(true)));
+        assert_eq!(speaker.message, None);
+    }
+
+    #[test]
+    fn a_request_keeps_the_unreachable_message() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.apply(Event::Unreachable("masked".to_owned()), 1.0);
+        let intent = Intent::Write {
+            path: paths::path("device/name"),
+            value: Value::from("left"),
+        };
+        assert!(speaker
+            .try_request(intent, Catalog::embedded(), 2.0)
+            .is_err());
+        assert_eq!(speaker.message.as_deref(), Some(texts::UNREACHABLE));
     }
 
     #[test]

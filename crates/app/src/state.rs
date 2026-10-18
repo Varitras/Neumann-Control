@@ -22,6 +22,18 @@ pub enum SpeakerKey {
     Address(SocketAddrV6),
 }
 
+/// What the card's message is about, which decides when it ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MessageSource {
+    /// Connecting, unreachable, another device: replaced by the next connection event.
+    Connection,
+    /// A refused, rejected or failed write. It stays until the user's next write request on
+    /// this card (or a connection event): the worker re-reads a path right after a rejection
+    /// and polls it every few seconds, so ending it on a fresh value hid it at once; and the
+    /// texts do not name the path, so they are stale after any later request.
+    Write,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
     Connecting,
@@ -50,8 +62,7 @@ pub struct SpeakerState {
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
     pub message: Option<String>,
-    /// The path a write message is about; a fresh value for it clears the message.
-    message_path: Option<SscPath>,
+    message_source: MessageSource,
     pub expanded: bool,
     pub input_meters: Vec<MeterState>,
     pub output_meters: Vec<MeterState>,
@@ -72,7 +83,7 @@ impl SpeakerState {
             absent: BTreeSet::new(),
             status: Status::Connecting,
             message: None,
-            message_path: None,
+            message_source: MessageSource::Connection,
             expanded: false,
             input_meters: Vec::new(),
             output_meters: Vec::new(),
@@ -122,18 +133,18 @@ impl SpeakerState {
                 }
                 self.identity = Some(identity);
                 self.status = Status::Connected;
-                self.set_message(None, None);
+                self.set_message(None, MessageSource::Connection);
             }
             // The masked reason is for the log; the card only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
-                self.set_message(Some(texts::UNREACHABLE.to_owned()), None);
+                self.set_message(
+                    Some(texts::UNREACHABLE.to_owned()),
+                    MessageSource::Connection,
+                );
                 self.reset_meters();
             }
             Event::Value { path, value } => {
-                if self.message_path.as_ref() == Some(&path) {
-                    self.set_message(None, None);
-                }
                 if path == paths::path(paths::OUTPUT_LEVEL) {
                     self.fader.confirmed();
                 }
@@ -145,17 +156,17 @@ impl SpeakerState {
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
-            Event::WriteRejected { path, error } => {
+            Event::WriteRejected { error, .. } => {
                 let text = texts::describe_rejection(error.code);
-                self.set_message(Some(text), Some(path));
+                self.set_message(Some(text), MessageSource::Write);
             }
-            Event::WriteFailed { path, .. } => {
-                self.set_message(Some(texts::WRITE_FAILED.to_owned()), Some(path));
+            Event::WriteFailed { .. } => {
+                self.set_message(Some(texts::WRITE_FAILED.to_owned()), MessageSource::Write);
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
                 let text = texts::serial_mismatch(&mask_serial(&found));
-                self.set_message(Some(text), None);
+                self.set_message(Some(text), MessageSource::Connection);
             }
             Event::AllValues(reports) => self.finish_all_values(AllValuesState::Loaded(reports)),
             Event::AllValuesFailed(reason) => {
@@ -183,9 +194,16 @@ impl SpeakerState {
         }
     }
 
-    pub(crate) fn set_message(&mut self, message: Option<String>, path: Option<SscPath>) {
+    pub(crate) fn set_message(&mut self, message: Option<String>, source: MessageSource) {
         self.message = message;
-        self.message_path = path;
+        self.message_source = source;
+    }
+
+    /// A new write request makes the message about the previous one stale.
+    pub(crate) fn clear_write_message(&mut self) {
+        if self.message_source == MessageSource::Write {
+            self.set_message(None, MessageSource::Write);
+        }
     }
 
     fn reset_meters(&mut self) {
@@ -373,7 +391,28 @@ mod tests {
     }
 
     #[test]
-    fn write_message_clears_when_the_path_reports_a_value() {
+    fn a_rejection_message_survives_the_reread_of_its_path() {
+        let mut speaker = state();
+        speaker.apply(
+            Event::WriteRejected {
+                path: path("ui/bass_gain"),
+                error: DeviceError {
+                    code: 405,
+                    description: String::new(),
+                },
+            },
+            0.0,
+        );
+        speaker.apply(value_event("ui/bass_gain", json!(0.0)), 0.1);
+        speaker.apply(value_event("ui/bass_gain", json!(0.0)), 30.0);
+        assert_eq!(
+            speaker.message.as_deref(),
+            Some("Gerät lehnt ab: nur lesbar")
+        );
+    }
+
+    #[test]
+    fn a_failed_write_message_survives_values_of_its_path() {
         let mut speaker = state();
         speaker.apply(
             Event::WriteFailed {
@@ -382,11 +421,27 @@ mod tests {
             },
             0.0,
         );
-        assert_eq!(speaker.message.as_deref(), Some(texts::WRITE_FAILED));
-        speaker.apply(value_event("device/name", json!("left")), 1.0);
-        assert!(speaker.message.is_some());
         speaker.apply(value_event("audio/out/level", json!(80.0)), 2.0);
-        assert_eq!(speaker.message, None);
+        assert_eq!(speaker.message.as_deref(), Some(texts::WRITE_FAILED));
+    }
+
+    #[test]
+    fn a_local_mode_rejection_names_the_rear_switch() {
+        let mut speaker = state();
+        speaker.apply(
+            Event::WriteRejected {
+                path: path("audio/out/level"),
+                error: DeviceError {
+                    code: 401,
+                    description: "authorisation needed".to_owned(),
+                },
+            },
+            0.0,
+        );
+        assert_eq!(
+            speaker.message.as_deref(),
+            Some("Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt")
+        );
     }
 
     #[test]
