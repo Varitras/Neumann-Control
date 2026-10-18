@@ -18,10 +18,11 @@ knowledge the path catalog is built from and the simulator, not a hardware test.
   takes 4 seconds) and lets you choose which of them to add, or adds a speaker by its IPv6
   address with "+ Adresse". Added speakers are remembered.
 - One card per speaker: connection state, output level fader (0-120 dB SPL, mouse wheel in
-  0.5 dB steps), input level meters with clip lamps, "Stumm" (mute) and "Ident." (identify),
+  0.5 dB steps), input level meters with clip lamps (on the KH 750 also its output meters),
+  "Stumm" (mute) and "Ident." (identify),
   firmware version and masked serial number.
 - "Mehr" opens every setting the catalog knows for that model (output, input, standby, device,
-  rear panel, metering), grouped; settings a model may write get a control, the rest are shown
+  rear panel), grouped; settings a model may write get a control, the rest are shown
   greyed.
 - "Alle Werte..." lists every value the speaker reports in its own schema, with a path filter and
   copy buttons, including paths the catalog does not know yet.
