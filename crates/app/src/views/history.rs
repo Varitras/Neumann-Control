@@ -1,7 +1,7 @@
 //! The history window behind the toolbar's "Verlauf": the writes of this session, newest on top,
 //! each with "Zurück"; and the question before taking back values that changed since.
 
-use eframe::egui::{Button, Id, Modal, RichText, ScrollArea, Ui};
+use eframe::egui::{Button, Id, Key, KeyboardShortcut, Modal, Modifiers, RichText, ScrollArea, Ui};
 
 use crate::texts;
 
@@ -107,6 +107,9 @@ fn row_line(ui: &mut Ui, row: &HistoryRow) -> Option<u64> {
 }
 
 /// "Seitdem geändert": the changes whose values are no longer the written ones.
+/// Ctrl+Z, in the main window and in the EQ windows.
+pub const UNDO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
+
 pub fn question(ui: &mut Ui, lines: &[String]) -> QuestionAction {
     let modal = Modal::new(Id::new(QUESTION_ID)).show(ui.ctx(), |ui| {
         ui.heading(texts::CHANGED_SINCE);

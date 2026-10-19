@@ -317,3 +317,82 @@ fn reset_is_not_offered_while_the_speaker_is_unreachable() {
         reset_buttons(harness) == 0
     });
 }
+
+/// A band edit, then a newer mute from the strip (with the window closed, as it covers the
+/// strip), then the window open again.
+fn eq_change_then_mute(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(harness, point, egui::vec2(0.0, -40.0));
+    wait_until(harness, "the band write", |_| {
+        !sets(simulator, BOOST_POINTER).is_empty()
+    });
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::MUTE.get())
+        .click();
+    wait_until(harness, "the mute write", |_| {
+        !sets(simulator, "/audio/out/mute").is_empty()
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(harness, &texts::eq_band(1));
+}
+
+fn open_from_strip(
+    model: SimModel,
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let (simulator, directory, mut harness) = connected_speaker_with(model, spread);
+    // The embedded window is cut off in the small window, its close button with it.
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    (simulator, directory, harness)
+}
+
+fn assert_band_2_written_back(simulator: &Simulator) {
+    let boost = sets(simulator, BOOST_POINTER);
+    assert_eq!(boost.len(), 2, "{boost:?}");
+    let mut expected = vec![Value::Null; 10];
+    expected[1] = json!(0.0);
+    assert_eq!(boost[1], Value::Array(expected));
+    assert_eq!(sets(simulator, "/audio/out/mute").len(), 1);
+}
+
+#[test]
+fn eq_undo_takes_back_the_speakers_last_eq_change() {
+    let (simulator, _directory, mut harness) = open_from_strip(SimModel::Kh120Ii);
+    eq_change_then_mute(&mut harness, &simulator);
+    harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_UNDO.get())
+        .click();
+    wait_until(&mut harness, "the band written back", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+    assert_band_2_written_back(&simulator);
+}
+
+#[test]
+fn ctrl_z_in_the_eq_window_undoes_eq_only() {
+    let (simulator, _directory, mut harness) = open_from_strip(SimModel::Kh120Ii);
+    eq_change_then_mute(&mut harness, &simulator);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "the band written back", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+    harness.run_steps(3);
+    barrier(&simulator);
+    assert_band_2_written_back(&simulator);
+}
+
+#[test]
+fn eq_undo_is_disabled_without_eq_changes() {
+    let (_simulator, _directory, harness) = open_from_strip(SimModel::Kh120Ii);
+    let undo = harness.get_by_role_and_label(Role::Button, texts::EQ_UNDO.get());
+    assert!(undo.accesskit_node().is_disabled());
+}

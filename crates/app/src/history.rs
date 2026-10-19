@@ -96,8 +96,13 @@ impl History {
 
     /// The newest entry with a change that can still be taken back: what Ctrl+Z takes back.
     pub fn newest_open(&self) -> Option<u64> {
+        self.newest_open_where(|_| true)
+    }
+
+    /// Like `newest_open`, among the entries `keep` accepts (the EQ window's undo).
+    pub fn newest_open_where(&self, keep: impl Fn(&Entry) -> bool) -> Option<u64> {
         self.entries()
-            .find(|entry| entry.changes.iter().any(is_open))
+            .find(|entry| entry.changes.iter().any(is_open) && keep(entry))
             .map(|entry| entry.id)
     }
 
@@ -254,6 +259,18 @@ mod tests {
         ));
         history.mark_taken_back(known.unwrap(), 0);
         assert_eq!(history.newest_open(), None);
+    }
+
+    #[test]
+    fn newest_open_where_skips_entries_it_does_not_keep() {
+        let mut history = History::default();
+        let older = history.push(NOON, vec![change(Some(json!(1)), json!(2))], None);
+        let newer = history.push(NOON, vec![change(Some(json!(80)), json!(84))], None);
+        let kept = |entry: &Entry| entry.changes[0].after == json!(2);
+        assert_eq!(history.newest_open_where(kept), older);
+        history.mark_taken_back(older.unwrap(), 0);
+        assert_eq!(history.newest_open_where(kept), None);
+        assert_eq!(history.newest_open_where(|_| true), newer);
     }
 
     #[test]

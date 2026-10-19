@@ -2,11 +2,13 @@
 //! backend has only one): output and container choice, the graph and the band table.
 
 use eframe::egui::{
-    self, vec2, Color32, Context, Key, RichText, Ui, ViewportBuilder, ViewportClass, ViewportId,
+    self, vec2, Button, Color32, Context, Key, RichText, Ui, ViewportBuilder, ViewportClass,
+    ViewportId,
 };
 
 use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
+use super::history::UNDO_SHORTCUT;
 use crate::texts;
 
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
@@ -29,6 +31,10 @@ pub struct EqView<'a> {
     pub notice: Option<String>,
     /// The reset of the chosen container; `None` on a crossover or while it cannot be written.
     pub reset: Option<ResetOffer>,
+    /// The history line Undo would take back; `None` disables it.
+    pub undo: Option<String>,
+    /// "Changed since" for the entry being undone: the changes another client made meanwhile.
+    pub question: Option<Vec<String>>,
 }
 
 pub struct ResetOffer {
@@ -47,6 +53,9 @@ pub enum EqAction {
     ResetAsk,
     ResetConfirm,
     ResetCancel,
+    Undo,
+    QuestionConfirm,
+    QuestionCancel,
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
@@ -69,6 +78,10 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
         let escape = !editing && ui.input(|input| input.key_pressed(Key::Escape));
         if close_requested || escape {
             actions.push(EqAction::Close);
+        }
+        let typing = ui.memory(|memory| memory.focused().is_some());
+        if !typing && ui.input_mut(|input| input.consume_shortcut(&UNDO_SHORTCUT)) {
+            actions.push(EqAction::Undo);
         }
         actions
     })
@@ -111,6 +124,10 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
     if let Some(reset) = &view.reset {
         actions.extend(reset_row(ui, reset));
     }
+    actions.extend(undo_row(ui, view.undo.as_deref()));
+    if let Some(lines) = &view.question {
+        actions.extend(question(ui, lines));
+    }
     ui.separator();
     match &view.table {
         Some(table) => actions.extend(eq_table::show(ui, table).into_iter().map(EqAction::Table)),
@@ -123,6 +140,39 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         actions.push(EqAction::Close);
     }
     actions
+}
+
+fn undo_row(ui: &mut Ui, line: Option<&str>) -> Option<EqAction> {
+    ui.horizontal(|ui| {
+        let clicked = ui
+            .add_enabled(line.is_some(), Button::new(texts::EQ_UNDO))
+            .clicked();
+        if let Some(line) = line {
+            ui.weak(line);
+        }
+        clicked.then_some(EqAction::Undo)
+    })
+    .inner
+}
+
+fn question(ui: &mut Ui, lines: &[String]) -> Option<EqAction> {
+    ui.group(|ui| {
+        ui.strong(texts::CHANGED_SINCE);
+        for line in lines {
+            ui.label(line);
+        }
+        ui.label(texts::REVERT_ANYWAY);
+        ui.horizontal(|ui| {
+            if ui.button(texts::REVERT).clicked() {
+                return Some(EqAction::QuestionConfirm);
+            }
+            ui.button(texts::CANCEL)
+                .clicked()
+                .then_some(EqAction::QuestionCancel)
+        })
+        .inner
+    })
+    .inner
 }
 
 fn reset_row(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {

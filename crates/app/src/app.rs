@@ -360,7 +360,6 @@ impl NeumannApp {
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
             self.toggle_compact(frame);
         }
-        self.undo_shortcut(ui);
         egui::CentralPanel::default().show(ui, |ui| {
             if self.settings.desk.compact {
                 self.show_compact(ui);
@@ -376,6 +375,8 @@ impl NeumannApp {
         self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
         self.show_eq_windows(ui.ctx());
+        // After the EQ windows: where one is embedded in this window, its Ctrl+Z comes first.
+        self.undo_shortcut(ui);
         self.show_history(ui);
         self.show_take_back_question(ui);
         let now = ui.input(|input| input.time);

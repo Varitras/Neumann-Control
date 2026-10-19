@@ -1,7 +1,7 @@
 //! The session's history on the app side: the writes of each frame become one entry, and an
 //! entry is taken back by writing its values before through the normal write policy.
 
-use eframe::egui::{Key, KeyboardShortcut, Modifiers, Ui};
+use eframe::egui::Ui;
 
 use super::NeumannApp;
 use serde_json::Value;
@@ -11,12 +11,12 @@ use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
-use crate::views::history::{self as history_view, HistoryAction, HistoryRow, QuestionAction};
+use crate::views::history::{
+    self as history_view, HistoryAction, HistoryRow, QuestionAction, UNDO_SHORTCUT,
+};
 use crate::writes::Intent;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
-
-const UNDO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
 
 /// What the last take-back could not write, for the history window.
 #[derive(Clone, Debug, PartialEq)]
@@ -115,6 +115,10 @@ impl NeumannApp {
         let Some(id) = self.history.question else {
             return;
         };
+        // An EQ entry is asked about in its speaker's EQ window, where the user undid it.
+        if self.eq_question_window().is_some() {
+            return;
+        }
         let Some(entry) = self.history.history.entry(id) else {
             self.history.question = None;
             return;
@@ -127,7 +131,7 @@ impl NeumannApp {
         }
     }
 
-    fn row(&self, entry: &Entry) -> HistoryRow {
+    pub(super) fn row(&self, entry: &Entry) -> HistoryRow {
         let lines: Vec<String> = entry
             .changes
             .iter()
@@ -180,7 +184,7 @@ impl NeumannApp {
     }
 
     /// The open changes whose speakers now report another value than the written one.
-    fn changed_lines(&self, entry: &Entry) -> Vec<String> {
+    pub(super) fn changed_lines(&self, entry: &Entry) -> Vec<String> {
         let catalog = Catalog::embedded();
         let mut lines = Vec::new();
         for change in entry.changes.iter().filter(|change| is_open(change)) {

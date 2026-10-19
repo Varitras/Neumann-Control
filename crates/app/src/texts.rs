@@ -173,6 +173,7 @@ pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
 pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
+pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(

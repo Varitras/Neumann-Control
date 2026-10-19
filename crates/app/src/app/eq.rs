@@ -7,8 +7,9 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, flat, one_band, Band, Leaf, FLATTENING_LEAVES};
+use crate::eq::{bands_of, container_of, flat, one_band, Band, Leaf, FLATTENING_LEAVES};
 use crate::eq_response::{curve_db, graph_frequencies};
+use crate::history::Entry;
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
@@ -186,6 +187,16 @@ impl NeumannApp {
         let notice = unreachable
             .then(|| texts::UNREACHABLE.get().to_owned())
             .or_else(|| window.refusal.clone());
+        let undo = self
+            .eq_undo(&window.key)
+            .and_then(|id| self.history.history.entry(id))
+            .map(|entry| self.row(entry).text);
+        let question = self
+            .history
+            .question
+            .filter(|_| self.eq_question_window() == Some(index))
+            .and_then(|id| self.history.history.entry(id))
+            .map(|entry| self.changed_lines(entry));
         let reset = selected
             .filter(|shown| editable && !shown.container.crossover)
             .map(|shown| ResetOffer {
@@ -203,8 +214,31 @@ impl NeumannApp {
             table,
             notice,
             reset,
+            undo,
+            question,
         };
         eq_window::show(context, &view)
+    }
+
+    /// The newest entry the EQ window of `key` can undo: open, and only EQ writes to it.
+    fn eq_undo(&self, key: &SpeakerKey) -> Option<u64> {
+        let catalog = Catalog::embedded();
+        self.history
+            .history
+            .newest_open_where(|entry| is_eq_entry_of(entry, key, catalog))
+    }
+
+    /// The EQ window that asks the pending "changed since" question, if it is about an EQ
+    /// entry of a speaker whose window is open.
+    pub(super) fn eq_question_window(&self) -> Option<usize> {
+        let catalog = Catalog::embedded();
+        let entry = self
+            .history
+            .question
+            .and_then(|id| self.history.history.entry(id))?;
+        self.eq_windows
+            .iter()
+            .position(|window| is_eq_entry_of(entry, &window.key, catalog))
     }
 
     fn speaker_of(&self, key: &SpeakerKey) -> Option<&SpeakerState> {
@@ -232,6 +266,14 @@ impl NeumannApp {
                 window.asking_reset = false;
                 self.flatten(index, now);
             }
+            EqAction::Undo => {
+                let key = window.key.clone();
+                if let Some(id) = self.eq_undo(&key) {
+                    self.request_take_back(id);
+                }
+            }
+            EqAction::QuestionConfirm => self.answer_take_back(true),
+            EqAction::QuestionCancel => self.answer_take_back(false),
             EqAction::Graph(GraphAction::Select(band))
             | EqAction::Table(TableAction::Select(band)) => window.band = band,
             EqAction::Graph(GraphAction::Move {
@@ -337,6 +379,14 @@ impl NeumannApp {
     }
 }
 
+/// Whether every change of `entry` is an EQ write to the speaker `key`.
+fn is_eq_entry_of(entry: &Entry, key: &SpeakerKey, catalog: &Catalog) -> bool {
+    entry
+        .changes
+        .iter()
+        .all(|change| change.speaker == *key && container_of(catalog, &change.path).is_some())
+}
+
 /// The speaker's EQ containers by output (`out`, `out1`, `out2`), in catalog order.
 fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a EqContainer>)> {
     let mut outputs: Vec<(String, Vec<&EqContainer>)> = Vec::new();
@@ -392,4 +442,59 @@ fn headers_of(catalog: &Catalog, container: Option<&SscPath>) -> [String; 6] {
                 |entry| entry.label(texts::language()).to_owned(),
             )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::history::{Change, ClockTime};
+    use serde_json::json;
+
+    fn key(serial: &str) -> SpeakerKey {
+        SpeakerKey::Serial(serial.to_owned())
+    }
+
+    fn entry(changes: &[(&SpeakerKey, &str)]) -> Entry {
+        let changes = changes
+            .iter()
+            .map(|(speaker, path)| Change {
+                speaker: (*speaker).clone(),
+                path: crate::paths::path(path),
+                before: Some(json!(0.0)),
+                after: json!(1.0),
+                taken_back: false,
+            })
+            .collect();
+        Entry {
+            id: 0,
+            clock: ClockTime {
+                hour: 12,
+                minute: 0,
+                second: 0,
+            },
+            changes,
+            takes_back: None,
+        }
+    }
+
+    #[test]
+    fn an_eq_entry_belongs_to_its_speaker_only() {
+        let catalog = Catalog::embedded();
+        let (left, right) = (key("A"), key("B"));
+        let flattened = entry(&[
+            (&left, "audio/out/eq2/gain"),
+            (&left, "audio/out/eq2/boost"),
+        ]);
+        assert!(is_eq_entry_of(&flattened, &left, catalog));
+        assert!(!is_eq_entry_of(&flattened, &right, catalog));
+        let muted = entry(&[(&left, "audio/out/mute")]);
+        assert!(!is_eq_entry_of(&muted, &left, catalog));
+        let mixed = entry(&[(&left, "audio/out/eq2/gain"), (&left, "audio/out/level")]);
+        assert!(!is_eq_entry_of(&mixed, &left, catalog));
+        let both = entry(&[
+            (&left, "audio/out/eq2/gain"),
+            (&right, "audio/out/eq2/gain"),
+        ]);
+        assert!(!is_eq_entry_of(&both, &left, catalog));
+    }
 }
