@@ -1,7 +1,6 @@
 use neumann_control_core::settings::{
     load, save, DeskSettings, GroupSettings, Language, LanguageChoice, Linkable, ManualSpeaker,
-    MeterFloor,
-    Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    MeterFloor, Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -277,8 +276,20 @@ fn a_stored_language_keeps_its_choice() {
 
 #[test]
 fn like_windows_follows_the_system_language() {
-    assert_eq!(LanguageChoice::System.resolve(Language::English), Language::English);
-    assert_eq!(LanguageChoice::System.resolve(Language::German), Language::German);
-    assert_eq!(LanguageChoice::German.resolve(Language::English), Language::German);
-    assert_eq!(LanguageChoice::English.resolve(Language::German), Language::English);
+    assert_eq!(
+        LanguageChoice::System.resolve(Language::English),
+        Language::English
+    );
+    assert_eq!(
+        LanguageChoice::System.resolve(Language::German),
+        Language::German
+    );
+    assert_eq!(
+        LanguageChoice::German.resolve(Language::English),
+        Language::German
+    );
+    assert_eq!(
+        LanguageChoice::English.resolve(Language::German),
+        Language::English
+    );
 }
