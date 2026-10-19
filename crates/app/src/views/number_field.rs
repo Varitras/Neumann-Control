@@ -89,7 +89,9 @@ fn drag_value(ui: &mut Ui, field: &NumberField, value: &mut f64) -> Response {
         .custom_formatter(|number, _| texts::number(number))
         .custom_parser(|text| typed_value(text, None))
         .speed(field.drag_speed);
-    if let Some(unit) = field.unit {
+    // A converted field shows the converted unit only; both would read "0 1/48 kHz ms".
+    let device_unit = field.unit.filter(|_| field.conversion.is_none());
+    if let Some(unit) = device_unit {
         drag = drag.suffix(format!(" {unit}"));
     }
     if let Some(conversion) = field.conversion {

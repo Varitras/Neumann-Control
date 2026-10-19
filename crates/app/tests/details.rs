@@ -560,3 +560,15 @@ fn a_kh120_has_only_the_warning_trend() {
         .query_by_label_contains(temperature.trim_end())
         .is_none());
 }
+
+#[test]
+fn a_converted_delay_shows_only_the_converted_unit() {
+    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750);
+    let shown: Vec<String> = harness
+        .query_all_by_role(Role::SpinButton)
+        .filter_map(|field| field.accesskit_node().value().map(|text| text.to_string()))
+        .collect();
+    let delays: Vec<&String> = shown.iter().filter(|text| text.ends_with(" ms")).collect();
+    assert!(!delays.is_empty(), "{shown:?}");
+    assert!(shown.iter().all(|text| !text.contains("1/48 kHz")), "{shown:?}");
+}
