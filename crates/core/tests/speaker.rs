@@ -685,8 +685,14 @@ fn polling_pauses_while_nobody_reads_the_events() {
         "polling went on"
     );
 
-    while events.try_recv().is_ok() {}
-    wait_for_requests(&simulator, &meter, paused_at + 3, EVENT_DEADLINE);
+    // Read on like the app does every frame: one drain only buys `unread_events_limit` more
+    // events, and the paths that fell due during the pause take most of them.
+    let end = Instant::now() + EVENT_DEADLINE;
+    while count_requests(&simulator, &meter) < paused_at + 3 {
+        assert!(Instant::now() < end, "polling did not resume");
+        while events.try_recv().is_ok() {}
+        thread::sleep(REQUEST_POLL_INTERVAL);
+    }
 }
 
 #[test]
