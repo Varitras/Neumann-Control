@@ -51,8 +51,8 @@ fn role_of(harness: &Harness<'static, NeumannApp>, label: &str) -> Role {
 #[test]
 fn kh750_details_show_out1_and_no_phase() {
     let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750);
-    harness.get_by_label("Ausgang 1");
-    harness.get_by_label("Ausgang 2");
+    harness.get_by_label("Ausgang A");
+    harness.get_by_label("Ausgang B");
     assert!(harness.query_by_label("Phase invertiert").is_none());
 }
 

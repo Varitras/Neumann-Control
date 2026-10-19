@@ -37,8 +37,8 @@ impl Group {
     pub fn title(&self, language: Language) -> &'static str {
         let (german, english) = match self {
             Group::Output => ("Ausgang", "Output"),
-            Group::Output1 => ("Ausgang 1", "Output 1"),
-            Group::Output2 => ("Ausgang 2", "Output 2"),
+            Group::Output1 => ("Ausgang A", "Output A"),
+            Group::Output2 => ("Ausgang B", "Output B"),
             Group::Input => ("Eingang", "Input"),
             Group::Standby => ("Standby", "Standby"),
             Group::Device => ("Gerät", "Device"),

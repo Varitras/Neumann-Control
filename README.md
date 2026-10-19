@@ -182,8 +182,8 @@ its rows. Scanning and adding speakers or groups stay on the desk.
 ### EQ
 
 **EQ** in a speaker's device panel opens its EQ in a window of its own (one per speaker; it can
-be moved to another screen). On the KH 750 choose the output first (Overall, Output 1,
-Output 2); then each EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the
+be moved to another screen). On the KH 750 choose the output first (Subwoofer for its own
+woofer, Output A and Output B for its two output sockets); then each EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the
 crossovers of input A and input B ("Crossover A", "Crossover B").
 
 - The graph shows every EQ of the output as its own curve and their sum as a thicker line, from

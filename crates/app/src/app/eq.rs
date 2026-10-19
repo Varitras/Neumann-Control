@@ -308,9 +308,9 @@ fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a E
 
 fn output_name(output: &str) -> String {
     let text = match output {
-        "out1" => texts::EQ_OUTPUT_1,
-        "out2" => texts::EQ_OUTPUT_2,
-        _ => texts::EQ_OUTPUT_ALL,
+        "out1" => texts::EQ_OUTPUT_A,
+        "out2" => texts::EQ_OUTPUT_B,
+        _ => texts::EQ_OUTPUT_SUBWOOFER,
     };
     text.get().to_owned()
 }

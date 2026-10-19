@@ -13,6 +13,8 @@
 
 ### Changed
 
+- On the KH 750 the outputs are named after what they drive: Subwoofer (its own woofer), Output A
+  and Output B (its two output sockets), formerly Output 1 and Output 2.
 - The language follows the Windows display language unless one is chosen in the settings.
 - Standby time and standby level can be set on the KH 750 too.
 - Wider meters; the held peak is a thin line instead of a lit segment.

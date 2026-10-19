@@ -147,9 +147,9 @@ fn undo_of_a_band_edit_writes_that_band_back() {
 #[test]
 fn the_crossovers_of_the_outputs_can_be_edited() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
-    // "Ausgang 1" is also a heading in the device panel; the choice is a button.
+    // "Ausgang A" is also a heading in the device panel; the choice is a button.
     harness
-        .get_by_role_and_label(Role::Button, texts::EQ_OUTPUT_1.get())
+        .get_by_role_and_label(Role::Button, "Ausgang A")
         .click();
     harness.run_steps(2);
     harness.get_by_label("Weiche A").click();
@@ -170,7 +170,8 @@ fn the_crossover_is_shown_on_the_kh750() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh750);
     harness.get_by_label("Weiche A");
     harness.get_by_label("Weiche B");
-    harness.get_by_label(texts::EQ_OUTPUT_ALL.get());
+    // Measured: `out` is the KH 750's own driver, `out1`/`out2` the sockets A and B.
+    harness.get_by_label("Subwoofer");
 }
 
 #[test]

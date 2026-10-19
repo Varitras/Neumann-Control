@@ -166,9 +166,11 @@ pub const EQ_NOT_REPORTED: Text = Text::new(
     "Der Lautsprecher hat diesen EQ noch nicht gemeldet.",
     "The speaker has not reported this EQ yet.",
 );
-pub const EQ_OUTPUT_ALL: Text = Text::new("Gesamt", "Overall");
-pub const EQ_OUTPUT_1: Text = Text::new("Ausgang 1", "Output 1");
-pub const EQ_OUTPUT_2: Text = Text::new("Ausgang 2", "Output 2");
+/// The KH 750's outputs, measured 2026-10-19: `out` drives its own woofer, `out1`/`out2` are the
+/// sockets A and B.
+pub const EQ_OUTPUT_SUBWOOFER: Text = Text::new("Subwoofer", "Subwoofer");
+pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
+pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
