@@ -81,6 +81,56 @@ impl Fields<'_> {
         self.send(ui, Intent::Write { path, value });
     }
 
+    /// A list value (`elements` in the catalog): one field per entry. A change writes the whole
+    /// list, the other entries as the speaker reported them.
+    pub fn number_list(&mut self, ui: &mut Ui, entry: &Entry) {
+        let names = entry.element_labels(texts::language());
+        let reported: Option<Vec<Value>> = self
+            .speaker
+            .values
+            .get(&entry.path)
+            .and_then(Value::as_array)
+            .filter(|entries| entries.len() == names.len())
+            .cloned();
+        let product = self.speaker.product();
+        let min = entry.min.unwrap_or(f64::NEG_INFINITY);
+        let max = entry
+            .max_for(product, &self.catalog.classes)
+            .unwrap_or(f64::INFINITY);
+        let mut written = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(entry.label(texts::language()));
+            for (index, name) in names.iter().enumerate() {
+                let device = reported
+                    .as_ref()
+                    .and_then(|entries| entries[index].as_f64());
+                let label = ui.label(name);
+                let field = NumberField {
+                    id: ui.id().with(entry.path.to_string()).with(index),
+                    device,
+                    range: min..=max,
+                    step: entry.step,
+                    drag_speed: entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED),
+                    unit: entry.unit.as_deref(),
+                    conversion: entry.conversion,
+                    enabled: self.enabled(entry, device.is_some()),
+                    labelled_by: Some(label.id),
+                };
+                if let Some(number) = number_field::show(ui, &field) {
+                    written = Some((index, number));
+                }
+            }
+        });
+        let (Some((index, number)), Some(mut entries)) = (written, reported) else {
+            return;
+        };
+        // Outside the range it goes as typed, for the write policy to refuse with the reason.
+        entries[index] = Value::from(number);
+        let path = entry.path.clone();
+        let value = Value::Array(entries);
+        self.send(ui, Intent::Write { path, value });
+    }
+
     pub fn switch(&mut self, ui: &mut Ui, entry: &Entry) {
         let current = self
             .speaker

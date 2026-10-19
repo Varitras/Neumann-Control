@@ -198,6 +198,12 @@ pub struct Entry {
     /// elsewhere). Filled in from the `[[eq]]` table, never written in `[[entry]]`.
     #[serde(default)]
     pub bands: bool,
+    /// A list value with one entry per name (`audio/out/mixer/levels`: input A, input B). It is
+    /// written whole: whether `null` leaves an entry as it is was not measured for these paths.
+    #[serde(default)]
+    elements: Vec<String>,
+    #[serde(default)]
+    elements_en: Vec<String>,
 }
 
 impl Entry {
@@ -205,6 +211,14 @@ impl Entry {
         match language {
             Language::German => &self.label,
             Language::English => &self.label_en,
+        }
+    }
+
+    /// The names of a list value's entries; empty for a single value.
+    pub fn element_labels(&self, language: Language) -> &[String] {
+        match language {
+            Language::German => &self.elements,
+            Language::English => &self.elements_en,
         }
     }
 
@@ -228,7 +242,26 @@ impl Entry {
         if self.bands {
             return self.validate_bands(value, product, classes);
         }
+        if !self.elements.is_empty() {
+            return self.validate_elements(value, product, classes);
+        }
         self.validate_one(value, product, classes)
+    }
+
+    /// Every entry given and valid, in a list of the catalog's length.
+    fn validate_elements(
+        &self,
+        value: &Value,
+        product: &str,
+        classes: &ModelClasses,
+    ) -> Result<(), ValueError> {
+        let entries = value.as_array().ok_or(ValueError::WrongType)?;
+        if entries.len() != self.elements.len() {
+            return Err(ValueError::WrongType);
+        }
+        entries
+            .iter()
+            .try_for_each(|entry| self.validate_one(entry, product, classes))
     }
 
     /// At least one band given and every given band valid; `null` leaves a band as it is.
@@ -390,6 +423,8 @@ impl EqContainer {
                 writable_on: self.writable_on.clone(),
                 conversion: None,
                 bands: true,
+                elements: Vec::new(),
+                elements_en: Vec::new(),
             })
             .collect()
     }
@@ -558,6 +593,9 @@ fn check_entry(entry: &Entry, classes: &ModelClasses) -> Result<(), CatalogError
     }
     if entry.kind == Kind::Text && entry.max_length.is_none() {
         return Err(invalid("text without max_length"));
+    }
+    if entry.elements.len() != entry.elements_en.len() {
+        return Err(invalid("element names differ between the languages"));
     }
     let empty_range =
         |max: Option<f64>| matches!((entry.min, max), (Some(min), Some(max)) if min >= max);

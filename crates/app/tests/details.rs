@@ -570,5 +570,63 @@ fn a_converted_delay_shows_only_the_converted_unit() {
         .collect();
     let delays: Vec<&String> = shown.iter().filter(|text| text.ends_with(" ms")).collect();
     assert!(!delays.is_empty(), "{shown:?}");
-    assert!(shown.iter().all(|text| !text.contains("1/48 kHz")), "{shown:?}");
+    assert!(
+        shown.iter().all(|text| !text.contains("1/48 kHz")),
+        "{shown:?}"
+    );
+}
+
+const INPUT_MIX_POINTER: &str = "/audio/out/mixer/levels";
+
+#[test]
+fn the_input_mix_writes_the_whole_list() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    let before = simulator.value("audio/out/mixer/levels").unwrap();
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, "Eingang B")
+        .next()
+        .expect("a field for input B")
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, "Eingang B")
+        .next()
+        .unwrap()
+        .type_text("-20");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the mix written", |_| {
+        !sets_to(&simulator, INPUT_MIX_POINTER).is_empty()
+    });
+    let mut expected = before.as_array().unwrap().clone();
+    expected[1] = json!(-20.0);
+    assert_eq!(
+        sets_to(&simulator, INPUT_MIX_POINTER),
+        vec![Value::Array(expected)]
+    );
+}
+
+#[test]
+fn mute_persist_is_a_checkbox_that_writes() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    assert_eq!(role_of(&harness, "Stumm-Persistenz"), Role::CheckBox);
+    harness.get_by_label("Stumm-Persistenz").click();
+    wait_until(&mut harness, "mute persist written", |_| {
+        !sets_to(&simulator, "/audio/out/mute_persist").is_empty()
+    });
+    assert_eq!(
+        sets_to(&simulator, "/audio/out/mute_persist"),
+        vec![json!(true)]
+    );
+}
+
+#[test]
+fn kh750_shows_its_auto_standby_switch() {
+    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750);
+    harness.get_by_label("Auto-Standby-Schalter");
+    assert_eq!(
+        harness
+            .query_all_by_role_and_label(Role::SpinButton, "Eingang A")
+            .count(),
+        3
+    );
 }

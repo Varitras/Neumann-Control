@@ -498,6 +498,11 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
             .as_f64()
             .map_or_else(|| number.to_string(), self::number),
         Value::String(text) => text.clone(),
+        Value::Array(entries) => entries
+            .iter()
+            .map(|entry| history_value(entry, None))
+            .collect::<Vec<_>>()
+            .join(" / "),
         other => other.to_string(),
     };
     match unit {
@@ -640,6 +645,12 @@ pub fn eq_refusal(band: usize, leaf: &str, reason: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_list_value_reads_entry_by_entry() {
+        let value = serde_json::json!([0.0, -20.5]);
+        assert_eq!(history_value(&value, Some("dB")).replace(',', "."), "0 / -20.5 dB");
+    }
 
     #[test]
     fn an_unknown_value_before_reads_as_a_question_mark() {

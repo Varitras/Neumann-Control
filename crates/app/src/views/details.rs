@@ -111,7 +111,9 @@ fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {
         display(ui, fields.speaker, entry);
         return;
     }
+    let is_list = !entry.element_labels(texts::language()).is_empty();
     match entry.kind {
+        Kind::Number if is_list => fields.number_list(ui, entry),
         Kind::Number => {
             ui.horizontal(|ui| {
                 let catalog = fields.catalog;

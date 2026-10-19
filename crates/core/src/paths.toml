@@ -9,8 +9,14 @@
 # not listed in `writable_on` is read-only, so unmeasured models never get a write.
 #
 # `label` is the German UI copy, `label_en` the English one. EQ containers are in `[[eq]]` at the end;
-# each becomes six band entries. Out of scope (not listed): restore, save_settings, out5,
-# mixer, mute_persist, update, auth, system, time, macs.
+# each becomes six band entries. `elements` name the entries of a list value, which is written
+# whole. Out of scope (not listed): restore, save_settings, out5, update, auth, system, time
+# (reads 0 on both models), macs.
+#
+# mute_persist and mixer/levels: write-tested 2026-10-20 on KH 120 II (out) and KH 750 (out, out1,
+# out2), restored. What mute_persist does is not measured. mixer/levels entry 0 is input A, entry 1
+# input B: measured on the KH 750 with a tone at input B, -6 dB on an entry moved its output's meter
+# by -6.0 dB (out entry 1 -> Sub, out1 entry 0 -> A, out2 entry 1 -> B).
 
 [models]
 # Models with subwoofer features; every other product counts as a monitor.
@@ -123,6 +129,31 @@ poll = "slow"
 class = "subwoofer"
 
 [[entry]]
+path = "audio/out/mute_persist"
+label = "Stumm-Persistenz"
+label_en = "Mute persist"
+group = "output"
+kind = "switch"
+poll = "slow"
+class = "all"
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
+path = "audio/out/mixer/levels"
+label = "Eingangsmischung"
+label_en = "Input mix"
+group = "output"
+kind = "number"
+poll = "slow"
+class = "all"
+unit = "dB"
+min = -100
+max = 0
+elements = ["Eingang A", "Eingang B"]
+elements_en = ["Input A", "Input B"]
+writable_on = ["KH 120 II", "KH 750"]
+
+[[entry]]
 path = "audio/out1/level"
 label = "Pegel"
 label_en = "Level"
@@ -179,6 +210,31 @@ poll = "slow"
 class = "subwoofer"
 
 [[entry]]
+path = "audio/out1/mute_persist"
+label = "Stumm-Persistenz"
+label_en = "Mute persist"
+group = "output1"
+kind = "switch"
+poll = "slow"
+class = "subwoofer"
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out1/mixer/levels"
+label = "Eingangsmischung"
+label_en = "Input mix"
+group = "output1"
+kind = "number"
+poll = "slow"
+class = "subwoofer"
+unit = "dB"
+min = -100
+max = 0
+elements = ["Eingang A", "Eingang B"]
+elements_en = ["Input A", "Input B"]
+writable_on = ["KH 750"]
+
+[[entry]]
 path = "audio/out2/level"
 label = "Pegel"
 label_en = "Level"
@@ -233,6 +289,31 @@ group = "output2"
 kind = "display"
 poll = "slow"
 class = "subwoofer"
+
+[[entry]]
+path = "audio/out2/mute_persist"
+label = "Stumm-Persistenz"
+label_en = "Mute persist"
+group = "output2"
+kind = "switch"
+poll = "slow"
+class = "subwoofer"
+writable_on = ["KH 750"]
+
+[[entry]]
+path = "audio/out2/mixer/levels"
+label = "Eingangsmischung"
+label_en = "Input mix"
+group = "output2"
+kind = "number"
+poll = "slow"
+class = "subwoofer"
+unit = "dB"
+min = -100
+max = 0
+elements = ["Eingang A", "Eingang B"]
+elements_en = ["Input A", "Input B"]
+writable_on = ["KH 750"]
 
 [[entry]]
 path = "audio/in/interface"
@@ -501,6 +582,15 @@ kind = "display"
 poll = "slow"
 class = "subwoofer"
 unit = "°"
+
+[[entry]]
+path = "ui/auto_standby"
+label = "Auto-Standby-Schalter"
+label_en = "Auto standby switch"
+group = "rear_panel"
+kind = "display"
+poll = "slow"
+class = "subwoofer"
 
 [[entry]]
 path = "m/in/level"

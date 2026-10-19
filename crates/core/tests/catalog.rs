@@ -389,3 +389,55 @@ fn a_flat_full_array_is_a_valid_band_write() {
         Ok(())
     );
 }
+
+#[test]
+fn the_d2_settings_are_in_the_catalog() {
+    for output in ["out", "out1", "out2"] {
+        let product = if output == "out" { MONITOR } else { SUBWOOFER };
+        let persist = entry(&format!("audio/{output}/mute_persist"));
+        assert_eq!(persist.kind, Kind::Switch);
+        assert!(persist.is_writable(SUBWOOFER));
+        assert_eq!(persist.is_writable(MONITOR), output == "out");
+        let mixer = entry(&format!("audio/{output}/mixer/levels"));
+        assert_eq!(mixer.kind, Kind::Number);
+        assert!(mixer.is_writable(product));
+        assert!(!mixer.is_writable(UNKNOWN_PRODUCT));
+        assert_eq!(
+            mixer.element_labels(Language::German),
+            ["Eingang A", "Eingang B"]
+        );
+        assert_eq!(
+            mixer.element_labels(Language::English),
+            ["Input A", "Input B"]
+        );
+    }
+    assert!(has(SUBWOOFER, "ui/auto_standby"));
+    assert!(!has(MONITOR, "ui/auto_standby"));
+    assert_eq!(entry("ui/auto_standby").kind, Kind::Display);
+}
+
+#[test]
+fn a_list_value_is_written_whole() {
+    let catalog = Catalog::embedded();
+    let mixer = entry("audio/out/mixer/levels");
+    let check = |value| mixer.validate(&value, MONITOR, &catalog.classes);
+    assert_eq!(check(json!([0.0, -6.0])), Ok(()));
+    assert_eq!(check(json!([null, -6.0])), Err(ValueError::WrongType));
+    assert_eq!(check(json!([-6.0])), Err(ValueError::WrongType));
+    assert_eq!(check(json!(-6.0)), Err(ValueError::WrongType));
+    assert_eq!(
+        check(json!([0.0, 3.0])),
+        Err(ValueError::OutOfRange {
+            min: -100.0,
+            max: 0.0
+        })
+    );
+}
+
+#[test]
+fn element_labels_must_match_in_both_languages() {
+    let list = format!(
+        "{LEVEL}min = -100\nmax = 0\nelements = [\"Eingang A\", \"Eingang B\"]\nelements_en = [\"Input A\"]"
+    );
+    assert!(invalid_reason(&list).is_some());
+}
