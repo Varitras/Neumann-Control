@@ -118,7 +118,8 @@ Each speaker has a channel strip:
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
-- the response time, **Mute** and **Ident.** (identify).
+- the response time, **Mute**, **Ident.** (identify) and **EQ**, which opens the speaker's EQ
+  window once the speaker has reported its model.
 
 On the KH 120 II the input meters are captioned with the rear input switch (Analog, AES3 L,
 AES3 R, Mono), and a dot marks the channels the speaker plays. That channel A is the left AES3
@@ -146,6 +147,11 @@ Escape, **Close** or a click outside closes it.
 
 **All values…** lists every value the speaker reports in its own schema, with a path
 filter and copy buttons, including paths the catalog does not know yet.
+
+**Trend (2 h)** below the settings shows what the app read in this session, at most the last two
+hours: the temperature as a line (KH 750) with its lowest and highest value, and the warnings as a
+bar, red while a warning was active. Hover over them for the value and how long ago it was read.
+Gaps mark the times the speaker could not be read.
 
 To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
 longer remembered, and it also leaves its group and its place in the order.
@@ -181,7 +187,7 @@ its rows. Scanning and adding speakers or groups stay on the desk.
 
 ### EQ
 
-**EQ** in a speaker's device panel opens its EQ in a window of its own (one per speaker; it can
+**EQ** on a speaker's strip or in its device panel opens its EQ in a window of its own (one per speaker; it can
 be moved to another screen). On the KH 750 choose the output first (Subwoofer for its own
 woofer, Output A and Output B for its two output sockets); then each EQ of that output has a
 tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("Crossover A",
@@ -198,13 +204,19 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   a comma or a point, and a value outside the allowed range is refused with the reason.
 - A change is written when the gesture ends, and only for that one band, so the other bands
   stay as they are. Every change appears in the history and can be undone.
+- **Make flat** sets level and boost of every band of the chosen EQ to 0 dB, after a question;
+  frequency, Q, type and on/off stay. It is one history entry. The crossovers have no **Make
+  flat**: flattening them would remove the subwoofer's low pass.
+- **Undo** in the window takes back the speaker's newest EQ change, also with Ctrl+Z while the
+  window is in front; the line beside it says which change that is. When the values changed
+  since, the window asks first.
 
 ### History and undo
 
 **History** in the toolbar lists every setting the app wrote in this session, newest first, with
 the time, the speaker, the setting and the value before and after. A group or master move is one
 entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
-while you type in a value field). An undo is itself an entry, so it can be undone too.
+while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is itself an entry, so it can be undone too.
 
 When a value changed since it was written (in another app or on the speaker), the app lists the
 changes and asks before writing the old value back. A speaker that is not connected is left out,

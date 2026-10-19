@@ -10,6 +10,12 @@
   **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one entry. When a
   value changed since, the app asks before writing the old one back.
 - The held peak of each meter as a number under its channel.
+- An **EQ** button on each strip, opening the speaker's EQ window.
+- **Make flat** in the EQ window: level and boost of every band of an EQ to 0 dB, after a
+  question; not for the KH 750 crossovers.
+- **Undo** in the EQ window and Ctrl+Z there: takes back the speaker's newest EQ change.
+- Trends of the temperature and the warnings over the last two hours of the session in the
+  device panel.
 
 ### Changed
 
@@ -18,6 +24,10 @@
 - The language follows the Windows display language unless one is chosen in the settings.
 - Standby time and standby level can be set on the KH 750 too.
 - Wider meters; the held peak is a thin line instead of a lit segment.
+
+### Fixed
+
+- Number fields with a converted unit showed the device's unit as well ("0 1/48 kHz ms").
 
 ## [0.1.0] - 2026-10-18
 
