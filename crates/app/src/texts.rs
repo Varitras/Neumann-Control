@@ -10,6 +10,7 @@ use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
 use neumann_control_core::settings::Language;
+use serde_json::Value;
 
 use crate::state::Message;
 use crate::writes::Refusal;
@@ -138,6 +139,23 @@ pub const COPY_TO_GROUP: Text = Text::new("Für Gruppe übernehmen", "Apply to g
 pub const MASTER: Text = Text::new("Master", "Master");
 pub const MASTER_LEVEL: Text = Text::new("Master-Pegel", "Master level");
 pub const MUTE_ALL: Text = Text::new("Alle stumm", "Mute all");
+pub const HISTORY: Text = Text::new("Verlauf", "History");
+pub const HISTORY_TITLE: Text = Text::new("Verlauf dieser Sitzung", "History of this session");
+pub const NO_HISTORY: Text = Text::new(
+    "Noch keine Änderungen in dieser Sitzung.",
+    "No changes in this session yet.",
+);
+pub const TAKE_BACK: Text = Text::new("Zurück", "Undo");
+pub const TAKEN_BACK: Text = Text::new("Zurückgenommen", "Undone");
+pub const BEFORE_UNKNOWN: Text = Text::new(
+    "Der Wert vorher ist unbekannt",
+    "The value before is unknown",
+);
+pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since");
+pub const REVERT_ANYWAY: Text = Text::new("Trotzdem zurücksetzen?", "Revert anyway?");
+pub const REVERT: Text = Text::new("Zurücksetzen", "Revert");
+pub const SWITCH_ON: Text = Text::new("an", "on");
+pub const SWITCH_OFF: Text = Text::new("aus", "off");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
@@ -273,9 +291,9 @@ pub fn meter_label(group: &str, channel: &str) -> String {
 /// The number under a meter: whole dB with a real minus sign, a dash when below the floor.
 pub fn meter_readout(db: Option<i32>) -> String {
     match db {
-        Some(db) if db < 0 => format!("\u{2212}{}", db.unsigned_abs()),
+        Some(db) if db < 0 => format!("−{}", db.unsigned_abs()),
         Some(db) => db.to_string(),
-        None => "\u{2013}".to_owned(),
+        None => "–".to_owned(),
     }
 }
 
@@ -444,6 +462,68 @@ pub fn describe_rejection(code: i64) -> String {
             format!("Device refuses (code {other})"),
         ),
     }
+}
+
+/// A value in the history, with its unit.
+pub fn history_value(value: &Value, unit: Option<&str>) -> String {
+    let text = match value {
+        Value::Bool(true) => SWITCH_ON.get().to_owned(),
+        Value::Bool(false) => SWITCH_OFF.get().to_owned(),
+        Value::Number(number) => number
+            .as_f64()
+            .map_or_else(|| number.to_string(), self::number),
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    };
+    match unit {
+        Some(unit) => format!("{text} {unit}"),
+        None => text,
+    }
+}
+
+/// One change of a history entry.
+pub fn history_change(speaker: &str, setting: &str, before: &str, after: &str) -> String {
+    format!("{speaker} · {setting}: {before} → {after}")
+}
+
+/// An entry with several changes: the setting when all share it.
+pub fn history_changes(setting: Option<&str>, count: usize) -> String {
+    match setting {
+        Some(setting) => pick(
+            format!("{setting}: {count} Lautsprecher"),
+            format!("{setting}: {count} speakers"),
+        ),
+        None => pick(format!("{count} Änderungen"), format!("{count} changes")),
+    }
+}
+
+/// An entry that took back an earlier one.
+pub fn history_take_back(time: &str, text: &str) -> String {
+    pick(
+        format!("Rücknahme von {time}: {text}"),
+        format!("Undo of {time}: {text}"),
+    )
+}
+
+pub fn clock_time(hour: u8, minute: u8, second: u8) -> String {
+    format!("{hour:02}:{minute:02}:{second:02}")
+}
+
+/// A value that changed since it was written, in the question before taking it back.
+pub fn changed_now(speaker: &str, setting: &str, now: &str, written: &str) -> String {
+    pick(
+        format!("{speaker} · {setting}: jetzt {now} statt {written}"),
+        format!("{speaker} · {setting}: now {now} instead of {written}"),
+    )
+}
+
+/// What the last take-back left out.
+pub fn take_back_skipped(names: &[String]) -> String {
+    let names = names.join(", ");
+    pick(
+        format!("Nicht zurückgenommen: {names}"),
+        format!("Not undone: {names}"),
+    )
 }
 
 #[cfg(test)]

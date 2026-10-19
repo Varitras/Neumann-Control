@@ -178,3 +178,117 @@ fn an_unreachable_speaker_stays_open() {
     assert_eq!(open.iter().filter(|open| **open).count(), 1, "{open:?}");
     assert!(harness.state().take_back_notice().is_some());
 }
+
+fn mute_label() -> String {
+    let path = neumann_control_app::paths::path("audio/out/mute");
+    let catalog = neumann_control_core::catalog::Catalog::embedded();
+    let entry = neumann_control_app::paths::catalog_entry(catalog, &path).unwrap();
+    entry
+        .label(neumann_control_core::settings::Language::German)
+        .to_owned()
+}
+
+fn mute_change(before: bool, after: bool) -> String {
+    texts::history_change(
+        device_name(SimModel::Kh120Ii),
+        &mute_label(),
+        &texts::history_value(&json!(before), None),
+        &texts::history_value(&json!(after), None),
+    )
+}
+
+fn click_mute(
+    harness: &mut Harness<'static, NeumannApp>,
+    simulator: &neumann_control_core::simulator::Simulator,
+    count: usize,
+) {
+    harness.get_by_label(texts::MUTE.get()).click();
+    wait_until(harness, "mute", |_| {
+        sets(simulator, "/audio/out/mute").len() == count
+    });
+    harness.run_steps(2);
+}
+
+#[test]
+fn the_history_lists_the_newest_write_first() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    click_mute(&mut harness, &simulator, 1);
+    wait_until(&mut harness, "the muted state", |_| {
+        harness_is_muted(&simulator)
+    });
+    click_mute(&mut harness, &simulator, 2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    wait_for_label(&mut harness, &mute_change(false, true));
+    let older = harness.get_by_label(&mute_change(false, true)).rect().top();
+    let newer = harness.get_by_label(&mute_change(true, false)).rect().top();
+    assert!(newer < older, "newer {newer}, older {older}");
+    assert_eq!(
+        harness.query_all_by_label(texts::TAKE_BACK.get()).count(),
+        2
+    );
+    harness
+        .query_all_by_label(texts::TAKE_BACK.get())
+        .next()
+        .unwrap()
+        .click();
+    wait_until(&mut harness, "the newest taken back", |_| {
+        sets(&simulator, "/audio/out/mute").len() == 3
+    });
+}
+
+fn harness_is_muted(simulator: &neumann_control_core::simulator::Simulator) -> bool {
+    simulator.value("audio/out/mute") == Some(json!(true))
+}
+
+#[test]
+fn the_empty_history_says_so() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    wait_for_label(&mut harness, texts::NO_HISTORY.get());
+}
+
+#[test]
+fn ctrl_z_takes_back_the_newest_write() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    click_mute(&mut harness, &simulator, 1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "unmute", |_| {
+        sets(&simulator, "/audio/out/mute") == [json!(true), json!(false)]
+    });
+}
+
+#[test]
+fn ctrl_z_in_a_text_field_does_not_take_back() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    click_mute(&mut harness, &simulator, 1);
+    // Past the widened double-click allowance (2 s at 0.25 s a frame), so the mute click does not
+    // count as the first click of the double click.
+    harness.run_steps(12);
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.get_by_role(Role::TextInput);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, "/audio/out/mute").len(), 1);
+}
+
+#[test]
+fn ctrl_z_on_a_changed_value_asks_and_reverts_on_confirm() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    simulator.set_value(LEVEL_PATH, json!(90.0));
+    wait_for_level(&mut harness, 90.0);
+    drag_fader_down(&mut harness);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    simulator.set_value(LEVEL_PATH, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_for_label(&mut harness, texts::REVERT.get());
+    harness.get_by_label(texts::REVERT.get()).click();
+    wait_until(&mut harness, "the level written back", |_| {
+        level_sets(&simulator).len() == 2
+    });
+    assert_eq!(level_sets(&simulator)[1], 90.0);
+}

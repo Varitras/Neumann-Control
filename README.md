@@ -41,6 +41,7 @@ panel of one KH 750 open. The interface is shown in German.*
 - **A device panel** per speaker with every setting the catalog knows for its model.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
+- **History and undo**: every write of the session, each one revertible, Ctrl+Z for the newest.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
@@ -113,7 +114,8 @@ Each speaker has a channel strip:
 - knobs for **Delay** (shown in ms) and **Standby time**,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
-  and Sub, captioned "Out",
+  and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
+  number under the channel shows it in whole dB ("–" below the meter range),
 - the response time, **Mute** and **Ident.** (identify).
 
 On the KH 120 II the input meters are captioned with the rear input switch (Analog, AES3 L,
@@ -174,6 +176,18 @@ bottom. A group row moves its members like the group strip. A **!** stands for a
 
 The compact window keeps its own size and position and scrolls sideways when it is narrower than
 its rows. Scanning and adding speakers or groups stay on the desk.
+
+### History and undo
+
+**History** in the toolbar lists every setting the app wrote in this session, newest first, with
+the time, the speaker, the setting and the value before and after. A group or master move is one
+entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
+while you type in a value field). An undo is itself an entry, so it can be undone too.
+
+When a value changed since it was written (in another app or on the speaker), the app lists the
+changes and asks before writing the old value back. A speaker that is not connected is left out,
+and its change can be undone later. The history starts empty at every start; identify is not
+recorded.
 
 ### Settings
 

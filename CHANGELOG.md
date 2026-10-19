@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- A history of every setting the app wrote in this session (**History** in the toolbar), with
+  **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one entry. When a
+  value changed since, the app asks before writing the old one back.
+- The held peak of each meter as a number under its channel.
+
+### Changed
+
+- Wider meters; the held peak is a thin line instead of a lit segment.
+
 ## [0.1.0] - 2026-10-18
 
 First version.

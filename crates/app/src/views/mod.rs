@@ -6,6 +6,7 @@ mod details_fields;
 pub mod fader;
 pub mod group_dialog;
 pub mod group_strip;
+pub mod history;
 mod knob;
 mod meters;
 pub mod panel;

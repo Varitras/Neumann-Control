@@ -842,6 +842,6 @@ fn each_meter_channel_shows_its_peak_readout() {
     simulator.set_value("m/in/level", serde_json::json!([-18.2, -40.4]));
     wait_for_label(&mut harness, &texts::meter_readout(Some(-18)));
     harness.get_by_label(&texts::meter_readout(Some(-40)));
-    assert_eq!(texts::meter_readout(Some(-18)), "\u{2212}18");
-    assert_eq!(texts::meter_readout(None), "\u{2013}");
+    assert_eq!(texts::meter_readout(Some(-18)), "−18");
+    assert_eq!(texts::meter_readout(None), "–");
 }

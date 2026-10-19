@@ -345,12 +345,14 @@ impl NeumannApp {
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::AddGroup => self.add_group(),
             ToolbarAction::Settings => self.settings_open = true,
+            ToolbarAction::History => self.open_history(),
             ToolbarAction::ToggleCompact => self.toggle_compact(frame),
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
             self.toggle_compact(frame);
         }
+        self.undo_shortcut(ui);
         egui::CentralPanel::default().show(ui, |ui| {
             if self.settings.desk.compact {
                 self.show_compact(ui);
@@ -365,6 +367,8 @@ impl NeumannApp {
         self.show_settings(ui);
         self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
+        self.show_history(ui);
+        self.show_take_back_question(ui);
         let now = ui.input(|input| input.time);
         self.finish_history_frame(now);
     }
