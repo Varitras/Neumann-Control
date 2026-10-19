@@ -19,7 +19,7 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, GroupSettings, Linkable, ManualSpeaker, Settings, SETTINGS_FILE,
+    self, GroupSettings, Language, Linkable, ManualSpeaker, Settings, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
@@ -83,6 +83,16 @@ pub fn harness_scanning(
     settings_path: PathBuf,
     scan_result: ScanResult,
 ) -> Harness<'static, NeumannApp> {
+    // The tests read the German texts; "like Windows" must not depend on the machine.
+    harness_in(settings_path, scan_result, Language::German)
+}
+
+/// The app on a Windows whose display language is `system`.
+pub fn harness_in(
+    settings_path: PathBuf,
+    scan_result: ScanResult,
+    system: Language,
+) -> Harness<'static, NeumannApp> {
     Harness::builder()
         .with_size(WINDOW_SIZE)
         .build_eframe(move |creation_context| {
@@ -90,6 +100,7 @@ pub fn harness_scanning(
                 &creation_context.egui_ctx,
                 settings_path,
                 Box::new(SimulatorSpawner { scan_result }),
+                system,
             )
         })
 }

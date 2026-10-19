@@ -105,7 +105,7 @@ pub struct DeskSettings {
     #[serde(deserialize_with = "or_default")]
     pub show_response_times: bool,
     #[serde(deserialize_with = "or_default")]
-    pub language: Language,
+    pub language: LanguageChoice,
     #[serde(deserialize_with = "or_default")]
     pub compact: bool,
 }
@@ -116,7 +116,7 @@ impl Default for DeskSettings {
             theme: ThemeChoice::System,
             meter_floor: MeterFloor::Minus120,
             show_response_times: true,
-            language: Language::German,
+            language: LanguageChoice::System,
             compact: false,
         }
     }
@@ -139,6 +139,26 @@ pub enum Language {
 
 impl Language {
     pub const ALL: [Language; 2] = [Language::German, Language::English];
+}
+
+/// The language the settings ask for; "like Windows" takes the system's display language.
+/// The names of the fixed choices are those `Language` was stored under before.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum LanguageChoice {
+    #[default]
+    System,
+    German,
+    English,
+}
+
+impl LanguageChoice {
+    pub fn resolve(self, system: Language) -> Language {
+        match self {
+            LanguageChoice::System => system,
+            LanguageChoice::German => Language::German,
+            LanguageChoice::English => Language::English,
+        }
+    }
 }
 
 /// The lowest level a meter shows; quiet room volume reads about -90 dB on the inputs.

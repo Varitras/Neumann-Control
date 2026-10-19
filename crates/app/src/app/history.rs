@@ -199,7 +199,7 @@ impl NeumannApp {
                 |speaker| speaker.state.display_name(),
             );
         let entry = paths::catalog_entry(Catalog::embedded(), &change.path);
-        let language = self.settings.desk.language;
+        let language = texts::language();
         Described {
             speaker,
             setting: entry.map_or_else(

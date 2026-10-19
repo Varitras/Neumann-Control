@@ -46,8 +46,9 @@ panel of one KH 750 open. The interface is shown in German.*
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
 
-The interface starts in German; switch it to English in **Settings** → **Language** (in German:
-**Einstellungen** → **Sprache**). This README uses the English names.
+The interface follows the Windows display language: German on a German Windows, English on any
+other. **Settings** → **Language** (in German: **Einstellungen** → **Sprache**) can fix one of
+them. This README uses the English names.
 
 ## Status
 
@@ -194,7 +195,7 @@ recorded.
 **Settings** sets:
 
 - the theme: like Windows, light or dark,
-- the language: German or English. It changes at once. German shows a decimal comma; typed values
+- the language: like Windows, German or English. It changes at once. German shows a decimal comma; typed values
   take a comma or a point.
 - the lowest level the meters show: −120, −90 or −60 dB,
 - whether response times are shown.

@@ -2,7 +2,7 @@
 //! response times. Every change applies at once; the app saves it.
 
 use eframe::egui::{Id, Modal, Ui};
-use neumann_control_core::settings::{DeskSettings, Language, MeterFloor, ThemeChoice};
+use neumann_control_core::settings::{DeskSettings, LanguageChoice, MeterFloor, ThemeChoice};
 
 use crate::texts;
 
@@ -28,18 +28,16 @@ fn contents(ui: &mut Ui, desk: &mut DeskSettings) -> SettingsAction {
     ui.heading(texts::SETTINGS_TITLE);
     ui.label(texts::THEME);
     ui.horizontal(|ui| {
-        ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::THEME_SYSTEM);
+        ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::LIKE_WINDOWS);
         ui.radio_value(&mut desk.theme, ThemeChoice::Light, texts::THEME_LIGHT);
         ui.radio_value(&mut desk.theme, ThemeChoice::Dark, texts::THEME_DARK);
     });
     ui.label(texts::LANGUAGE_LABEL);
     ui.horizontal(|ui| {
-        ui.radio_value(&mut desk.language, Language::German, texts::LANGUAGE_GERMAN);
-        ui.radio_value(
-            &mut desk.language,
-            Language::English,
-            texts::LANGUAGE_ENGLISH,
-        );
+        let language = &mut desk.language;
+        ui.radio_value(language, LanguageChoice::System, texts::LIKE_WINDOWS);
+        ui.radio_value(language, LanguageChoice::German, texts::LANGUAGE_GERMAN);
+        ui.radio_value(language, LanguageChoice::English, texts::LANGUAGE_ENGLISH);
     });
     ui.label(texts::METER_RANGE);
     ui.horizontal(|ui| {

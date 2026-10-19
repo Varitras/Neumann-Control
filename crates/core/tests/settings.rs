@@ -1,5 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, MeterFloor,
+    load, save, DeskSettings, GroupSettings, Language, LanguageChoice, Linkable, ManualSpeaker,
+    MeterFloor,
     Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
@@ -119,7 +120,7 @@ fn old_settings_file_loads_with_desk_defaults() {
     assert_eq!(loaded.desk.theme, ThemeChoice::System);
     assert_eq!(loaded.desk.meter_floor.db(), -120.0);
     assert!(loaded.desk.show_response_times);
-    assert_eq!(loaded.desk.language, Language::German);
+    assert_eq!(loaded.desk.language, LanguageChoice::System);
     assert!(!loaded.desk.compact);
     assert_eq!(loaded.compact_window, None);
 }
@@ -133,7 +134,7 @@ fn desk_settings_round_trip() {
             theme: ThemeChoice::Dark,
             meter_floor: MeterFloor::Minus60,
             show_response_times: false,
-            language: Language::English,
+            language: LanguageChoice::English,
             compact: true,
         },
         compact_window: Some(WindowGeometry {
@@ -223,7 +224,7 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
     fs::write(&path, text).unwrap();
     let loaded = load(&path);
     assert_eq!(loaded.manual.len(), 1, "the readable speaker stays");
-    assert_eq!(loaded.desk.language, Language::German);
+    assert_eq!(loaded.desk.language, LanguageChoice::System);
     assert_eq!(loaded.desk.meter_floor, MeterFloor::Minus120);
     assert!(
         !loaded.desk.show_response_times,
@@ -264,4 +265,20 @@ fn a_file_of_the_previous_version_keeps_its_speakers_and_window() {
         .path()
         .join(format!("{SETTINGS_FILE}.bad"))
         .exists());
+}
+
+#[test]
+fn a_stored_language_keeps_its_choice() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[],"desk":{"language":"German"}}"#).unwrap();
+    assert_eq!(load(&path).desk.language, LanguageChoice::German);
+}
+
+#[test]
+fn like_windows_follows_the_system_language() {
+    assert_eq!(LanguageChoice::System.resolve(Language::English), Language::English);
+    assert_eq!(LanguageChoice::System.resolve(Language::German), Language::German);
+    assert_eq!(LanguageChoice::German.resolve(Language::English), Language::German);
+    assert_eq!(LanguageChoice::English.resolve(Language::German), Language::English);
 }

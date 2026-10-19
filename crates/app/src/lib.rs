@@ -12,6 +12,7 @@ pub mod scan_choice;
 pub mod spawner;
 pub mod state;
 pub mod status_leds;
+pub mod system_language;
 pub mod targets;
 pub mod texts;
 pub mod ui_kit;

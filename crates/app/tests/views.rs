@@ -13,6 +13,7 @@ use neumann_control_app::views::all_values;
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
+use neumann_control_core::settings::{self, Language, LanguageChoice};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::Event;
 use serde_json::Value;
@@ -562,10 +563,7 @@ fn english_applies_at_once_and_is_saved() {
         .path()
         .join(neumann_control_core::settings::SETTINGS_FILE);
     let saved = neumann_control_core::settings::load(&path);
-    assert_eq!(
-        saved.desk.language,
-        neumann_control_core::settings::Language::English
-    );
+    assert_eq!(saved.desk.language, LanguageChoice::English);
 }
 
 #[test]
@@ -844,4 +842,20 @@ fn each_meter_channel_shows_its_peak_readout() {
     harness.get_by_label(&texts::meter_readout(Some(-40)));
     assert_eq!(texts::meter_readout(Some(-18)), "−18");
     assert_eq!(texts::meter_readout(None), "–");
+}
+
+#[test]
+fn the_language_follows_windows_unless_one_is_chosen() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut harness = harness_in(path.clone(), Ok(Vec::new()), Language::English);
+    harness.run_steps(2);
+    harness.get_by_label("Settings");
+    drop(harness);
+    let mut settings = settings::load(&path);
+    settings.desk.language = LanguageChoice::German;
+    settings::save(&settings, &path).unwrap();
+    let mut harness = harness_in(path, Ok(Vec::new()), Language::English);
+    harness.run_steps(2);
+    harness.get_by_label("Einstellungen");
 }

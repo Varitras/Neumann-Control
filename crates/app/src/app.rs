@@ -12,7 +12,7 @@ use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
 use neumann_control_core::mask::mask_host;
-use neumann_control_core::settings::{self, ManualSpeaker, Settings, WindowGeometry};
+use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
 use crate::groups::{forget_member, member_id, rename_member, set_membership};
@@ -81,6 +81,8 @@ pub struct NeumannApp {
     settings_open: bool,
     window: Option<WindowGeometry>,
     history: history::HistoryState,
+    /// What "like Windows" means, asked of Windows at the start.
+    system_language: Language,
 }
 
 impl NeumannApp {
@@ -89,9 +91,10 @@ impl NeumannApp {
         context: &Context,
         settings_path: PathBuf,
         spawner: Box<dyn SpeakerSpawner>,
+        system_language: Language,
     ) -> NeumannApp {
         let settings = settings::load(&settings_path);
-        NeumannApp::with_settings(context, settings_path, settings, spawner)
+        NeumannApp::with_settings(context, settings_path, settings, spawner, system_language)
     }
 
     /// With settings already loaded from `settings_path`, as the start does to place the window:
@@ -101,6 +104,7 @@ impl NeumannApp {
         settings_path: PathBuf,
         settings: Settings,
         spawner: Box<dyn SpeakerSpawner>,
+        system_language: Language,
     ) -> NeumannApp {
         fonts::install(context);
         theme::apply(context);
@@ -123,6 +127,7 @@ impl NeumannApp {
             group_draft: None,
             settings_open: false,
             history: history::HistoryState::default(),
+            system_language,
         };
         app.sync_targets();
         app
@@ -576,7 +581,7 @@ impl eframe::App for NeumannApp {
     }
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
-        texts::set_language(self.settings.desk.language);
+        texts::set_language(self.settings.desk.language.resolve(self.system_language));
         wheel::track_burst(ui.ctx());
         self.show(ui, frame);
     }
