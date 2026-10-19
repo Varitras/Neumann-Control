@@ -13,6 +13,7 @@ use neumann_control_core::settings::Language;
 use serde_json::Value;
 
 use crate::state::Message;
+use crate::trend::whole_minutes;
 use crate::writes::Refusal;
 
 thread_local! {
@@ -583,9 +584,13 @@ pub fn trends_title(window_seconds: f64) -> String {
     pick(format!("Verlauf ({hours} h)"), format!("Trend ({hours} h)"))
 }
 
-/// The left end of a trend's time axis: "−2 h".
-pub fn trend_start(window_seconds: f64) -> String {
-    format!("−{} h", hours(window_seconds))
+/// The left end of a trend's time axis: "−2 h" for whole hours, else "−25 min".
+pub fn trend_start(span_seconds: f64) -> String {
+    let hours = hours(span_seconds);
+    if hours.fract() == 0.0 {
+        return format!("−{hours} h");
+    }
+    format!("−{} min", whole_minutes(span_seconds))
 }
 
 const SECONDS_PER_HOUR: f64 = 3600.0;

@@ -8,16 +8,16 @@ use neumann_control_core::catalog::Conversion;
 
 use crate::display::converted;
 use crate::texts;
-use crate::trend::{Trend, TrendPoint, TREND_WINDOW_SECONDS};
+use crate::trend::{shown_span, whole_minutes, Trend, TrendPoint, TREND_WINDOW_SECONDS};
 use crate::ui_kit::theme::Tokens;
 
 const LINE_HEIGHT: f32 = 48.0;
 const BAR_HEIGHT: f32 = 8.0;
 const LINE_WIDTH: f32 = 1.5;
+/// Keeps the lowest and highest reading off the frame.
+const LINE_MARGIN: f32 = 6.0;
 /// A temperature that stayed the same still gets a band of this many degrees to sit in.
 const MIN_SPAN_DEGREES: f64 = 2.0;
-const SECONDS_PER_MINUTE: f64 = 60.0;
-
 pub struct Trends<'a> {
     /// Seconds of the UI clock, the right edge.
     pub now: f64,
@@ -45,13 +45,21 @@ pub fn show(ui: &mut Ui, trends: &Trends) {
         ui.weak(texts::NO_TREND_VALUES);
         return;
     }
-    let start = trends.now - TREND_WINDOW_SECONDS;
+    let first = [
+        temperature.and_then(|temperature| temperature.trend.first_time()),
+        trends.warnings.first_time(),
+    ]
+    .into_iter()
+    .flatten()
+    .reduce(f64::min);
+    let span = shown_span(first, trends.now);
+    let start = trends.now - span;
     if let Some(temperature) = temperature {
         temperature_line(ui, temperature, start, trends.now, &tokens);
     }
     warning_bar(ui, trends.warnings, start, trends.now, &tokens);
     ui.horizontal(|ui| {
-        ui.small(RichText::new(texts::trend_start(TREND_WINDOW_SECONDS)).weak());
+        ui.small(RichText::new(texts::trend_start(span)).weak());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.small(RichText::new(texts::TREND_NOW).weak());
         });
@@ -128,7 +136,8 @@ fn temperature_line(
     let axis = Axis { rect, start, now };
     let y = |value: f64| {
         let fraction = ((value - middle) / (2.0 * half_span) + 0.5) as f32;
-        rect.bottom() - fraction * rect.height()
+        let inner = rect.shrink2(vec2(0.0, LINE_MARGIN));
+        inner.bottom() - fraction * inner.height()
     };
     let stroke = Stroke::new(LINE_WIDTH, tokens.accent);
     let mut previous: Option<egui::Pos2> = None;
@@ -192,5 +201,5 @@ fn warning_bar(ui: &mut Ui, trend: &Trend<Vec<String>>, start: f64, now: f64, to
 }
 
 fn minutes_ago(now: f64, time: f64) -> u64 {
-    ((now - time) / SECONDS_PER_MINUTE).round().max(0.0) as u64
+    whole_minutes(now - time)
 }

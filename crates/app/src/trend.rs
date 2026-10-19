@@ -7,6 +7,22 @@ use std::collections::VecDeque;
 pub const TREND_WINDOW_SECONDS: f64 = 7200.0;
 /// A value that changes at every poll for hours still keeps a bounded list.
 pub const TREND_POINT_LIMIT: usize = 4096;
+/// The shortest span a trend is drawn over, so the first readings are not a line at the edge.
+pub const TREND_MIN_SPAN_SECONDS: f64 = 60.0;
+
+const SECONDS_PER_MINUTE: f64 = 60.0;
+
+/// Seconds as whole minutes, as a trend reads them out; never negative.
+pub fn whole_minutes(seconds: f64) -> u64 {
+    (seconds / SECONDS_PER_MINUTE).round().max(0.0) as u64
+}
+
+/// The seconds a trend is drawn over: from the first reading, at least
+/// `TREND_MIN_SPAN_SECONDS`, at most the window.
+pub fn shown_span(first: Option<f64>, now: f64) -> f64 {
+    let since_first = first.map_or(0.0, |first| now - first);
+    since_first.clamp(TREND_MIN_SPAN_SECONDS, TREND_WINDOW_SECONDS)
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrendPoint<T> {
@@ -58,6 +74,10 @@ impl<T: PartialEq> Trend<T> {
 
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()
+    }
+
+    pub fn first_time(&self) -> Option<f64> {
+        self.points.front().map(|point| point.time)
     }
 
     /// The value at `time`: that of the last point at or before it.
@@ -138,6 +158,22 @@ mod tests {
             trend.points().next().map(|point| point.value),
             Some(Some(10))
         );
+    }
+
+    #[test]
+    fn the_span_runs_from_the_first_reading_within_its_bounds() {
+        assert_eq!(shown_span(Some(100.0), 400.0), 300.0);
+        assert_eq!(shown_span(Some(100.0), 110.0), TREND_MIN_SPAN_SECONDS);
+        assert_eq!(shown_span(None, 110.0), TREND_MIN_SPAN_SECONDS);
+        let late = 100.0 + 3.0 * TREND_WINDOW_SECONDS;
+        assert_eq!(shown_span(Some(100.0), late), TREND_WINDOW_SECONDS);
+    }
+
+    #[test]
+    fn whole_minutes_round_and_stay_positive() {
+        assert_eq!(whole_minutes(89.0), 1);
+        assert_eq!(whole_minutes(91.0), 2);
+        assert_eq!(whole_minutes(-5.0), 0);
     }
 
     #[test]

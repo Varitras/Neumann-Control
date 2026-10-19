@@ -121,10 +121,7 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
     if let Some(notice) = &view.notice {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
     }
-    if let Some(reset) = &view.reset {
-        actions.extend(reset_row(ui, reset));
-    }
-    actions.extend(undo_row(ui, view.undo.as_deref()));
+    actions.extend(edit_row(ui, view.reset.as_ref(), view.undo.as_deref()));
     if let Some(lines) = &view.question {
         actions.extend(question(ui, lines));
     }
@@ -142,15 +139,23 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
     actions
 }
 
-fn undo_row(ui: &mut Ui, line: Option<&str>) -> Option<EqAction> {
+/// Reset and undo in one row; while the reset is asked about, its question takes the row.
+fn edit_row(ui: &mut Ui, reset: Option<&ResetOffer>, undo: Option<&str>) -> Option<EqAction> {
     ui.horizontal(|ui| {
-        let clicked = ui
-            .add_enabled(line.is_some(), Button::new(texts::EQ_UNDO))
+        if let Some(asked) = reset.filter(|reset| reset.asking) {
+            return reset_question(ui, asked);
+        }
+        let flatten = reset.is_some() && ui.button(texts::EQ_RESET).clicked();
+        let undone = ui
+            .add_enabled(undo.is_some(), Button::new(texts::EQ_UNDO))
             .clicked();
-        if let Some(line) = line {
+        if let Some(line) = undo {
             ui.weak(line);
         }
-        clicked.then_some(EqAction::Undo)
+        if flatten {
+            return Some(EqAction::ResetAsk);
+        }
+        undone.then_some(EqAction::Undo)
     })
     .inner
 }
@@ -175,21 +180,12 @@ fn question(ui: &mut Ui, lines: &[String]) -> Option<EqAction> {
     .inner
 }
 
-fn reset_row(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {
-    ui.horizontal(|ui| {
-        if !reset.asking {
-            return ui
-                .button(texts::EQ_RESET)
-                .clicked()
-                .then_some(EqAction::ResetAsk);
-        }
-        ui.label(texts::eq_reset_question(&reset.container));
-        if ui.button(texts::EQ_RESET).clicked() {
-            return Some(EqAction::ResetConfirm);
-        }
-        ui.button(texts::CANCEL)
-            .clicked()
-            .then_some(EqAction::ResetCancel)
-    })
-    .inner
+fn reset_question(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {
+    ui.label(texts::eq_reset_question(&reset.container));
+    if ui.button(texts::EQ_RESET).clicked() {
+        return Some(EqAction::ResetConfirm);
+    }
+    ui.button(texts::CANCEL)
+        .clicked()
+        .then_some(EqAction::ResetCancel)
 }
