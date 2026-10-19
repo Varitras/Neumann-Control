@@ -9,6 +9,7 @@ pub mod group_strip;
 pub mod history;
 mod knob;
 mod meters;
+mod number_field;
 pub mod panel;
 pub mod remove_speaker;
 pub mod scan_choice;

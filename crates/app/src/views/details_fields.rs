@@ -1,32 +1,21 @@
 //! The device panel's controls, one per writable kind: number, switch, selection and text.
 //! Every write goes through `writes`.
 
-use eframe::egui::{Button, Checkbox, ComboBox, DragValue, Event, Key, TextEdit, Ui};
+use eframe::egui::{Button, Checkbox, ComboBox, Key, TextEdit, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use crate::display::{capped, converted_unit};
-use crate::gesture::{bounded_move, on_grid, released, typed_value};
+use super::number_field::{self, NumberField};
+use crate::display::capped;
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
 
 /// Drag speed for numbers without a step in the catalog, in units per point.
 const UNSTEPPED_DRAG_SPEED: f64 = 0.1;
-const PENDING_NUMBER_ID: &str = "pending_number";
 const TEXT_DRAFT_ID: &str = "text_draft";
 const TEXT_FIELD_ID: &str = "text_field";
-
-fn is_text_edit(event: &Event) -> bool {
-    match event {
-        Event::Text(_) | Event::Paste(_) | Event::Cut => true,
-        Event::Key {
-            key, pressed: true, ..
-        } => matches!(key, Key::Backspace | Key::Delete),
-        _ => false,
-    }
-}
 
 /// What the user typed into a text field and has not yet written.
 #[derive(Clone, Debug, Default)]
@@ -53,92 +42,42 @@ impl Fields<'_> {
         known && writes::can_write(self.speaker, self.catalog, &entry.path)
     }
 
-    /// A drag or a typed value is one gesture. Its value is held while the gesture is active
-    /// and written once, on the frame it ends (release, Enter or focus loss); Escape drops it.
-    /// The device value itself is never clamped or written back. The field shows the value
-    /// unrounded: egui parses the shown text when focus leaves and would otherwise report the
-    /// rounded text as an edit.
+    /// One gesture per write, see `number_field`; a typed value outside the range is sent as
+    /// typed, for the write policy to refuse with the reason.
     pub fn number(&mut self, ui: &mut Ui, entry: &Entry) {
         let reported = self.speaker.values.get(&entry.path).cloned();
         let device = reported.as_ref().and_then(Value::as_f64);
-        let enabled = self.enabled(entry, device.is_some());
         let product = self.speaker.product();
         let min = entry.min.unwrap_or(f64::NEG_INFINITY);
         let max = entry
             .max_for(product, &self.catalog.classes)
             .unwrap_or(f64::INFINITY);
-        let pending_id = ui.id().with(entry.path.to_string()).with(PENDING_NUMBER_ID);
-        let held = ui.data(|data| data.get_temp::<f64>(pending_id));
-        let mut value = held.or(device).unwrap_or(entry.min.unwrap_or_default());
-        let step = entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED);
-        // No range on the field: egui would clamp typed text to it, and a typo would reach the
-        // speaker as the range's end. A drag is kept inside below; a typed value goes to the write
-        // policy as typed and is refused with the reason when outside.
-        let mut drag = DragValue::new(&mut value)
-            .custom_formatter(|number, _| texts::number(number))
-            .custom_parser(|text| typed_value(text, None))
-            .speed(step);
-        if let Some(unit) = &entry.unit {
-            drag = drag.suffix(format!(" {unit}"));
-        }
-        if let Some(conversion) = entry.conversion {
-            // Typed and shown in the converted unit; back on the device's step grid, so the
-            // shown text parses to exactly the device value and a visit writes nothing.
-            drag = drag
-                .custom_formatter(move |number, _| texts::number(conversion.apply(number)))
-                .custom_parser(move |text| {
-                    typed_value(text, Some(conversion)).map(|typed| on_grid(typed, step))
-                })
-                .suffix(format!(" {}", converted_unit(conversion)));
-        }
-        let response = ui
+        let written = ui
             .horizontal_wrapped(|ui| {
                 let label = ui.label(entry.label(texts::language()));
-                ui.add_enabled(enabled, drag).labelled_by(label.id)
+                let field = NumberField {
+                    id: ui.id().with(entry.path.to_string()),
+                    device,
+                    range: min..=max,
+                    step: entry.step,
+                    drag_speed: entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED),
+                    unit: entry.unit.as_deref(),
+                    conversion: entry.conversion,
+                    enabled: self.enabled(entry, device.is_some()),
+                    labelled_by: Some(label.id),
+                };
+                number_field::show(ui, &field)
             })
             .inner;
-        if response.dragged() {
-            let start = device.unwrap_or(value);
-            value = bounded_move(start, value, &(min..=max)).unwrap_or(start);
-        }
-        let active = response.dragged() || response.has_focus();
-        let ended = response.drag_stopped() || response.lost_focus();
-        if !active && !ended {
-            ui.data_mut(|data| data.remove::<f64>(pending_id));
-            return;
-        }
-        // egui also reports a change on the frame focus leaves, when it reparses and clamps
-        // the shown text; that one is the user's only if the same frame carried their typing.
-        let typed_this_frame = ui.input(|input| input.events.iter().any(is_text_edit));
-        let changed_by_user = response.changed() && (active || typed_this_frame);
-        if changed_by_user {
-            ui.data_mut(|data| data.insert_temp(pending_id, value));
-        }
-        if active {
-            return;
-        }
-        let Some(number) = changed_by_user.then_some(value).or(held) else {
+        let Some(number) = written else {
             return;
         };
-        ui.data_mut(|data| data.remove::<f64>(pending_id));
-        if ui.input(|input| input.key_pressed(Key::Escape)) {
-            return;
-        }
-        // A drag or an edit that ends where it began writes nothing.
-        let unchanged = match (entry.step, device) {
-            (Some(step), Some(device)) => released(device, number, step).is_none(),
-            _ => Some(number) == device,
-        };
-        if unchanged {
-            return;
-        }
-        let path = entry.path.clone();
-        // A typed value outside the range is sent as typed, for the write policy to refuse.
         let value = if (min..=max).contains(&number) {
             writes::number_value(entry, reported.as_ref(), number)
         } else {
             Value::from(number)
         };
+        let path = entry.path.clone();
         self.send(ui, Intent::Write { path, value });
     }
 
