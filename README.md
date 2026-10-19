@@ -297,7 +297,8 @@ The executable is `target\release\neumann-control.exe`.
 
 `check.ps1` runs the quality gates: format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree
-and writes `release\<version>\` with the executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
+and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with the
+executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
 `SHA256SUMS`.
 
 The workspace has two crates: `crates/core` (the SSC client, discovery, the path catalog,

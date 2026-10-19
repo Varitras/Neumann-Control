@@ -1,11 +1,14 @@
 <#
 .SYNOPSIS
-    Builds a release binary and drops it into release\<version>\. The version is the one in
-    the workspace Cargo.toml. A release folder that already holds files is refused unless
-    -Force is given.
+    Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\. The
+    version is the one in the workspace Cargo.toml; OutputRoot defaults to release\ in the
+    repository. A release folder that already holds files is refused unless -Force is given.
 #>
 [CmdletBinding()]
-param([switch] $Force)
+param(
+    [string] $OutputRoot = 'release',
+    [switch] $Force
+)
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -63,7 +66,15 @@ $version = Get-WorkspaceVersion
 
 # Checked before the gate: a rerun must not silently replace an exe already built.
 # Absolute: .NET file calls resolve relative paths against the process directory, not Set-Location.
-$releaseDirectory = Join-Path $PSScriptRoot (Join-Path 'release' $version)
+$root = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $PSScriptRoot $OutputRoot }
+# Only the default root (ignored by git) is created; a given root must exist, so a typo does
+# not invent a folder somewhere.
+if ($OutputRoot -eq 'release') { New-Item -ItemType Directory -Force -Path $root | Out-Null }
+if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+    Write-Host "FAILED: output root $root does not exist" -ForegroundColor Red
+    exit 1
+}
+$releaseDirectory = Join-Path (Resolve-Path -LiteralPath $root).Path "neumann-control-$version"
 $holdsEarlierBuild = (Test-Path -LiteralPath $releaseDirectory) -and @(Get-ChildItem -LiteralPath $releaseDirectory -Force).Count -gt 0
 if ($holdsEarlierBuild -and -not $Force) {
     Write-Host "FAILED: $releaseDirectory already holds files; pass -Force to overwrite them" -ForegroundColor Red
