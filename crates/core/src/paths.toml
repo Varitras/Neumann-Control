@@ -275,7 +275,7 @@ unit = "min"
 min = 1
 max = 240
 step = 1
-writable_on = ["KH 120 II"]
+writable_on = ["KH 120 II", "KH 750"]
 
 [[entry]]
 path = "device/standby/level"
@@ -289,7 +289,7 @@ unit = "dBu"
 min = -80
 max = -55
 step = 1
-writable_on = ["KH 120 II"]
+writable_on = ["KH 120 II", "KH 750"]
 
 [[entry]]
 path = "device/standby/countdown"

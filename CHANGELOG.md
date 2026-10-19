@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Standby time and standby level can be set on the KH 750 too.
 - Wider meters; the held peak is a thin line instead of a lit segment.
 
 ## [0.1.0] - 2026-10-18

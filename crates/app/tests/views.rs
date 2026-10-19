@@ -429,10 +429,10 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
 }
 
 #[test]
-fn kh750_standby_knob_is_read_only() {
+fn kh750_standby_knob_can_be_turned() {
     let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
     let standby = harness.get_by_role_and_label(Role::Slider, STANDBY_KNOB);
-    assert!(standby.accesskit_node().is_disabled());
+    assert!(!standby.accesskit_node().is_disabled());
     let delay = harness.get_by_role_and_label(Role::Slider, DELAY_KNOB);
     assert!(!delay.accesskit_node().is_disabled());
 }

@@ -227,7 +227,7 @@ When the app writes to a speaker:
 | Model | Read | Write |
 |-------|------|-------|
 | KH 120 II | yes | yes |
-| KH 750 | yes | yes, except standby (see [Known limits](#known-limits)) |
+| KH 750 | yes | yes, except auto standby (see [Known limits](#known-limits)) |
 | Other models in the catalog (for example KH 80, KH 150) | yes | no |
 
 The catalog is [`crates/core/src/paths.toml`](crates/core/src/paths.toml). A product that is not
@@ -258,8 +258,8 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
   switched off ("unreachable (off or standby)").
 - A speaker accepts only a few TCP connections at a time (about four). With more clients connected
   (vendor app, home automation), it can look unreachable as well.
-- On the KH 750, auto standby, standby time and standby level are shown but not written; writing
-  them is untested on that model.
+- On the KH 750, auto standby is shown but not written: it follows the AUTO STANDBY switch on the
+  back, and the speaker refuses writes to it.
 - Models other than the KH 120 II and the KH 750 are read-only.
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.

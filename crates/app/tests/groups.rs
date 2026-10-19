@@ -309,7 +309,7 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
 
 #[test]
 fn a_linked_setting_skips_a_model_that_may_not_write_it() {
-    // The KH 750's auto standby is read-only (decisions: its write is unmeasured).
+    // The KH 750's auto standby follows its rear switch and refuses writes.
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Standby]);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness

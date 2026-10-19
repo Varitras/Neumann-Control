@@ -390,6 +390,29 @@ mod tests {
     }
 
     #[test]
+    fn the_kh_750_writes_standby_time_and_level_but_not_auto_standby() {
+        // Measured on a KH 750 (firmware 2_1_2): time and level take a write and read back;
+        // auto standby follows the rear AUTO STANDBY switch.
+        let speaker = speaker("KH 750");
+        let catalog = Catalog::embedded();
+        assert!(can_write(
+            &speaker,
+            catalog,
+            &paths::path(paths::STANDBY_TIME)
+        ));
+        assert!(can_write(
+            &speaker,
+            catalog,
+            &paths::path("device/standby/level")
+        ));
+        assert!(!can_write(
+            &speaker,
+            catalog,
+            &paths::path("device/standby/enabled")
+        ));
+    }
+
+    #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
