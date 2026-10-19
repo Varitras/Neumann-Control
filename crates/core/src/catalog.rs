@@ -351,6 +351,10 @@ pub struct EqContainer {
     pub class: ModelClass,
     #[serde(default)]
     pub writable_on: Vec<String>,
+    /// A crossover between the speaker's outputs: flattening it would remove the split, so it
+    /// is never reset to flat.
+    #[serde(default)]
+    pub crossover: bool,
 }
 
 impl EqContainer {

@@ -565,6 +565,7 @@ label = "Weiche A"
 label_en = "Crossover A"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true
 
 [[eq]]
 container = "audio/out/eq1/in2"
@@ -572,6 +573,7 @@ label = "Weiche B"
 label_en = "Crossover B"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true
 
 [[eq]]
 container = "audio/out1/eq2"
@@ -593,6 +595,7 @@ label = "Weiche A"
 label_en = "Crossover A"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true
 
 [[eq]]
 container = "audio/out1/eq1/in2"
@@ -600,6 +603,7 @@ label = "Weiche B"
 label_en = "Crossover B"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true
 
 [[eq]]
 container = "audio/out2/eq2"
@@ -621,6 +625,7 @@ label = "Weiche A"
 label_en = "Crossover A"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true
 
 [[eq]]
 container = "audio/out2/eq1/in2"
@@ -628,3 +633,4 @@ label = "Weiche B"
 label_en = "Crossover B"
 class = "subwoofer"
 writable_on = ["KH 750"]
+crossover = true

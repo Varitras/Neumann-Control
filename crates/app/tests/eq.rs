@@ -232,3 +232,88 @@ fn the_eq_button_waits_for_the_speakers_model() {
         .query_by_role_and_label(Role::Button, texts::EQ.get())
         .is_none());
 }
+
+fn shaped(simulator: &Simulator) {
+    spread(simulator);
+    simulator.set_value("audio/out/eq2/gain", json!(vec![1.5; 10]));
+    simulator.set_value("audio/out/eq2/boost", json!(vec![-3.0; 10]));
+}
+
+fn reset_buttons(harness: &Harness<'static, NeumannApp>) -> usize {
+    harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .count()
+}
+
+#[test]
+fn reset_asks_then_flattens_gain_and_boost() {
+    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .click();
+    harness.run_steps(2);
+    harness.get_by_label_contains(&texts::eq_reset_question("EQ 2"));
+    barrier(&simulator);
+    assert!(sets(&simulator, GAIN_POINTER).is_empty());
+    // Asking replaces the button by the confirming one.
+    assert_eq!(reset_buttons(&harness), 1);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .click();
+    wait_until(&mut harness, "both arrays written", |_| {
+        !sets(&simulator, GAIN_POINTER).is_empty() && !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    assert_eq!(sets(&simulator, GAIN_POINTER), vec![json!(vec![0.0; 10])]);
+    assert_eq!(sets(&simulator, BOOST_POINTER), vec![json!(vec![0.0; 10])]);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+    let history: Vec<_> = harness.state().history().entries().cloned().collect();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].changes.len(), 2);
+    assert_eq!(history[0].changes[0].before, Some(json!(vec![1.5; 10])));
+}
+
+#[test]
+fn a_reset_can_be_cancelled() {
+    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::CANCEL.get())
+        .click();
+    harness.run_steps(3);
+    barrier(&simulator);
+    assert!(sets(&simulator, GAIN_POINTER).is_empty());
+    assert!(harness
+        .query_by_label_contains(&texts::eq_reset_question("EQ 2"))
+        .is_none());
+    assert_eq!(reset_buttons(&harness), 1);
+}
+
+#[test]
+fn reset_is_not_offered_on_a_crossover() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    assert_eq!(reset_buttons(&harness), 1);
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert_eq!(reset_buttons(&harness), 0);
+}
+
+#[test]
+fn reset_is_not_offered_while_the_speaker_is_unreachable() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    assert_eq!(reset_buttons(&harness), 1);
+    simulator.stop();
+    wait_until(&mut harness, "the reset withdrawn", |harness| {
+        reset_buttons(harness) == 0
+    });
+}

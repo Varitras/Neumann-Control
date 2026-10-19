@@ -172,6 +172,7 @@ pub const EQ_OUTPUT_SUBWOOFER: Text = Text::new("Subwoofer", "Subwoofer");
 pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
 pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
+pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
@@ -568,6 +569,19 @@ pub fn frequency_mark(hertz: f64) -> String {
 /// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
+}
+
+/// Asked before a reset to flat, in the EQ window.
+pub fn eq_reset_question(container: &str) -> String {
+    pick(
+        format!("Alle Bänder von {container} flach stellen? Pegel und Anhebung auf 0 dB."),
+        format!("Make every band of {container} flat? Level and boost to 0 dB."),
+    )
+}
+
+/// A refused write of a whole leaf (a reset), under the EQ graph.
+pub fn eq_leaf_refusal(leaf: &str, reason: &str) -> String {
+    format!("{leaf}: {reason}")
 }
 
 /// A refused band write, under the EQ graph.

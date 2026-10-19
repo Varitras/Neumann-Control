@@ -363,3 +363,29 @@ fn a_band_write_needs_one_valid_entry() {
         Err(ValueError::WrongType)
     );
 }
+
+#[test]
+fn only_the_kh750_eq1_containers_are_crossovers() {
+    let catalog = Catalog::embedded();
+    let crossovers: Vec<String> = catalog
+        .eq
+        .iter()
+        .filter(|container| container.crossover)
+        .map(|container| container.path.to_string())
+        .collect();
+    let expected: Vec<String> = ["out", "out1", "out2"]
+        .iter()
+        .flat_map(|output| ["in1", "in2"].map(|input| format!("audio/{output}/eq1/{input}")))
+        .collect();
+    assert_eq!(crossovers, expected);
+}
+
+#[test]
+fn a_flat_full_array_is_a_valid_band_write() {
+    let catalog = Catalog::embedded();
+    let flat = json!([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    assert_eq!(
+        entry("audio/out/eq2/boost").validate(&flat, MONITOR, &catalog.classes),
+        Ok(())
+    );
+}

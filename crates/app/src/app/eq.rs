@@ -7,7 +7,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, one_band, Band, Leaf};
+use crate::eq::{bands_of, flat, one_band, Band, Leaf, FLATTENING_LEAVES};
 use crate::eq_response::{curve_db, graph_frequencies};
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
@@ -15,7 +15,7 @@ use crate::texts;
 use crate::ui_kit::theme::group_color;
 use crate::views::eq_graph::{Graph, GraphAction, GraphCurve, GraphPoint};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
-use crate::views::eq_window::{self, EqAction, EqView};
+use crate::views::eq_window::{self, EqAction, EqView, ResetOffer};
 use crate::writes::{self, Intent};
 
 const EQ_VIEWPORT_ID: &str = "eq_window";
@@ -29,6 +29,7 @@ pub(super) struct EqWindow {
     container: usize,
     band: usize,
     refusal: Option<String>,
+    asking_reset: bool,
 }
 
 /// One container as the window shows it.
@@ -50,6 +51,7 @@ impl NeumannApp {
             container: 0,
             band: 0,
             refusal: None,
+            asking_reset: false,
         });
     }
 
@@ -184,6 +186,12 @@ impl NeumannApp {
         let notice = unreachable
             .then(|| texts::UNREACHABLE.get().to_owned())
             .or_else(|| window.refusal.clone());
+        let reset = selected
+            .filter(|shown| editable && !shown.container.crossover)
+            .map(|shown| ResetOffer {
+                container: shown.container.label(texts::language()).to_owned(),
+                asking: window.asking_reset,
+            });
         let view = EqView {
             viewport: ViewportId::from_hash_of(id),
             title: texts::eq_window_title(&speaker.display_name()),
@@ -194,6 +202,7 @@ impl NeumannApp {
             graph,
             table,
             notice,
+            reset,
         };
         eq_window::show(context, &view)
     }
@@ -211,8 +220,18 @@ impl NeumannApp {
             EqAction::Close => {}
             EqAction::Output(output) => {
                 (window.output, window.container, window.band) = (output, 0, 0);
+                window.asking_reset = false;
             }
-            EqAction::Container(container) => (window.container, window.band) = (container, 0),
+            EqAction::Container(container) => {
+                (window.container, window.band) = (container, 0);
+                window.asking_reset = false;
+            }
+            EqAction::ResetAsk => window.asking_reset = true,
+            EqAction::ResetCancel => window.asking_reset = false,
+            EqAction::ResetConfirm => {
+                window.asking_reset = false;
+                self.flatten(index, now);
+            }
             EqAction::Graph(GraphAction::Select(band))
             | EqAction::Table(TableAction::Select(band)) => window.band = band,
             EqAction::Graph(GraphAction::Move {
@@ -236,54 +255,85 @@ impl NeumannApp {
         }
     }
 
-    /// One leaf of one band, `null` elsewhere; a refusal is shown in the window.
-    fn write_band(&mut self, index: usize, band: usize, leaf: Leaf, value: Value, now: f64) {
+    /// `gain` and `boost` of every band of the chosen container to 0, both in this frame, so
+    /// the history files them as one entry.
+    fn flatten(&mut self, index: usize, now: f64) {
+        for leaf in FLATTENING_LEAVES {
+            let Some((path, length)) = self.chosen_leaf(index, leaf) else {
+                return;
+            };
+            if let Err((label, reason)) = self.send_eq_write(index, &path, flat(length), now) {
+                self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
+                return;
+            }
+        }
+    }
+
+    /// The chosen container's `leaf` and its band count, once the speaker reported it.
+    fn chosen_leaf(&self, index: usize, leaf: Leaf) -> Option<(SscPath, usize)> {
         let catalog = Catalog::embedded();
         let window = &self.eq_windows[index];
-        let Some(speaker) = self
-            .speakers
-            .iter_mut()
-            .find(|speaker| speaker.state.key == window.key)
-        else {
-            return;
-        };
-        let outputs = outputs_of(catalog, speaker.state.product());
+        let speaker = self.speaker_of(&window.key)?;
+        let outputs = outputs_of(catalog, speaker.product());
         let container = outputs
             .get(window.output)
-            .and_then(|(_, containers)| containers.get(window.container))
-            .map(|container| container.path.clone());
-        let Some(container) = container else {
-            return;
-        };
-        let path = leaf.path(&container);
-        let Some(length) = speaker
-            .state
+            .and_then(|(_, containers)| containers.get(window.container))?;
+        let path = leaf.path(&container.path);
+        let length = speaker
             .values
             .get(&path)
             .and_then(Value::as_array)
-            .map(Vec::len)
-        else {
+            .map(Vec::len)?;
+        Some((path, length))
+    }
+
+    /// One leaf of one band, `null` elsewhere; a refusal is shown in the window.
+    fn write_band(&mut self, index: usize, band: usize, leaf: Leaf, value: Value, now: f64) {
+        let Some((path, length)) = self.chosen_leaf(index, leaf) else {
             return;
+        };
+        let refusal = self
+            .send_eq_write(index, &path, one_band(length, band, value), now)
+            .err()
+            .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason));
+        self.eq_windows[index].refusal = refusal;
+    }
+
+    /// One EQ write through the write policy; a refusal comes back as the leaf's name and the
+    /// reason, for the window to word.
+    fn send_eq_write(
+        &mut self,
+        index: usize,
+        path: &SscPath,
+        value: Value,
+        now: f64,
+    ) -> Result<(), (String, String)> {
+        let catalog = Catalog::embedded();
+        let key = &self.eq_windows[index].key;
+        let Some(speaker) = self
+            .speakers
+            .iter_mut()
+            .find(|speaker| speaker.state.key == *key)
+        else {
+            return Ok(());
         };
         let intent = Intent::Write {
             path: path.clone(),
-            value: one_band(length, band, value),
+            value,
         };
-        let refusal = match speaker.state.try_request(intent, catalog, now) {
+        match speaker.state.try_request(intent, catalog, now) {
             Ok(command) => {
                 speaker.handle.send(command);
-                None
+                Ok(())
             }
             Err(refusal) => {
-                let label = paths::catalog_entry(catalog, &path).map_or_else(
-                    || leaf.name().to_owned(),
+                let label = paths::catalog_entry(catalog, path).map_or_else(
+                    || path.to_string(),
                     |entry| entry.label(texts::language()).to_owned(),
                 );
-                let reason = texts::describe_refusal(&refusal);
-                Some(texts::eq_refusal(band + 1, &label, &reason))
+                Err((label, texts::describe_refusal(&refusal)))
             }
-        };
-        self.eq_windows[index].refusal = refusal;
+        }
     }
 }
 

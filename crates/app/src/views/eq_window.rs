@@ -27,6 +27,14 @@ pub struct EqView<'a> {
     pub table: Option<Table<'a>>,
     /// Why nothing can be written right now, or why the last write was refused.
     pub notice: Option<String>,
+    /// The reset of the chosen container; `None` on a crossover or while it cannot be written.
+    pub reset: Option<ResetOffer>,
+}
+
+pub struct ResetOffer {
+    pub container: String,
+    /// The question is shown instead of the button.
+    pub asking: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -36,6 +44,9 @@ pub enum EqAction {
     Container(usize),
     Graph(GraphAction),
     Table(TableAction),
+    ResetAsk,
+    ResetConfirm,
+    ResetCancel,
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
@@ -97,6 +108,9 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
     if let Some(notice) = &view.notice {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
     }
+    if let Some(reset) = &view.reset {
+        actions.extend(reset_row(ui, reset));
+    }
     ui.separator();
     match &view.table {
         Some(table) => actions.extend(eq_table::show(ui, table).into_iter().map(EqAction::Table)),
@@ -109,4 +123,23 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         actions.push(EqAction::Close);
     }
     actions
+}
+
+fn reset_row(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {
+    ui.horizontal(|ui| {
+        if !reset.asking {
+            return ui
+                .button(texts::EQ_RESET)
+                .clicked()
+                .then_some(EqAction::ResetAsk);
+        }
+        ui.label(texts::eq_reset_question(&reset.container));
+        if ui.button(texts::EQ_RESET).clicked() {
+            return Some(EqAction::ResetConfirm);
+        }
+        ui.button(texts::CANCEL)
+            .clicked()
+            .then_some(EqAction::ResetCancel)
+    })
+    .inner
 }

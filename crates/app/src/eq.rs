@@ -128,6 +128,15 @@ pub fn has_eq(catalog: &Catalog, speaker: &SpeakerState) -> bool {
     speaker.identity.is_some() && !catalog.eq_containers(speaker.product()).is_empty()
 }
 
+/// The leaves a reset to flat sets to 0 dB: `gain` is a flat level and `boost` the filter's
+/// height (measured), so with both at 0 a band changes nothing whatever its type.
+pub const FLATTENING_LEAVES: [Leaf; 2] = [Leaf::Gain, Leaf::Boost];
+
+/// The value that sets every band of a leaf to 0.
+pub fn flat(length: usize) -> Value {
+    Value::from(vec![0.0; length])
+}
+
 /// The value that writes `value` to `band` only (measured: `null` leaves a band as it is).
 pub fn one_band(length: usize, band: usize, value: Value) -> Value {
     let mut array = vec![Value::Null; length];
@@ -151,6 +160,11 @@ mod tests {
             .iter()
             .map(|(leaf, value)| (container().child(leaf), value.clone()))
             .collect()
+    }
+
+    #[test]
+    fn flat_sets_every_band_to_zero() {
+        assert_eq!(flat(3), json!([0.0, 0.0, 0.0]));
     }
 
     fn two_bands() -> BTreeMap<SscPath, Value> {
