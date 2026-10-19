@@ -4,6 +4,7 @@ pub mod display;
 pub mod fader;
 pub mod gesture;
 pub mod groups;
+pub mod history;
 pub mod input_source;
 pub mod meter;
 pub mod paths;
