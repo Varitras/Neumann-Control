@@ -77,18 +77,19 @@ impl NeumannApp {
         if !self.history.open {
             return;
         }
-        let rows: Vec<HistoryRow> = self
-            .history
-            .history
-            .entries()
-            .map(|entry| self.row(entry))
-            .collect();
         let notice = self
             .history
             .notice
             .as_ref()
             .map(|notice| texts::take_back_skipped(&notice.skipped));
-        match history_view::show(ui, &rows, notice.as_deref()) {
+        let count = self.history.history.len();
+        let row_at = |place| {
+            self.history
+                .history
+                .newest(place)
+                .map(|entry| self.row(entry))
+        };
+        match history_view::show(ui, count, &row_at, notice.as_deref()) {
             HistoryAction::None => {}
             HistoryAction::Close => self.history.open = false,
             HistoryAction::TakeBack(id) => self.request_take_back(id),
@@ -153,10 +154,7 @@ impl NeumannApp {
     fn change_line(&self, change: &Change) -> String {
         let described = self.describe(change);
         let unit = described.unit.as_deref();
-        let before = change.before.as_ref().map_or_else(
-            || texts::BEFORE_UNKNOWN.get().to_owned(),
-            |before| texts::history_value(before, unit),
-        );
+        let before = texts::history_before(change.before.as_ref(), unit);
         let after = texts::history_value(&change.after, unit);
         texts::history_change(&described.speaker, &described.setting, &before, &after)
     }

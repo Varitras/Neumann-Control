@@ -481,6 +481,11 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
     }
 }
 
+/// The value before in a history line; "?" when the speaker had not reported it.
+pub fn history_before(before: Option<&Value>, unit: Option<&str>) -> String {
+    before.map_or_else(|| "?".to_owned(), |before| history_value(before, unit))
+}
+
 /// One change of a history entry.
 pub fn history_change(speaker: &str, setting: &str, before: &str, after: &str) -> String {
     format!("{speaker} · {setting}: {before} → {after}")
@@ -529,6 +534,12 @@ pub fn take_back_skipped(names: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unknown_value_before_reads_as_a_question_mark() {
+        assert_eq!(history_before(None, Some("dB")), "?");
+        assert_eq!(history_before(Some(&Value::from(84)), Some("dB")), "84 dB");
+    }
 
     #[test]
     fn a_text_follows_the_language_of_its_thread() {

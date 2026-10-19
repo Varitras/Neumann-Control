@@ -36,29 +36,42 @@ pub enum QuestionAction {
     Cancel,
 }
 
-pub fn show(ui: &mut Ui, rows: &[HistoryRow], notice: Option<&str>) -> HistoryAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, rows, notice));
+/// `row_at` words the row at a place, newest first; only the rows in sight are asked for.
+pub fn show(
+    ui: &mut Ui,
+    count: usize,
+    row_at: &dyn Fn(usize) -> Option<HistoryRow>,
+    notice: Option<&str>,
+) -> HistoryAction {
+    let modal =
+        Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, count, row_at, notice));
     if modal.should_close() {
         return HistoryAction::Close;
     }
     modal.inner
 }
 
-fn contents(ui: &mut Ui, rows: &[HistoryRow], notice: Option<&str>) -> HistoryAction {
+fn contents(
+    ui: &mut Ui,
+    count: usize,
+    row_at: &dyn Fn(usize) -> Option<HistoryRow>,
+    notice: Option<&str>,
+) -> HistoryAction {
     let mut action = HistoryAction::None;
     ui.heading(texts::HISTORY_TITLE);
     if let Some(notice) = notice {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
     }
-    if rows.is_empty() {
+    if count == 0 {
         ui.weak(texts::NO_HISTORY);
     }
+    let row_height = ui.spacing().interact_size.y;
     ScrollArea::vertical()
         .max_height(LIST_HEIGHT)
         .min_scrolled_width(LIST_WIDTH)
-        .show(ui, |ui| {
-            for row in rows {
-                if let Some(id) = row_line(ui, row) {
+        .show_rows(ui, row_height, count, |ui, places| {
+            for row in places.filter_map(row_at) {
+                if let Some(id) = row_line(ui, &row) {
                     action = HistoryAction::TakeBack(id);
                 }
             }

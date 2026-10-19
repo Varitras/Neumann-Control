@@ -76,6 +76,20 @@ impl History {
         self.entries.iter().rev()
     }
 
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// The entry at `place` in the newest-first order, without walking the others.
+    pub fn newest(&self, place: usize) -> Option<&Entry> {
+        let index = self.entries.len().checked_sub(place + 1)?;
+        self.entries.get(index)
+    }
+
     pub fn entry(&self, id: u64) -> Option<&Entry> {
         self.entries.iter().find(|entry| entry.id == id)
     }
@@ -154,6 +168,17 @@ mod tests {
         let ids: Vec<u64> = history.entries().map(|entry| entry.id).collect();
         assert_eq!(ids, vec![second.unwrap(), first.unwrap()]);
         assert_eq!(history.entry(second.unwrap()).unwrap().takes_back, first);
+    }
+
+    #[test]
+    fn entries_are_found_by_their_place_newest_first() {
+        let mut history = History::default();
+        let first = history.push(NOON, vec![change(Some(json!(1)), json!(2))], None);
+        let second = history.push(NOON, vec![change(Some(json!(2)), json!(3))], None);
+        assert_eq!(history.len(), 2);
+        assert_eq!(history.newest(0).map(|entry| entry.id), second);
+        assert_eq!(history.newest(1).map(|entry| entry.id), first);
+        assert!(history.newest(2).is_none());
     }
 
     #[test]
