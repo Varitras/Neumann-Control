@@ -456,3 +456,26 @@ fn request_split_across_reads_is_reassembled() {
         .unwrap();
     assert_eq!(client.read_tree()["audio"]["out"]["mute"], json!(false));
 }
+
+#[test]
+fn a_null_entry_keeps_the_band() {
+    let simulator = start_kh120();
+    let mut client = Client::connect(&simulator);
+    let mut gain = vec![Value::Null; 10];
+    gain[9] = json!(3.0);
+    let reply = client.ask(&json!({"audio":{"out":{"eq2":{"gain": gain}}}}));
+    assert!(device_error(&reply).is_none(), "{reply}");
+    let mut expected = vec![json!(0.0); 10];
+    expected[9] = json!(3.0);
+    assert_eq!(
+        simulator.value("audio/out/eq2/gain"),
+        Some(Value::Array(expected))
+    );
+}
+
+#[test]
+fn a_short_array_is_not_acceptable() {
+    let simulator = start_kh120();
+    let reply = Client::connect(&simulator).ask(&json!({"audio":{"out":{"eq2":{"gain":[2.0]}}}}));
+    assert_eq!(device_error(&reply).unwrap().code, 406);
+}

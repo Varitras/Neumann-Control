@@ -530,15 +530,17 @@ fn same_kind(current: &Value, value: &Value) -> bool {
                 && held
                     .iter()
                     .zip(given)
-                    .all(|(left, right)| same_kind(left, right))
+                    .all(|(left, right)| right.is_null() || same_kind(left, right))
         }
         _ => false,
     }
 }
 
-/// A float leaf stays a float: `90` is stored and echoed as `90.0`, as the devices do.
+/// A float leaf stays a float: `90` is stored and echoed as `90.0`, as the devices do. A `null`
+/// in an array keeps that entry (measured on EQ arrays: only the given band changes).
 fn resulting_value(current: &Value, value: Value) -> Value {
     match (current, &value) {
+        (_, Value::Null) => current.clone(),
         (Value::Number(held), Value::Number(given)) if held.is_f64() => given
             .as_f64()
             .and_then(Number::from_f64)

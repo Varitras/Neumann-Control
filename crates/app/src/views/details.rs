@@ -95,12 +95,13 @@ fn groups<'a>(entries: Vec<&'a Entry>, speaker: &SpeakerState) -> Groups<'a> {
     groups
 }
 
-/// Meters sit on the strip and clip lists light their lamps, so neither gets a row here.
+/// Meters sit on the strip, clip lists light their lamps and EQ bands have their own window,
+/// so none of them gets a row here.
 fn is_shown(entry: &Entry, speaker: &SpeakerState) -> bool {
     let path = entry.path.to_string();
     let on_strip = SHOWN_ELSEWHERE.contains(&path.as_str());
     let absent = speaker.absent.contains(&entry.path);
-    let drawable = !matches!(entry.kind, Kind::Clip | Kind::Meter);
+    let drawable = !matches!(entry.kind, Kind::Clip | Kind::Meter) && !entry.bands;
     drawable && !on_strip && !absent
 }
 

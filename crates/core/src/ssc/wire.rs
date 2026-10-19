@@ -50,6 +50,13 @@ impl SscPath {
     pub fn segments(&self) -> &[String] {
         &self.0
     }
+
+    /// The path one level deeper; `segment` is a leaf name of the catalog, never empty.
+    pub fn child(&self, segment: &str) -> SscPath {
+        let mut segments = self.0.clone();
+        segments.push(segment.to_owned());
+        SscPath(segments)
+    }
 }
 
 impl fmt::Display for SscPath {

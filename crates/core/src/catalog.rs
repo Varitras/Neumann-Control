@@ -30,6 +30,7 @@ pub enum Group {
     Device,
     RearPanel,
     Metering,
+    Eq,
 }
 
 impl Group {
@@ -43,6 +44,7 @@ impl Group {
             Group::Device => ("Gerät", "Device"),
             Group::RearPanel => ("Rückseite", "Rear panel"),
             Group::Metering => ("Messung", "Metering"),
+            Group::Eq => ("EQ", "EQ"),
         };
         match language {
             Language::German => german,
@@ -192,6 +194,10 @@ pub struct Entry {
     pub writable_on: Vec<String>,
     #[serde(default)]
     pub conversion: Option<Conversion>,
+    /// An EQ leaf: an array with one entry per band, written one band at a time (`null`
+    /// elsewhere). Filled in from the `[[eq]]` table, never written in `[[entry]]`.
+    #[serde(default)]
+    pub bands: bool,
 }
 
 impl Entry {
@@ -214,6 +220,35 @@ impl Entry {
     }
 
     pub fn validate(
+        &self,
+        value: &Value,
+        product: &str,
+        classes: &ModelClasses,
+    ) -> Result<(), ValueError> {
+        if self.bands {
+            return self.validate_bands(value, product, classes);
+        }
+        self.validate_one(value, product, classes)
+    }
+
+    /// At least one band given and every given band valid; `null` leaves a band as it is.
+    fn validate_bands(
+        &self,
+        value: &Value,
+        product: &str,
+        classes: &ModelClasses,
+    ) -> Result<(), ValueError> {
+        let bands = value.as_array().ok_or(ValueError::WrongType)?;
+        let given: Vec<&Value> = bands.iter().filter(|band| !band.is_null()).collect();
+        if given.is_empty() {
+            return Err(ValueError::WrongType);
+        }
+        given
+            .into_iter()
+            .try_for_each(|band| self.validate_one(band, product, classes))
+    }
+
+    fn validate_one(
         &self,
         value: &Value,
         product: &str,
@@ -301,12 +336,160 @@ impl std::error::Error for CatalogError {}
 struct CatalogFile {
     models: ModelClasses,
     entry: Vec<Entry>,
+    #[serde(default)]
+    eq: Vec<EqContainer>,
 }
+
+/// An EQ container (`audio/out/eq2`, the crossover `audio/out/eq1/in1`, ...). Its six leaves
+/// become catalog entries; which models have it and may write it is data like any entry.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EqContainer {
+    #[serde(rename = "container")]
+    pub path: SscPath,
+    label: String,
+    label_en: String,
+    pub class: ModelClass,
+    #[serde(default)]
+    pub writable_on: Vec<String>,
+}
+
+impl EqContainer {
+    pub fn label(&self, language: Language) -> &str {
+        match language {
+            Language::German => &self.label,
+            Language::English => &self.label_en,
+        }
+    }
+
+    fn leaves(&self) -> Vec<Entry> {
+        EQ_LEAVES
+            .iter()
+            .map(|leaf| Entry {
+                path: self.path.child(leaf.name),
+                label: leaf.label.to_owned(),
+                label_en: leaf.label_en.to_owned(),
+                group: Group::Eq,
+                kind: leaf.kind,
+                poll: Poll::Slow,
+                class: self.class,
+                unit: leaf.unit.map(str::to_owned),
+                min: leaf.min,
+                max: leaf.max,
+                max_subwoofer: None,
+                step: None,
+                max_length: None,
+                options: leaf
+                    .options
+                    .iter()
+                    .map(|option| (*option).to_owned())
+                    .collect(),
+                writable_on: self.writable_on.clone(),
+                conversion: None,
+                bands: true,
+            })
+            .collect()
+    }
+}
+
+/// One of the six leaves every EQ container has.
+struct EqLeaf {
+    name: &'static str,
+    label: &'static str,
+    label_en: &'static str,
+    kind: Kind,
+    min: Option<f64>,
+    max: Option<f64>,
+    unit: Option<&'static str>,
+    options: &'static [&'static str],
+}
+
+const EQ_GAIN_MIN_DB: f64 = -99.0;
+const EQ_GAIN_MAX_DB: f64 = 24.0;
+
+/// The leaves with their limits (osc/limits, the same on both models, 2026-10-19).
+const EQ_LEAVES: [EqLeaf; 6] = [
+    EqLeaf {
+        name: "enabled",
+        label: "Ein",
+        label_en: "On",
+        kind: Kind::Switch,
+        min: None,
+        max: None,
+        unit: None,
+        options: &[],
+    },
+    EqLeaf {
+        name: "gain",
+        label: "Verstärkung",
+        label_en: "Gain",
+        kind: Kind::Number,
+        min: Some(EQ_GAIN_MIN_DB),
+        max: Some(EQ_GAIN_MAX_DB),
+        unit: Some("dB"),
+        options: &[],
+    },
+    EqLeaf {
+        name: "boost",
+        label: "Boost",
+        label_en: "Boost",
+        kind: Kind::Number,
+        min: Some(EQ_GAIN_MIN_DB),
+        max: Some(EQ_GAIN_MAX_DB),
+        unit: Some("dB"),
+        options: &[],
+    },
+    EqLeaf {
+        name: "frequency",
+        label: "Frequenz",
+        label_en: "Frequency",
+        kind: Kind::Number,
+        min: Some(10.0),
+        max: Some(24000.0),
+        unit: Some("Hz"),
+        options: &[],
+    },
+    EqLeaf {
+        name: "q",
+        label: "Güte (Q)",
+        label_en: "Q",
+        kind: Kind::Number,
+        min: Some(0.1),
+        max: Some(16.0),
+        unit: None,
+        options: &[],
+    },
+    EqLeaf {
+        name: "type",
+        label: "Typ",
+        label_en: "Type",
+        kind: Kind::Select,
+        min: None,
+        max: None,
+        unit: None,
+        options: &EQ_TYPES,
+    },
+];
+
+/// The filter types the devices list in osc/limits for `type`.
+pub const EQ_TYPES: [&str; 11] = [
+    "PARAMETRIC",
+    "LOSHELF",
+    "HISHELF",
+    "LOWPASS",
+    "HIGHPASS",
+    "BANDPASS",
+    "NOTCH",
+    "ALLPASS",
+    "HI6DB",
+    "LO6DB",
+    "INVERSION",
+];
 
 #[derive(Debug)]
 pub struct Catalog {
     pub entries: Vec<Entry>,
     pub classes: ModelClasses,
+    pub eq: Vec<EqContainer>,
 }
 
 impl Catalog {
@@ -317,8 +500,10 @@ impl Catalog {
     }
 
     pub fn parse(text: &str) -> Result<Catalog, CatalogError> {
-        let file: CatalogFile =
+        let mut file: CatalogFile =
             toml::from_str(text).map_err(|error| CatalogError::Syntax(error.to_string()))?;
+        let eq_leaves: Vec<Entry> = file.eq.iter().flat_map(EqContainer::leaves).collect();
+        file.entry.extend(eq_leaves);
         let mut seen = HashSet::new();
         for entry in &file.entry {
             if !seen.insert(entry.path.clone()) {
@@ -329,7 +514,15 @@ impl Catalog {
         Ok(Catalog {
             entries: file.entry,
             classes: file.models,
+            eq: file.eq,
         })
+    }
+
+    pub fn eq_containers(&self, product: &str) -> Vec<&EqContainer> {
+        self.eq
+            .iter()
+            .filter(|container| self.classes.contains(container.class, product))
+            .collect()
     }
 
     pub fn entries_for(&self, product: &str) -> Vec<&Entry> {

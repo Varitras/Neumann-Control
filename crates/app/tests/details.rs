@@ -531,3 +531,10 @@ fn a_panel_drag_back_to_its_start_writes_nothing() {
     let sets = sets_to(&simulator, DELAY_PATH);
     assert!(sets.is_empty(), "{sets:?}");
 }
+
+#[test]
+fn eq_rows_are_not_in_the_device_panel() {
+    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh120Ii);
+    assert!(harness.query_by_label("Verstärkung").is_none());
+    assert!(harness.query_by_label("Güte (Q)").is_none());
+}

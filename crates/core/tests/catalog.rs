@@ -317,3 +317,43 @@ fn every_entry_has_a_label_in_each_language() {
         }
     }
 }
+
+#[test]
+fn eq_containers_per_model() {
+    let catalog = Catalog::embedded();
+    assert_eq!(catalog.eq_containers(MONITOR).len(), 2);
+    assert_eq!(catalog.eq_containers(SUBWOOFER).len(), 12);
+    let first = &catalog.eq_containers(MONITOR)[0];
+    assert_eq!(first.path, path("audio/out/eq2"));
+    assert_eq!(first.label(Language::German), "EQ 2");
+    assert!(has(MONITOR, "audio/out/eq3/frequency"));
+    assert!(!has(MONITOR, "audio/out1/eq2/gain"));
+    assert!(entry("audio/out/eq2/gain").is_writable(SUBWOOFER));
+    assert!(!entry("audio/out/eq3/gain").is_writable(MONITOR));
+    assert!(entry("audio/out/eq2/gain").bands);
+}
+
+#[test]
+fn a_band_write_needs_one_valid_entry() {
+    let catalog = Catalog::embedded();
+    let check = |text: &str, value| entry(text).validate(&value, MONITOR, &catalog.classes);
+    assert_eq!(check("audio/out/eq2/gain", json!([null, 3.0])), Ok(()));
+    assert_eq!(
+        check("audio/out/eq2/gain", json!([null, null])),
+        Err(ValueError::WrongType)
+    );
+    assert_eq!(
+        check("audio/out/eq2/gain", json!([null, 30.0])),
+        Err(ValueError::OutOfRange {
+            min: -99.0,
+            max: 24.0
+        })
+    );
+    assert!(check("audio/out/eq2/type", json!([null, "FOO"])).is_err());
+    assert_eq!(check("audio/out/eq2/type", json!(["NOTCH", null])), Ok(()));
+    assert_eq!(check("audio/out/eq2/enabled", json!([true])), Ok(()));
+    assert_eq!(
+        check("audio/out/eq2/gain", json!(3.0)),
+        Err(ValueError::WrongType)
+    );
+}

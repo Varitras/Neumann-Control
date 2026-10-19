@@ -8,7 +8,8 @@
 # strings as the device reports them) and how often it is polled (`poll`). A product that is
 # not listed in `writable_on` is read-only, so unmeasured models never get a write.
 #
-# `label` is the German UI copy, `label_en` the English one. Out of scope (not listed): EQ, restore, save_settings, out5,
+# `label` is the German UI copy, `label_en` the English one. EQ containers are in `[[eq]]` at the end;
+# each becomes six band entries. Out of scope (not listed): restore, save_settings, out5,
 # mixer, mute_persist, update, auth, system, time, macs.
 
 [models]
@@ -537,4 +538,81 @@ label_en = "Output clipping"
 group = "metering"
 kind = "clip"
 poll = "meter"
+class = "subwoofer"
+
+
+# EQ containers (measured 2026-10-19: KH 120 II eq2 10 bands, eq3 20; KH 750 eq2/eq3 10 on
+# out, out1, out2, eq1/in1|in2 2 = crossover). Writes measured on `audio/out/eq2` only so far.
+
+[[eq]]
+container = "audio/out/eq2"
+label = "EQ 2"
+label_en = "EQ 2"
+class = "all"
+writable_on = ["KH 120 II", "KH 750"]
+
+[[eq]]
+container = "audio/out/eq3"
+label = "EQ 3"
+label_en = "EQ 3"
+class = "all"
+
+[[eq]]
+container = "audio/out/eq1/in1"
+label = "Weiche 1"
+label_en = "Crossover 1"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out/eq1/in2"
+label = "Weiche 2"
+label_en = "Crossover 2"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out1/eq2"
+label = "EQ 2"
+label_en = "EQ 2"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out1/eq3"
+label = "EQ 3"
+label_en = "EQ 3"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out1/eq1/in1"
+label = "Weiche 1"
+label_en = "Crossover 1"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out1/eq1/in2"
+label = "Weiche 2"
+label_en = "Crossover 2"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out2/eq2"
+label = "EQ 2"
+label_en = "EQ 2"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out2/eq3"
+label = "EQ 3"
+label_en = "EQ 3"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out2/eq1/in1"
+label = "Weiche 1"
+label_en = "Crossover 1"
+class = "subwoofer"
+
+[[eq]]
+container = "audio/out2/eq1/in2"
+label = "Weiche 2"
+label_en = "Crossover 2"
 class = "subwoofer"
