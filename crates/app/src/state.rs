@@ -91,6 +91,11 @@ pub struct SpeakerState {
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
     pub response_time: Option<Duration>,
+    /// What this frame sent: path, value before, value written. The app takes it into the
+    /// history at the end of the frame.
+    pub written: Vec<(SscPath, Option<Value>, Value)>,
+    /// Sent values the speaker has not reported back yet; the value before of the next write.
+    pending: BTreeMap<SscPath, Value>,
 }
 
 impl SpeakerState {
@@ -112,6 +117,8 @@ impl SpeakerState {
             all_values: AllValuesState::Idle,
             all_values_filter: String::new(),
             response_time: None,
+            written: Vec::new(),
+            pending: BTreeMap::new(),
         }
     }
 
@@ -155,6 +162,17 @@ impl SpeakerState {
             .find(|model| !model.is_empty())
     }
 
+    /// Notes a sent write for the history; Identify is a momentary signal, not a setting.
+    pub(crate) fn record_written(&mut self, path: &SscPath, value: &Value) {
+        if *path == paths::path(paths::IDENTIFY) {
+            return;
+        }
+        let before = self.pending.get(path).or_else(|| self.values.get(path));
+        let change = (path.clone(), before.cloned(), value.clone());
+        self.pending.insert(path.clone(), value.clone());
+        self.written.push(change);
+    }
+
     pub fn apply(&mut self, event: Event, now: f64) {
         match event {
             Event::Connected(identity) => {
@@ -171,6 +189,7 @@ impl SpeakerState {
                 self.set_message(Some(Message::Unreachable), MessageSource::Connection);
                 self.reset_meters();
                 self.response_time = None;
+                self.pending.clear();
             }
             Event::Value { path, value } => {
                 if path == paths::path(paths::OUTPUT_LEVEL) {
@@ -180,6 +199,7 @@ impl SpeakerState {
                     knob.confirmed();
                 }
                 self.absent.remove(&path);
+                self.pending.remove(&path);
                 self.feed_meters(&path, &value, now);
                 self.values.insert(path, value);
             }

@@ -138,6 +138,8 @@ pub const COPY_TO_GROUP: Text = Text::new("Für Gruppe übernehmen", "Apply to g
 pub const MASTER: Text = Text::new("Master", "Master");
 pub const MASTER_LEVEL: Text = Text::new("Master-Pegel", "Master level");
 pub const MUTE_ALL: Text = Text::new("Alle stumm", "Mute all");
+/// A speaker of a history entry that has been removed since.
+pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
     "Shift: fein · Doppelklick: Wert eingeben",
     "Shift: fine · Double-click: type a value",

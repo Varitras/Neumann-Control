@@ -33,6 +33,9 @@ use crate::views::{all_values, panel, wheel};
 
 mod compact;
 mod desk;
+mod history;
+
+pub use history::TakeBackNotice;
 
 const DESK_SCROLL_ID: &str = "desk";
 const COMPACT_SCROLL_ID: &str = "compact";
@@ -77,6 +80,7 @@ pub struct NeumannApp {
     group_draft: Option<desk::GroupDraft>,
     settings_open: bool,
     window: Option<WindowGeometry>,
+    history: history::HistoryState,
 }
 
 impl NeumannApp {
@@ -118,6 +122,7 @@ impl NeumannApp {
             panel: None,
             group_draft: None,
             settings_open: false,
+            history: history::HistoryState::default(),
         };
         app.sync_targets();
         app
@@ -360,6 +365,8 @@ impl NeumannApp {
         self.show_settings(ui);
         self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
+        let now = ui.input(|input| input.time);
+        self.finish_history_frame(now);
     }
 
     fn show_all_values(&mut self, context: &Context) {

@@ -133,6 +133,7 @@ impl SpeakerState {
         if let (Some(knob), Some(number)) = (self.knobs.get_mut(&path), value.as_f64()) {
             knob.sent(number, now);
         }
+        self.record_written(&path, &value);
         Ok(Command::Set { path, value })
     }
 
@@ -344,6 +345,48 @@ mod tests {
             number_value(level, Some(&Value::from(100.0)), 90.25),
             Value::from(90.25)
         );
+    }
+
+    #[test]
+    fn a_sent_write_is_recorded_with_the_value_before() {
+        let mut speaker = speaker("KH 120 II");
+        let level = Event::Value {
+            path: paths::path(paths::OUTPUT_LEVEL),
+            value: Value::from(80.0),
+        };
+        speaker.apply(level, 0.0);
+        speaker.request(Intent::Level(90.0), Catalog::embedded(), 0.0);
+        // The speaker has not reported 90 yet: the next write started from 90, not 80.
+        speaker.request(Intent::Level(95.0), Catalog::embedded(), 0.1);
+        let path = paths::path(paths::OUTPUT_LEVEL);
+        let written = std::mem::take(&mut speaker.written);
+        assert_eq!(
+            written,
+            vec![
+                (path.clone(), Some(Value::from(80.0)), Value::from(90.0)),
+                (path.clone(), Some(Value::from(90.0)), Value::from(95.0)),
+            ]
+        );
+        let reported = Event::Value {
+            path: path.clone(),
+            value: Value::from(93.0),
+        };
+        speaker.apply(reported, 0.5);
+        speaker.request(Intent::Level(85.0), Catalog::embedded(), 1.0);
+        assert_eq!(speaker.written[0].1, Some(Value::from(93.0)));
+    }
+
+    #[test]
+    fn identify_and_refused_writes_are_not_recorded() {
+        let mut speaker = speaker("KH 120 II");
+        let identify = Event::Value {
+            path: paths::path(paths::IDENTIFY),
+            value: Value::Bool(false),
+        };
+        speaker.apply(identify, 0.0);
+        speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
+        speaker.request(Intent::Level(130.0), Catalog::embedded(), 0.0);
+        assert!(speaker.written.is_empty(), "{:?}", speaker.written);
     }
 
     #[test]

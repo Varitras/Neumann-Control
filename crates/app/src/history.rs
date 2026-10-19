@@ -95,6 +95,12 @@ impl History {
     }
 }
 
+/// Whether the speaker now reports something else than the change wrote. A value it has not
+/// reported is no reason to ask: the write policy decides about that speaker anyway.
+pub fn changed_since(change: &Change, reported: Option<&Value>, step: Option<f64>) -> bool {
+    reported.is_some_and(|reported| !same_value(reported, &change.after, step))
+}
+
 pub fn is_open(change: &Change) -> bool {
     !change.taken_back && change.before.is_some()
 }
@@ -172,6 +178,14 @@ mod tests {
         ));
         history.mark_taken_back(known.unwrap(), 0);
         assert_eq!(history.newest_open(), None);
+    }
+
+    #[test]
+    fn a_change_counts_as_changed_since_only_when_the_speaker_reports_another_value() {
+        let written = change(Some(json!(80.0)), json!(84.0));
+        assert!(!changed_since(&written, Some(&json!(84)), Some(0.5)));
+        assert!(changed_since(&written, Some(&json!(78.0)), Some(0.5)));
+        assert!(!changed_since(&written, None, Some(0.5)));
     }
 
     #[test]
