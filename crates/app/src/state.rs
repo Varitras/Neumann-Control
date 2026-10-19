@@ -14,6 +14,7 @@ use serde_json::Value;
 
 use crate::display::capped;
 use crate::gesture::GestureState;
+use crate::history::{is_given, matching, merged};
 use crate::meter::{MeterState, METER_FLOOR_DB};
 use crate::paths;
 use crate::writes::Refusal;
@@ -167,10 +168,11 @@ impl SpeakerState {
         if *path == paths::path(paths::IDENTIFY) {
             return;
         }
-        let before = self.pending.get(path).or_else(|| self.values.get(path));
-        let change = (path.clone(), before.cloned(), value.clone());
-        self.pending.insert(path.clone(), value.clone());
-        self.written.push(change);
+        let base = self.pending.get(path).or_else(|| self.values.get(path));
+        let before = base.map(|base| matching(base, value)).filter(is_given);
+        let pending = merged(base, value);
+        self.written.push((path.clone(), before, value.clone()));
+        self.pending.insert(path.clone(), pending);
     }
 
     pub fn apply(&mut self, event: Event, now: f64) {

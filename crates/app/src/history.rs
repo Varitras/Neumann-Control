@@ -121,13 +121,64 @@ pub fn is_open(change: &Change) -> bool {
 
 /// Whether a reported value still is the written one: numbers within half a catalog step (the
 /// speaker may report 84 for a written 84.0, or round to its own grid), anything else exactly.
+/// A written array counts only where it gave a value: its `null` places were not written.
 pub fn same_value(reported: &Value, written: &Value, step: Option<f64>) -> bool {
+    if let (Some(reported), Some(written)) = (reported.as_array(), written.as_array()) {
+        return reported.len() == written.len()
+            && reported.iter().zip(written).all(|(reported, written)| {
+                written.is_null() || same_value(reported, written, step)
+            });
+    }
     let (Some(reported_number), Some(written_number)) = (reported.as_f64(), written.as_f64())
     else {
         return reported == written;
     };
     let tolerance = step.map_or(0.0, |step| step / 2.0);
     (reported_number - written_number).abs() < tolerance || reported_number == written_number
+}
+
+/// What the speaker holds after `written` arrived: an array write with `null` places keeps the
+/// entries of `base` there.
+pub fn merged(base: Option<&Value>, written: &Value) -> Value {
+    let (Some(base), Some(given)) = (base.and_then(Value::as_array), written.as_array()) else {
+        return written.clone();
+    };
+    if base.len() != given.len() {
+        return written.clone();
+    }
+    let entries = base.iter().zip(given).map(|(held, given)| {
+        if given.is_null() {
+            held.clone()
+        } else {
+            given.clone()
+        }
+    });
+    Value::Array(entries.collect())
+}
+
+/// The part of `before` that `after` overwrites, in the same `null` form, so taking a band
+/// write back touches that band only.
+pub fn matching(before: &Value, after: &Value) -> Value {
+    let (Some(held), Some(given)) = (before.as_array(), after.as_array()) else {
+        return before.clone();
+    };
+    let entries = held.iter().zip(given).map(|(held, given)| {
+        if given.is_null() {
+            Value::Null
+        } else {
+            held.clone()
+        }
+    });
+    Value::Array(entries.collect())
+}
+
+/// Whether a value says anything: not `null`, and an array with at least one entry given.
+pub fn is_given(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Array(entries) => entries.iter().any(|entry| !entry.is_null()),
+        _ => true,
+    }
 }
 
 #[cfg(test)]
@@ -211,6 +262,34 @@ mod tests {
         assert!(!changed_since(&written, Some(&json!(84)), Some(0.5)));
         assert!(changed_since(&written, Some(&json!(78.0)), Some(0.5)));
         assert!(!changed_since(&written, None, Some(0.5)));
+    }
+
+    #[test]
+    fn merged_keeps_other_bands() {
+        let base = json!([1.0, 2.0, 3.0]);
+        assert_eq!(
+            merged(Some(&base), &json!([null, 5.0, null])),
+            json!([1.0, 5.0, 3.0])
+        );
+        assert_eq!(merged(None, &json!([null, 5.0])), json!([null, 5.0]));
+        assert_eq!(merged(Some(&json!(1.0)), &json!(2.0)), json!(2.0));
+    }
+
+    #[test]
+    fn matching_takes_the_written_places() {
+        let before = json!([1.0, 2.0, 3.0]);
+        assert_eq!(
+            matching(&before, &json!([null, 5.0, null])),
+            json!([null, 2.0, null])
+        );
+        assert_eq!(matching(&json!(80.0), &json!(84.0)), json!(80.0));
+    }
+
+    #[test]
+    fn same_value_ignores_null_places() {
+        let reported = json!([9.0, 5.0, 7.0]);
+        assert!(same_value(&reported, &json!([null, 5.0, null]), None));
+        assert!(!same_value(&reported, &json!([null, 6.0, null]), None));
     }
 
     #[test]

@@ -413,6 +413,46 @@ mod tests {
     }
 
     #[test]
+    fn a_second_band_write_keeps_the_first_pending() {
+        let mut speaker = speaker("KH 120 II");
+        let path = paths::path("audio/out/eq2/gain");
+        speaker.apply(
+            Event::Value {
+                path: path.clone(),
+                value: serde_json::json!([0.0, 0.0, 0.0]),
+            },
+            0.0,
+        );
+        let write = |value| Intent::Write {
+            path: path.clone(),
+            value,
+        };
+        let catalog = Catalog::embedded();
+        assert!(speaker
+            .request(write(serde_json::json!([3.0, null, null])), catalog, 0.0)
+            .is_some());
+        assert!(speaker
+            .request(write(serde_json::json!([null, 4.0, null])), catalog, 0.1)
+            .is_some());
+        assert!(speaker
+            .request(write(serde_json::json!([5.0, null, null])), catalog, 0.2)
+            .is_some());
+        let befores: Vec<Option<Value>> = speaker
+            .written
+            .iter()
+            .map(|change| change.1.clone())
+            .collect();
+        assert_eq!(
+            befores,
+            vec![
+                Some(serde_json::json!([0.0, null, null])),
+                Some(serde_json::json!([null, 0.0, null])),
+                Some(serde_json::json!([3.0, null, null])),
+            ]
+        );
+    }
+
+    #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);

@@ -1,6 +1,7 @@
 pub mod all_values;
 pub mod app;
 pub mod display;
+pub mod eq;
 pub mod fader;
 pub mod gesture;
 pub mod groups;
