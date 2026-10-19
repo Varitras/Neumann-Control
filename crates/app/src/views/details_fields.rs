@@ -98,9 +98,9 @@ impl Fields<'_> {
             .max_for(product, &self.catalog.classes)
             .unwrap_or(f64::INFINITY);
         let mut written = None;
-        ui.horizontal_wrapped(|ui| {
-            ui.label(entry.label(texts::language()));
-            for (index, name) in names.iter().enumerate() {
+        ui.label(entry.label(texts::language()));
+        for (index, name) in names.iter().enumerate() {
+            ui.horizontal(|ui| {
                 let device = reported
                     .as_ref()
                     .and_then(|entries| entries[index].as_f64());
@@ -119,8 +119,8 @@ impl Fields<'_> {
                 if let Some(number) = number_field::show(ui, &field) {
                     written = Some((index, number));
                 }
-            }
-        });
+            });
+        }
         let (Some((index, number)), Some(mut entries)) = (written, reported) else {
             return;
         };

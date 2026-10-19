@@ -649,7 +649,10 @@ mod tests {
     #[test]
     fn a_list_value_reads_entry_by_entry() {
         let value = serde_json::json!([0.0, -20.5]);
-        assert_eq!(history_value(&value, Some("dB")).replace(',', "."), "0 / -20.5 dB");
+        assert_eq!(
+            history_value(&value, Some("dB")).replace(',', "."),
+            "0 / -20.5 dB"
+        );
     }
 
     #[test]
