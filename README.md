@@ -41,6 +41,7 @@ panel of one KH 750 open. The interface is shown in German.*
 - **A device panel** per speaker with every setting the catalog knows for its model.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
+- **EQ** in a window of its own: a computed response graph and a table of the bands.
 - **History and undo**: every write of the session, each one revertible, Ctrl+Z for the newest.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
 - **German and English** interface, light and dark theme.
@@ -178,6 +179,23 @@ bottom. A group row moves its members like the group strip. A **!** stands for a
 The compact window keeps its own size and position and scrolls sideways when it is narrower than
 its rows. Scanning and adding speakers or groups stay on the desk.
 
+### EQ
+
+**EQ** in a speaker's device panel opens its EQ in a window of its own (one per speaker; it can
+be moved to another screen). On the KH 750 choose the output first (Overall, Output 1,
+Output 2); then each EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the
+crossover ("Crossover 1", "Crossover 2").
+
+- The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
+  10 Hz to 24 kHz. The curves are computed from the settings, not measured. A band's level is
+  its gain plus its boost.
+- Each band of the chosen EQ is a point: filled when on, hollow when off. Drag it to change
+  frequency and gain, turn the mouse wheel over it to change Q.
+- The table below lists every band with on/off, type, frequency, Q, gain and boost; numbers take
+  a comma or a point, and a value outside the allowed range is refused with the reason.
+- A change is written when the gesture ends, and only for that one band, so the other bands
+  stay as they are. Every change appears in the history and can be undone.
+
 ### History and undo
 
 **History** in the toolbar lists every setting the app wrote in this session, newest first, with
@@ -262,6 +280,8 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
 - On the KH 750, auto standby is shown but not written: it follows the AUTO STANDBY switch on the
   back, and the speaker refuses writes to it.
 - Models other than the KH 120 II and the KH 750 are read-only.
+- EQ writes are verified on "EQ 2" of the output (`audio/out/eq2`) so far; the other EQs and the
+  crossover are shown but not written yet.
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.
 

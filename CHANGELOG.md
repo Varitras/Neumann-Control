@@ -4,6 +4,8 @@
 
 ### Added
 
+- An EQ window per speaker: a computed response graph of every EQ and their sum, band points to
+  drag, and a table of the bands. Each change writes one band only and can be undone.
 - A history of every setting the app wrote in this session (**History** in the toolbar), with
   **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one entry. When a
   value changed since, the app asks before writing the old one back.
