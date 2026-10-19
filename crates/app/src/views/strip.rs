@@ -14,6 +14,7 @@ use serde_json::Value;
 use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::meters::{self, Meters};
+use crate::eq::has_eq;
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
 use crate::gesture::on_grid;
 use crate::input_source::input_source;
@@ -49,6 +50,7 @@ pub struct StripResponse {
     pub open_panel: Option<Pos2>,
     /// The strip's area, where another strip can be dropped.
     pub rect: Rect,
+    pub open_eq: bool,
 }
 
 pub fn show(
@@ -61,6 +63,7 @@ pub fn show(
 ) -> StripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
+    let mut open_eq = false;
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let frame = egui::Frame::new()
         .fill(tokens.card)
@@ -90,7 +93,7 @@ pub fn show(
                 if desk.show_response_times {
                     response_time(ui, speaker);
                 }
-                buttons(ui, speaker, catalog, &mut commands);
+                open_eq = buttons(ui, speaker, catalog, &mut commands);
                 message(ui, speaker, &tokens);
                 open_panel
             })
@@ -100,6 +103,7 @@ pub fn show(
         commands,
         open_panel: frame.inner,
         rect: frame.response.rect,
+        open_eq,
     }
 }
 
@@ -324,12 +328,14 @@ fn response_time(ui: &mut Ui, speaker: &SpeakerState) {
     ui.add(Label::new(RichText::new(text).small().weak().monospace()));
 }
 
+/// Mute and identify, and EQ for models with EQ containers; true when EQ was clicked.
 fn buttons(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     commands: &mut Vec<Command>,
-) {
+) -> bool {
+    let has_eq = has_eq(catalog, speaker);
     ui.horizontal(|ui| {
         toggle(
             ui,
@@ -347,7 +353,9 @@ fn buttons(
             Switch::Identify,
             texts::IDENTIFY.get(),
         );
-    });
+        has_eq && ui.button(texts::EQ).clicked()
+    })
+    .inner
 }
 
 /// A button showing a switch value of the speaker; a click asks for the opposite.

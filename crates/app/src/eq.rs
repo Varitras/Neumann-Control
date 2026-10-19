@@ -7,6 +7,8 @@ use neumann_control_core::catalog::{Catalog, EqContainer};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use crate::state::SpeakerState;
+
 /// The six leaves of an EQ container, as the catalog names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Leaf {
@@ -118,6 +120,12 @@ pub fn container_of<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a EqCo
             .iter()
             .any(|leaf| leaf.path(&container.path) == *path)
     })
+}
+
+/// Whether the speaker has an EQ to open: only once it reported its model, because containers
+/// of the class "all" match any product, an unknown one too.
+pub fn has_eq(catalog: &Catalog, speaker: &SpeakerState) -> bool {
+    speaker.identity.is_some() && !catalog.eq_containers(speaker.product()).is_empty()
 }
 
 /// The value that writes `value` to `band` only (measured: `null` leaves a band as it is).

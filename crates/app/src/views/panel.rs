@@ -9,6 +9,7 @@ use neumann_control_core::speaker::Command;
 
 use super::details;
 use crate::display::firmware_version;
+use crate::eq::has_eq;
 use crate::groups::linkable_label;
 use crate::state::SpeakerState;
 use crate::texts;
@@ -55,7 +56,7 @@ pub fn show(
     let mut group = None;
     let mut copy_to_group = None;
     let mut open_eq = false;
-    let has_eq = !catalog.eq_containers(speaker.product()).is_empty();
+    let has_eq = has_eq(catalog, speaker);
     // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
     // drops the focus at the start of the Escape frame, so the last frame's state decides.
     let editing_id = Id::new(PANEL_ID).with(EDITING_ID);

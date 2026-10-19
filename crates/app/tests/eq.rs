@@ -29,9 +29,18 @@ fn spread(simulator: &Simulator) {
 fn open_eq(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker_with(model, spread);
     open_panel(&mut harness, device_name(model));
-    harness.get_by_label(texts::EQ.get()).click();
+    click_panel_eq(&mut harness);
     wait_for_label(&mut harness, &texts::eq_band(1));
     (simulator, directory, harness)
+}
+
+/// The strip has an "EQ" button too; the panel's lies below it, at the panel's foot.
+fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>) {
+    let lowest = harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+        .max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y))
+        .expect("an EQ button");
+    lowest.click();
 }
 
 fn drag(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, by: egui::Vec2) {
@@ -196,4 +205,30 @@ fn a_band_change_reads_as_one_band_in_the_history() {
     harness.get_by_label(texts::HISTORY.get()).click();
     harness.run_steps(2);
     harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
+}
+
+#[test]
+fn the_strip_opens_the_eq_window() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh750);
+    // With the panel closed, the strip's button is the only "EQ".
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    harness.get_by_label("Subwoofer");
+}
+
+#[test]
+fn the_eq_button_waits_for_the_speakers_model() {
+    // Never connected, the model is unknown: which containers it has is not known either.
+    let simulator = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    simulator.stop();
+    let mut harness = harness(path, Vec::new());
+    harness.run_steps(5);
+    harness.get_by_label(texts::MUTE.get());
+    assert!(harness
+        .query_by_role_and_label(Role::Button, texts::EQ.get())
+        .is_none());
 }

@@ -17,7 +17,7 @@ use crate::groups::{
     shifted_levels, with_moved, DeskItem,
 };
 use crate::paths;
-use crate::state::{SpeakerState, Status};
+use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
@@ -35,6 +35,7 @@ pub(super) enum DeskAction {
     Group(usize, GroupStripResponse),
     Master(MasterResponse),
     OpenPanel(OpenPanel),
+    OpenEq(SpeakerKey),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -92,6 +93,9 @@ impl NeumannApp {
                                     .inner;
                                 centers.insert(ids[index].clone(), response.rect.center().x);
                                 actions.push(DeskAction::Commands(index, response.commands));
+                                if response.open_eq {
+                                    actions.push(DeskAction::OpenEq(key.clone()));
+                                }
                                 if let Some(anchor) = response.open_panel {
                                     let opened_now = true;
                                     let open = OpenPanel {
@@ -174,6 +178,7 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(open) => self.panel = Some(open),
+            DeskAction::OpenEq(key) => self.open_eq(key),
         }
     }
 
