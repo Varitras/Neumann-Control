@@ -268,6 +268,15 @@ pub fn meter_label(group: &str, channel: &str) -> String {
     format!("{group} {channel}")
 }
 
+/// The number under a meter: whole dB with a real minus sign, a dash when below the floor.
+pub fn meter_readout(db: Option<i32>) -> String {
+    match db {
+        Some(db) if db < 0 => format!("\u{2212}{}", db.unsigned_abs()),
+        Some(db) => db.to_string(),
+        None => "\u{2013}".to_owned(),
+    }
+}
+
 /// The panel's knob beside a number field, named apart from the field.
 pub fn knob_label(label: &str) -> String {
     pick(format!("{label} (Regler)"), format!("{label} (knob)"))

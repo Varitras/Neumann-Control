@@ -1,6 +1,6 @@
 //! Level meters drawn side by side, one per channel: segments in the colour of their zone
 //! (lit up to the level, dimmed above it, so the eye always sees where red begins), the held
-//! peak as one lit segment, and a clip lamp on top. The scale is the spread one from `meter`.
+//! peak as a thin line, the held peak as a number below, and a clip lamp on top. The scale is the spread one from `meter`.
 
 use eframe::egui::{
     pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, Response, RichText, Sense,
@@ -14,7 +14,7 @@ use crate::meter::{
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
-const METER_WIDTH: f32 = 8.0;
+const METER_WIDTH: f32 = 14.0;
 const CLIP_LAMP_RADIUS: f32 = 3.5;
 const CLIP_LAMP_SPACE: f32 = 10.0;
 /// One segment and the gap below it.
@@ -29,6 +29,10 @@ const SCALE_FONT_SIZE: f32 = 8.5;
 const SCALE_MARKS_DB: [f64; 5] = [0.0, -6.0, -20.0, -60.0, -90.0];
 const CHANNEL_NAME_HEIGHT: f32 = 12.0;
 const CHANNEL_NAME_SIZE: f32 = 9.0;
+const READOUT_HEIGHT: f32 = 12.0;
+/// The widest readout, so a column keeps its width whatever the level.
+const WIDEST_READOUT: Option<i32> = Some(-120);
+const PEAK_LINE_HEIGHT: f32 = 2.0;
 const PLAYED_MARK_SPACE: f32 = 8.0;
 const PLAYED_MARK_RADIUS: f32 = 2.0;
 const BAR_WIDTH: f32 = 72.0;
@@ -63,11 +67,15 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         // column is as wide as the name ("Sub"), with the meter in its middle.
         let name = texts::channel_name(channels, channel);
         let font = FontId::proportional(CHANNEL_NAME_SIZE);
-        let name_width = ui
-            .painter()
-            .layout_no_wrap(name.clone(), font, tokens.text_dim)
-            .size()
-            .x;
+        let text_width = |text: String| {
+            let painter = ui.painter();
+            painter
+                .layout_no_wrap(text, font.clone(), tokens.text_dim)
+                .size()
+                .x
+        };
+        let name_width =
+            text_width(name.clone()).max(text_width(texts::meter_readout(WIDEST_READOUT)));
         let mark_space = if group.played.is_empty() {
             0.0
         } else {
@@ -75,7 +83,7 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         };
         let size = vec2(
             METER_WIDTH.max(name_width),
-            height + CHANNEL_NAME_HEIGHT + mark_space,
+            height + CHANNEL_NAME_HEIGHT + READOUT_HEIGHT + mark_space,
         );
         let (cell, response) = ui.allocate_exact_size(size, Sense::hover());
         covered = covered.union(cell);
@@ -90,12 +98,23 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         );
         let caption = Label::new(RichText::new(&name).size(CHANNEL_NAME_SIZE).weak());
         ui.put(name_rect, caption);
+        let readout = meter.readout(now, floor);
+        let readout_bottom = name_bottom + READOUT_HEIGHT;
+        let readout_rect = Rect::from_min_max(
+            pos2(cell.left(), name_bottom),
+            pos2(cell.right(), readout_bottom),
+        );
+        let readout_text = RichText::new(texts::meter_readout(readout)).size(CHANNEL_NAME_SIZE);
+        ui.put(readout_rect, Label::new(readout_text));
         if group.played.get(channel).copied().unwrap_or(false) {
-            let mark = Rect::from_min_max(pos2(cell.left(), name_bottom), cell.max);
+            let mark = Rect::from_min_max(pos2(cell.left(), readout_bottom), cell.max);
             ui.put(mark, |ui: &mut Ui| played_mark(ui, tokens));
         }
         let label = texts::meter_label(name_of_group, &name);
-        response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label));
+        response.widget_info(|| WidgetInfo {
+            value: readout.map(f64::from),
+            ..WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label)
+        });
         let lamp_color = if clipped {
             tokens.danger
         } else {
@@ -159,18 +178,35 @@ fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, token
     let rects = segment_rects(track, ui.ctx().pixels_per_point());
     let count = rects.len().max(1);
     let lit = (level * count as f32).round() as usize;
-    let peak_segment = (peak * count as f32).ceil() as usize;
     for (segment, rect) in rects.into_iter().enumerate() {
         let middle = (segment as f32 + 0.5) / count as f32;
         let color = zone_color(zone(level_at(middle, floor)), tokens);
-        let shown = segment < lit || segment + 1 == peak_segment;
-        let color = if shown {
+        let color = if segment < lit {
             color
         } else {
             color.gamma_multiply(UNLIT_OPACITY)
         };
         painter.rect_filled(rect, CornerRadius::same(SEGMENT_RADIUS), color);
     }
+    if let Some(line) = peak_line(track, level, peak) {
+        let color = zone_color(zone(level_at(peak, floor)), tokens);
+        painter.rect_filled(line, CornerRadius::ZERO, color);
+    }
+}
+
+/// The held peak as a thin line at its exact height, kept inside the track; none when the bar
+/// reaches it.
+fn peak_line(track: Rect, level: f32, peak: f32) -> Option<Rect> {
+    if peak <= level {
+        return None;
+    }
+    let center = track.bottom() - track.height() * peak;
+    let top = (center - PEAK_LINE_HEIGHT / 2.0).max(track.top());
+    let line = Rect::from_min_max(
+        pos2(track.left(), top),
+        pos2(track.right(), top + PEAK_LINE_HEIGHT),
+    );
+    Some(line)
 }
 
 /// The segments from the bottom up, each the same whole number of physical pixels high with the
@@ -253,6 +289,19 @@ mod tests {
         for pair in rects.windows(2) {
             assert_eq!(pair[0].top() - pair[1].bottom(), SEGMENT_GAP);
         }
+    }
+
+    #[test]
+    fn peak_line_sits_at_the_peak_and_vanishes_at_the_bar() {
+        let track = Rect::from_min_max(pos2(10.0, 0.0), pos2(24.0, 100.0));
+        let line = peak_line(track, 0.2, 0.5).expect("a peak above the bar");
+        assert_eq!(line.center().y, 50.0);
+        assert_eq!(line.height(), PEAK_LINE_HEIGHT);
+        assert_eq!(line.x_range(), track.x_range());
+        assert_eq!(peak_line(track, 0.5, 0.5), None);
+        assert_eq!(peak_line(track, 0.6, 0.5), None);
+        let top = peak_line(track, 0.2, 1.0).expect("a peak at the top");
+        assert_eq!(top.top(), track.top());
     }
 
     #[test]

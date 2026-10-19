@@ -3,6 +3,8 @@
 use neumann_control_core::settings::MeterFloor;
 
 pub const PEAK_HOLD_SECONDS: f64 = 1.5;
+/// A falling peak would make its readout count down every frame; it steps at this pace instead.
+pub const READOUT_REFRESH_SECONDS: f64 = 0.25;
 /// Low enough that quiet room volume (inputs around -90 dB on the KH 120 II) still moves.
 pub const METER_FLOOR_DB: f64 = MeterFloor::Minus120.db();
 pub const METER_CEILING_DB: f64 = 6.0;
@@ -146,6 +148,23 @@ impl MeterState {
         self.peak
     }
 
+    /// The held peak in whole dB for the number under the meter; `None` at or below `floor`.
+    /// While the hold lasts it is the held peak itself; afterwards it follows the falling bar
+    /// in steps of `READOUT_REFRESH_SECONDS`, so a new peak still shows at once.
+    pub fn readout(&self, now: f64, floor: f64) -> Option<i32> {
+        let hold_end = self.peak_since + PEAK_HOLD_SECONDS;
+        let db = if now < hold_end {
+            self.peak
+        } else {
+            let step = (now / READOUT_REFRESH_SECONDS).floor() * READOUT_REFRESH_SECONDS;
+            self.shown(step.max(hold_end))
+        };
+        if db <= floor {
+            return None;
+        }
+        Some(db.round() as i32)
+    }
+
     pub fn reset(&mut self) {
         *self = MeterState::default();
     }
@@ -164,6 +183,38 @@ mod tests {
         assert_eq!(meter.level(), -30.0);
         assert_eq!(meter.peak(1.25), -6.0);
         assert_eq!(meter.peak(1.5), meter.shown(1.5));
+    }
+
+    #[test]
+    fn readout_rounds_the_held_peak() {
+        let mut meter = MeterState::default();
+        meter.update(-18.4, 0.0);
+        meter.update(-40.0, 0.5);
+        assert_eq!(meter.readout(0.6, -120.0), Some(-18));
+    }
+
+    #[test]
+    fn readout_rises_at_once_and_steps_while_falling() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        meter.update(-30.0, 1.0);
+        assert_eq!(meter.readout(1.4, -120.0), Some(-6));
+        // The hold ran out at 1.5 s; the bar falls 24 dB/s from -6 dB at 1.0 s.
+        assert_eq!(meter.readout(1.6, -120.0), Some(-18));
+        assert_eq!(meter.readout(1.7, -120.0), Some(-18));
+        assert_eq!(meter.readout(1.75, -120.0), Some(-24));
+        meter.update(-3.0, 1.8);
+        assert_eq!(meter.readout(1.8, -120.0), Some(-3));
+    }
+
+    #[test]
+    fn readout_is_none_below_the_floor() {
+        let mut meter = MeterState::default();
+        meter.update(-160.0, 0.0);
+        assert_eq!(meter.readout(0.1, -90.0), None);
+        meter.update(-95.0, 1.0);
+        assert_eq!(meter.readout(1.1, -90.0), None);
+        assert_eq!(meter.readout(1.1, -120.0), Some(-95));
     }
 
     #[test]

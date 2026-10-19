@@ -835,3 +835,13 @@ fn the_strip_knob_captions_stay_apart() {
         assert!(rect.height() < 1.5 * line, "{rect:?} for a line of {line}");
     }
 }
+
+#[test]
+fn each_meter_channel_shows_its_peak_readout() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    simulator.set_value("m/in/level", serde_json::json!([-18.2, -40.4]));
+    wait_for_label(&mut harness, &texts::meter_readout(Some(-18)));
+    harness.get_by_label(&texts::meter_readout(Some(-40)));
+    assert_eq!(texts::meter_readout(Some(-18)), "\u{2212}18");
+    assert_eq!(texts::meter_readout(None), "\u{2013}");
+}
