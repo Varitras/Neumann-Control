@@ -33,6 +33,7 @@ use crate::views::{all_values, panel, wheel};
 
 mod compact;
 mod desk;
+mod eq;
 mod history;
 
 pub use history::TakeBackNotice;
@@ -81,6 +82,7 @@ pub struct NeumannApp {
     settings_open: bool,
     window: Option<WindowGeometry>,
     history: history::HistoryState,
+    eq_windows: Vec<eq::EqWindow>,
     /// What "like Windows" means, asked of Windows at the start.
     system_language: Language,
 }
@@ -127,6 +129,7 @@ impl NeumannApp {
             group_draft: None,
             settings_open: false,
             history: history::HistoryState::default(),
+            eq_windows: Vec::new(),
             system_language,
         };
         app.sync_targets();
@@ -372,6 +375,7 @@ impl NeumannApp {
         self.show_settings(ui);
         self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
+        self.show_eq_windows(ui.ctx());
         self.show_history(ui);
         self.show_take_back_question(ui);
         let now = ui.input(|input| input.time);
@@ -443,6 +447,9 @@ impl NeumannApp {
                 address: speaker.address,
                 name: speaker.display_name(),
             });
+        }
+        if response.open_eq {
+            self.open_eq(speaker.key.clone());
         }
         if response.close || response.remove {
             self.panel = None;

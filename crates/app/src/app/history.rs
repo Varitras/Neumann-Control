@@ -4,6 +4,9 @@
 use eframe::egui::{Key, KeyboardShortcut, Modifiers, Ui};
 
 use super::NeumannApp;
+use serde_json::Value;
+
+use crate::eq::container_of;
 use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
@@ -41,6 +44,18 @@ struct Described {
     speaker: String,
     setting: String,
     unit: Option<String>,
+    /// For an EQ band write: the band it touched; its values are that band's entries.
+    band: Option<usize>,
+}
+
+impl Described {
+    /// The part of `value` the line shows: the band's entry of an EQ array, else all of it.
+    fn shown<'a>(&self, value: &'a Value) -> Option<&'a Value> {
+        match self.band {
+            Some(band) => value.as_array().and_then(|bands| bands.get(band)),
+            None => Some(value),
+        }
+    }
 }
 
 impl NeumannApp {
@@ -154,8 +169,13 @@ impl NeumannApp {
     fn change_line(&self, change: &Change) -> String {
         let described = self.describe(change);
         let unit = described.unit.as_deref();
-        let before = texts::history_before(change.before.as_ref(), unit);
-        let after = texts::history_value(&change.after, unit);
+        let before = change
+            .before
+            .as_ref()
+            .and_then(|before| described.shown(before));
+        let before = texts::history_before(before, unit);
+        let after = described.shown(&change.after).unwrap_or(&change.after);
+        let after = texts::history_value(after, unit);
         texts::history_change(&described.speaker, &described.setting, &before, &after)
     }
 
@@ -171,11 +191,13 @@ impl NeumannApp {
             };
             let described = self.describe(change);
             let unit = described.unit.as_deref();
+            let now = described.shown(now).unwrap_or(now);
+            let written = described.shown(&change.after).unwrap_or(&change.after);
             lines.push(texts::changed_now(
                 &described.speaker,
                 &described.setting,
                 &texts::history_value(now, unit),
-                &texts::history_value(&change.after, unit),
+                &texts::history_value(written, unit),
             ));
         }
         lines
@@ -198,15 +220,29 @@ impl NeumannApp {
                 || texts::REMOVED_SPEAKER.get().to_owned(),
                 |speaker| speaker.state.display_name(),
             );
-        let entry = paths::catalog_entry(Catalog::embedded(), &change.path);
+        let catalog = Catalog::embedded();
+        let entry = paths::catalog_entry(catalog, &change.path);
         let language = texts::language();
+        let label = entry.map_or_else(
+            || change.path.to_string(),
+            |entry| entry.label(language).to_owned(),
+        );
+        let band = change
+            .after
+            .as_array()
+            .and_then(|bands| bands.iter().position(|band| !band.is_null()));
+        let container = container_of(catalog, &change.path);
+        let setting = match (container, band) {
+            (Some(container), Some(band)) => {
+                texts::eq_change_setting(container.label(language), band + 1, &label)
+            }
+            _ => label,
+        };
         Described {
             speaker,
-            setting: entry.map_or_else(
-                || change.path.to_string(),
-                |entry| entry.label(language).to_owned(),
-            ),
+            setting,
             unit: entry.and_then(|entry| entry.unit.clone()),
+            band: container.and(band),
         }
     }
 

@@ -156,6 +156,20 @@ pub const REVERT_ANYWAY: Text = Text::new("Trotzdem zurücksetzen?", "Revert any
 pub const REVERT: Text = Text::new("Zurücksetzen", "Revert");
 pub const SWITCH_ON: Text = Text::new("an", "on");
 pub const SWITCH_OFF: Text = Text::new("aus", "off");
+pub const EQ: Text = Text::new("EQ", "EQ");
+pub const EQ_SUM: Text = Text::new("Summe", "Sum");
+pub const EQ_COMPUTED: Text = Text::new(
+    "Berechnet aus den Einstellungen, nicht gemessen",
+    "Computed from the settings, not measured",
+);
+pub const EQ_NOT_REPORTED: Text = Text::new(
+    "Der Lautsprecher hat diesen EQ noch nicht gemeldet.",
+    "The speaker has not reported this EQ yet.",
+);
+pub const EQ_OUTPUT_ALL: Text = Text::new("Gesamt", "Overall");
+pub const EQ_OUTPUT_1: Text = Text::new("Ausgang 1", "Output 1");
+pub const EQ_OUTPUT_2: Text = Text::new("Ausgang 2", "Output 2");
+pub const BAND: Text = Text::new("Band", "Band");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
@@ -530,6 +544,33 @@ pub fn take_back_skipped(names: &[String]) -> String {
         format!("Nicht zurückgenommen: {names}"),
         format!("Not undone: {names}"),
     )
+}
+
+/// Names a band's point in the EQ graph.
+pub fn eq_band(number: usize) -> String {
+    format!("{} {number}", BAND.get())
+}
+
+pub fn eq_window_title(speaker: &str) -> String {
+    format!("EQ · {speaker}")
+}
+
+/// A frequency mark of the EQ graph: "50", "1k", "20k".
+pub fn frequency_mark(hertz: f64) -> String {
+    if hertz >= 1000.0 {
+        return format!("{}k", hertz / 1000.0);
+    }
+    format!("{hertz}")
+}
+
+/// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
+pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
+    format!("{container} {} {band} · {leaf}", BAND.get())
+}
+
+/// A refused band write, under the EQ graph.
+pub fn eq_refusal(band: usize, leaf: &str, reason: &str) -> String {
+    format!("{} {band} · {leaf}: {reason}", BAND.get())
 }
 
 #[cfg(test)]

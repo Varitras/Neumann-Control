@@ -30,6 +30,7 @@ pub struct PanelResponse {
     pub group: Option<Option<usize>>,
     /// A linked setting whose value goes to the other members.
     pub copy_to_group: Option<Linkable>,
+    pub open_eq: bool,
 }
 
 /// The groups the speaker could be in, which one it is in, and what that group links.
@@ -53,6 +54,8 @@ pub fn show(
     let mut remove = false;
     let mut group = None;
     let mut copy_to_group = None;
+    let mut open_eq = false;
+    let has_eq = !catalog.eq_containers(speaker.product()).is_empty();
     // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
     // drops the focus at the start of the Escape frame, so the last frame's state decides.
     let editing_id = Id::new(PANEL_ID).with(EDITING_ID);
@@ -77,6 +80,7 @@ pub fn show(
             copy_to_group = copy_buttons(ui, groups);
             let commands = details::show(ui, speaker, catalog);
             ui.separator();
+            open_eq = has_eq && ui.button(texts::EQ).clicked();
             remove = ui.button(texts::REMOVE).clicked();
             commands
         })
@@ -100,6 +104,7 @@ pub fn show(
         remove,
         group,
         copy_to_group,
+        open_eq,
     }
 }
 

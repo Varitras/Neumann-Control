@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use neumann_control_core::catalog::{Catalog, EqContainer};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -101,6 +102,31 @@ pub fn bands_of(values: &BTreeMap<SscPath, Value>, container: &SscPath) -> Optio
     Some(bands)
 }
 
+/// Gain and boost move in half decibels, Q in tenths, frequencies keep three digits.
+pub const GAIN_GRID_DB: f64 = 0.5;
+pub const Q_STEP: f64 = 0.1;
+const FREQUENCY_DIGITS: i32 = 3;
+
+/// `frequency` rounded to `FREQUENCY_DIGITS` significant digits (1230 Hz, 47.3 Hz).
+pub fn snapped_frequency(frequency: f64) -> f64 {
+    let magnitude = frequency.abs().log10().floor() as i32;
+    let unit = 10f64.powi(magnitude + 1 - FREQUENCY_DIGITS);
+    let snapped = (frequency / unit).round() * unit;
+    // Rounding by a power of ten leaves binary noise (47.300000000000004).
+    let decimals = (FREQUENCY_DIGITS - 1 - magnitude).max(0);
+    let scale = 10f64.powi(decimals);
+    (snapped * scale).round() / scale
+}
+
+/// The EQ container a band leaf belongs to.
+pub fn container_of<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a EqContainer> {
+    catalog.eq.iter().find(|container| {
+        Leaf::ALL
+            .iter()
+            .any(|leaf| leaf.path(&container.path) == *path)
+    })
+}
+
 /// The value that writes `value` to `band` only (measured: `null` leaves a band as it is).
 pub fn one_band(length: usize, band: usize, value: Value) -> Value {
     let mut array = vec![Value::Null; length];
@@ -172,6 +198,22 @@ mod tests {
     #[test]
     fn one_band_is_null_elsewhere() {
         assert_eq!(one_band(3, 1, json!(2.5)), json!([null, 2.5, null]));
+    }
+
+    #[test]
+    fn a_frequency_keeps_three_digits() {
+        assert_eq!(snapped_frequency(1234.5), 1230.0);
+        assert_eq!(snapped_frequency(99.95), 100.0);
+        assert_eq!(snapped_frequency(47.26), 47.3);
+        assert_eq!(snapped_frequency(23999.0), 24000.0);
+    }
+
+    #[test]
+    fn a_band_path_finds_its_container() {
+        let catalog = neumann_control_core::catalog::Catalog::embedded();
+        let found = container_of(catalog, &paths::path("audio/out/eq3/q")).unwrap();
+        assert_eq!(found.path, paths::path("audio/out/eq3"));
+        assert!(container_of(catalog, &paths::path("audio/out/level")).is_none());
     }
 
     #[test]

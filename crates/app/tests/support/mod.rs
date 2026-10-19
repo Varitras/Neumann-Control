@@ -182,8 +182,17 @@ pub fn level_sets(simulator: &Simulator) -> Vec<f64> {
 pub fn connected_speaker(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    connected_speaker_with(model, |_| {})
+}
+
+/// Like `connected_speaker`, with values set on the simulator before the app first reads them.
+pub fn connected_speaker_with(
+    model: SimModel,
+    prepare: impl FnOnce(&Simulator),
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
     simulator.set_reply_delay(REPLY_DELAY);
+    prepare(&simulator);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
     let mut harness = harness(path, Vec::new());
