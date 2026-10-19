@@ -17,6 +17,7 @@ pub mod status_leds;
 pub mod system_language;
 pub mod targets;
 pub mod texts;
+pub mod trend;
 pub mod ui_kit;
 pub mod views;
 pub mod window_placement;

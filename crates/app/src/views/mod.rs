@@ -19,4 +19,5 @@ pub mod scan_choice;
 pub mod settings_dialog;
 pub mod strip;
 pub mod toolbar;
+pub mod trends;
 pub mod wheel;

@@ -538,3 +538,25 @@ fn eq_rows_are_not_in_the_device_panel() {
     assert!(harness.query_by_label("Verstärkung").is_none());
     assert!(harness.query_by_label("Güte (Q)").is_none());
 }
+
+#[test]
+fn the_panel_shows_the_temperature_trend_of_a_kh750() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh750);
+    simulator.set_value("device/temperature", json!(313));
+    wait_until(&mut harness, "the trend at 40 °C", |harness| {
+        harness
+            .query_by_label(&texts::temperature_trend("40 °C"))
+            .is_some()
+    });
+    harness.get_by_label(texts::WARNING_TREND.get());
+}
+
+#[test]
+fn a_kh120_has_only_the_warning_trend() {
+    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh120Ii);
+    harness.get_by_label(texts::WARNING_TREND.get());
+    let temperature = texts::temperature_trend("");
+    assert!(harness
+        .query_by_label_contains(temperature.trim_end())
+        .is_none());
+}

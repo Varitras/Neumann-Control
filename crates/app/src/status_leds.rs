@@ -70,6 +70,17 @@ fn any_true(value: &Value) -> bool {
     }
 }
 
+/// The warnings `warnings` reports, without `NO_WARNING`; `None` for a value of another form.
+pub fn active_warnings(value: &Value) -> Option<Vec<String>> {
+    let texts: Vec<&str> = match value {
+        Value::String(text) => vec![text.as_str()],
+        Value::Array(items) => items.iter().map(Value::as_str).collect::<Option<_>>()?,
+        _ => return None,
+    };
+    let active = texts.into_iter().filter(|text| *text != NO_WARNING);
+    Some(active.map(str::to_owned).collect())
+}
+
 fn holds_a_warning(value: &Value) -> bool {
     match value {
         Value::String(text) => text != NO_WARNING,

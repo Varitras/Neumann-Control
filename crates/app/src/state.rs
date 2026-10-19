@@ -17,6 +17,8 @@ use crate::gesture::GestureState;
 use crate::history::{is_given, matching, merged};
 use crate::meter::{MeterState, METER_FLOOR_DB};
 use crate::paths;
+use crate::status_leds::active_warnings;
+use crate::trend::Trend;
 use crate::writes::Refusal;
 
 /// The KH 750 reports three output channels; a longer list from a faulty device would draw a
@@ -97,6 +99,10 @@ pub struct SpeakerState {
     pub written: Vec<(SscPath, Option<Value>, Value)>,
     /// Sent values the speaker has not reported back yet; the value before of the next write.
     pending: BTreeMap<SscPath, Value>,
+    /// `device/temperature` as reported (kelvin), for the device panel's trend.
+    pub temperature: Trend<f64>,
+    /// The active warnings, empty while there are none.
+    pub warnings: Trend<Vec<String>>,
 }
 
 impl SpeakerState {
@@ -120,6 +126,8 @@ impl SpeakerState {
             response_time: None,
             written: Vec::new(),
             pending: BTreeMap::new(),
+            temperature: Trend::default(),
+            warnings: Trend::default(),
         }
     }
 
@@ -192,6 +200,8 @@ impl SpeakerState {
                 self.reset_meters();
                 self.response_time = None;
                 self.pending.clear();
+                self.temperature.record(now, None);
+                self.warnings.record(now, None);
             }
             Event::Value { path, value } => {
                 if path == paths::path(paths::OUTPUT_LEVEL) {
@@ -203,6 +213,7 @@ impl SpeakerState {
                 self.absent.remove(&path);
                 self.pending.remove(&path);
                 self.feed_meters(&path, &value, now);
+                self.record_trends(&path, &value, now);
                 self.values.insert(path, value);
             }
             Event::Absent(path) => {
@@ -221,12 +232,22 @@ impl SpeakerState {
                 self.response_time = None;
                 let message = Message::SerialMismatch(mask_serial(&found));
                 self.set_message(Some(message), MessageSource::Connection);
+                self.temperature.record(now, None);
+                self.warnings.record(now, None);
             }
             Event::AllValues(reports) => self.finish_all_values(AllValuesState::Loaded(reports)),
             Event::AllValuesFailed(reason) => {
                 self.finish_all_values(AllValuesState::Failed(reason));
             }
             Event::ResponseTime(time) => self.response_time = Some(time),
+        }
+    }
+
+    fn record_trends(&mut self, path: &SscPath, value: &Value, now: f64) {
+        if *path == paths::path(paths::TEMPERATURE) {
+            self.temperature.record(now, value.as_f64());
+        } else if *path == paths::path(paths::WARNINGS) {
+            self.warnings.record(now, active_warnings(value));
         }
     }
 
@@ -337,6 +358,31 @@ mod tests {
 
     fn path(text: &str) -> SscPath {
         SscPath::parse(text).unwrap()
+    }
+
+    #[test]
+    fn temperature_and_warnings_are_recorded_with_gaps() {
+        let mut speaker = state();
+        speaker.apply(value_event("device/temperature", json!(310)), 1.0);
+        speaker.apply(value_event("warnings", json!(["NO_WARNING"])), 1.0);
+        speaker.apply(value_event("warnings", json!(["OVERTEMPERATURE"])), 2.0);
+        speaker.apply(Event::Unreachable("gone".to_owned()), 3.0);
+        let temperature: Vec<_> = speaker
+            .temperature
+            .points()
+            .map(|point| (point.time, point.value))
+            .collect();
+        assert_eq!(temperature, vec![(1.0, Some(310.0)), (3.0, None)]);
+        let warnings: Vec<_> = speaker
+            .warnings
+            .points()
+            .map(|point| (point.time, point.value.clone()))
+            .collect();
+        let over = vec!["OVERTEMPERATURE".to_owned()];
+        assert_eq!(
+            warnings,
+            vec![(1.0, Some(Vec::new())), (2.0, Some(over)), (3.0, None)]
+        );
     }
 
     #[test]

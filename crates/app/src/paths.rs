@@ -15,6 +15,7 @@ pub const FIRMWARE_VERSION: &str = "device/identity/version";
 pub const SERIAL: &str = "device/identity/serial";
 pub const MAC_ADDRESSES: &str = "device/network/ether/macs";
 pub const WARNINGS: &str = "warnings";
+pub const TEMPERATURE: &str = "device/temperature";
 pub const CONTROL_MODE: &str = "ui/control_mode";
 pub const INPUT_SELECT: &str = "ui/input_select";
 pub const STANDBY_ENABLED: &str = "device/standby/enabled";

@@ -174,6 +174,11 @@ pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
+pub const NO_TREND_VALUES: Text = Text::new("Noch keine Werte", "No values yet");
+pub const TREND_NOW: Text = Text::new("jetzt", "now");
+pub const WARNING_TREND: Text = Text::new("Warnungsverlauf", "Warning trend");
+pub const NO_WARNING: Text = Text::new("keine Warnung", "no warning");
+pub const NOT_READ: Text = Text::new("nicht erreichbar", "not reachable");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
@@ -570,6 +575,43 @@ pub fn frequency_mark(hertz: f64) -> String {
 /// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
+}
+
+/// The device panel's trend heading: "Verlauf (2 h)".
+pub fn trends_title(window_seconds: f64) -> String {
+    let hours = hours(window_seconds);
+    pick(format!("Verlauf ({hours} h)"), format!("Trend ({hours} h)"))
+}
+
+/// The left end of a trend's time axis: "−2 h".
+pub fn trend_start(window_seconds: f64) -> String {
+    format!("−{} h", hours(window_seconds))
+}
+
+const SECONDS_PER_HOUR: f64 = 3600.0;
+
+fn hours(seconds: f64) -> f64 {
+    seconds / SECONDS_PER_HOUR
+}
+
+/// Names the temperature line for screen readers, with the current value.
+pub fn temperature_trend(current: &str) -> String {
+    pick(
+        format!("Temperaturverlauf, jetzt {current}"),
+        format!("Temperature trend, now {current}"),
+    )
+}
+
+pub fn trend_range(low: &str, high: &str) -> String {
+    format!("{low} … {high}")
+}
+
+/// What a trend held at the hovered time.
+pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
+    pick(
+        format!("vor {minutes_ago} min: {value}"),
+        format!("{minutes_ago} min ago: {value}"),
+    )
 }
 
 /// Asked before a reset to flat, in the EQ window.

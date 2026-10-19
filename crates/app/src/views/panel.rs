@@ -8,9 +8,11 @@ use neumann_control_core::settings::Linkable;
 use neumann_control_core::speaker::Command;
 
 use super::details;
+use super::trends::{self, TemperatureTrend, Trends};
 use crate::display::firmware_version;
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
+use crate::paths;
 use crate::state::SpeakerState;
 use crate::texts;
 
@@ -81,6 +83,8 @@ pub fn show(
             copy_to_group = copy_buttons(ui, groups);
             let commands = details::show(ui, speaker, catalog);
             ui.separator();
+            trends::show(ui, &trends_of(ui, speaker, catalog));
+            ui.separator();
             open_eq = has_eq && ui.button(texts::EQ).clicked();
             remove = ui.button(texts::REMOVE).clicked();
             commands
@@ -106,6 +110,27 @@ pub fn show(
         group,
         copy_to_group,
         open_eq,
+    }
+}
+
+/// The speaker's trends; the temperature only where the catalog lists it for the model.
+fn trends_of<'a>(ui: &Ui, speaker: &'a SpeakerState, catalog: &'a Catalog) -> Trends<'a> {
+    let path = paths::path(paths::TEMPERATURE);
+    let temperature = catalog
+        .entries_for(speaker.product())
+        .into_iter()
+        .find(|entry| entry.path == path)
+        .and_then(|entry| {
+            Some(TemperatureTrend {
+                trend: &speaker.temperature,
+                conversion: entry.conversion?,
+                label: entry.label(texts::language()),
+            })
+        });
+    Trends {
+        now: ui.input(|input| input.time),
+        temperature,
+        warnings: &speaker.warnings,
     }
 }
 
