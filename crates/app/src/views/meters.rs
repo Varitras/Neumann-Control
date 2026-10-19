@@ -190,7 +190,9 @@ fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, token
     }
     if let Some(line) = peak_line(track, level, peak) {
         let color = zone_color(zone(level_at(peak, floor)), tokens);
-        painter.rect_filled(line, CornerRadius::ZERO, color);
+        // Round ends, so the line reads as a mark and not as a thin segment.
+        let round = CornerRadius::same((PEAK_LINE_HEIGHT / 2.0) as u8);
+        painter.rect_filled(line, round, color);
     }
 }
 
