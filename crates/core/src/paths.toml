@@ -543,7 +543,7 @@ class = "subwoofer"
 
 # EQ containers (measured 2026-10-19: KH 120 II eq2 10 bands, eq3 20; KH 750 eq2/eq3 10 on
 # out, out1, out2, eq1/in1|in2 2 = crossover of input A|B). Writes measured (write, read back,
-# restore) on every container except the crossovers of out1 and out2.
+# restore) on every container.
 
 [[eq]]
 container = "audio/out/eq2"
@@ -592,12 +592,14 @@ container = "audio/out1/eq1/in1"
 label = "Weiche A"
 label_en = "Crossover A"
 class = "subwoofer"
+writable_on = ["KH 750"]
 
 [[eq]]
 container = "audio/out1/eq1/in2"
 label = "Weiche B"
 label_en = "Crossover B"
 class = "subwoofer"
+writable_on = ["KH 750"]
 
 [[eq]]
 container = "audio/out2/eq2"
@@ -618,9 +620,11 @@ container = "audio/out2/eq1/in1"
 label = "Weiche A"
 label_en = "Crossover A"
 class = "subwoofer"
+writable_on = ["KH 750"]
 
 [[eq]]
 container = "audio/out2/eq1/in2"
 label = "Weiche B"
 label_en = "Crossover B"
 class = "subwoofer"
+writable_on = ["KH 750"]

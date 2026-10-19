@@ -145,8 +145,7 @@ fn undo_of_a_band_edit_writes_that_band_back() {
 }
 
 #[test]
-fn a_read_only_container_has_no_editable_fields() {
-    // The crossovers of outputs 1 and 2 are not measured yet and stay read-only.
+fn the_crossovers_of_the_outputs_can_be_edited() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
     // "Ausgang 1" is also a heading in the device panel; the choice is a button.
     harness
@@ -155,7 +154,7 @@ fn a_read_only_container_has_no_editable_fields() {
     harness.run_steps(2);
     harness.get_by_label("Weiche A").click();
     harness.run_steps(2);
-    assert_eq!(gain_fields(&harness), vec![true; 2]);
+    assert_eq!(gain_fields(&harness), vec![false; 2]);
 }
 
 #[test]

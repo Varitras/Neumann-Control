@@ -329,11 +329,13 @@ fn eq_containers_per_model() {
     assert!(has(MONITOR, "audio/out/eq3/frequency"));
     assert!(!has(MONITOR, "audio/out1/eq2/gain"));
     assert!(entry("audio/out/eq2/gain").is_writable(SUBWOOFER));
-    // Writes measured 2026-10-19 on every container except the crossovers of outputs 1 and 2.
+    // Writes measured 2026-10-19 on every container of both models.
     assert!(entry("audio/out/eq3/gain").is_writable(MONITOR));
     assert!(entry("audio/out2/eq3/gain").is_writable(SUBWOOFER));
     assert!(entry("audio/out/eq1/in2/gain").is_writable(SUBWOOFER));
-    assert!(!entry("audio/out1/eq1/in1/gain").is_writable(SUBWOOFER));
+    assert!(entry("audio/out1/eq1/in1/gain").is_writable(SUBWOOFER));
+    assert!(entry("audio/out2/eq1/in2/gain").is_writable(SUBWOOFER));
+    assert!(!entry("audio/out/eq2/gain").is_writable(UNKNOWN_PRODUCT));
     assert!(entry("audio/out/eq2/gain").bands);
 }
 
