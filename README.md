@@ -282,8 +282,8 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
 - On the KH 750, auto standby is shown but not written: it follows the AUTO STANDBY switch on the
   back, and the speaker refuses writes to it.
 - Models other than the KH 120 II and the KH 750 are read-only.
-- EQ writes are verified on "EQ 2" of the output (`audio/out/eq2`) so far; the other EQs and the
-  crossover are shown but not written yet.
+- On the KH 750 the crossovers of Output 1 and Output 2 are shown but not written yet; their
+  writes are untested. Every other EQ can be edited.
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.
 

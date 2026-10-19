@@ -146,10 +146,24 @@ fn undo_of_a_band_edit_writes_that_band_back() {
 
 #[test]
 fn a_read_only_container_has_no_editable_fields() {
+    // The crossovers of outputs 1 and 2 are not measured yet and stay read-only.
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    // "Ausgang 1" is also a heading in the device panel; the choice is a button.
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_OUTPUT_1.get())
+        .click();
+    harness.run_steps(2);
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert_eq!(gain_fields(&harness), vec![true; 2]);
+}
+
+#[test]
+fn the_kh120_eq3_can_be_edited() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     harness.get_by_label("EQ 3").click();
     harness.run_steps(2);
-    assert_eq!(gain_fields(&harness), vec![true; 20]);
+    assert_eq!(gain_fields(&harness), vec![false; 20]);
 }
 
 #[test]
