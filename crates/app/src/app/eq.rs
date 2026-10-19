@@ -218,9 +218,9 @@ impl NeumannApp {
             EqAction::Graph(GraphAction::Move {
                 band,
                 frequency,
-                gain,
+                boost,
             }) => {
-                let writes = [(Leaf::Frequency, frequency), (Leaf::Gain, gain)];
+                let writes = [(Leaf::Frequency, frequency), (Leaf::Boost, boost)];
                 for (leaf, value) in writes {
                     if let Some(value) = value {
                         self.write_band(index, band, leaf, Value::from(value), now);

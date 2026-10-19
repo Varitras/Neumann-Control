@@ -1,5 +1,6 @@
 //! The magnitude response of EQ bands, computed from their settings (not measured): analog
-//! prototypes of the usual filter shapes, so no sample rate has to be assumed.
+//! prototypes of the usual filter shapes, so no sample rate has to be assumed. Measured on the
+//! KH 750: a band's `gain` lifts every frequency, its `boost` is the height of the filter.
 
 use crate::eq::Band;
 
@@ -34,17 +35,17 @@ pub fn band_db(band: &Band, frequency: f64) -> f64 {
         return 0.0;
     }
     let x = frequency / band.frequency;
-    let Some((scale, numerator, denominator)) = transfer(band) else {
-        return 0.0;
-    };
-    let magnitude = scale * numerator.magnitude(x) / denominator.magnitude(x);
-    20.0 * magnitude.log10()
+    let shape = transfer(band).map_or(0.0, |(scale, numerator, denominator)| {
+        let magnitude = scale * numerator.magnitude(x) / denominator.magnitude(x);
+        20.0 * magnitude.log10()
+    });
+    band.gain + shape
 }
 
 /// Numerator and denominator of the shape (RBJ audio EQ cookbook, analog form), with a factor.
 fn transfer(band: &Band) -> Option<(f64, Quadratic, Quadratic)> {
     let q = band.q;
-    let a = 10f64.powf(band.effective_gain() / 40.0);
+    let a = 10f64.powf(band.boost / 40.0);
     let resonant = Quadratic::new(1.0, 1.0 / q, 1.0);
     let first_order = Quadratic::new(0.0, 1.0, 1.0);
     let shelf_slope = a.sqrt() / q;
@@ -66,7 +67,8 @@ fn transfer(band: &Band) -> Option<(f64, Quadratic, Quadratic)> {
         ),
         "LOWPASS" => (1.0, Quadratic::new(0.0, 0.0, 1.0), resonant),
         "HIGHPASS" => (1.0, Quadratic::new(1.0, 0.0, 0.0), resonant),
-        "BANDPASS" => (1.0, Quadratic::new(0.0, 1.0 / q, 0.0), resonant),
+        // Measured: the centre is 20·log10(Q) dB, the constant-skirt form.
+        "BANDPASS" => (1.0, Quadratic::new(0.0, 1.0, 0.0), resonant),
         "NOTCH" => (1.0, Quadratic::new(1.0, 0.0, 1.0), resonant),
         "LO6DB" => (1.0, Quadratic::new(0.0, 0.0, 1.0), first_order),
         "HI6DB" => (1.0, Quadratic::new(0.0, 1.0, 0.0), first_order),
@@ -99,11 +101,12 @@ mod tests {
 
     use super::*;
 
-    fn band(kind: &str, gain: f64, frequency: f64, q: f64) -> Band {
+    /// A band with `boost`, the filter's height; its flat `gain` is 0.
+    fn band(kind: &str, boost: f64, frequency: f64, q: f64) -> Band {
         Band {
             enabled: true,
-            gain,
-            boost: 0.0,
+            gain: 0.0,
+            boost,
             frequency,
             q,
             kind: kind.to_owned(),
@@ -155,7 +158,9 @@ mod tests {
     #[test]
     fn notch_and_band_pass() {
         assert!(band_db(&band("NOTCH", 0.0, 1000.0, 2.0), 1000.0) < -60.0);
-        close(band_db(&band("BANDPASS", 0.0, 1000.0, 2.0), 1000.0), 0.0);
+        // Measured on the KH 750: the band pass peaks at 20·log10(Q), +6 dB for Q 2.
+        close(band_db(&band("BANDPASS", 0.0, 50.0, 2.0), 50.0), 6.02);
+        close(band_db(&band("BANDPASS", 0.0, 50.0, 2.0), 200.0), -11.56);
     }
 
     #[test]
@@ -166,10 +171,22 @@ mod tests {
     }
 
     #[test]
-    fn boost_adds_to_gain() {
-        let mut boosted = band("PARAMETRIC", 3.0, 1000.0, 1.0);
-        boosted.boost = 3.0;
-        close(band_db(&boosted, 1000.0), 6.0);
+    fn gain_lifts_every_frequency() {
+        let mut lifted = band("PARAMETRIC", 0.0, 1000.0, 1.0);
+        lifted.gain = 6.0;
+        close(band_db(&lifted, 10.0), 6.0);
+        close(band_db(&lifted, 20000.0), 6.0);
+        let mut low_pass = band("LOWPASS", 0.0, 200.0, FRAC_1_SQRT_2);
+        low_pass.gain = 6.0;
+        close(band_db(&low_pass, 20.0), 6.0);
+    }
+
+    #[test]
+    fn gain_and_boost_add_at_the_band_frequency() {
+        let mut both = band("PARAMETRIC", 3.0, 1000.0, 1.0);
+        both.gain = 3.0;
+        close(band_db(&both, 1000.0), 6.0);
+        close(band_db(&both, 10.0), 3.0);
     }
 
     #[test]

@@ -14,8 +14,10 @@ use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
 use support::*;
 
-const GAIN_LABEL: &str = "Verstärkung";
+const GAIN_LABEL: &str = "Pegel";
+const BOOST_LABEL: &str = "Anhebung";
 const GAIN_POINTER: &str = "/audio/out/eq2/gain";
+const BOOST_POINTER: &str = "/audio/out/eq2/boost";
 const FREQUENCY_POINTER: &str = "/audio/out/eq2/frequency";
 
 /// Ten bands spread over the range, so every point has its own place.
@@ -58,15 +60,17 @@ fn the_eq_button_opens_the_window_with_both_containers() {
 }
 
 #[test]
-fn dragging_a_point_writes_frequency_and_gain_of_that_band_only() {
+fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
     let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(3)).rect().center();
     drag(&mut harness, point, egui::vec2(30.0, -40.0));
     wait_until(&mut harness, "the band writes", |_| {
-        !sets(&simulator, GAIN_POINTER).is_empty()
+        !sets(&simulator, BOOST_POINTER).is_empty()
             && !sets(&simulator, FREQUENCY_POINTER).is_empty()
     });
-    let gain = sets(&simulator, GAIN_POINTER)[0].clone();
+    // The flat gain stays: dragging a point shapes the filter, not the level of everything.
+    assert!(sets(&simulator, GAIN_POINTER).is_empty());
+    let gain = sets(&simulator, BOOST_POINTER)[0].clone();
     let entries = gain.as_array().unwrap();
     assert_eq!(entries.len(), 10);
     let only_band_3 = entries
@@ -89,11 +93,11 @@ fn a_drag_beyond_the_edge_stays_in_the_limits() {
     drag(&mut harness, point, egui::vec2(2000.0, -2000.0));
     wait_until(&mut harness, "the band writes", |_| {
         !sets(&simulator, FREQUENCY_POINTER).is_empty()
-            && !sets(&simulator, GAIN_POINTER).is_empty()
+            && !sets(&simulator, BOOST_POINTER).is_empty()
     });
     let frequency = sets(&simulator, FREQUENCY_POINTER)[0][9].as_f64().unwrap();
     assert!(frequency <= 24000.0, "{frequency}");
-    let gain = sets(&simulator, GAIN_POINTER)[0][9].as_f64().unwrap();
+    let gain = sets(&simulator, BOOST_POINTER)[0][9].as_f64().unwrap();
     assert!(gain <= 24.0, "{gain}");
 }
 
@@ -128,16 +132,16 @@ fn undo_of_a_band_edit_writes_that_band_back() {
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
     wait_until(&mut harness, "the gain write", |_| {
-        !sets(&simulator, GAIN_POINTER).is_empty()
+        !sets(&simulator, BOOST_POINTER).is_empty()
     });
     let id = harness.state().history().newest_open().unwrap();
     harness.state_mut().request_take_back(id);
     wait_until(&mut harness, "the gain written back", |_| {
-        sets(&simulator, GAIN_POINTER).len() == 2
+        sets(&simulator, BOOST_POINTER).len() == 2
     });
     let mut expected = vec![Value::Null; 10];
     expected[1] = json!(0.0);
-    assert_eq!(sets(&simulator, GAIN_POINTER)[1], Value::Array(expected));
+    assert_eq!(sets(&simulator, BOOST_POINTER)[1], Value::Array(expected));
 }
 
 #[test]
@@ -151,7 +155,8 @@ fn a_read_only_container_has_no_editable_fields() {
 #[test]
 fn the_crossover_is_shown_on_the_kh750() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh750);
-    harness.get_by_label("Weiche 1");
+    harness.get_by_label("Weiche A");
+    harness.get_by_label("Weiche B");
     harness.get_by_label(texts::EQ_OUTPUT_ALL.get());
 }
 
@@ -170,11 +175,11 @@ fn a_band_change_reads_as_one_band_in_the_history() {
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
     wait_until(&mut harness, "the gain write", |_| {
-        !sets(&simulator, GAIN_POINTER).is_empty()
+        !sets(&simulator, BOOST_POINTER).is_empty()
     });
     harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     harness.get_by_label(texts::HISTORY.get()).click();
     harness.run_steps(2);
-    harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, GAIN_LABEL));
+    harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
 }

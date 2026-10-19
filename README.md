@@ -184,14 +184,16 @@ its rows. Scanning and adding speakers or groups stay on the desk.
 **EQ** in a speaker's device panel opens its EQ in a window of its own (one per speaker; it can
 be moved to another screen). On the KH 750 choose the output first (Overall, Output 1,
 Output 2); then each EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the
-crossover ("Crossover 1", "Crossover 2").
+crossovers of input A and input B ("Crossover A", "Crossover B").
 
 - The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
-  10 Hz to 24 kHz. The curves are computed from the settings, not measured. A band's level is
-  its gain plus its boost.
+  10 Hz to 24 kHz. The curves are computed from the settings, not measured. Each band has two
+  levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
+  height of its filter (the peak or shelf); at the band's frequency both add up.
 - Each band of the chosen EQ is a point: filled when on, hollow when off. Drag it to change
-  frequency and gain, turn the mouse wheel over it to change Q.
-- The table below lists every band with on/off, type, frequency, Q, gain and boost; numbers take
+  frequency and boost, turn the mouse wheel over it to change Q. Level is changed in the table
+  only, so a drag never moves the whole spectrum.
+- The table below lists every band with on/off, type, frequency, Q, level and boost; numbers take
   a comma or a point, and a value outside the allowed range is refused with the reason.
 - A change is written when the gesture ends, and only for that one band, so the other bands
   stay as they are. Every change appears in the history and can be undone.

@@ -542,7 +542,7 @@ class = "subwoofer"
 
 
 # EQ containers (measured 2026-10-19: KH 120 II eq2 10 bands, eq3 20; KH 750 eq2/eq3 10 on
-# out, out1, out2, eq1/in1|in2 2 = crossover). Writes measured on `audio/out/eq2` only so far.
+# out, out1, out2, eq1/in1|in2 2 = crossover of input A|B). Writes measured on `audio/out/eq2` only so far.
 
 [[eq]]
 container = "audio/out/eq2"
@@ -559,14 +559,14 @@ class = "all"
 
 [[eq]]
 container = "audio/out/eq1/in1"
-label = "Weiche 1"
-label_en = "Crossover 1"
+label = "Weiche A"
+label_en = "Crossover A"
 class = "subwoofer"
 
 [[eq]]
 container = "audio/out/eq1/in2"
-label = "Weiche 2"
-label_en = "Crossover 2"
+label = "Weiche B"
+label_en = "Crossover B"
 class = "subwoofer"
 
 [[eq]]
@@ -583,14 +583,14 @@ class = "subwoofer"
 
 [[eq]]
 container = "audio/out1/eq1/in1"
-label = "Weiche 1"
-label_en = "Crossover 1"
+label = "Weiche A"
+label_en = "Crossover A"
 class = "subwoofer"
 
 [[eq]]
 container = "audio/out1/eq1/in2"
-label = "Weiche 2"
-label_en = "Crossover 2"
+label = "Weiche B"
+label_en = "Crossover B"
 class = "subwoofer"
 
 [[eq]]
@@ -607,12 +607,12 @@ class = "subwoofer"
 
 [[eq]]
 container = "audio/out2/eq1/in1"
-label = "Weiche 1"
-label_en = "Crossover 1"
+label = "Weiche A"
+label_en = "Crossover A"
 class = "subwoofer"
 
 [[eq]]
 container = "audio/out2/eq1/in2"
-label = "Weiche 2"
-label_en = "Crossover 2"
+label = "Weiche B"
+label_en = "Crossover B"
 class = "subwoofer"

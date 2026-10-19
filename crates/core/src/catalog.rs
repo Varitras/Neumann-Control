@@ -391,7 +391,8 @@ impl EqContainer {
     }
 }
 
-/// One of the six leaves every EQ container has.
+/// One of the six leaves every EQ container has. Measured on the KH 750: `gain` lifts every
+/// frequency ("Pegel"), `boost` is the filter's height ("Anhebung").
 struct EqLeaf {
     name: &'static str,
     label: &'static str,
@@ -420,8 +421,8 @@ const EQ_LEAVES: [EqLeaf; 6] = [
     },
     EqLeaf {
         name: "gain",
-        label: "Verstärkung",
-        label_en: "Gain",
+        label: "Pegel",
+        label_en: "Level",
         kind: Kind::Number,
         min: Some(EQ_GAIN_MIN_DB),
         max: Some(EQ_GAIN_MAX_DB),
@@ -430,7 +431,7 @@ const EQ_LEAVES: [EqLeaf; 6] = [
     },
     EqLeaf {
         name: "boost",
-        label: "Boost",
+        label: "Anhebung",
         label_en: "Boost",
         kind: Kind::Number,
         min: Some(EQ_GAIN_MIN_DB),

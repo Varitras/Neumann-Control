@@ -62,11 +62,12 @@ pub struct Graph<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GraphAction {
     Select(usize),
-    /// A drag ended; only the values it changed are given.
+    /// A drag ended; only the values it changed are given. A drag moves the filter (`boost`);
+    /// the band's flat `gain` stays.
     Move {
         band: usize,
         frequency: Option<f64>,
-        gain: Option<f64>,
+        boost: Option<f64>,
     },
     Q {
         band: usize,
@@ -255,15 +256,15 @@ fn moved(
 ) -> Option<GraphAction> {
     let frequency = snapped_frequency(axes.frequency(end.x));
     let range = &graph.gain_range;
-    let gain =
-        on_grid(axes.db(end.y) - point.boost, GAIN_GRID_DB).clamp(*range.start(), *range.end());
+    let boost = on_grid(axes.db(end.y) - point.gain, GAIN_GRID_DB);
+    let boost = boost.clamp(*range.start(), *range.end());
     let frequency = (frequency != snapped_frequency(point.frequency)).then_some(frequency);
-    let gain = (gain != on_grid(point.gain, GAIN_GRID_DB)).then_some(gain);
-    let changed = frequency.is_some() || gain.is_some();
+    let boost = (boost != on_grid(point.boost, GAIN_GRID_DB)).then_some(boost);
+    let changed = frequency.is_some() || boost.is_some();
     changed.then_some(GraphAction::Move {
         band,
         frequency,
-        gain,
+        boost,
     })
 }
 

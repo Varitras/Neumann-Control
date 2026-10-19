@@ -55,13 +55,6 @@ pub struct Band {
     pub kind: String,
 }
 
-impl Band {
-    /// Measured on the KH 750: boost acts like gain and adds to it.
-    pub fn effective_gain(&self) -> f64 {
-        self.gain + self.boost
-    }
-}
-
 /// The bands of `container`; `None` unless all six leaves are reported as arrays of one length
 /// with the right element types, so a strange report is shown read-only and never written.
 pub fn bands_of(values: &BTreeMap<SscPath, Value>, container: &SscPath) -> Option<Vec<Band>> {
@@ -179,7 +172,6 @@ mod tests {
             }
         );
         assert_eq!(bands[1].kind, "NOTCH");
-        assert_eq!(bands[0].effective_gain(), 4.0);
     }
 
     #[test]
