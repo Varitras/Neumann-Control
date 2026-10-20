@@ -183,13 +183,17 @@ pub fn parse_line(line: &[u8]) -> Result<Value, WireError> {
 }
 
 /// Builds a request line without terminator. The transaction id lives under `osc`; a path
-/// that itself starts with `osc` shares that object.
+/// that itself starts with `osc` shares that object. A request the id would push over
+/// `MAX_REQUEST_TOKENS` (a 20-band EQ list) goes without it; its reply is matched by its path.
 pub fn request_line(path: &SscPath, value: Value, xid: u64) -> String {
     let nested = path.segments().iter().rev().fold(value, |inner, segment| {
         Value::Object(Map::from_iter([(segment.clone(), inner)]))
     });
     let mut request = serde_json::json!({ OSC_KEY: { XID_KEY: xid } });
-    merge(&mut request, nested);
+    merge(&mut request, nested.clone());
+    if token_count(&request) > MAX_REQUEST_TOKENS {
+        return nested.to_string();
+    }
     request.to_string()
 }
 
