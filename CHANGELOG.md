@@ -46,6 +46,8 @@
 
 ### Fixed
 
+- The EQ graph drew shelving filters too steep, with an overshoot the speaker does not have: their
+  Q is the shelf's slope.
 - A value that rounds to zero showed a minus ("-0 dB").
 - Number fields with a converted unit showed the device's unit as well ("0 1/48 kHz ms").
 

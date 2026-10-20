@@ -210,7 +210,8 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
 - The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
   10 Hz to 24 kHz. The curves are computed from the settings, not measured. Each band has two
   levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
-  height of its filter (the peak or shelf); at the band's frequency both add up.
+  height of its filter (the peak or shelf); at the band's frequency both add up. For a shelving
+  filter the speakers' **Q** is its slope (1 is the steepest without overshoot), as measured.
 - Each band of the chosen EQ that is on is a point in its band's colour with its number inside;
   bands that are off have none and are switched on in the table. Drag a point to change
   frequency and boost, turn the mouse wheel over it to change Q. Level is changed in the table
