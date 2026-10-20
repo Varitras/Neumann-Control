@@ -41,6 +41,16 @@ fn pick<T>(german: T, english: T) -> T {
 /// A number as written in the language: a decimal comma in German, a point in English. Typed
 /// values accept both (`gesture::typed_value`).
 pub fn number_text(text: String) -> String {
+    // A value that shows as zero has no sign: the speakers report -0.0, and -0.04 rounds to "-0.0".
+    let shows_zero = text.strip_prefix('-').is_some_and(|rest| {
+        rest.chars()
+            .all(|character| character == '0' || character == '.')
+    });
+    let text = if shows_zero {
+        text[1..].to_owned()
+    } else {
+        text
+    };
     match language() {
         Language::German => text.replace('.', ","),
         Language::English => text,
@@ -702,7 +712,7 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
 
 /// The Windows volume under its fader: "52 %".
 pub fn percent(value: f64) -> String {
-    format!("{} %", value.round())
+    format!("{} %", number_text(value.round().to_string()))
 }
 
 /// An EQ preset in the load dialog: its name and band count.
@@ -763,6 +773,17 @@ mod tests {
             history_value(&value, Some("dB")).replace(',', "."),
             "0 / -20.5 dB"
         );
+    }
+
+    #[test]
+    fn a_value_that_shows_as_zero_has_no_minus() {
+        let plain = |text: String| text.replace(',', ".");
+        assert_eq!(number(-0.0), "0");
+        assert_eq!(plain(one_decimal(-0.04)), "0.0");
+        assert_eq!(plain(two_decimals(-0.001)), "0.00");
+        assert_eq!(percent(-0.2), "0 %");
+        assert_eq!(plain(one_decimal(-0.06)), "-0.1");
+        assert_eq!(number(-2.5).replace(',', "."), "-2.5");
     }
 
     #[test]
