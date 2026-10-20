@@ -663,3 +663,60 @@ fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
             .is_some()
     });
 }
+
+const LEVEL_POINTER: &str = "/audio/out/level";
+
+#[test]
+fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
+    let (simulator, directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    harness.get_by_label(texts::SAVE_PRESET.get()).click();
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .type_text("Evening");
+    harness.run_steps(1);
+    let delay = harness
+        .query_all_by_role(Role::CheckBox)
+        .find(|node| {
+            node.accesskit_node()
+                .label()
+                .is_some_and(|label| label.starts_with("Verzögerung"))
+        })
+        .expect("the delay row");
+    delay.click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    let saved = neumann_control_core::settings::load(&directory.path().join("settings.json"));
+    assert_eq!(saved.presets.len(), 1);
+    let preset = &saved.presets[0];
+    assert_eq!(preset.name, "Evening");
+    assert!(preset.values.contains_key("audio/out/level"));
+    assert!(!preset.values.contains_key("audio/out/delay"));
+    assert!(!preset.values.contains_key("device/name"));
+
+    simulator.set_value("audio/out/level", json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    let entries_before = harness.state().history().len();
+    if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
+        open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+    }
+    harness.get_by_label(texts::LOAD_PRESET.get()).click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .click();
+    // The preview grows the dialog, which centres itself again over a few frames.
+    harness.run_steps(6);
+    harness.get_by_label_contains("Pegel: ");
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    wait_until(&mut harness, "the level written back", |_| {
+        sets_to(&simulator, LEVEL_POINTER).contains(&json!(100.0))
+    });
+    harness.run_steps(2);
+    assert_eq!(harness.state().history().len(), entries_before + 1);
+}

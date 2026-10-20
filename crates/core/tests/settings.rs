@@ -1,6 +1,7 @@
 use neumann_control_core::settings::{
-    load, save, CrossoverGuard, DeskSettings, GroupSettings, Language, LanguageChoice, Linkable,
-    ManualSpeaker, MeterFloor, Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, save, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language, LanguageChoice,
+    Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, ThemeChoice, WindowGeometry,
+    SETTINGS_FILE,
 };
 use std::fs;
 
@@ -305,4 +306,33 @@ fn crossovers_stay_protected_unless_opened_on_purpose() {
     assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
     fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"Open"}}"#).unwrap();
     assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Open);
+}
+
+#[test]
+fn presets_round_trip_and_a_broken_one_is_left_out() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let settings = Settings {
+        presets: vec![SettingsPreset {
+            name: "Night".to_owned(),
+            product: "KH 120 II".to_owned(),
+            values: [("audio/out/level".to_owned(), serde_json::json!(80.0))].into(),
+        }],
+        eq_presets: vec![EqPreset {
+            name: "Flat-ish".to_owned(),
+            bands: 2,
+            leaves: [("gain".to_owned(), serde_json::json!([0.0, 1.0]))].into(),
+        }],
+        ..Settings::default()
+    };
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path), settings);
+    fs::write(
+        &path,
+        r#"{"manual":[],"presets":[{"name":"ok","product":"KH 750","values":{}},{"name":3}],"eq_presets":"no"}"#,
+    )
+    .unwrap();
+    let loaded = load(&path);
+    assert_eq!(loaded.presets.len(), 1);
+    assert!(loaded.eq_presets.is_empty());
 }

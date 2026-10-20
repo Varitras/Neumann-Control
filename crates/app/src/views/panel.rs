@@ -34,6 +34,8 @@ pub struct PanelResponse {
     /// A linked setting whose value goes to the other members.
     pub copy_to_group: Option<Linkable>,
     pub open_eq: bool,
+    pub save_preset: bool,
+    pub load_preset: bool,
 }
 
 /// The groups the speaker could be in, which one it is in, and what that group links.
@@ -58,6 +60,8 @@ pub fn show(
     let mut group = None;
     let mut copy_to_group = None;
     let mut open_eq = false;
+    let mut save_preset = false;
+    let mut load_preset = false;
     let has_eq = has_eq(catalog, speaker);
     // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
     // drops the focus at the start of the Escape frame, so the last frame's state decides.
@@ -85,6 +89,10 @@ pub fn show(
             ui.separator();
             trends::show(ui, &trends_of(ui, speaker, catalog));
             ui.separator();
+            ui.horizontal(|ui| {
+                save_preset = ui.button(texts::SAVE_PRESET).clicked();
+                load_preset = ui.button(texts::LOAD_PRESET).clicked();
+            });
             open_eq = has_eq && ui.button(texts::EQ).clicked();
             remove = ui.button(texts::REMOVE).clicked();
             commands
@@ -110,6 +118,8 @@ pub fn show(
         group,
         copy_to_group,
         open_eq,
+        save_preset,
+        load_preset,
     }
 }
 

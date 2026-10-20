@@ -36,6 +36,7 @@ mod desk;
 mod eq;
 mod full_scan;
 mod history;
+mod preset_dialogs;
 
 pub use history::TakeBackNotice;
 
@@ -84,6 +85,7 @@ pub struct NeumannApp {
     window: Option<WindowGeometry>,
     history: history::HistoryState,
     eq_windows: Vec<eq::EqWindow>,
+    preset_dialog: Option<preset_dialogs::PresetDialog>,
     /// What "like Windows" means, asked of Windows at the start.
     system_language: Language,
 }
@@ -131,6 +133,7 @@ impl NeumannApp {
             settings_open: false,
             history: history::HistoryState::default(),
             eq_windows: Vec::new(),
+            preset_dialog: None,
             system_language,
         };
         app.sync_targets();
@@ -372,6 +375,7 @@ impl NeumannApp {
         self.show_dialog(ui);
         self.show_scan_choice(ui);
         self.show_removal(ui);
+        self.show_preset_dialog(ui);
         self.show_settings(ui);
         self.show_group_dialog(ui);
         self.show_all_values(ui.ctx());
@@ -450,8 +454,15 @@ impl NeumannApp {
                 name: speaker.display_name(),
             });
         }
+        let key = speaker.key.clone();
         if response.open_eq {
-            self.open_eq(speaker.key.clone());
+            self.open_eq(key.clone());
+        }
+        if response.save_preset {
+            self.open_preset_save(key.clone());
+        }
+        if response.load_preset {
+            self.open_preset_load(key);
         }
         if response.close || response.remove {
             self.panel = None;

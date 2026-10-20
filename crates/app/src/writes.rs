@@ -38,6 +38,21 @@ pub enum Intent {
 }
 
 impl Intent {
+    /// Writing a stored value back (undo, a preset): the output level as a level, so the
+    /// fader holds it like after a gesture; anything else as it is.
+    pub fn restoring(path: &SscPath, value: Value) -> Intent {
+        let level = value
+            .as_f64()
+            .filter(|_| *path == paths::path(paths::OUTPUT_LEVEL));
+        match level {
+            Some(level) => Intent::Level(level),
+            None => Intent::Write {
+                path: path.clone(),
+                value,
+            },
+        }
+    }
+
     pub fn path(&self) -> SscPath {
         match self {
             Intent::Toggle(switch) => switch.path(),

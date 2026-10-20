@@ -227,6 +227,19 @@ pub const PLAYED_CHANNEL: Text = Text::new(
 );
 
 pub const ALL_VALUES: Text = Text::new("Alle Werte…", "All values…");
+pub const SAVE_PRESET: Text = Text::new("Als Preset speichern…", "Save as preset…");
+pub const LOAD_PRESET: Text = Text::new("Preset laden…", "Load preset…");
+pub const SAVE_PRESET_TITLE: Text = Text::new("Einstellungen als Preset", "Settings as a preset");
+pub const LOAD_PRESET_TITLE: Text = Text::new("Preset laden", "Load a preset");
+pub const PRESET_NAME: Text = Text::new("Name des Presets", "Preset name");
+pub const SAVE: Text = Text::new("Speichern", "Save");
+pub const WRITE_PRESET: Text = Text::new("Schreiben", "Write");
+pub const DELETE_PRESET: Text = Text::new("Löschen", "Delete");
+pub const NO_PRESETS: Text = Text::new("Noch keine Presets.", "No presets yet.");
+pub const PRESET_UNCHANGED: Text = Text::new(
+    "Der Lautsprecher hat schon die Werte des Presets.",
+    "The speaker already has the preset's values.",
+);
 pub const FULL_SCAN: Text = Text::new("Komplett scannen", "Full scan");
 pub const FULL_SCAN_RUNNING: Text = Text::new("Scan läuft …", "Scanning …");
 pub const APPLY: Text = Text::new("Übernehmen", "Apply");
@@ -592,6 +605,28 @@ pub fn frequency_mark(hertz: f64) -> String {
 /// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
+}
+
+/// A setting in the save dialog: "Pegel: 85 dB SPL".
+pub fn preset_row(setting: &str, value: &str) -> String {
+    format!("{setting}: {value}")
+}
+
+/// A preset in the load dialog.
+pub fn preset_entry(name: &str, product: &str) -> String {
+    format!("{name} ({product})")
+}
+
+/// One write of a loaded preset: "Pegel: 85 dB SPL → 90 dB SPL".
+pub fn preset_change(setting: &str, current: &str, preset: &str) -> String {
+    format!("{setting}: {current} → {preset}")
+}
+
+pub fn preset_skipped(paths: &[String]) -> String {
+    pick(
+        format!("Übersprungen, hier nicht schreibbar: {}", paths.join(", ")),
+        format!("Skipped, not writable here: {}", paths.join(", ")),
+    )
 }
 
 /// Where the full scan's report went.

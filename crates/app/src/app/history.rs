@@ -95,6 +95,7 @@ impl NeumannApp {
             || self.scan_choice.is_some()
             || self.group_draft.is_some()
             || self.history.question.is_some()
+            || self.preset_dialog.is_some()
     }
 
     pub(super) fn show_history(&mut self, ui: &mut Ui) {
@@ -391,17 +392,7 @@ fn send_before(
         return None;
     }
     let before = change.before.clone()?;
-    let level = before
-        .as_f64()
-        .filter(|_| change.path == paths::path(paths::OUTPUT_LEVEL));
-    let intent = match level {
-        Some(level) => Intent::Level(level),
-        None => Intent::Write {
-            path: change.path.clone(),
-            value: before,
-        },
-    };
-    speaker.request(intent, catalog, now)
+    speaker.request(Intent::restoring(&change.path, before), catalog, now)
 }
 
 fn clock_now() -> ClockTime {

@@ -14,6 +14,7 @@ mod knob;
 mod meters;
 mod number_field;
 pub mod panel;
+pub mod preset_dialog;
 pub mod remove_speaker;
 pub mod scan_choice;
 pub mod settings_dialog;

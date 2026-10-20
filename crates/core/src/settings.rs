@@ -1,6 +1,7 @@
 //! Persistent settings stored next to the executable.
 
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Write};
@@ -39,6 +40,29 @@ pub struct Settings {
     /// Speaker identities (`serial:<serial>` or `address:<address>`) in the order of the desk.
     #[serde(deserialize_with = "or_default")]
     pub order: Vec<String>,
+    #[serde(deserialize_with = "readable_items")]
+    pub presets: Vec<SettingsPreset>,
+    #[serde(deserialize_with = "readable_items")]
+    pub eq_presets: Vec<EqPreset>,
+}
+
+/// Chosen settings of a speaker under a name, to write to it or another speaker later.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsPreset {
+    pub name: String,
+    /// The product it was saved from, shown with the name.
+    pub product: String,
+    /// SSC path → value.
+    pub values: BTreeMap<String, serde_json::Value>,
+}
+
+/// One EQ container's bands under a name: its six leaves, each an array of `bands` entries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EqPreset {
+    pub name: String,
+    pub bands: usize,
+    /// Leaf name (`gain`, `boost`, ...) → array.
+    pub leaves: BTreeMap<String, serde_json::Value>,
 }
 
 impl Settings {
@@ -240,7 +264,12 @@ where
     D: Deserializer<'de>,
     T: DeserializeOwned,
 {
-    let items = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    // A value that is not a list at all loses only this list, not the whole file.
+    let serde_json::Value::Array(items) = serde_json::Value::deserialize(deserializer)? else {
+        log::warn!("a settings list is not a list; left out");
+        NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
+        return Ok(Vec::new());
+    };
     let total = items.len();
     let readable: Vec<T> = items
         .into_iter()

@@ -10,6 +10,7 @@ pub mod history;
 pub mod input_source;
 pub mod meter;
 pub mod paths;
+pub mod presets;
 pub mod scan_choice;
 pub mod scan_report;
 pub mod spawner;
