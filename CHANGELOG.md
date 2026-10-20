@@ -30,8 +30,11 @@
 - Each EQ band has its own colour and its number in its point; every band's own curve is drawn
   thin, the chosen band's with its area. Colours and which band curves show are set in the
   settings.
-- **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset" and EQ presets work on
-  the KH 750 crossovers too, with a warning.
+- **Import…** and **Export…** in the EQ window: filter lines of Equalizer APO and of Room EQ
+  Wizard's "Generic" export, with a preview and one history entry; export as APO lines. Shelving
+  filters are not taken over yet.
+- **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset", EQ presets
+  and the import work on the KH 750 crossovers too, with a warning.
 
 ### Changed
 

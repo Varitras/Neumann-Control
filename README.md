@@ -237,9 +237,22 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   the presets with the same number of bands, shows which bands change and writes them as one
   history entry. Writing several settings of a band one after another can pass a short level
   jump.
-- The crossovers are protected by default: no **Make flat**, no **Reset** and no EQ presets there. Switching off
-  **Protect crossovers** in **Settings** allows both, with a warning that the output then plays
-  unfiltered.
+- **Import…** reads the filter lines of an Equalizer APO `config.txt` or of a filter file Room EQ
+  Wizard exported for its "Generic" equaliser (`Filter 1: ON PK Fc 100 Hz Gain -3.0 dB Q 1.41`).
+  A filter with a number goes to that band, one without to the next band; bands the file does not
+  name are switched off. The file's `Gain` becomes the band's boost. Peaking (`PK`, `PEQ`,
+  `Modal`), low and high pass with Q (`LP`/`LPQ`, `HP`/`HPQ`), band pass (`BP`), notch (`NO`) and
+  all pass (`AP`) are taken over; `BW Oct` instead of Q is converted. Shelving filters are refused
+  for now, as are other types, a missing Q, more bands than the EQ has and values the speaker would
+  refuse: then nothing is written. `Preamp` and other APO commands are not taken over; the preview
+  names them. The preview shows which bands change before **Write** sends them as one history
+  entry.
+- **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band. Bands that are
+  off, a band's flat level, shelving filters and inversion have no APO line; they are written as
+  comments and listed after saving. Room EQ Wizard cannot load text filter files.
+- The crossovers are protected by default: no **Make flat**, no **Reset**, no EQ presets and no
+  **Import…** there. Switching off **Protect crossovers** in **Settings** allows them, with a
+  warning that the output then plays unfiltered.
 
 ### History and undo
 

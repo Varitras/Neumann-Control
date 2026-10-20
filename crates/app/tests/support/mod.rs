@@ -14,6 +14,7 @@ use eframe::egui;
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::file_dialog::FileDialog;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
@@ -114,14 +115,37 @@ fn build(
     Harness::builder()
         .with_size(WINDOW_SIZE)
         .build_eframe(move |creation_context| {
-            NeumannApp::new(
+            let mut app = NeumannApp::new(
                 &creation_context.egui_ctx,
                 settings_path,
                 Box::new(SimulatorSpawner { scan_result }),
                 Box::new(audio),
                 system,
-            )
+            );
+            // Never Windows' dialog in a test: it would wait for a click nobody makes.
+            app.set_file_dialog(Box::new(FakeFiles::default()));
+            app
         })
+}
+
+/// Stands in for the file dialog: hands out the paths the test chose (`None` is a cancel) and
+/// keeps the names the app suggested for saving.
+#[derive(Clone, Default)]
+pub struct FakeFiles {
+    pub open: Option<PathBuf>,
+    pub save: Option<PathBuf>,
+    pub suggested: Arc<Mutex<Vec<String>>>,
+}
+
+impl FileDialog for FakeFiles {
+    fn open(&mut self) -> Option<PathBuf> {
+        self.open.clone()
+    }
+
+    fn save(&mut self, suggested: &str) -> Option<PathBuf> {
+        self.suggested.lock().unwrap().push(suggested.to_owned());
+        self.save.clone()
+    }
 }
 
 /// What the fake playback devices hold and what the app asked of them.

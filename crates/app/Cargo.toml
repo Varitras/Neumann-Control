@@ -41,6 +41,9 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_PropertiesSystem",
 ] }
 
+# The Windows file dialog for the EQ import and export.
+rfd = { version = "0.17", default-features = false }
+
 [build-dependencies]
 # Puts the icon into the executable, for Explorer and the taskbar.
 winresource = "0.1"

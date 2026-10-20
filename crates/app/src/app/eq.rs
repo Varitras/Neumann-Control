@@ -3,7 +3,7 @@
 
 use eframe::egui::{Color32, Context, Id, ViewportId};
 use neumann_control_core::catalog::{Catalog, EqContainer, EQ_TYPES};
-use neumann_control_core::settings::CrossoverGuard;
+use neumann_control_core::settings::{CrossoverGuard, EqPreset};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -19,7 +19,7 @@ use crate::ui_kit::eq_palette::{band_color, curve_color, curve_key};
 use crate::ui_kit::theme::group_color;
 use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
-use crate::views::eq_window::{self, EqAction, EqView, PresetDialogView, ResetOffer};
+use crate::views::eq_window::{self, EqAction, EqView, ImportView, PresetDialogView, ResetOffer};
 use crate::writes::{self, Intent};
 
 const EQ_VIEWPORT_ID: &str = "eq_window";
@@ -39,6 +39,18 @@ pub(super) struct EqWindow {
     /// The speakers offered for comparison in the last frame, in the order shown.
     candidates: Vec<SpeakerKey>,
     preset: Option<EqPresetDialog>,
+    pub(super) import: Option<PendingImport>,
+    /// What the last export did, line by line.
+    pub(super) file_report: Vec<String>,
+}
+
+/// A filter file read for import, shown before it is written.
+pub(super) struct PendingImport {
+    pub(super) file: String,
+    /// `None` when the file cannot be imported; `refusal` says why.
+    pub(super) preset: Option<EqPreset>,
+    pub(super) notes: Vec<String>,
+    pub(super) refusal: Option<String>,
 }
 
 enum EqPresetDialog {
@@ -74,6 +86,8 @@ impl NeumannApp {
             compared: Vec::new(),
             candidates: Vec::new(),
             preset: None,
+            import: None,
+            file_report: Vec::new(),
         });
     }
 
@@ -304,6 +318,27 @@ impl NeumannApp {
             }),
             None => None,
         };
+        let import_changes: Vec<String> = match (&window.import, reshapable) {
+            (Some(pending), Some(shown)) => pending
+                .preset
+                .as_ref()
+                .map(|preset| {
+                    eq_plan(preset, &speaker.values, &shown.container.path)
+                        .bands
+                        .iter()
+                        .map(|band| texts::eq_preset_band(band + 1))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let import = window.import.as_ref().map(|pending| ImportView {
+            file: &pending.file,
+            changes: &import_changes,
+            notes: &pending.notes,
+            refusal: pending.refusal.as_deref(),
+            crossover: reshapable.is_some_and(|shown| shown.container.crossover),
+        });
         let reset = reshapable.map(|shown| ResetOffer {
             container: shown.container.label(texts::language()).to_owned(),
             asking: window.asking_reset,
@@ -326,6 +361,9 @@ impl NeumannApp {
             compared: &legend,
             presets: reshapable.is_some(),
             preset_dialog,
+            exportable: selected.is_some_and(|shown| shown.bands.is_some()),
+            import,
+            file_report: &window.file_report,
         };
         let actions = eq_window::show(context, &view);
         self.eq_windows[index].candidates = candidate_keys;
@@ -353,7 +391,12 @@ impl NeumannApp {
             .position(|window| is_eq_entry_of(entry, &window.key, catalog))
     }
 
-    fn speaker_of(&self, key: &SpeakerKey) -> Option<&SpeakerState> {
+    /// The speaker of the EQ window at `index`.
+    pub(super) fn eq_speaker(&self, index: usize) -> Option<&SpeakerState> {
+        self.speaker_of(&self.eq_windows[index].key)
+    }
+
+    pub(super) fn speaker_of(&self, key: &SpeakerKey) -> Option<&SpeakerState> {
         self.speakers
             .iter()
             .map(|speaker| &speaker.state)
@@ -405,6 +448,10 @@ impl NeumannApp {
             EqAction::PresetConfirmSave => self.save_eq_preset(index),
             EqAction::PresetWrite => self.write_eq_preset(index, now),
             EqAction::PresetDelete => self.delete_eq_preset(index),
+            EqAction::Import => self.import_eq_file(index),
+            EqAction::ImportWrite => self.write_eq_import(index, now),
+            EqAction::ImportCancel => window.import = None,
+            EqAction::Export => self.export_eq_file(index),
             EqAction::Compare(place, on) => {
                 let Some(key) = window.candidates.get(place).cloned() else {
                     return;
@@ -440,7 +487,7 @@ impl NeumannApp {
     }
 
     /// The chosen container's path and its band count, once the speaker reported it.
-    fn chosen_container(&self, index: usize) -> Option<(SscPath, usize)> {
+    pub(super) fn chosen_container(&self, index: usize) -> Option<(SscPath, usize)> {
         let catalog = Catalog::embedded();
         let window = &self.eq_windows[index];
         let speaker = self.speaker_of(&window.key)?;
@@ -463,7 +510,7 @@ impl NeumannApp {
         };
         let name = name.trim().to_owned();
         let preset = self.chosen_container(index).and_then(|(container, _)| {
-            let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+            let speaker = self.eq_speaker(index)?;
             capture_eq(&name, &speaker.values, &container)
         });
         if let Some(preset) = preset {
@@ -493,7 +540,7 @@ impl NeumannApp {
     fn write_eq_preset(&mut self, index: usize, now: f64) {
         let plan = self.selected_eq_preset(index).and_then(|place| {
             let (container, _) = self.chosen_container(index)?;
-            let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+            let speaker = self.eq_speaker(index)?;
             Some(eq_plan(
                 &self.settings.eq_presets[place],
                 &speaker.values,
@@ -501,12 +548,41 @@ impl NeumannApp {
             ))
         });
         self.eq_windows[index].preset = None;
-        for (path, value) in plan.map(|plan| plan.writes).unwrap_or_default() {
+        self.write_eq_leaves(index, plan.map(|plan| plan.writes).unwrap_or_default(), now);
+    }
+
+    /// Whole leaves in this frame (one history entry), all or none: every write is checked
+    /// before the first is sent, so a refused leaf never leaves the others half written.
+    pub(super) fn write_eq_leaves(
+        &mut self,
+        index: usize,
+        writes: Vec<(SscPath, Value)>,
+        now: f64,
+    ) {
+        if let Some(refusal) = self.eq_refusal(index, &writes) {
+            self.eq_windows[index].refusal = Some(refusal);
+            return;
+        }
+        for (path, value) in writes {
             if let Err((label, reason)) = self.send_eq_write(index, &path, value, now) {
                 self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
                 return;
             }
         }
+    }
+
+    /// Why the write policy would refuse one of `writes`, as the window says it.
+    pub(super) fn eq_refusal(&self, index: usize, writes: &[(SscPath, Value)]) -> Option<String> {
+        let catalog = Catalog::embedded();
+        let speaker = self.eq_speaker(index)?;
+        writes.iter().find_map(|(path, value)| {
+            let refusal = writes::check(speaker, catalog, path, value).err()?;
+            let label = leaf_label(catalog, path);
+            Some(texts::eq_leaf_refusal(
+                &label,
+                &texts::describe_refusal(&refusal),
+            ))
+        })
     }
 
     fn delete_eq_preset(&mut self, index: usize) {
@@ -535,7 +611,7 @@ impl NeumannApp {
     /// The chosen container's `leaf` and its band count, once the speaker reported it.
     fn chosen_leaf(&self, index: usize, leaf: Leaf) -> Option<(SscPath, usize)> {
         let (container, _) = self.chosen_container(index)?;
-        let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+        let speaker = self.eq_speaker(index)?;
         let path = leaf.path(&container);
         let length = speaker
             .values
@@ -584,15 +660,17 @@ impl NeumannApp {
                 speaker.handle.send(command);
                 Ok(())
             }
-            Err(refusal) => {
-                let label = paths::catalog_entry(catalog, path).map_or_else(
-                    || path.to_string(),
-                    |entry| entry.label(texts::language()).to_owned(),
-                );
-                Err((label, texts::describe_refusal(&refusal)))
-            }
+            Err(refusal) => Err((leaf_label(catalog, path), texts::describe_refusal(&refusal))),
         }
     }
+}
+
+/// A leaf's name as the window shows it.
+fn leaf_label(catalog: &Catalog, path: &SscPath) -> String {
+    paths::catalog_entry(catalog, path).map_or_else(
+        || path.to_string(),
+        |entry| entry.label(texts::language()).to_owned(),
+    )
 }
 
 /// Whether every change of `entry` is an EQ write to the speaker `key`.

@@ -15,6 +15,7 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
+use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{forget_member, member_id, rename_member, set_membership};
 use crate::meter::MeterState;
 use crate::scan_choice::ScanChoice;
@@ -37,6 +38,7 @@ use crate::views::{all_values, panel, wheel};
 mod compact;
 mod desk;
 mod eq;
+mod eq_files;
 mod full_scan;
 mod history;
 mod preset_dialogs;
@@ -91,6 +93,7 @@ pub struct NeumannApp {
     eq_windows: Vec<eq::EqWindow>,
     preset_dialog: Option<preset_dialogs::PresetDialog>,
     system_audio: Box<dyn SystemAudio>,
+    file_dialog: Box<dyn FileDialog>,
     /// The Windows strip's meters, one per channel of the device.
     system_meters: Vec<MeterState>,
     /// The playback devices for the settings dialog, listed when it opens.
@@ -153,12 +156,18 @@ impl NeumannApp {
             eq_windows: Vec::new(),
             preset_dialog: None,
             system_audio,
+            file_dialog: Box::new(NativeFileDialog),
             system_meters: Vec::new(),
             audio_devices: Vec::new(),
             system_language,
         };
         app.sync_targets();
         app
+    }
+
+    /// The dialog the EQ import and export choose their files with; the tests' stand-in.
+    pub fn set_file_dialog(&mut self, file_dialog: Box<dyn FileDialog>) {
+        self.file_dialog = file_dialog;
     }
 
     /// Starts workers for remembered speakers not shown yet and moves speakers whose entry now

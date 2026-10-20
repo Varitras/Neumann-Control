@@ -12,6 +12,7 @@ use neumann_control_core::catalog::ValueError;
 use neumann_control_core::settings::Language;
 use serde_json::Value;
 
+use crate::eq_file::{ExportNote, ImportError, LineProblem, Parameter};
 use crate::state::Message;
 use crate::trend::whole_minutes;
 use crate::writes::Refusal;
@@ -190,6 +191,13 @@ pub const EQ_PRESET_SAVE: Text = Text::new("Als EQ-Preset speichern…", "Save a
 pub const EQ_PRESET_LOAD: Text = Text::new("EQ-Preset laden…", "Load EQ preset…");
 pub const EQ_PRESET_SAVE_TITLE: Text = Text::new("EQ als Preset", "EQ as a preset");
 pub const EQ_PRESET_LOAD_TITLE: Text = Text::new("EQ-Preset laden", "Load an EQ preset");
+pub const EQ_IMPORT: Text = Text::new("Importieren…", "Import…");
+pub const EQ_EXPORT: Text = Text::new("Exportieren…", "Export…");
+pub const EQ_IMPORT_TITLE: Text = Text::new("EQ importieren", "Import an EQ");
+pub const EQ_FILE_TOO_LARGE: Text = Text::new(
+    "Die Datei ist zu groß für eine Filterdatei.",
+    "The file is too large for a filter file.",
+);
 pub const SYSTEM_AUDIO_SHOW: Text = Text::new(
     "Windows-Lautstärke im Pult zeigen",
     "Show the Windows volume on the desk",
@@ -782,6 +790,124 @@ pub fn eq_all_bands_setting(container: &str, leaf: &str) -> String {
 /// A refused band write, under the EQ graph.
 pub fn eq_refusal(band: usize, leaf: &str, reason: &str) -> String {
     format!("{} {band} · {leaf}: {reason}", BAND.get())
+}
+
+/// The import preview's line naming the file.
+pub fn eq_import_from(file: &str) -> String {
+    pick(format!("Aus {file}"), format!("From {file}"))
+}
+
+/// The sound commands of the file that the import does not take over.
+pub fn eq_import_ignored(commands: &[String]) -> String {
+    let list = commands.join(", ");
+    pick(
+        format!("Nicht übernommen: {list}"),
+        format!("Not taken over: {list}"),
+    )
+}
+
+pub fn eq_file_unreadable(file: &str, reason: &str) -> String {
+    pick(
+        format!("{file} lässt sich nicht lesen: {reason}"),
+        format!("{file} cannot be read: {reason}"),
+    )
+}
+
+pub fn eq_file_unwritable(file: &str, reason: &str) -> Vec<String> {
+    vec![pick(
+        format!("{file} lässt sich nicht schreiben: {reason}"),
+        format!("{file} cannot be written: {reason}"),
+    )]
+}
+
+/// Why a filter file cannot be imported.
+pub fn eq_import_error(error: &ImportError) -> String {
+    match error {
+        ImportError::Line { line, problem } => pick(
+            format!("Zeile {line}: {}", line_problem(problem)),
+            format!("Line {line}: {}", line_problem(problem)),
+        ),
+        ImportError::NoFilters => Text::new(
+            "Die Datei enthält keine Filterzeilen.",
+            "The file holds no filter lines.",
+        )
+        .get()
+        .to_owned(),
+        ImportError::TooManyBands { band, bands } => pick(
+            format!("Die Datei nennt Band {band}, dieses EQ hat {bands} Bänder."),
+            format!("The file names band {band}, this EQ has {bands} bands."),
+        ),
+    }
+}
+
+fn line_problem(problem: &LineProblem) -> String {
+    match problem {
+        LineProblem::UnknownType(kind) => pick(
+            format!("Filtertyp „{kind}“ gibt es am Lautsprecher nicht."),
+            format!("The speaker has no filter type \"{kind}\"."),
+        ),
+        LineProblem::ShelfNotSupported(kind) => pick(
+            format!("Kuhschwanzfilter („{kind}“) werden noch nicht übernommen."),
+            format!("Shelving filters (\"{kind}\") are not taken over yet."),
+        ),
+        LineProblem::Missing(parameter) => pick(
+            format!("{} fehlt.", parameter_name(*parameter)),
+            format!("{} is missing.", parameter_name(*parameter)),
+        ),
+        LineProblem::BadNumber(token) => pick(
+            format!("„{token}“ ist keine Zahl."),
+            format!("\"{token}\" is not a number."),
+        ),
+        LineProblem::UnknownState(state) => pick(
+            format!("„{state}“ statt ON oder OFF."),
+            format!("\"{state}\" instead of ON or OFF."),
+        ),
+        LineProblem::SameBand(band) => pick(
+            format!("Band {band} steht schon in einer früheren Zeile."),
+            format!("Band {band} is already in an earlier line."),
+        ),
+    }
+}
+
+fn parameter_name(parameter: Parameter) -> &'static str {
+    match parameter {
+        Parameter::Frequency => "Fc",
+        Parameter::Gain => "Gain",
+        Parameter::Q => "Q",
+    }
+}
+
+/// After an export, one line each: where it went, then what it could not carry.
+pub fn eq_export_report(file: &str, notes: &[ExportNote]) -> Vec<String> {
+    let mut lines = vec![pick(
+        format!("Gespeichert: {file}"),
+        format!("Saved: {file}"),
+    )];
+    lines.extend(notes.iter().map(export_note));
+    lines
+}
+
+fn export_note(note: &ExportNote) -> String {
+    match note {
+        ExportNote::Off(band) => pick(
+            format!("Band {band} ist aus und steht nur als Kommentar in der Datei."),
+            format!("Band {band} is off and only a comment in the file."),
+        ),
+        ExportNote::FlatLevel { band, gain } => pick(
+            format!(
+                "Band {band}: Pegel {} dB nicht exportiert (APO kennt ihn nicht).",
+                one_decimal(*gain)
+            ),
+            format!(
+                "Band {band}: level {} dB not exported (APO has none).",
+                one_decimal(*gain)
+            ),
+        ),
+        ExportNote::NotExportable { band, kind } => pick(
+            format!("Band {band}: {kind} nicht exportiert."),
+            format!("Band {band}: {kind} not exported."),
+        ),
+    }
 }
 
 #[cfg(test)]

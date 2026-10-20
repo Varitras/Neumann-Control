@@ -7,6 +7,7 @@ use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::eq_file;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
@@ -709,5 +710,153 @@ fn a_full_reset_is_not_offered_on_a_protected_crossover() {
     harness.run_steps(2);
     assert!(harness
         .query_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .is_none());
+}
+
+/// The EQ window's file dialog hands out `files` from now on.
+fn use_files(harness: &mut Harness<'static, NeumannApp>, files: &FakeFiles) {
+    harness.state_mut().set_file_dialog(Box::new(files.clone()));
+}
+
+/// Writes `text` as `name` into `directory` and imports it.
+fn import_file(
+    harness: &mut Harness<'static, NeumannApp>,
+    directory: &tempfile::TempDir,
+    name: &str,
+    text: &str,
+) {
+    let path = directory.path().join(name);
+    std::fs::write(&path, text).unwrap();
+    use_files(
+        harness,
+        &FakeFiles {
+            open: Some(path),
+            ..FakeFiles::default()
+        },
+    );
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_IMPORT.get())
+        .click();
+    // The preview is a modal; it centres itself over a few frames.
+    harness.run_steps(6);
+}
+
+#[test]
+fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
+    // The whole frequency list is written, so every band must be in the speakers' range (the
+    // spread's tenth band is above it).
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    let text = "Preamp: -3 dB\r\nFilter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
+    import_file(&mut harness, &directory, "room.txt", text);
+    harness.get_by_label(&texts::eq_import_from("room.txt"));
+    harness.get_by_label(&texts::eq_import_ignored(&["Preamp".to_owned()]));
+    harness.get_by_label(&texts::eq_preset_band(1));
+    harness.get_by_label(&texts::eq_preset_band(10));
+    barrier(&simulator);
+    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    harness
+        .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
+        .click();
+    wait_until(&mut harness, "the import written", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    let mut enabled = vec![false; 10];
+    enabled[0] = true;
+    assert_eq!(
+        sets(&simulator, "/audio/out/eq2/enabled"),
+        vec![json!(enabled)]
+    );
+    assert_eq!(sets(&simulator, BOOST_POINTER)[0][0], json!(-4.0));
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER)[0][0], json!(120.0));
+    let history: Vec<_> = harness.state().history().entries().cloned().collect();
+    assert_eq!(history.len(), 1);
+    assert!(history[0].changes[0].path.to_string().ends_with("enabled"));
+}
+
+#[test]
+fn a_file_the_speaker_would_refuse_writes_nothing() {
+    let (simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    // 5 Hz is below the speakers' 10 Hz.
+    let text = "Filter 1: ON PK Fc 5 Hz Gain -4 dB Q 2\n";
+    import_file(&mut harness, &directory, "low.txt", text);
+    let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());
+    assert!(write.accesskit_node().is_disabled());
+    harness
+        .get_by_role_and_label(Role::Button, texts::CANCEL.get())
+        .click();
+    harness.run_steps(2);
+    barrier(&simulator);
+    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
+#[test]
+fn a_shelf_in_the_file_is_named_and_refused() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let text =
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\nFilter 2: ON LSC Fc 80 Hz Gain 3 dB Q 0.7\n";
+    import_file(&mut harness, &directory, "shelf.txt", text);
+    let error = eq_file::ImportError::Line {
+        line: 2,
+        problem: eq_file::LineProblem::ShelfNotSupported("LSC".to_owned()),
+    };
+    harness.get_by_label(&texts::eq_import_error(&error));
+    let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());
+    assert!(write.accesskit_node().is_disabled());
+}
+
+#[test]
+fn import_is_not_offered_on_a_protected_crossover_but_export_is() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    harness.get_by_role_and_label(Role::Button, texts::EQ_IMPORT.get());
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_role_and_label(Role::Button, texts::EQ_IMPORT.get())
+        .is_none());
+    harness.get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get());
+}
+
+#[test]
+fn the_export_saves_the_chosen_eq_as_apo_lines() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let path = directory.path().join("export.txt");
+    let files = FakeFiles {
+        save: Some(path.clone()),
+        ..FakeFiles::default()
+    };
+    use_files(&mut harness, &files);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
+        .click();
+    harness.run_steps(2);
+    assert_eq!(*files.suggested.lock().unwrap(), ["KH 120 II EQ 2.txt"]);
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.starts_with("# Neumann Control EQ export: EQ 2, 10 bands"),
+        "{text}"
+    );
+    assert!(text.contains("Filter 1: ON PK Fc 50 Hz"), "{text}");
+    harness.get_by_label(&texts::eq_export_report("export.txt", &[])[0]);
+}
+
+#[test]
+fn a_cancelled_file_dialog_changes_nothing() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_IMPORT.get())
+        .click();
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
+        .click();
+    harness.run_steps(6);
+    assert!(harness
+        .query_by_label(texts::EQ_IMPORT_TITLE.get())
+        .is_none());
+    assert!(harness
+        .query_by_label_contains(&texts::eq_export_report("", &[])[0])
         .is_none());
 }

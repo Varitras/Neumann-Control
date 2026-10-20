@@ -2,8 +2,8 @@
 //! backend has only one): output and container choice, the graph and the band table.
 
 use eframe::egui::{
-    self, vec2, Button, Color32, Context, Key, RichText, Ui, ViewportBuilder, ViewportClass,
-    ViewportId,
+    self, vec2, Button, Color32, Context, Id, Key, Modal, RichText, ScrollArea, Ui,
+    ViewportBuilder, ViewportClass, ViewportId,
 };
 
 use super::eq_graph::{self, Graph, GraphAction};
@@ -16,6 +16,8 @@ use crate::texts;
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
 const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
+const IMPORT_ID: &str = "eq_import";
+const IMPORT_LIST_HEIGHT: f32 = 240.0;
 
 pub struct EqView<'a> {
     pub viewport: ViewportId,
@@ -41,9 +43,27 @@ pub struct EqView<'a> {
     pub candidates: &'a [(String, bool)],
     /// The compared curves that are drawn, for the legend: name and colour.
     pub compared: &'a [(String, Color32)],
-    /// Whether the chosen container can be saved as or loaded from a preset.
+    /// Whether the chosen container can be saved as or loaded from a preset, or imported into.
     pub presets: bool,
     pub preset_dialog: Option<PresetDialogView<'a>>,
+    /// Whether the chosen container can be exported (its bands are reported).
+    pub exportable: bool,
+    pub import: Option<ImportView<'a>>,
+    /// What the last export did, line by line.
+    pub file_report: &'a [String],
+}
+
+/// The preview of a filter file before it is written.
+pub struct ImportView<'a> {
+    pub file: &'a str,
+    /// The bands that would change; empty while `refusal` is set.
+    pub changes: &'a [String],
+    /// What the file holds that is not taken over.
+    pub notes: &'a [String],
+    /// Why the file cannot be written; Write is then disabled.
+    pub refusal: Option<&'a str>,
+    /// The container is a crossover (protection off): writing warns.
+    pub crossover: bool,
 }
 
 pub enum PresetDialogView<'a> {
@@ -93,6 +113,10 @@ pub enum EqAction {
     PresetWrite,
     PresetDelete,
     PresetClose,
+    Import,
+    ImportWrite,
+    ImportCancel,
+    Export,
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
@@ -166,18 +190,28 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
     }
     actions.extend(edit_row(ui, view.reset.as_ref(), view.undo.as_deref()));
-    if view.presets {
-        ui.horizontal(|ui| {
-            if ui.button(texts::EQ_PRESET_SAVE).clicked() {
-                actions.push(EqAction::PresetSave);
-            }
-            if ui.button(texts::EQ_PRESET_LOAD).clicked() {
-                actions.push(EqAction::PresetLoad);
-            }
-        });
+    ui.horizontal(|ui| {
+        if view.presets && ui.button(texts::EQ_PRESET_SAVE).clicked() {
+            actions.push(EqAction::PresetSave);
+        }
+        if view.presets && ui.button(texts::EQ_PRESET_LOAD).clicked() {
+            actions.push(EqAction::PresetLoad);
+        }
+        if view.presets && ui.button(texts::EQ_IMPORT).clicked() {
+            actions.push(EqAction::Import);
+        }
+        if view.exportable && ui.button(texts::EQ_EXPORT).clicked() {
+            actions.push(EqAction::Export);
+        }
+    });
+    for line in view.file_report {
+        ui.label(line);
     }
     if let Some(dialog) = &view.preset_dialog {
         actions.extend(preset_dialog(ui, dialog));
+    }
+    if let Some(import) = &view.import {
+        actions.extend(import_preview(ui, import));
     }
     if let Some(lines) = &view.question {
         actions.extend(question(ui, lines));
@@ -234,6 +268,50 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
             }
         }
     }
+}
+
+fn import_preview(ui: &mut Ui, import: &ImportView) -> Option<EqAction> {
+    let modal = Modal::new(Id::new(IMPORT_ID)).show(ui.ctx(), |ui| {
+        ui.heading(texts::EQ_IMPORT_TITLE);
+        ui.label(texts::eq_import_from(import.file));
+        if let Some(refusal) = import.refusal {
+            ui.colored_label(ui.visuals().warn_fg_color, refusal);
+        }
+        let unchanged = import.refusal.is_none() && import.changes.is_empty();
+        if unchanged {
+            ui.weak(texts::PRESET_UNCHANGED);
+        }
+        ScrollArea::vertical()
+            .max_height(IMPORT_LIST_HEIGHT)
+            .show(ui, |ui| {
+                for change in import.changes {
+                    ui.label(change);
+                }
+            });
+        for note in import.notes {
+            ui.weak(note);
+        }
+        if import.crossover {
+            ui.colored_label(ui.visuals().warn_fg_color, texts::CROSSOVER_WARNING);
+        }
+        ui.horizontal(|ui| {
+            let writable = import.refusal.is_none() && !import.changes.is_empty();
+            if ui
+                .add_enabled(writable, Button::new(texts::WRITE_PRESET))
+                .clicked()
+            {
+                return Some(EqAction::ImportWrite);
+            }
+            ui.button(texts::CANCEL)
+                .clicked()
+                .then_some(EqAction::ImportCancel)
+        })
+        .inner
+    });
+    if modal.should_close() {
+        return Some(EqAction::ImportCancel);
+    }
+    modal.inner
 }
 
 fn compare_row(ui: &mut Ui, candidates: &[(String, bool)]) -> Option<EqAction> {
