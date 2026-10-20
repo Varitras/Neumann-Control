@@ -24,6 +24,7 @@ use crate::status_leds::average_response_time;
 use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{duplicate_speakers, follow_moves, forget, remember_serial, targets};
 use crate::texts;
+use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction};
@@ -533,8 +534,8 @@ impl NeumannApp {
         if !self.settings_open {
             return;
         }
-        let audio = &mut self.settings.system_audio;
-        match settings_dialog::show(ui, &mut self.settings.desk, audio, &self.audio_devices) {
+        let labels = curve_labels();
+        match settings_dialog::show(ui, &mut self.settings, &self.audio_devices, &labels) {
             SettingsAction::Changed => {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));
@@ -643,6 +644,24 @@ impl eframe::App for NeumannApp {
             self.save_settings();
         }
     }
+}
+
+/// The EQ curves the settings offer colours for, named as the EQ window's tabs name them.
+fn curve_labels() -> Vec<(String, String)> {
+    let catalog = Catalog::embedded();
+    CURVE_KEYS
+        .iter()
+        .filter_map(|key| {
+            let container = catalog
+                .eq
+                .iter()
+                .find(|container| curve_key(&container.path) == *key)?;
+            Some((
+                key.to_string(),
+                container.label(texts::language()).to_owned(),
+            ))
+        })
+        .collect()
 }
 
 #[cfg(test)]

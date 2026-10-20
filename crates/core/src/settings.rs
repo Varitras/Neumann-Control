@@ -46,6 +46,31 @@ pub struct Settings {
     pub eq_presets: Vec<EqPreset>,
     #[serde(deserialize_with = "or_default")]
     pub system_audio: SystemAudioSettings,
+    #[serde(deserialize_with = "or_default")]
+    pub eq_display: EqDisplaySettings,
+}
+
+/// How the EQ graph draws its bands, and the colours the user chose instead of the defaults.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EqDisplaySettings {
+    #[serde(deserialize_with = "or_default")]
+    pub band_curves: BandCurves,
+    /// Band number (from 1) → `#rrggbb`; a band not listed has its default colour.
+    #[serde(deserialize_with = "or_default")]
+    pub band_colors: BTreeMap<String, String>,
+    /// Container below its output (`eq2`, `eq1/in1`, ...) → `#rrggbb`.
+    #[serde(deserialize_with = "or_default")]
+    pub curve_colors: BTreeMap<String, String>,
+}
+
+/// Which bands show their own curve in the EQ graph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum BandCurves {
+    #[default]
+    All,
+    /// The chosen band and the one under the pointer.
+    ChosenAndHovered,
 }
 
 /// The strip with Windows' own volume of a playback device.

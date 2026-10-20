@@ -5,8 +5,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Pos2, Rect, Sense, Shape, Stroke, Ui,
-    WidgetInfo, WidgetType,
+    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Mesh, Pos2, Rect, Sense, Shape, Stroke,
+    Ui, WidgetInfo, WidgetType,
 };
 
 use super::wheel::notches_for;
@@ -14,7 +14,9 @@ use crate::eq::{snapped_frequency, GAIN_GRID_DB, Q_STEP};
 use crate::eq_response::{FREQUENCY_MAX, FREQUENCY_MIN};
 use crate::gesture::{on_grid, GestureState};
 use crate::texts;
+use crate::ui_kit::eq_palette::ink_on;
 use crate::ui_kit::theme::Tokens;
+use neumann_control_core::settings::BandCurves;
 
 const GRAPH_HEIGHT: f32 = 300.0;
 /// The dB axis shows at least ±24 dB and grows in 6 dB steps to fit the curves.
@@ -28,9 +30,14 @@ const CURVE_WIDTH: f32 = 1.5;
 const SUM_WIDTH: f32 = 2.5;
 const DASH_LENGTH: f32 = 6.0;
 const BAND_CURVE_WIDTH: f32 = 1.0;
-const BAND_CURVE_OPACITY: f32 = 0.6;
+const CHOSEN_CURVE_WIDTH: f32 = 1.5;
+const BAND_CURVE_OPACITY: f32 = 0.65;
+/// The chosen band's area between its curve and 0 dB.
+const CHOSEN_AREA_OPACITY: f32 = 0.22;
+const POINT_NUMBER_SIZE: f32 = 10.0;
 const DASH_GAP: f32 = 4.0;
-const POINT_RADIUS: f32 = 5.0;
+/// Big enough for a two-digit number inside.
+const POINT_RADIUS: f32 = 7.0;
 const SELECTED_RING: f32 = 3.0;
 const POINT_GRAB: f32 = 14.0;
 const DRAG_ID: &str = "eq_point_drag";
@@ -49,6 +56,8 @@ pub struct ComparedCurve<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct GraphPoint {
+    /// The band's colour, for its point and its own curve.
+    pub color: Color32,
     pub frequency: f64,
     pub gain: f64,
     pub boost: f64,
@@ -62,10 +71,10 @@ pub struct Graph<'a> {
     pub curves: &'a [GraphCurve<'a>],
     pub sum: &'a [f64],
     pub compared: &'a [ComparedCurve<'a>],
-    /// The chosen band on its own, drawn thin in the container's colour.
-    pub band_curve: Option<&'a [f64]>,
+    /// Each band on its own, `None` for a band that is off; drawn thin in the band's colour.
+    pub band_curves: &'a [Option<Vec<f64>>],
+    pub band_curve_mode: BandCurves,
     pub points: &'a [GraphPoint],
-    pub color: Color32,
     pub selected: usize,
     pub editable: bool,
     pub gain_range: RangeInclusive<f64>,
@@ -140,13 +149,7 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
         let stroke = Stroke::new(CURVE_WIDTH, curve.color);
         paint_dashed(ui, &axes, graph.frequencies, curve.db, stroke);
     }
-    if let Some(db) = graph.band_curve {
-        let stroke = Stroke::new(
-            BAND_CURVE_WIDTH,
-            graph.color.gamma_multiply(BAND_CURVE_OPACITY),
-        );
-        paint_curve(ui, &axes, graph.frequencies, db, stroke);
-    }
+    paint_band_curves(ui, graph, &axes);
     paint_curve(
         ui,
         &axes,
@@ -346,12 +349,91 @@ fn paint_point(ui: &Ui, graph: &Graph, band: usize, point: &GraphPoint, center: 
         painter.circle_stroke(
             center,
             POINT_RADIUS + SELECTED_RING,
-            Stroke::new(1.0, graph.color),
+            Stroke::new(1.0, point.color),
         );
     }
-    if point.enabled {
-        painter.circle_filled(center, POINT_RADIUS, graph.color);
-    } else {
-        painter.circle_stroke(center, POINT_RADIUS, Stroke::new(1.5, graph.color));
+    painter.circle_filled(center, POINT_RADIUS, point.color);
+    painter.text(
+        center,
+        Align2::CENTER_CENTER,
+        (band + 1).to_string(),
+        FontId::proportional(POINT_NUMBER_SIZE),
+        ink_on(point.color),
+    );
+}
+
+/// Every band that is on (or only the chosen one and the one under the pointer); the chosen
+/// band stronger, with its area to 0 dB.
+fn paint_band_curves(ui: &Ui, graph: &Graph, axes: &Axes) {
+    let hovered = hovered_band(ui, graph, axes);
+    for (band, db) in graph.band_curves.iter().enumerate() {
+        let Some(db) = db else {
+            continue;
+        };
+        let Some(color) = graph.points.get(band).map(|point| point.color) else {
+            continue;
+        };
+        let chosen = band == graph.selected;
+        let shown = graph.band_curve_mode == BandCurves::All || chosen || hovered == Some(band);
+        if !shown {
+            continue;
+        }
+        if chosen {
+            paint_area(
+                ui,
+                axes,
+                graph.frequencies,
+                db,
+                color.gamma_multiply(CHOSEN_AREA_OPACITY),
+            );
+            paint_curve(
+                ui,
+                axes,
+                graph.frequencies,
+                db,
+                Stroke::new(CHOSEN_CURVE_WIDTH, color),
+            );
+        } else {
+            let faint = color.gamma_multiply(BAND_CURVE_OPACITY);
+            paint_curve(
+                ui,
+                axes,
+                graph.frequencies,
+                db,
+                Stroke::new(BAND_CURVE_WIDTH, faint),
+            );
+        }
     }
+}
+
+/// The band whose point is under the pointer, if any.
+fn hovered_band(ui: &Ui, graph: &Graph, axes: &Axes) -> Option<usize> {
+    let pointer = ui.input(|input| input.pointer.hover_pos())?;
+    graph
+        .points
+        .iter()
+        .enumerate()
+        .filter(|(_, point)| point.enabled)
+        .find(|(_, point)| {
+            let home = pos2(axes.x(point.frequency), axes.y(point.gain + point.boost));
+            home.distance(pointer) <= POINT_GRAB
+        })
+        .map(|(band, _)| band)
+}
+
+/// The area between a curve and 0 dB, as one strip of triangles.
+fn paint_area(ui: &Ui, axes: &Axes, frequencies: &[f64], db: &[f64], color: Color32) {
+    let zero = axes.y(0.0);
+    let mut mesh = Mesh::default();
+    for (place, (frequency, value)) in frequencies.iter().zip(db).enumerate() {
+        let x = axes.x(*frequency);
+        mesh.colored_vertex(pos2(x, zero), color);
+        mesh.colored_vertex(pos2(x, axes.y(*value)), color);
+        if place > 0 {
+            let at = (2 * place) as u32;
+            mesh.add_triangle(at - 2, at - 1, at);
+            mesh.add_triangle(at - 1, at + 1, at);
+        }
+    }
+    ui.painter().add(Shape::mesh(mesh));
 }

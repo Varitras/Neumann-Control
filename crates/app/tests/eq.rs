@@ -624,3 +624,39 @@ fn a_switched_off_band_has_no_point_in_the_graph() {
     harness.get_by_label(&texts::eq_band(2));
     assert!(harness.query_by_label(&texts::eq_band(3)).is_none());
 }
+
+#[test]
+fn the_eq_display_is_chosen_and_reset_in_the_settings() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(REPLY_DELAY);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut stored = neumann_control_core::settings::load(&path);
+    stored
+        .eq_display
+        .band_colors
+        .insert("3".to_owned(), "#ff0000".to_owned());
+    neumann_control_core::settings::save(&stored, &path).unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    wait_for_level(&mut harness, 100.0);
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(4);
+    harness
+        .get_by_label(texts::BAND_CURVES_CHOSEN.get())
+        .click();
+    harness.run_steps(2);
+    // The dialog scrolls; the button lies below what it shows at first.
+    harness
+        .get_by_label(texts::DEFAULT_COLORS.get())
+        .scroll_to_me();
+    harness.run_steps(3);
+    harness.get_by_label(texts::DEFAULT_COLORS.get()).click();
+    harness.run_steps(2);
+    let stored = neumann_control_core::settings::load(&path).eq_display;
+    assert_eq!(
+        stored.band_curves,
+        neumann_control_core::settings::BandCurves::ChosenAndHovered
+    );
+    assert!(stored.band_colors.is_empty(), "{:?}", stored.band_colors);
+}

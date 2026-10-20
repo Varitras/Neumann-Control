@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Checkbox, ComboBox, Grid, Id, ScrollArea, Ui};
+use eframe::egui::{Checkbox, Color32, ComboBox, Grid, Id, RichText, ScrollArea, Ui};
 use serde_json::Value;
 
 use super::number_field::{self, NumberField};
@@ -48,6 +48,8 @@ pub struct Table<'a> {
     pub headers: &'a [String; 6],
     pub editable: bool,
     pub selected: usize,
+    /// Each band's colour, as its point in the graph has it.
+    pub colors: &'a [Color32],
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -107,7 +109,10 @@ fn row_cells(
     row: &TableRow,
 ) -> Vec<TableAction> {
     let mut actions = Vec::new();
-    let number = (band + 1).to_string();
+    let mut number = RichText::new((band + 1).to_string()).strong();
+    if let Some(color) = table.colors.get(band) {
+        number = number.color(*color);
+    }
     if ui
         .selectable_label(band == table.selected, number)
         .clicked()

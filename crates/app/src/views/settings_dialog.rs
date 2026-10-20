@@ -1,18 +1,24 @@
-//! The settings dialog behind the toolbar's "Einstellungen": theme, language, meter range and
-//! response times. Every change applies at once; the app saves it.
+//! The settings dialog behind the toolbar's "Einstellungen": theme, language, meter range,
+//! response times, crossovers, the Windows strip and the EQ graph's display. Every change applies
+//! at once; the app saves it.
 
-use eframe::egui::ComboBox;
-use eframe::egui::{Id, Modal, Ui};
+use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
+use eframe::egui::{ComboBox, Grid, Id, Modal, ScrollArea, Theme, Ui};
 use neumann_control_core::settings::{
-    CrossoverGuard, DeskSettings, LanguageChoice, MeterFloor, SystemAudioSettings, ThemeChoice,
+    BandCurves, CrossoverGuard, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
+    SystemAudioSettings, ThemeChoice,
 };
 
 use crate::system_audio::AudioDevice;
-
 use crate::texts;
+use crate::ui_kit::eq_palette::{band_color, curve_color, hex, BAND_COLOR_COUNT};
 
 const MODAL_ID: &str = "settings_dialog";
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
+const BAND_GRID_ID: &str = "band_colors";
+const BAND_COLUMNS: usize = 10;
+/// Taller than this, the dialog scrolls.
+const DIALOG_MAX_HEIGHT: f32 = 600.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsAction {
@@ -21,14 +27,19 @@ pub enum SettingsAction {
     Close,
 }
 
+/// `curve_labels`: each curve's settings key with its name, as the EQ window's tabs say it.
 pub fn show(
     ui: &mut Ui,
-    desk: &mut DeskSettings,
-    audio: &mut SystemAudioSettings,
+    settings: &mut Settings,
     devices: &[AudioDevice],
+    curve_labels: &[(String, String)],
 ) -> SettingsAction {
-    let modal =
-        Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, desk, audio, devices));
+    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| {
+        ScrollArea::vertical()
+            .max_height(DIALOG_MAX_HEIGHT)
+            .show(ui, |ui| contents(ui, settings, devices, curve_labels))
+            .inner
+    });
     if modal.should_close() {
         return SettingsAction::Close;
     }
@@ -37,12 +48,16 @@ pub fn show(
 
 fn contents(
     ui: &mut Ui,
-    desk: &mut DeskSettings,
-    audio: &mut SystemAudioSettings,
+    settings: &mut Settings,
     devices: &[AudioDevice],
+    curve_labels: &[(String, String)],
 ) -> SettingsAction {
-    let before = *desk;
-    let audio_before = audio.clone();
+    let before = (
+        settings.desk,
+        settings.system_audio.clone(),
+        settings.eq_display.clone(),
+    );
+    let desk = &mut settings.desk;
     ui.heading(texts::SETTINGS_TITLE);
     ui.label(texts::THEME);
     ui.horizontal(|ui| {
@@ -75,15 +90,69 @@ fn contents(
             CrossoverGuard::Open
         };
     }
-    system_audio(ui, audio, devices);
+    system_audio(ui, &mut settings.system_audio, devices);
+    ui.separator();
+    eq_display(ui, &mut settings.eq_display, curve_labels);
     ui.separator();
     if ui.button(texts::CLOSE).clicked() {
         return SettingsAction::Close;
     }
-    if *desk != before || *audio != audio_before {
+    let after = (
+        settings.desk,
+        settings.system_audio.clone(),
+        settings.eq_display.clone(),
+    );
+    if after != before {
         return SettingsAction::Changed;
     }
     SettingsAction::None
+}
+
+/// Which bands show their own curve, and the colours of bands and curves.
+fn eq_display(ui: &mut Ui, display: &mut EqDisplaySettings, curve_labels: &[(String, String)]) {
+    let dark = ui.ctx().theme() == Theme::Dark;
+    ui.strong(texts::EQ_DISPLAY);
+    ui.radio_value(
+        &mut display.band_curves,
+        BandCurves::All,
+        texts::BAND_CURVES_ALL,
+    );
+    ui.radio_value(
+        &mut display.band_curves,
+        BandCurves::ChosenAndHovered,
+        texts::BAND_CURVES_CHOSEN,
+    );
+    ui.label(texts::BAND_COLORS);
+    Grid::new(BAND_GRID_ID).show(ui, |ui| {
+        for band in 0..BAND_COLOR_COUNT {
+            let mut color = band_color(display, band, dark);
+            ui.horizontal(|ui| {
+                ui.label((band + 1).to_string());
+                if color_edit_button_srgba(ui, &mut color, Alpha::Opaque).changed() {
+                    display
+                        .band_colors
+                        .insert((band + 1).to_string(), hex(color));
+                }
+            });
+            if (band + 1) % BAND_COLUMNS == 0 {
+                ui.end_row();
+            }
+        }
+    });
+    ui.label(texts::CURVE_COLORS);
+    ui.horizontal_wrapped(|ui| {
+        for (key, label) in curve_labels {
+            let mut color = curve_color(display, key);
+            ui.label(label);
+            if color_edit_button_srgba(ui, &mut color, Alpha::Opaque).changed() {
+                display.curve_colors.insert(key.clone(), hex(color));
+            }
+        }
+    });
+    if ui.button(texts::DEFAULT_COLORS).clicked() {
+        display.band_colors.clear();
+        display.curve_colors.clear();
+    }
 }
 
 /// Whether the desk shows the Windows volume, and of which playback device.

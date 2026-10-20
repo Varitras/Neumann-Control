@@ -200,6 +200,15 @@ pub const SYSTEM_AUDIO_NAME: Text = Text::new("Windows", "Windows");
 pub const SYSTEM_VOLUME: Text = Text::new("Windows-Lautstärke", "Windows volume");
 pub const SYSTEM_METERS: Text = Text::new("Windows-Pegel", "Windows level");
 pub const SYSTEM_MUTE: Text = Text::new("Windows stumm", "Windows mute");
+pub const EQ_DISPLAY: Text = Text::new("EQ-Darstellung", "EQ display");
+pub const BAND_CURVES_ALL: Text = Text::new("Einzelkurven aller Bänder", "Curves of all bands");
+pub const BAND_CURVES_CHOSEN: Text = Text::new(
+    "Einzelkurve nur für das gewählte Band und das unter der Maus",
+    "Curve only for the chosen band and the one under the pointer",
+);
+pub const BAND_COLORS: Text = Text::new("Bandfarben", "Band colours");
+pub const CURVE_COLORS: Text = Text::new("Kurvenfarben", "Curve colours");
+pub const DEFAULT_COLORS: Text = Text::new("Standardfarben", "Default colours");
 pub const COMPARE_WITH: Text = Text::new("Vergleichen mit:", "Compare with:");
 pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",

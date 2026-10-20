@@ -1,7 +1,7 @@
 use neumann_control_core::settings::{
-    load, save, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language, LanguageChoice,
-    Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, SystemAudioSettings,
-    ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, save, BandCurves, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language,
+    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
+    SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -354,4 +354,35 @@ fn the_windows_volume_strip_is_off_unless_chosen() {
     assert_eq!(loaded.device.as_deref(), Some("{0.0.0.00000000}.{id}"));
     fs::write(&path, r#"{"manual":[],"system_audio":7}"#).unwrap();
     assert_eq!(load(&path).system_audio, SystemAudioSettings::default());
+}
+
+#[test]
+fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[]}"#).unwrap();
+    let display = load(&path).eq_display;
+    assert_eq!(display.band_curves, BandCurves::All);
+    assert!(display.band_colors.is_empty() && display.curve_colors.is_empty());
+    fs::write(
+        &path,
+        r##"{"manual":[],"eq_display":{"band_curves":"ChosenAndHovered","band_colors":{"3":"#ff0000"},"curve_colors":{"eq2":"#00ff00"}}}"##,
+    )
+    .unwrap();
+    let display = load(&path).eq_display;
+    assert_eq!(display.band_curves, BandCurves::ChosenAndHovered);
+    assert_eq!(
+        display.band_colors.get("3").map(String::as_str),
+        Some("#ff0000")
+    );
+    assert_eq!(
+        display.curve_colors.get("eq2").map(String::as_str),
+        Some("#00ff00")
+    );
+    fs::write(
+        &path,
+        r#"{"manual":[],"eq_display":{"band_curves":"sometimes"}}"#,
+    )
+    .unwrap();
+    assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }

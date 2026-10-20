@@ -86,11 +86,16 @@ pub fn curve_db(bands: &[Band], frequencies: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-/// The chosen band on its own, to show what it does apart from the others; `None` when it is
-/// off or not there.
-pub fn band_curve(bands: &[Band], chosen: usize, frequencies: &[f64]) -> Option<Vec<f64>> {
-    let band = bands.get(chosen).filter(|band| band.enabled)?;
-    Some(curve_db(std::slice::from_ref(band), frequencies))
+/// Each band on its own, to show what it does apart from the others; `None` for a band that is
+/// off.
+pub fn band_curves(bands: &[Band], frequencies: &[f64]) -> Vec<Option<Vec<f64>>> {
+    bands
+        .iter()
+        .map(|band| {
+            band.enabled
+                .then(|| curve_db(std::slice::from_ref(band), frequencies))
+        })
+        .collect()
 }
 
 /// `GRAPH_POINTS` frequencies spaced evenly on a log scale from the lowest to the highest.
@@ -131,13 +136,13 @@ mod tests {
             band("PARAMETRIC", 10.5, 51.9, 1.4),
         ];
         let frequencies = [51.9];
-        let own = band_curve(&bands, 1, &frequencies).unwrap();
-        close(own[0], 10.5);
+        let own = band_curves(&bands, &frequencies);
+        close(own[1].as_ref().unwrap()[0], 10.5);
         assert!(curve_db(&bands, &frequencies)[0] < 10.0);
         let mut off = bands.clone();
         off[1].enabled = false;
-        assert!(band_curve(&off, 1, &frequencies).is_none());
-        assert!(band_curve(&bands, 7, &frequencies).is_none());
+        assert!(band_curves(&off, &frequencies)[1].is_none());
+        assert_eq!(band_curves(&bands, &frequencies).len(), 2);
     }
 
     #[test]
