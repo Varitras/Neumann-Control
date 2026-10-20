@@ -25,6 +25,9 @@
 - **Full scan** in the device panel: a report of everything a speaker answers, without its
   identifiers, next to the executable.
 - A strip with the Windows volume of a chosen playback device, with mute and peak meters.
+- Each EQ band has its own colour and its number in its point; every band's own curve is drawn
+  thin, the chosen band's with its area. Colours and which band curves show are set in the
+  settings.
 - **Protect crossovers** in the settings (on by default); off, "Make flat" and EQ presets work on
   the KH 750 crossovers too, with a warning.
 

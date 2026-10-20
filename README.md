@@ -211,11 +211,13 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   10 Hz to 24 kHz. The curves are computed from the settings, not measured. Each band has two
   levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
   height of its filter (the peak or shelf); at the band's frequency both add up.
-- Each band of the chosen EQ that is on is a point; bands that are off have none and are switched
-  on in the table. Drag a point to change frequency and boost, turn the mouse wheel over it to
-  change Q. Level is changed in the table only, so a drag never moves the whole spectrum.
+- Each band of the chosen EQ that is on is a point in its band's colour with its number inside;
+  bands that are off have none and are switched on in the table. Drag a point to change
+  frequency and boost, turn the mouse wheel over it to change Q. Level is changed in the table
+  only, so a drag never moves the whole spectrum.
 - A point stands at its band's own height; the curves add every band up, so a point can lie
-  above or below them. The chosen band alone is drawn as a thin line in its EQ's colour.
+  above or below them. Each band's own curve is drawn thin in its colour, the chosen band's
+  stronger with its area to 0 dB.
 - The table below lists every band with on/off, type, frequency, Q, level and boost; numbers take
   a comma or a point, and a value outside the allowed range is refused with the reason.
 - A change is written when the gesture ends, and only for that one band, so the other bands
@@ -258,6 +260,8 @@ recorded.
 - the lowest level the meters show: −120, −90 or −60 dB,
 - whether response times are shown,
 - whether the EQ crossovers are protected (on by default),
+- the EQ display: own curves of all bands, or only of the chosen band and the one under the
+  pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
 - whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
   default device or a chosen one): a fader in percent, mute and a peak meter per channel. It
   sets Windows' own volume, like the volume slider in the taskbar.
