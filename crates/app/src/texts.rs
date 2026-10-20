@@ -184,6 +184,7 @@ pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
 pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
+pub const EQ_FULL_RESET: Text = Text::new("Zurücksetzen", "Reset");
 pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
 pub const EQ_PRESET_SAVE: Text = Text::new("Als EQ-Preset speichern…", "Save as EQ preset…");
 pub const EQ_PRESET_LOAD: Text = Text::new("EQ-Preset laden…", "Load EQ preset…");
@@ -743,6 +744,18 @@ pub fn eq_preset_band(number: usize) -> String {
 /// The legend entry of another speaker's curve in the EQ graph.
 pub fn compared_curve(speaker: &str) -> String {
     pick(format!("{speaker} (Summe)"), format!("{speaker} (sum)"))
+}
+
+/// Asked before a full reset, in the EQ window.
+pub fn eq_full_reset_question(container: &str) -> String {
+    pick(
+        format!(
+            "Alle Bänder von {container} zurücksetzen? Aus, PARAMETRIC, 100 Hz, Q 0,7, Pegel und Anhebung 0 dB."
+        ),
+        format!(
+            "Reset every band of {container}? Off, PARAMETRIC, 100 Hz, Q 0.7, level and boost 0 dB."
+        ),
+    )
 }
 
 /// Asked before a reset to flat, in the EQ window.

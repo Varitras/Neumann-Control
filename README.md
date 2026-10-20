@@ -225,6 +225,9 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
 - **Make flat** sets level and boost of every band of the chosen EQ to 0 dB, after a question;
   frequency, Q, type and on/off stay. It is one history entry. The crossovers have no **Make
   flat**: flattening them would remove the subwoofer's low pass.
+- **Reset** switches every band of the chosen EQ off and sets it back to PARAMETRIC, 100 Hz,
+  Q 0.7, level and boost 0 dB, after a question. The bands are switched off first; it is one
+  history entry.
 - **Undo** in the window takes back the speaker's newest EQ change, also with Ctrl+Z while the
   window is in front; the line beside it says which change that is. When the values changed
   since, the window asks first.
@@ -234,7 +237,7 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   the presets with the same number of bands, shows which bands change and writes them as one
   history entry. Writing several settings of a band one after another can pass a short level
   jump.
-- The crossovers are protected by default: no **Make flat** and no EQ presets there. Switching off
+- The crossovers are protected by default: no **Make flat**, no **Reset** and no EQ presets there. Switching off
   **Protect crossovers** in **Settings** allows both, with a warning that the output then plays
   unfiltered.
 

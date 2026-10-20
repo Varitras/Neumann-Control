@@ -128,13 +128,43 @@ pub fn has_eq(catalog: &Catalog, speaker: &SpeakerState) -> bool {
     speaker.identity.is_some() && !catalog.eq_containers(speaker.product()).is_empty()
 }
 
-/// The leaves a reset to flat sets to 0 dB: `gain` is a flat level and `boost` the filter's
-/// height (measured), so with both at 0 a band changes nothing whatever its type.
-pub const FLATTENING_LEAVES: [Leaf; 2] = [Leaf::Gain, Leaf::Boost];
+/// What a full reset sets every band to: what the tested speakers report for bands nobody
+/// touched, not a measured factory state.
+const RESET_TYPE: &str = "PARAMETRIC";
+const RESET_FREQUENCY_HZ: f64 = 100.0;
+const RESET_Q: f64 = 0.7;
 
-/// The value that sets every band of a leaf to 0.
-pub fn flat(length: usize) -> Value {
-    Value::from(vec![0.0; length])
+/// Setting every band of a container back at once.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResetKind {
+    /// `gain` and `boost` to 0 dB: `gain` is a flat level and `boost` the filter's height
+    /// (measured), so with both at 0 a band changes nothing whatever its type. Bands stay on.
+    Flat,
+    /// Every band off and every leaf back to the start values.
+    Full,
+}
+
+impl ResetKind {
+    /// In the order they are written: a full reset switches the bands off first, so the other
+    /// leaves change while nothing sounds.
+    pub fn leaves(self) -> &'static [Leaf] {
+        match self {
+            ResetKind::Flat => &[Leaf::Gain, Leaf::Boost],
+            ResetKind::Full => &Leaf::ALL,
+        }
+    }
+
+    /// The whole array a leaf of `length` bands gets.
+    pub fn value(self, leaf: Leaf, length: usize) -> Value {
+        let entry = match leaf {
+            Leaf::Enabled => Value::Bool(false),
+            Leaf::Type => Value::from(RESET_TYPE),
+            Leaf::Frequency => Value::from(RESET_FREQUENCY_HZ),
+            Leaf::Q => Value::from(RESET_Q),
+            Leaf::Gain | Leaf::Boost => Value::from(0.0),
+        };
+        Value::Array(vec![entry; length])
+    }
 }
 
 /// The value that writes `value` to `band` only (measured: `null` leaves a band as it is).
@@ -163,8 +193,23 @@ mod tests {
     }
 
     #[test]
-    fn flat_sets_every_band_to_zero() {
-        assert_eq!(flat(3), json!([0.0, 0.0, 0.0]));
+    fn flat_sets_level_and_boost_of_every_band_to_zero() {
+        assert_eq!(ResetKind::Flat.leaves(), &[Leaf::Gain, Leaf::Boost]);
+        assert_eq!(ResetKind::Flat.value(Leaf::Gain, 3), json!([0.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn a_full_reset_switches_off_first_and_sets_every_leaf() {
+        let leaves = ResetKind::Full.leaves();
+        assert_eq!(leaves.len(), 6);
+        assert_eq!(leaves[0], Leaf::Enabled);
+        let value = |leaf| ResetKind::Full.value(leaf, 2);
+        assert_eq!(value(Leaf::Enabled), json!([false, false]));
+        assert_eq!(value(Leaf::Type), json!(["PARAMETRIC", "PARAMETRIC"]));
+        assert_eq!(value(Leaf::Frequency), json!([100.0, 100.0]));
+        assert_eq!(value(Leaf::Q), json!([0.7, 0.7]));
+        assert_eq!(value(Leaf::Gain), json!([0.0, 0.0]));
+        assert_eq!(value(Leaf::Boost), json!([0.0, 0.0]));
     }
 
     fn two_bands() -> BTreeMap<SscPath, Value> {

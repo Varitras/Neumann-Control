@@ -10,6 +10,7 @@ use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
 use super::history::UNDO_SHORTCUT;
 use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
+use crate::eq::ResetKind;
 use crate::texts;
 
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
@@ -62,8 +63,8 @@ pub enum PresetDialogView<'a> {
 
 pub struct ResetOffer {
     pub container: String,
-    /// The question is shown instead of the button.
-    pub asking: bool,
+    /// The reset being asked about; its question is shown instead of the buttons.
+    pub asking: Option<ResetKind>,
     /// The container is a crossover (offered only with the protection off): the question warns.
     pub crossover: bool,
 }
@@ -75,7 +76,7 @@ pub enum EqAction {
     Container(usize),
     Graph(GraphAction),
     Table(TableAction),
-    ResetAsk,
+    ResetAsk(ResetKind),
     ResetConfirm,
     ResetCancel,
     Undo,
@@ -256,10 +257,11 @@ fn compare_row(ui: &mut Ui, candidates: &[(String, bool)]) -> Option<EqAction> {
 /// Reset and undo in one row; while the reset is asked about, its question takes the row.
 fn edit_row(ui: &mut Ui, reset: Option<&ResetOffer>, undo: Option<&str>) -> Option<EqAction> {
     ui.horizontal(|ui| {
-        if let Some(asked) = reset.filter(|reset| reset.asking) {
-            return reset_question(ui, asked);
+        if let Some((asked, kind)) = reset.and_then(|reset| Some((reset, reset.asking?))) {
+            return reset_question(ui, asked, kind);
         }
         let flatten = reset.is_some() && ui.button(texts::EQ_RESET).clicked();
+        let full = reset.is_some() && ui.button(texts::EQ_FULL_RESET).clicked();
         let undone = ui
             .add_enabled(undo.is_some(), Button::new(texts::EQ_UNDO))
             .clicked();
@@ -267,7 +269,10 @@ fn edit_row(ui: &mut Ui, reset: Option<&ResetOffer>, undo: Option<&str>) -> Opti
             ui.weak(line);
         }
         if flatten {
-            return Some(EqAction::ResetAsk);
+            return Some(EqAction::ResetAsk(ResetKind::Flat));
+        }
+        if full {
+            return Some(EqAction::ResetAsk(ResetKind::Full));
         }
         undone.then_some(EqAction::Undo)
     })
@@ -294,12 +299,19 @@ fn question(ui: &mut Ui, lines: &[String]) -> Option<EqAction> {
     .inner
 }
 
-fn reset_question(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {
-    ui.label(texts::eq_reset_question(&reset.container));
+fn reset_question(ui: &mut Ui, reset: &ResetOffer, kind: ResetKind) -> Option<EqAction> {
+    let (question, confirm) = match kind {
+        ResetKind::Flat => (texts::eq_reset_question(&reset.container), texts::EQ_RESET),
+        ResetKind::Full => (
+            texts::eq_full_reset_question(&reset.container),
+            texts::EQ_FULL_RESET,
+        ),
+    };
+    ui.label(question);
     if reset.crossover {
         ui.colored_label(ui.visuals().warn_fg_color, texts::CROSSOVER_WARNING);
     }
-    if ui.button(texts::EQ_RESET).clicked() {
+    if ui.button(confirm).clicked() {
         return Some(EqAction::ResetConfirm);
     }
     ui.button(texts::CANCEL)

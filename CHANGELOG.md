@@ -13,6 +13,8 @@
 - An **EQ** button on each strip, opening the speaker's EQ window.
 - **Make flat** in the EQ window: level and boost of every band of an EQ to 0 dB, after a
   question; not for the KH 750 crossovers.
+- **Reset** in the EQ window: every band of an EQ off and back to PARAMETRIC, 100 Hz, Q 0.7,
+  level and boost 0 dB, after a question; protected like "Make flat".
 - **Undo** in the EQ window and Ctrl+Z there: takes back the speaker's newest EQ change.
 - Trends of the temperature and the warnings over the last two hours of the session in the
   device panel.
@@ -28,7 +30,7 @@
 - Each EQ band has its own colour and its number in its point; every band's own curve is drawn
   thin, the chosen band's with its area. Colours and which band curves show are set in the
   settings.
-- **Protect crossovers** in the settings (on by default); off, "Make flat" and EQ presets work on
+- **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset" and EQ presets work on
   the KH 750 crossovers too, with a warning.
 
 ### Changed

@@ -8,7 +8,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, container_of, flat, has_eq, one_band, Band, Leaf, FLATTENING_LEAVES};
+use crate::eq::{bands_of, container_of, has_eq, one_band, Band, Leaf, ResetKind};
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
@@ -33,7 +33,7 @@ pub(super) struct EqWindow {
     container: usize,
     band: usize,
     refusal: Option<String>,
-    asking_reset: bool,
+    asking_reset: Option<ResetKind>,
     /// Other speakers whose sum is drawn for comparison.
     compared: Vec<SpeakerKey>,
     /// The speakers offered for comparison in the last frame, in the order shown.
@@ -70,7 +70,7 @@ impl NeumannApp {
             container: 0,
             band: 0,
             refusal: None,
-            asking_reset: false,
+            asking_reset: None,
             compared: Vec::new(),
             candidates: Vec::new(),
             preset: None,
@@ -366,17 +366,18 @@ impl NeumannApp {
             EqAction::Close => {}
             EqAction::Output(output) => {
                 (window.output, window.container, window.band) = (output, 0, 0);
-                window.asking_reset = false;
+                window.asking_reset = None;
             }
             EqAction::Container(container) => {
                 (window.container, window.band) = (container, 0);
-                window.asking_reset = false;
+                window.asking_reset = None;
             }
-            EqAction::ResetAsk => window.asking_reset = true,
-            EqAction::ResetCancel => window.asking_reset = false,
+            EqAction::ResetAsk(kind) => window.asking_reset = Some(kind),
+            EqAction::ResetCancel => window.asking_reset = None,
             EqAction::ResetConfirm => {
-                window.asking_reset = false;
-                self.flatten(index, now);
+                if let Some(kind) = window.asking_reset.take() {
+                    self.reset_container(index, kind, now);
+                }
             }
             EqAction::Undo => {
                 let key = window.key.clone();
@@ -516,14 +517,15 @@ impl NeumannApp {
         self.eq_windows[index].preset = Some(EqPresetDialog::Load { selected: None });
     }
 
-    /// `gain` and `boost` of every band of the chosen container to 0, both in this frame, so
-    /// the history files them as one entry.
-    fn flatten(&mut self, index: usize, now: f64) {
-        for leaf in FLATTENING_LEAVES {
-            let Some((path, length)) = self.chosen_leaf(index, leaf) else {
+    /// Every band of the chosen container at once, in this frame, so the history files it as
+    /// one entry.
+    fn reset_container(&mut self, index: usize, kind: ResetKind, now: f64) {
+        for leaf in kind.leaves() {
+            let Some((path, length)) = self.chosen_leaf(index, *leaf) else {
                 return;
             };
-            if let Err((label, reason)) = self.send_eq_write(index, &path, flat(length), now) {
+            let value = kind.value(*leaf, length);
+            if let Err((label, reason)) = self.send_eq_write(index, &path, value, now) {
                 self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
                 return;
             }

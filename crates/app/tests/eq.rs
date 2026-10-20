@@ -660,3 +660,54 @@ fn the_eq_display_is_chosen_and_reset_in_the_settings() {
     );
     assert!(stored.band_colors.is_empty(), "{:?}", stored.band_colors);
 }
+
+#[test]
+fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq2/gain", json!(vec![1.5; 10]));
+        simulator.set_value("audio/out/eq2/q", json!(vec![2.0; 10]));
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .click();
+    harness.run_steps(2);
+    harness.get_by_label_contains(&texts::eq_full_reset_question("EQ 2"));
+    barrier(&simulator);
+    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .click();
+    wait_until(&mut harness, "all six leaves written", |_| {
+        ["enabled", "type", "frequency", "q", "gain", "boost"]
+            .iter()
+            .all(|leaf| !sets(&simulator, &format!("/audio/out/eq2/{leaf}")).is_empty())
+    });
+    assert_eq!(
+        sets(&simulator, "/audio/out/eq2/enabled"),
+        vec![json!(vec![false; 10])]
+    );
+    assert_eq!(
+        sets(&simulator, FREQUENCY_POINTER),
+        vec![json!(vec![100.0; 10])]
+    );
+    assert_eq!(
+        sets(&simulator, "/audio/out/eq2/q"),
+        vec![json!(vec![0.7; 10])]
+    );
+    assert_eq!(sets(&simulator, GAIN_POINTER), vec![json!(vec![0.0; 10])]);
+    let history: Vec<_> = harness.state().history().entries().cloned().collect();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].changes.len(), 6);
+    assert!(history[0].changes[0].path.to_string().ends_with("enabled"));
+}
+
+#[test]
+fn a_full_reset_is_not_offered_on_a_protected_crossover() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    harness.get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get());
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .is_none());
+}
