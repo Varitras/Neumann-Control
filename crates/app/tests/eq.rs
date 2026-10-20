@@ -794,14 +794,14 @@ fn a_file_the_speaker_would_refuse_writes_nothing() {
 }
 
 #[test]
-fn a_shelf_in_the_file_is_named_and_refused() {
+fn a_shelf_by_slope_in_the_file_is_named_and_refused() {
     let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
     let text =
-        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\nFilter 2: ON LSC Fc 80 Hz Gain 3 dB Q 0.7\n";
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\nFilter 2: ON LSC 10.8 dB Fc 80 Hz Gain 3 dB\n";
     import_file(&mut harness, &directory, "shelf.txt", text);
     let error = eq_file::ImportError::Line {
         line: 2,
-        problem: eq_file::LineProblem::UnsupportedForm("LSC".to_owned()),
+        problem: eq_file::LineProblem::UnsupportedForm("LSC 10.8".to_owned()),
     };
     harness.get_by_label(&texts::eq_import_error(&error));
     let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());

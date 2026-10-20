@@ -846,9 +846,11 @@ fn line_problem(problem: &LineProblem) -> String {
             format!("Filtertyp „{kind}“ gibt es am Lautsprecher nicht."),
             format!("The speaker has no filter type \"{kind}\"."),
         ),
-        LineProblem::UnsupportedForm(kind) => pick(
-            format!("Kuhschwanzfilter („{kind}“) werden noch nicht übernommen."),
-            format!("Shelving filters (\"{kind}\") are not taken over yet."),
+        LineProblem::UnsupportedForm(form) => pick(
+            format!(
+                "Kuhschwanzfilter mit Steilheit in dB oder Eckfrequenz („{form}“) werden nicht übernommen."
+            ),
+            format!("Shelving filters by slope in dB or corner frequency (\"{form}\") are not taken over."),
         ),
         LineProblem::Missing(parameter) => pick(
             format!("{} fehlt.", parameter_name(*parameter)),

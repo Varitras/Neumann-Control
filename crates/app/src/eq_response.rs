@@ -80,14 +80,25 @@ fn biquad(band: &Band) -> Option<Biquad> {
     }
 }
 
-/// Measured on the KH 120 II: a shelf's `q` is the cookbook's slope S, not its Q.
+/// The cookbook Q of a shelf whose `q` (the speakers' slope S, measured on the KH 120 II) and
+/// height are given; `None` for a slope too steep for its height, where the cookbook form ends
+/// (what the speakers do there is not measured).
+pub fn shelf_q_of_slope(slope: f64, boost: f64) -> Option<f64> {
+    let a = 10f64.powf(boost / 40.0);
+    let radicand = (a + 1.0 / a) * (1.0 / slope - 1.0) + 2.0;
+    (radicand > 0.0).then(|| 1.0 / radicand.sqrt())
+}
+
+/// The speakers' `q` (slope S) of a shelf given by its cookbook Q, as Room EQ Wizard and
+/// Equalizer APO write it; every Q has one.
+pub fn shelf_slope_of_q(q: f64, boost: f64) -> f64 {
+    let a = 10f64.powf(boost / 40.0);
+    1.0 / ((1.0 / (q * q) - 2.0) / (a + 1.0 / a) + 1.0)
+}
+
 fn shelf(band: &Band, a: f64, cos: f64, sin: f64) -> Option<Biquad> {
-    let radicand = (a + 1.0 / a) * (1.0 / band.q - 1.0) + 2.0;
-    if radicand <= 0.0 {
-        // A slope this steep for this height is outside the cookbook form; not measured.
-        return None;
-    }
-    let lift = 2.0 * a.sqrt() * (sin / 2.0) * radicand.sqrt();
+    let q = shelf_q_of_slope(band.q, band.boost)?;
+    let lift = a.sqrt() * sin / q;
     let (plus, minus) = (a + 1.0, a - 1.0);
     let filter = match band.kind.as_str() {
         "LOSHELF" => Biquad {

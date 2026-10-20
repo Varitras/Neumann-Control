@@ -1,14 +1,18 @@
 //! EQ filters as text files: the filter lines of Equalizer APO's `config.txt`, which are also
 //! what Room EQ Wizard exports for its "Generic" equaliser (`Filter 1: ON PK Fc 100 Hz Gain -3.0
 //! dB Q 1.41`). Import maps them onto a container's bands; export writes a container as APO lines.
-//! Shelves are left out both ways until it is measured how the speakers define their Q.
+//! A shelf's Q in these files is the cookbook Q (read from the biquad REW stores), the speakers'
+//! shelf `q` is the cookbook slope S (measured), so shelves are converted both ways.
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::f64::consts::FRAC_1_SQRT_2;
 
 use neumann_control_core::settings::EqPreset;
 use serde_json::Value;
 
 use crate::eq::{Band, Leaf};
+use crate::eq_response::{shelf_q_of_slope, shelf_slope_of_q};
 
 /// Bigger than any filter file; a larger file is not one.
 pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
@@ -16,6 +20,13 @@ pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
 const COMMENT: char = '#';
 const FILTER_COMMAND: &str = "filter";
 const BYTE_ORDER_MARK: char = '\u{feff}';
+/// The second word of REW's two-word types (`LS Q`, `HP Q`): the variant with a Q.
+const Q_SUFFIX: &str = "Q";
+const FREQUENCY_KEY: &str = "FC";
+/// REW's plain shelf (`LS`, `HS`), read from the biquad it stores: Q 1/√2, slope 1.
+const PLAIN_SHELF_Q: f64 = FRAC_1_SQRT_2;
+/// First-order filters have no Q; the speakers still want one in their range.
+const FIRST_ORDER_Q: f64 = 0.7;
 /// APO commands that change the sound but have no place in one EQ container; anything else
 /// before a colon (REW's header lines `Dated:`, `Notes:` ...) is passed over silently.
 const SOUND_COMMANDS: [&str; 14] = [
@@ -85,26 +96,65 @@ pub enum Parameter {
     Q,
 }
 
-/// Which parameters a file type needs, and the speaker's type for it.
+/// What a file type's Q means for the speaker.
+#[derive(Clone, Copy)]
+enum QRule {
+    /// The cookbook Q, taken as it is; a line without one is refused.
+    Required,
+    /// The cookbook Q of a shelf, converted to the speakers' slope; REW's plain shelf has none.
+    Shelf,
+    /// A first-order filter: no Q.
+    Unused,
+}
+
+/// The speaker's type for a file type, whether its line carries a gain, and what its Q means.
 struct FileType {
     kind: &'static str,
     gain: bool,
+    q: QRule,
 }
 
-fn file_type(token: &str) -> Result<Option<FileType>, LineProblem> {
-    let upper = token.to_ascii_uppercase();
-    let shaped = |kind, gain| Ok(Some(FileType { kind, gain }));
+fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
+    let upper = name.to_ascii_uppercase();
+    let shaped = |kind, gain, q| Ok(Some(FileType { kind, gain, q }));
     match upper.as_str() {
-        "PK" | "PEQ" | "MODAL" => shaped("PARAMETRIC", true),
-        "LP" | "LPQ" => shaped("LOWPASS", false),
-        "HP" | "HPQ" => shaped("HIGHPASS", false),
-        "BP" => shaped("BANDPASS", false),
-        "NO" => shaped("NOTCH", false),
-        "AP" => shaped("ALLPASS", false),
+        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped("PARAMETRIC", true, QRule::Required),
+        "LP" | "LPQ" | "LP Q" => shaped("LOWPASS", false, QRule::Required),
+        "HP" | "HPQ" | "HP Q" => shaped("HIGHPASS", false, QRule::Required),
+        "LP1" => shaped("LO6DB", false, QRule::Unused),
+        "HP1" => shaped("HI6DB", false, QRule::Unused),
+        "BP" => shaped("BANDPASS", false, QRule::Required),
+        "NO" => shaped("NOTCH", false, QRule::Required),
+        "AP" => shaped("ALLPASS", false, QRule::Required),
+        "LS" | "LSC" | "LS Q" => shaped("LOSHELF", true, QRule::Shelf),
+        "HS" | "HSC" | "HS Q" => shaped("HISHELF", true, QRule::Shelf),
         "NONE" => Ok(None),
-        "LS" | "HS" | "LSC" | "HSC" => Err(LineProblem::UnsupportedForm(token.to_owned())),
-        _ => Err(LineProblem::UnknownType(token.to_owned())),
+        _ => Err(LineProblem::UnknownType(name.to_owned())),
     }
+}
+
+/// The type's name and the words after it: REW writes `LS Q` / `HP Q` as two words. A shelf
+/// followed by anything but `Fc` is APO's slope (`LSC 10.8 dB`) or corner (`LS 6dB`) form,
+/// whose meaning is not verified.
+fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>), LineProblem> {
+    let Some((first, rest)) = tokens.split_first() else {
+        return Err(LineProblem::UnknownType(String::new()));
+    };
+    let second = rest.first().copied().unwrap_or_default();
+    let is_key = |word: &str| word.eq_ignore_ascii_case(FREQUENCY_KEY);
+    let with_q =
+        second.eq_ignore_ascii_case(Q_SUFFIX) && rest.get(1).is_some_and(|word| is_key(word));
+    if with_q {
+        return Ok((format!("{first} {Q_SUFFIX}"), rest[1..].to_vec()));
+    }
+    let shelf = matches!(
+        first.to_ascii_uppercase().as_str(),
+        "LS" | "HS" | "LSC" | "HSC"
+    );
+    if shelf && !second.is_empty() && !is_key(second) {
+        return Err(LineProblem::UnsupportedForm(format!("{first} {second}")));
+    }
+    Ok(((*first).to_owned(), rest.to_vec()))
 }
 
 /// The filters of an APO or REW text. Filter lines with a number go to that band, lines
@@ -135,13 +185,16 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
             "" => next_band,
             given => band_number(given).map_err(failed)?,
         };
-        if imported.bands.contains_key(&band) {
-            return Err(failed(LineProblem::SameBand(band + 1)));
-        }
-        imported
-            .bands
-            .insert(band, filter_of(rest).map_err(failed)?);
+        let filter = filter_of(rest).map_err(failed)?;
         next_band = band + 1;
+        match imported.bands.entry(band) {
+            Entry::Vacant(slot) => {
+                slot.insert(filter);
+            }
+            // REW appends a second block of empty filters (`Filter 1: ON None` again).
+            Entry::Occupied(_) if filter.is_none() => {}
+            Entry::Occupied(_) => return Err(failed(LineProblem::SameBand(band + 1))),
+        }
     }
     if imported.bands.is_empty() {
         return Err(ImportError::NoFilters);
@@ -181,13 +234,11 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
         "OFF" => return Ok(None),
         _ => return Err(LineProblem::UnknownState((*state).to_owned())),
     }
-    let Some((kind, parameters)) = tokens.split_first() else {
-        return Err(LineProblem::UnknownType(String::new()));
-    };
-    let Some(file_type) = file_type(kind)? else {
+    let (name, parameters) = type_and_parameters(tokens)?;
+    let Some(file_type) = file_type(&name)? else {
         return Ok(None);
     };
-    let values = Parameters::read(parameters)?;
+    let values = Parameters::read(&parameters)?;
     let frequency = values
         .frequency
         .ok_or(LineProblem::Missing(Parameter::Frequency))?;
@@ -195,7 +246,11 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
     if file_type.gain {
         boost = values.gain.ok_or(LineProblem::Missing(Parameter::Gain))?;
     }
-    let q = values.q.ok_or(LineProblem::Missing(Parameter::Q))?;
+    let q = match file_type.q {
+        QRule::Required => values.q.ok_or(LineProblem::Missing(Parameter::Q))?,
+        QRule::Shelf => shelf_slope_of_q(values.q.unwrap_or(PLAIN_SHELF_Q), boost),
+        QRule::Unused => FIRST_ORDER_Q,
+    };
     Ok(Some(Filter {
         kind: file_type.kind,
         frequency,
@@ -263,12 +318,14 @@ pub fn imported_preset(
     current: &[Band],
 ) -> Result<EqPreset, ImportError> {
     let bands = current.len();
-    if let Some(last) = imported
+    // Empty slots past the container (REW writes all 20) are no filters.
+    let beyond = imported
         .bands
-        .keys()
-        .next_back()
-        .filter(|last| **last >= bands)
-    {
+        .iter()
+        .filter(|(band, filter)| **band >= bands && filter.is_some())
+        .map(|(band, _)| *band)
+        .next_back();
+    if let Some(last) = beyond {
         return Err(ImportError::TooManyBands {
             band: last + 1,
             bands,
@@ -336,15 +393,18 @@ pub struct Export {
     pub notes: Vec<ExportNote>,
 }
 
-/// APO's token for a speaker type, and whether its line carries a gain.
-fn apo_type(kind: &str) -> Option<(&'static str, bool)> {
-    match kind {
-        "PARAMETRIC" => Some(("PK", true)),
-        "LOWPASS" => Some(("LPQ", false)),
-        "HIGHPASS" => Some(("HPQ", false)),
-        "BANDPASS" => Some(("BP", false)),
-        "NOTCH" => Some(("NO", false)),
-        "ALLPASS" => Some(("AP", false)),
+/// APO's token for a band, whether its line carries a gain, and its cookbook Q (a shelf's slope
+/// converted); `None` for a type APO has no line for, or a shelf beyond the cookbook form.
+fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
+    match band.kind.as_str() {
+        "PARAMETRIC" => Some(("PK", true, band.q)),
+        "LOWPASS" => Some(("LPQ", false, band.q)),
+        "HIGHPASS" => Some(("HPQ", false, band.q)),
+        "BANDPASS" => Some(("BP", false, band.q)),
+        "NOTCH" => Some(("NO", false, band.q)),
+        "ALLPASS" => Some(("AP", false, band.q)),
+        "LOSHELF" => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
+        "HISHELF" => Some(("HSC", true, shelf_q_of_slope(band.q, band.boost)?)),
         _ => None,
     }
 }
@@ -364,7 +424,7 @@ pub fn export(bands: &[Band], container: &str) -> Export {
             notes.push(ExportNote::Off(number));
             continue;
         }
-        let Some((token, gain)) = apo_type(&band.kind) else {
+        let Some((token, gain, q)) = apo_line_of(band) else {
             lines.push(format!(
                 "{COMMENT} Filter {number}: {} not exported",
                 band.kind
@@ -375,7 +435,7 @@ pub fn export(bands: &[Band], container: &str) -> Export {
             });
             continue;
         };
-        lines.push(filter_line(number, token, gain, band));
+        lines.push(filter_line(number, token, gain, q, band));
         if band.gain != 0.0 {
             lines.push(format!(
                 "{COMMENT} Filter {number}: flat level {} dB not exported",
@@ -394,7 +454,7 @@ pub fn export(bands: &[Band], container: &str) -> Export {
     }
 }
 
-fn filter_line(number: usize, token: &str, gain: bool, band: &Band) -> String {
+fn filter_line(number: usize, token: &str, gain: bool, q: f64, band: &Band) -> String {
     let mut line = format!(
         "Filter {number}: ON {token} Fc {} Hz",
         trimmed(band.frequency)
@@ -402,7 +462,7 @@ fn filter_line(number: usize, token: &str, gain: bool, band: &Band) -> String {
     if gain {
         line.push_str(&format!(" Gain {} dB", trimmed(band.boost)));
     }
-    line.push_str(&format!(" Q {}", trimmed(band.q)));
+    line.push_str(&format!(" Q {}", trimmed(q)));
     line
 }
 
