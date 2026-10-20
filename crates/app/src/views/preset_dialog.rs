@@ -68,6 +68,8 @@ pub struct LoadView<'a> {
     /// "Setting: current → preset" per write.
     pub changes: &'a [String],
     pub skipped: &'a [String],
+    /// A caution above the buttons (a crossover would lose its split).
+    pub warning: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,6 +111,9 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
             if !view.skipped.is_empty() {
                 ui.weak(texts::preset_skipped(view.skipped));
             }
+        }
+        if let Some(warning) = view.warning {
+            ui.colored_label(ui.visuals().warn_fg_color, warning);
         }
         ui.horizontal(|ui| {
             let writable = view.selected.is_some() && !view.changes.is_empty();

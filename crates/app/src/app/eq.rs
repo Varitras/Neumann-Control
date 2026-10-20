@@ -12,12 +12,13 @@ use crate::eq::{bands_of, container_of, flat, has_eq, one_band, Band, Leaf, FLAT
 use crate::eq_response::{curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
+use crate::presets::{capture_eq, eq_plan, fitting};
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::theme::group_color;
 use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
-use crate::views::eq_window::{self, EqAction, EqView, ResetOffer};
+use crate::views::eq_window::{self, EqAction, EqView, PresetDialogView, ResetOffer};
 use crate::writes::{self, Intent};
 
 const EQ_VIEWPORT_ID: &str = "eq_window";
@@ -36,6 +37,17 @@ pub(super) struct EqWindow {
     compared: Vec<SpeakerKey>,
     /// The speakers offered for comparison in the last frame, in the order shown.
     candidates: Vec<SpeakerKey>,
+    preset: Option<EqPresetDialog>,
+}
+
+enum EqPresetDialog {
+    Save {
+        name: String,
+    },
+    /// `selected` is a place among the presets that fit the container.
+    Load {
+        selected: Option<usize>,
+    },
 }
 
 /// One container as the window shows it.
@@ -60,6 +72,7 @@ impl NeumannApp {
             asking_reset: false,
             compared: Vec::new(),
             candidates: Vec::new(),
+            preset: None,
         });
     }
 
@@ -241,13 +254,51 @@ impl NeumannApp {
             .and_then(|id| self.history.history.entry(id))
             .map(|entry| self.changed_lines(entry));
         let crossovers_open = self.settings.desk.crossovers == CrossoverGuard::Open;
-        let reset = selected
-            .filter(|shown| editable && (crossovers_open || !shown.container.crossover))
-            .map(|shown| ResetOffer {
-                container: shown.container.label(texts::language()).to_owned(),
-                asking: window.asking_reset,
-                crossover: shown.container.crossover,
-            });
+        let reshapable =
+            selected.filter(|shown| editable && (crossovers_open || !shown.container.crossover));
+        let band_count = bands.as_ref().map_or(0, Vec::len);
+        let fitting_presets = fitting(&self.settings.eq_presets, band_count);
+        let preset_names: Vec<String> = fitting_presets
+            .iter()
+            .map(|place| {
+                let preset = &self.settings.eq_presets[*place];
+                texts::eq_preset_entry(&preset.name, preset.bands)
+            })
+            .collect();
+        let preset_changes: Vec<String> = match (&window.preset, reshapable) {
+            (
+                Some(EqPresetDialog::Load {
+                    selected: Some(place),
+                }),
+                Some(shown),
+            ) => fitting_presets
+                .get(*place)
+                .map(|place| {
+                    let preset = &self.settings.eq_presets[*place];
+                    let plan = eq_plan(preset, &speaker.values, &shown.container.path);
+                    plan.bands
+                        .iter()
+                        .map(|band| texts::eq_preset_band(band + 1))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let preset_dialog = match &window.preset {
+            Some(EqPresetDialog::Save { name }) => Some(PresetDialogView::Save { name }),
+            Some(EqPresetDialog::Load { selected }) => Some(PresetDialogView::Load {
+                names: &preset_names,
+                selected: *selected,
+                changes: &preset_changes,
+                crossover: reshapable.is_some_and(|shown| shown.container.crossover),
+            }),
+            None => None,
+        };
+        let reset = reshapable.map(|shown| ResetOffer {
+            container: shown.container.label(texts::language()).to_owned(),
+            asking: window.asking_reset,
+            crossover: shown.container.crossover,
+        });
         let view = EqView {
             viewport: ViewportId::from_hash_of(id),
             title: texts::eq_window_title(&speaker.display_name()),
@@ -263,6 +314,8 @@ impl NeumannApp {
             question,
             candidates: &candidates,
             compared: &legend,
+            presets: reshapable.is_some(),
+            preset_dialog,
         };
         let actions = eq_window::show(context, &view);
         self.eq_windows[index].candidates = candidate_keys;
@@ -321,6 +374,26 @@ impl NeumannApp {
                     self.request_take_back(id);
                 }
             }
+            EqAction::PresetSave => {
+                window.preset = Some(EqPresetDialog::Save {
+                    name: String::new(),
+                });
+            }
+            EqAction::PresetLoad => window.preset = Some(EqPresetDialog::Load { selected: None }),
+            EqAction::PresetName(typed) => {
+                if let Some(EqPresetDialog::Save { name }) = &mut window.preset {
+                    *name = typed;
+                }
+            }
+            EqAction::PresetSelect(place) => {
+                window.preset = Some(EqPresetDialog::Load {
+                    selected: Some(place),
+                });
+            }
+            EqAction::PresetClose => window.preset = None,
+            EqAction::PresetConfirmSave => self.save_eq_preset(index),
+            EqAction::PresetWrite => self.write_eq_preset(index, now),
+            EqAction::PresetDelete => self.delete_eq_preset(index),
             EqAction::Compare(place, on) => {
                 let Some(key) = window.candidates.get(place).cloned() else {
                     return;
@@ -355,6 +428,84 @@ impl NeumannApp {
         }
     }
 
+    /// The chosen container's path and its band count, once the speaker reported it.
+    fn chosen_container(&self, index: usize) -> Option<(SscPath, usize)> {
+        let catalog = Catalog::embedded();
+        let window = &self.eq_windows[index];
+        let speaker = self.speaker_of(&window.key)?;
+        let outputs = outputs_of(catalog, speaker.product());
+        let container = outputs
+            .get(window.output)
+            .and_then(|(_, containers)| containers.get(window.container))?;
+        let length = speaker
+            .values
+            .get(&Leaf::Gain.path(&container.path))
+            .and_then(Value::as_array)
+            .map(Vec::len)?;
+        Some((container.path.clone(), length))
+    }
+
+    fn save_eq_preset(&mut self, index: usize) {
+        let window = &self.eq_windows[index];
+        let Some(EqPresetDialog::Save { name }) = &window.preset else {
+            return;
+        };
+        let name = name.trim().to_owned();
+        let preset = self.chosen_container(index).and_then(|(container, _)| {
+            let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+            capture_eq(&name, &speaker.values, &container)
+        });
+        if let Some(preset) = preset {
+            let presets = &mut self.settings.eq_presets;
+            presets.retain(|known| known.name != preset.name);
+            presets.push(preset);
+            self.save_settings();
+        }
+        self.eq_windows[index].preset = None;
+    }
+
+    /// The preset place in the settings that the load dialog's selection stands for.
+    fn selected_eq_preset(&self, index: usize) -> Option<usize> {
+        let Some(EqPresetDialog::Load {
+            selected: Some(place),
+        }) = &self.eq_windows[index].preset
+        else {
+            return None;
+        };
+        let (_, bands) = self.chosen_container(index)?;
+        fitting(&self.settings.eq_presets, bands)
+            .get(*place)
+            .copied()
+    }
+
+    /// Every differing leaf whole, in this frame: one history entry.
+    fn write_eq_preset(&mut self, index: usize, now: f64) {
+        let plan = self.selected_eq_preset(index).and_then(|place| {
+            let (container, _) = self.chosen_container(index)?;
+            let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+            Some(eq_plan(
+                &self.settings.eq_presets[place],
+                &speaker.values,
+                &container,
+            ))
+        });
+        self.eq_windows[index].preset = None;
+        for (path, value) in plan.map(|plan| plan.writes).unwrap_or_default() {
+            if let Err((label, reason)) = self.send_eq_write(index, &path, value, now) {
+                self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
+                return;
+            }
+        }
+    }
+
+    fn delete_eq_preset(&mut self, index: usize) {
+        if let Some(place) = self.selected_eq_preset(index) {
+            self.settings.eq_presets.remove(place);
+            self.save_settings();
+        }
+        self.eq_windows[index].preset = Some(EqPresetDialog::Load { selected: None });
+    }
+
     /// `gain` and `boost` of every band of the chosen container to 0, both in this frame, so
     /// the history files them as one entry.
     fn flatten(&mut self, index: usize, now: f64) {
@@ -371,14 +522,9 @@ impl NeumannApp {
 
     /// The chosen container's `leaf` and its band count, once the speaker reported it.
     fn chosen_leaf(&self, index: usize, leaf: Leaf) -> Option<(SscPath, usize)> {
-        let catalog = Catalog::embedded();
-        let window = &self.eq_windows[index];
-        let speaker = self.speaker_of(&window.key)?;
-        let outputs = outputs_of(catalog, speaker.product());
-        let container = outputs
-            .get(window.output)
-            .and_then(|(_, containers)| containers.get(window.container))?;
-        let path = leaf.path(&container.path);
+        let (container, _) = self.chosen_container(index)?;
+        let speaker = self.speaker_of(&self.eq_windows[index].key)?;
+        let path = leaf.path(&container);
         let length = speaker
             .values
             .get(&path)

@@ -2,10 +2,13 @@
 //! one onto a speaker would write. The writes themselves go through the write policy.
 
 use neumann_control_core::catalog::{Catalog, Entry};
-use neumann_control_core::settings::SettingsPreset;
+use std::collections::BTreeMap;
+
+use neumann_control_core::settings::{EqPreset, SettingsPreset};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use crate::eq::Leaf;
 use crate::history::same_value;
 use crate::paths;
 use crate::state::SpeakerState;
@@ -92,6 +95,77 @@ pub fn plan(preset: &SettingsPreset, speaker: &SpeakerState, catalog: &Catalog) 
     plan
 }
 
+/// Loading an EQ preset: the leaves to write whole, and the bands that change (for the preview).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EqPlan {
+    pub writes: Vec<(SscPath, Value)>,
+    /// Zero-based.
+    pub bands: Vec<usize>,
+}
+
+/// The container's six leaves as reported; `None` until the speaker reported all of them with
+/// the same band count.
+pub fn capture_eq(
+    name: &str,
+    values: &BTreeMap<SscPath, Value>,
+    container: &SscPath,
+) -> Option<EqPreset> {
+    let mut leaves = BTreeMap::new();
+    let mut bands = None;
+    for leaf in Leaf::ALL {
+        let array = values.get(&leaf.path(container))?.as_array()?;
+        if *bands.get_or_insert(array.len()) != array.len() {
+            return None;
+        }
+        leaves.insert(leaf.name().to_owned(), Value::Array(array.clone()));
+    }
+    Some(EqPreset {
+        name: name.to_owned(),
+        bands: bands?,
+        leaves,
+    })
+}
+
+/// The places of the presets that fit a container of `bands` bands.
+pub fn fitting(presets: &[EqPreset], bands: usize) -> Vec<usize> {
+    presets
+        .iter()
+        .enumerate()
+        .filter(|(_, preset)| preset.bands == bands)
+        .map(|(place, _)| place)
+        .collect()
+}
+
+/// The leaves whose arrays differ from what the speaker reports, written whole.
+pub fn eq_plan(
+    preset: &EqPreset,
+    values: &BTreeMap<SscPath, Value>,
+    container: &SscPath,
+) -> EqPlan {
+    let mut plan = EqPlan::default();
+    for leaf in Leaf::ALL {
+        let Some(wanted) = preset.leaves.get(leaf.name()).and_then(Value::as_array) else {
+            continue;
+        };
+        let path = leaf.path(container);
+        let held = values.get(&path).and_then(Value::as_array);
+        let differing: Vec<usize> = (0..wanted.len())
+            .filter(|band| held.and_then(|held| held.get(*band)) != wanted.get(*band))
+            .collect();
+        if differing.is_empty() {
+            continue;
+        }
+        for band in differing {
+            if !plan.bands.contains(&band) {
+                plan.bands.push(band);
+            }
+        }
+        plan.writes.push((path, Value::Array(wanted.clone())));
+    }
+    plan.bands.sort_unstable();
+    plan
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +173,7 @@ mod tests {
     use serde_json::json;
     use std::net::SocketAddrV6;
 
+    use crate::eq::Leaf;
     use crate::state::SpeakerKey;
 
     fn speaker(product: &str, values: &[(&str, Value)]) -> SpeakerState {
@@ -122,6 +197,61 @@ mod tests {
             );
         }
         speaker
+    }
+
+    fn eq_values(gain: Value) -> BTreeMap<SscPath, Value> {
+        let container = paths::path("audio/out/eq2");
+        Leaf::ALL
+            .iter()
+            .map(|leaf| {
+                let value = match leaf {
+                    Leaf::Gain => gain.clone(),
+                    Leaf::Enabled => json!([true, false]),
+                    Leaf::Type => json!(["PARAMETRIC", "NOTCH"]),
+                    _ => json!([1.0, 2.0]),
+                };
+                (leaf.path(&container), value)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_eq_preset_holds_all_six_leaves_of_a_container() {
+        let container = paths::path("audio/out/eq2");
+        let preset = capture_eq("Warm", &eq_values(json!([0.0, 3.0])), &container).unwrap();
+        assert_eq!(preset.bands, 2);
+        assert_eq!(preset.leaves.len(), 6);
+        assert_eq!(preset.leaves["gain"], json!([0.0, 3.0]));
+        let mut missing = eq_values(json!([0.0, 3.0]));
+        missing.remove(&Leaf::Q.path(&container));
+        assert!(capture_eq("Warm", &missing, &container).is_none());
+    }
+
+    #[test]
+    fn loading_an_eq_preset_writes_only_differing_leaves() {
+        let container = paths::path("audio/out/eq2");
+        let preset = capture_eq("Warm", &eq_values(json!([0.0, 3.0])), &container).unwrap();
+        let now = eq_values(json!([0.0, -2.0]));
+        let plan = eq_plan(&preset, &now, &container);
+        assert_eq!(plan.bands, vec![1]);
+        assert_eq!(
+            plan.writes,
+            vec![(Leaf::Gain.path(&container), json!([0.0, 3.0]))]
+        );
+        assert!(eq_plan(&preset, &eq_values(json!([0.0, 3.0])), &container)
+            .writes
+            .is_empty());
+    }
+
+    #[test]
+    fn only_presets_with_the_same_band_count_fit() {
+        let preset = |bands| EqPreset {
+            name: format!("{bands}"),
+            bands,
+            leaves: BTreeMap::new(),
+        };
+        let presets = [preset(10), preset(20), preset(10)];
+        assert_eq!(fitting(&presets, 10), vec![0, 2]);
     }
 
     #[test]

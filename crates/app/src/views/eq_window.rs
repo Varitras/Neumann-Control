@@ -9,6 +9,7 @@ use eframe::egui::{
 use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
 use super::history::UNDO_SHORTCUT;
+use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
 use crate::texts;
 
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
@@ -39,6 +40,24 @@ pub struct EqView<'a> {
     pub candidates: &'a [(String, bool)],
     /// The compared curves that are drawn, for the legend: name and colour.
     pub compared: &'a [(String, Color32)],
+    /// Whether the chosen container can be saved as or loaded from a preset.
+    pub presets: bool,
+    pub preset_dialog: Option<PresetDialogView<'a>>,
+}
+
+pub enum PresetDialogView<'a> {
+    Save {
+        name: &'a str,
+    },
+    Load {
+        /// The presets that fit the container.
+        names: &'a [String],
+        selected: Option<usize>,
+        /// The bands that would change.
+        changes: &'a [String],
+        /// The container is a crossover (protection off): loading warns.
+        crossover: bool,
+    },
 }
 
 pub struct ResetOffer {
@@ -64,6 +83,15 @@ pub enum EqAction {
     QuestionCancel,
     /// The candidate at this place is compared or no longer.
     Compare(usize, bool),
+    PresetSave,
+    PresetLoad,
+    PresetName(String),
+    PresetConfirmSave,
+    /// The place among the fitting presets.
+    PresetSelect(usize),
+    PresetWrite,
+    PresetDelete,
+    PresetClose,
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
@@ -137,6 +165,19 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         ui.colored_label(ui.visuals().warn_fg_color, notice);
     }
     actions.extend(edit_row(ui, view.reset.as_ref(), view.undo.as_deref()));
+    if view.presets {
+        ui.horizontal(|ui| {
+            if ui.button(texts::EQ_PRESET_SAVE).clicked() {
+                actions.push(EqAction::PresetSave);
+            }
+            if ui.button(texts::EQ_PRESET_LOAD).clicked() {
+                actions.push(EqAction::PresetLoad);
+            }
+        });
+    }
+    if let Some(dialog) = &view.preset_dialog {
+        actions.extend(preset_dialog(ui, dialog));
+    }
     if let Some(lines) = &view.question {
         actions.extend(question(ui, lines));
     }
@@ -152,6 +193,46 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         actions.push(EqAction::Close);
     }
     actions
+}
+
+fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
+    match dialog {
+        PresetDialogView::Save { name } => {
+            let mut typed = (*name).to_owned();
+            let title = texts::EQ_PRESET_SAVE_TITLE.get();
+            let action = preset_dialog::save(ui, title, &[], &mut typed);
+            if typed != *name {
+                return Some(EqAction::PresetName(typed));
+            }
+            match action {
+                SaveAction::Save => Some(EqAction::PresetConfirmSave),
+                SaveAction::Cancel => Some(EqAction::PresetClose),
+                SaveAction::None | SaveAction::Toggle(..) => None,
+            }
+        }
+        PresetDialogView::Load {
+            names,
+            selected,
+            changes,
+            crossover,
+        } => {
+            let view = LoadView {
+                title: texts::EQ_PRESET_LOAD_TITLE.get(),
+                presets: names,
+                selected: *selected,
+                changes,
+                skipped: &[],
+                warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
+            };
+            match preset_dialog::load(ui, &view) {
+                LoadAction::None => None,
+                LoadAction::Select(place) => Some(EqAction::PresetSelect(place)),
+                LoadAction::Write => Some(EqAction::PresetWrite),
+                LoadAction::Delete => Some(EqAction::PresetDelete),
+                LoadAction::Close => Some(EqAction::PresetClose),
+            }
+        }
+    }
 }
 
 fn compare_row(ui: &mut Ui, candidates: &[(String, bool)]) -> Option<EqAction> {

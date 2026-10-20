@@ -169,6 +169,7 @@ impl NeumannApp {
             selected,
             changes: &changes,
             skipped: &loading.skipped,
+            warning: None,
         };
         match preset_dialog::load(ui, &view) {
             LoadAction::None => {}

@@ -509,3 +509,94 @@ fn another_speakers_curve_can_be_compared() {
         .query_by_role_and_label(Role::CheckBox, KH120_DEVICE_NAME)
         .is_none());
 }
+
+fn save_eq_preset(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_SAVE.get())
+        .click();
+    harness.run_steps(3);
+    let field = || texts::PRESET_NAME.get();
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .type_text(name);
+    harness.run_steps(1);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+}
+
+#[test]
+fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
+    let (simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Warm");
+    let saved = neumann_control_core::settings::load(&directory.path().join("settings.json"));
+    assert_eq!(saved.eq_presets.len(), 1);
+    assert_eq!(saved.eq_presets[0].bands, 10);
+    assert_eq!(saved.eq_presets[0].leaves.len(), 6);
+
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    harness.run_steps(3);
+    let entries_before = harness.state().history().len();
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Warm", 10))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(&texts::eq_preset_band(2));
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    wait_until(&mut harness, "the preset's boost written", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+    assert_eq!(sets(&simulator, BOOST_POINTER)[1], json!(vec![0.0; 10]));
+    harness.run_steps(2);
+    assert_eq!(harness.state().history().len(), entries_before + 1);
+}
+
+#[test]
+fn eq_presets_of_another_band_count_are_not_offered() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Warm");
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness.get_by_label(texts::NO_PRESETS.get());
+    assert!(harness
+        .query_by_label(&texts::eq_preset_entry("Warm", 10))
+        .is_none());
+}
+
+#[test]
+fn a_protected_crossover_has_no_eq_presets() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    harness.get_by_role_and_label(Role::Button, texts::EQ_PRESET_SAVE.get());
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_role_and_label(Role::Button, texts::EQ_PRESET_SAVE.get())
+        .is_none());
+}
+
+#[test]
+fn with_open_crossovers_loading_an_eq_preset_warns() {
+    let (_simulator, _directory, mut harness) = open_eq_with_open_crossovers();
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness.get_by_label_contains(texts::CROSSOVER_WARNING.get());
+}

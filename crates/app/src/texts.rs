@@ -175,6 +175,10 @@ pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
+pub const EQ_PRESET_SAVE: Text = Text::new("Als EQ-Preset speichern…", "Save as EQ preset…");
+pub const EQ_PRESET_LOAD: Text = Text::new("EQ-Preset laden…", "Load EQ preset…");
+pub const EQ_PRESET_SAVE_TITLE: Text = Text::new("EQ als Preset", "EQ as a preset");
+pub const EQ_PRESET_LOAD_TITLE: Text = Text::new("EQ-Preset laden", "Load an EQ preset");
 pub const COMPARE_WITH: Text = Text::new("Vergleichen mit:", "Compare with:");
 pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
@@ -682,6 +686,22 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
     pick(
         format!("vor {minutes_ago} min: {value}"),
         format!("{minutes_ago} min ago: {value}"),
+    )
+}
+
+/// An EQ preset in the load dialog: its name and band count.
+pub fn eq_preset_entry(name: &str, bands: usize) -> String {
+    pick(
+        format!("{name} ({bands} Bänder)"),
+        format!("{name} ({bands} bands)"),
+    )
+}
+
+/// A band an EQ preset would change, in the load dialog's preview.
+pub fn eq_preset_band(number: usize) -> String {
+    pick(
+        format!("Band {number} ändert sich"),
+        format!("Band {number} changes"),
     )
 }
 
