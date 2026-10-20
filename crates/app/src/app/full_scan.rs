@@ -55,10 +55,10 @@ fn write_report(
         .as_ref()
         .map(|identity| identity.version.clone())
         .unwrap_or_default();
-    let serial = speaker
+    let (serial, announced) = speaker
         .identity
         .as_ref()
-        .map(|identity| identity.serial.clone())
+        .map(|identity| (identity.serial.clone(), identity.name.clone()))
         .unwrap_or_default();
     let name = speaker
         .values
@@ -82,7 +82,8 @@ fn write_report(
         firmware: &firmware,
         time: &time,
     };
-    let reports = redacted(reports, &[serial.as_str(), name.as_str()]);
+    let known = [serial.as_str(), name.as_str(), announced.as_str()];
+    let reports = redacted(reports, &known);
     let stem = file_stem(&model, &firmware, &compact_time);
     let json_path = directory.join(format!("{stem}.{JSON_EXTENSION}"));
     let json = serde_json::to_string_pretty(&json_report(&header, &reports, catalog))
