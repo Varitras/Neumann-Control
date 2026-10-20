@@ -25,19 +25,32 @@ const FREQUENCY_POINTER: &str = "/audio/out/eq2/frequency";
 fn spread(simulator: &Simulator) {
     let frequencies: Vec<f64> = (0..10).map(|band| 50.0 * 2f64.powi(band)).collect();
     simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    // Only bands that are on have a point to drag.
+    simulator.set_value("audio/out/eq2/enabled", json!(vec![true; 10]));
 }
 
 /// Opened from the strip: the KH 750's panel is taller than the test window, so its EQ button
 /// lies outside it.
 fn open_eq(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
-    let (simulator, directory, mut harness) = connected_speaker_with(model, spread);
+    open_eq_with(model, |_| {})
+}
+
+/// Like `open_eq`, with values set on the simulator (after the spread) before the first read.
+fn open_eq_with(
+    model: SimModel,
+    prepare: impl FnOnce(&Simulator),
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let (simulator, directory, mut harness) = connected_speaker_with(model, |simulator| {
+        spread(simulator);
+        prepare(simulator);
+    });
     // The embedded window is cut off in the small window, its close button with it.
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     (simulator, directory, harness)
 }
 
@@ -72,7 +85,7 @@ fn the_panels_eq_button_opens_the_window_with_both_containers() {
     let (_simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, spread);
     open_panel(&mut harness, device_name(SimModel::Kh120Ii));
     click_panel_eq(&mut harness);
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness.get_by_label("EQ 2");
     harness.get_by_label("EQ 3");
     assert_eq!(gain_fields(&harness), vec![false; 10]);
@@ -224,7 +237,7 @@ fn the_strip_opens_the_eq_window() {
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness.get_by_label("Subwoofer");
 }
 
@@ -261,7 +274,7 @@ fn reset_asks_then_flattens_gain_and_boost() {
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
         .click();
@@ -292,7 +305,7 @@ fn a_reset_can_be_cancelled() {
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
         .click();
@@ -347,7 +360,7 @@ fn eq_change_then_mute(harness: &mut Harness<'static, NeumannApp>, simulator: &S
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(harness, &texts::eq_band(1));
+    wait_for_label(harness, texts::EQ_COMPUTED.get());
 }
 
 fn assert_band_2_written_back(simulator: &Simulator) {
@@ -401,7 +414,7 @@ fn a_reset_reads_as_all_bands_in_the_history() {
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     for _ in 0..2 {
         harness
             .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
@@ -443,7 +456,7 @@ fn open_eq_with_open_crossovers() -> (Simulator, tempfile::TempDir, Harness<'sta
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     (simulator, directory, harness)
 }
 
@@ -485,7 +498,7 @@ fn open_eq_of(harness: &mut Harness<'static, NeumannApp>, name: &str) {
         })
         .expect("an EQ button");
     button.click();
-    wait_for_label(harness, &texts::eq_band(1));
+    wait_for_label(harness, texts::EQ_COMPUTED.get());
 }
 
 #[test]
@@ -599,4 +612,15 @@ fn with_open_crossovers_loading_an_eq_preset_warns() {
         .click();
     harness.run_steps(3);
     harness.get_by_label_contains(texts::CROSSOVER_WARNING.get());
+}
+
+#[test]
+fn a_switched_off_band_has_no_point_in_the_graph() {
+    let (_simulator, _directory, harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut enabled = vec![true; 10];
+        enabled[2] = false;
+        simulator.set_value("audio/out/eq2/enabled", serde_json::json!(enabled));
+    });
+    harness.get_by_label(&texts::eq_band(2));
+    assert!(harness.query_by_label(&texts::eq_band(3)).is_none());
 }

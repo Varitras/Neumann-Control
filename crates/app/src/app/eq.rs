@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use super::NeumannApp;
 use crate::eq::{bands_of, container_of, flat, has_eq, one_band, Band, Leaf, FLATTENING_LEAVES};
-use crate::eq_response::{curve_db, graph_frequencies};
+use crate::eq_response::{band_curve, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
 use crate::presets::{capture_eq, eq_plan, fitting};
@@ -208,12 +208,16 @@ impl NeumannApp {
         });
         let id = Id::new(EQ_VIEWPORT_ID).with(&window.key);
         let color = selected.map_or(Color32::GRAY, |shown| shown.color);
+        let band_alone = bands
+            .as_deref()
+            .and_then(|bands| band_curve(bands, window.band, &frequencies));
         let graph = Graph {
             id: id.with(EQ_GRAPH_ID).with(chosen),
             frequencies: &frequencies,
             curves: &curves,
             sum: &sum,
             compared: &compared_curves,
+            band_curve: band_alone.as_deref(),
             points: &points,
             color,
             selected: window.band,

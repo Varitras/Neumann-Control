@@ -27,6 +27,8 @@ const LABEL_SIZE: f32 = 9.0;
 const CURVE_WIDTH: f32 = 1.5;
 const SUM_WIDTH: f32 = 2.5;
 const DASH_LENGTH: f32 = 6.0;
+const BAND_CURVE_WIDTH: f32 = 1.0;
+const BAND_CURVE_OPACITY: f32 = 0.6;
 const DASH_GAP: f32 = 4.0;
 const POINT_RADIUS: f32 = 5.0;
 const SELECTED_RING: f32 = 3.0;
@@ -60,6 +62,8 @@ pub struct Graph<'a> {
     pub curves: &'a [GraphCurve<'a>],
     pub sum: &'a [f64],
     pub compared: &'a [ComparedCurve<'a>],
+    /// The chosen band on its own, drawn thin in the container's colour.
+    pub band_curve: Option<&'a [f64]>,
     pub points: &'a [GraphPoint],
     pub color: Color32,
     pub selected: usize,
@@ -136,6 +140,13 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
         let stroke = Stroke::new(CURVE_WIDTH, curve.color);
         paint_dashed(ui, &axes, graph.frequencies, curve.db, stroke);
     }
+    if let Some(db) = graph.band_curve {
+        let stroke = Stroke::new(
+            BAND_CURVE_WIDTH,
+            graph.color.gamma_multiply(BAND_CURVE_OPACITY),
+        );
+        paint_curve(ui, &axes, graph.frequencies, db, stroke);
+    }
     paint_curve(
         ui,
         &axes,
@@ -144,7 +155,13 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
         Stroke::new(SUM_WIDTH, tokens.text),
     );
     let mut actions = Vec::new();
-    for (band, point) in graph.points.iter().enumerate() {
+    // A band that is off changes nothing; it is switched on in the table.
+    for (band, point) in graph
+        .points
+        .iter()
+        .enumerate()
+        .filter(|(_, point)| point.enabled)
+    {
         actions.extend(band_point(ui, graph, &axes, band, point));
     }
     actions
@@ -161,6 +178,7 @@ fn db_span(graph: &Graph) -> f64 {
     let points = graph
         .points
         .iter()
+        .filter(|point| point.enabled)
         .map(|point| (point.gain + point.boost).abs());
     let largest = boosts.chain(points).fold(0.0, f64::max);
     ((largest / DB_GRID).ceil() * DB_GRID).max(DB_SPAN_MIN)
