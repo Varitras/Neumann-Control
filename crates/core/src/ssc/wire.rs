@@ -12,6 +12,11 @@ const XID_KEY: &str = "xid";
 const ERROR_KEY: &str = "error";
 const DESCRIPTION_KEY: &str = "desc";
 
+/// The largest request the speakers take, in JSON tokens: every object, array, key and scalar.
+/// Measured on a KH 120 II (2026-10-20): 29 tokens taken, 31 and more refused with 413
+/// "request too long", whatever the byte length (855 bytes in 29 tokens were taken).
+pub const MAX_REQUEST_TOKENS: usize = 29;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WireError {
     InvalidPath,
@@ -186,6 +191,21 @@ pub fn request_line(path: &SscPath, value: Value, xid: u64) -> String {
     let mut request = serde_json::json!({ OSC_KEY: { XID_KEY: xid } });
     merge(&mut request, nested);
     request.to_string()
+}
+
+/// The JSON tokens of a value, as a token-counting parser sees it: the value itself, and for an
+/// object each key and member, for an array each entry.
+pub fn token_count(value: &Value) -> usize {
+    match value {
+        Value::Object(members) => {
+            1 + members
+                .values()
+                .map(|member| 1 + token_count(member))
+                .sum::<usize>()
+        }
+        Value::Array(entries) => 1 + entries.iter().map(token_count).sum::<usize>(),
+        _ => 1,
+    }
 }
 
 /// A JSON number for a set request; NaN and infinities have no JSON form.

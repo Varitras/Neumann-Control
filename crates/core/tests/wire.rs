@@ -164,3 +164,22 @@ fn path_displays_and_serializes_as_string() {
     assert_eq!(back, parsed);
     assert!(serde_json::from_str::<SscPath>(r#""a//b""#).is_err());
 }
+
+/// Measured on a KH 120 II: the speaker refuses a request of more than 29 JSON tokens with 413,
+/// and a write of a 20-band EQ list with the xid has 33. Without it the line fits; the reply is
+/// then matched by its path.
+#[test]
+fn a_twenty_band_eq_write_leaves_out_the_xid() {
+    let twenty = Value::Array(vec![Value::Null; 20]);
+    let line = request_line(&path("audio/out/eq3/enabled"), twenty.clone(), 5);
+    assert_eq!(
+        parse_line(line.as_bytes()).unwrap(),
+        json!({"audio": {"out": {"eq3": {"enabled": twenty}}}})
+    );
+    let ten = Value::Array(vec![Value::Null; 10]);
+    let line = request_line(&path("audio/out/eq2/enabled"), ten.clone(), 6);
+    assert_eq!(
+        parse_line(line.as_bytes()).unwrap(),
+        json!({"osc": {"xid": 6}, "audio": {"out": {"eq2": {"enabled": ten}}}})
+    );
+}

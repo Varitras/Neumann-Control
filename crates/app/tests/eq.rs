@@ -860,3 +860,36 @@ fn a_cancelled_file_dialog_changes_nothing() {
         .query_by_label_contains(&texts::eq_export_report("", &[])[0])
         .is_none());
 }
+
+/// The KH 120 II refuses a request of more than 29 JSON tokens (413), and every write of its
+/// 20-band EQ 3 with the transaction id has more: "Reset" there was refused on the speaker.
+#[test]
+fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq3/enabled", json!(vec![true; 20]));
+        simulator.set_value("audio/out/eq3/q", json!(vec![2.0; 20]));
+    });
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
+        .click();
+    wait_until(&mut harness, "all six leaves of EQ 3 written", |_| {
+        ["enabled", "type", "frequency", "q", "gain", "boost"]
+            .iter()
+            .all(|leaf| !sets(&simulator, &format!("/audio/out/eq3/{leaf}")).is_empty())
+    });
+    barrier(&simulator);
+    assert_eq!(
+        simulator.value("audio/out/eq3/enabled"),
+        Some(json!(vec![false; 20]))
+    );
+    assert_eq!(
+        simulator.value("audio/out/eq3/q"),
+        Some(json!(vec![0.7; 20]))
+    );
+}

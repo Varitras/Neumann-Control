@@ -4,7 +4,7 @@
 use serde_json::{json, Map, Number, Value};
 
 use super::SimModel;
-use crate::ssc::wire::{merge, SscPath};
+use crate::ssc::wire::{merge, token_count, SscPath, MAX_REQUEST_TOKENS};
 
 const OSC_KEY: &str = "osc";
 const XID_KEY: &str = "xid";
@@ -50,6 +50,10 @@ const NOT_ALLOWED: ErrorKind = ErrorKind {
 const NOT_ACCEPTABLE: ErrorKind = ErrorKind {
     code: 406,
     description: "not acceptable",
+};
+const REQUEST_TOO_LONG: ErrorKind = ErrorKind {
+    code: 413,
+    description: "request too long",
 };
 const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
     code: 454,
@@ -173,6 +177,13 @@ impl SimulatedDevice {
     }
 
     pub fn answer(&mut self, request: &Map<String, Value>) -> Answer {
+        // Measured: the speaker gives up before it reads the xid, so the refusal carries none.
+        if token_count(&Value::Object(request.clone())) > MAX_REQUEST_TOKENS {
+            return Answer {
+                body: error_reply(&REQUEST_TOO_LONG),
+                xid: None,
+            };
+        }
         let xid = request
             .get(OSC_KEY)
             .and_then(|osc| osc.get(XID_KEY))

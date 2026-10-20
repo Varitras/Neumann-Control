@@ -479,3 +479,40 @@ fn a_short_array_is_not_acceptable() {
     let reply = Client::connect(&simulator).ask(&json!({"audio":{"out":{"eq2":{"gain":[2.0]}}}}));
     assert_eq!(device_error(&reply).unwrap().code, 406);
 }
+
+/// Measured on a KH 120 II (2026-10-20): a request of more than 29 JSON tokens (every object,
+/// array, key and scalar) is refused with 413 "request too long", and the reply has no xid.
+#[test]
+fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
+    let simulator = start_kh120();
+    let mut client = Client::connect(&simulator);
+    let twenty = json!([
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false
+    ]);
+    let taken = client.ask(&json!({"audio":{"out":{"eq3":{"enabled": twenty}}}}));
+    assert!(
+        device_error(&taken).is_none(),
+        "29 tokens are taken: {taken}"
+    );
+    let refused = client.ask(&json!({"osc":{"xid":1},"audio":{"out":{"eq3":{"enabled": twenty}}}}));
+    let error = device_error(&refused).expect("33 tokens are refused");
+    assert_eq!(
+        (error.code, error.description.as_str()),
+        (413, "request too long")
+    );
+    assert_eq!(reply_xid(&refused), None);
+    let ten = json!([true, false, false, false, false, false, false, false, false, false]);
+    let two_lists = client.ask(&json!({"audio":{"out":{"eq2":{"enabled": ten, "boost": ten}}}}));
+    assert_eq!(
+        device_error(&two_lists).map(|error| error.code),
+        Some(413),
+        "31 tokens"
+    );
+    let with_mute = client
+        .ask(&json!({"audio":{"out":{"eq2":{"enabled": ten}, "mute": false}},"osc":{"xid":7}}));
+    assert!(
+        device_error(&with_mute).is_none(),
+        "25 tokens are taken: {with_mute}"
+    );
+}
