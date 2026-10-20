@@ -165,6 +165,29 @@ mod tests {
         close(band_db(&band("HISHELF", -4.0, 2000.0, 0.7), 24000.0), -4.0);
     }
 
+    /// Measured on a KH 120 II (REW, UMIK-1, 1/12 octave, against the band switched off): the
+    /// speakers' `q` of a shelf is the cookbook's slope S, so q 2.0 overshoots only slightly.
+    #[test]
+    fn a_shelf_q_of_2_overshoots_as_little_as_measured() {
+        let near = |actual: f64, expected: f64| {
+            assert!((actual - expected).abs() < 0.3, "{actual} vs {expected}");
+        };
+        let low = band("LOSHELF", 6.0, 200.0, 2.0);
+        near(band_db(&low, 100.0), 6.54);
+        near(band_db(&low, 400.0), -0.50);
+        let high = band("HISHELF", 6.0, 2000.0, 2.0);
+        near(band_db(&high, 1000.0), -0.53);
+        near(band_db(&high, 5657.0), 6.37);
+        let steepest_without_overshoot = band("LOSHELF", 6.0, 200.0, 1.0);
+        near(band_db(&steepest_without_overshoot, 100.0), 5.70);
+        near(band_db(&steepest_without_overshoot, 400.0), 0.41);
+    }
+
+    #[test]
+    fn a_shelf_steeper_than_the_cookbook_form_allows_is_drawn_flat() {
+        close(band_db(&band("HISHELF", 12.0, 2000.0, 16.0), 20000.0), 0.0);
+    }
+
     #[test]
     fn low_pass_is_minus_3_db_at_its_frequency_with_q_0_707() {
         close(
