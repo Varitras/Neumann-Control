@@ -34,6 +34,7 @@ use crate::views::{all_values, panel, wheel};
 mod compact;
 mod desk;
 mod eq;
+mod full_scan;
 mod history;
 
 pub use history::TakeBackNotice;
@@ -582,6 +583,7 @@ impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, _frame: &mut eframe::Frame) {
         let now = context.input(|input| input.time);
         self.drain_events(now);
+        self.write_scan_reports();
         self.poll_scan();
         let pixels_per_point = context.pixels_per_point();
         let geometry = context.input(|input| window_geometry(input.viewport(), pixels_per_point));

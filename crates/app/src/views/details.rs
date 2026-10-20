@@ -3,7 +3,7 @@
 //! greyed value; what the strip or the panel header shows and what the speaker does not have
 //! are left out.
 
-use eframe::egui::{Button, RichText, Ui};
+use eframe::egui::{self, Button, RichText, Ui};
 use neumann_control_core::catalog::{Catalog, Entry, Group, Kind};
 use neumann_control_core::speaker::Command;
 
@@ -11,7 +11,7 @@ use super::details_fields::Fields;
 use super::knob;
 use crate::display::shown_value;
 use crate::paths;
-use crate::state::{AllValuesState, SpeakerState, Status};
+use crate::state::{AllValuesState, FullScanState, SpeakerState, Status};
 use crate::texts;
 
 const COLUMNS: usize = 2;
@@ -59,7 +59,11 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
         }
     });
     ui.separator();
-    all_values_button(ui, fields.speaker, fields.commands);
+    ui.horizontal(|ui| {
+        all_values_button(ui, fields.speaker, fields.commands);
+        full_scan_button(ui, fields.speaker, fields.commands);
+    });
+    full_scan_outcome(ui, fields.speaker);
     commands
 }
 
@@ -149,6 +153,32 @@ fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
         ui.weak(entry.label(texts::language()));
         ui.weak(shown);
     });
+}
+
+fn full_scan_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {
+    let running = speaker.full_scan == FullScanState::Running;
+    let enabled = speaker.status == Status::Connected && !running;
+    if ui
+        .add_enabled(enabled, Button::new(texts::FULL_SCAN))
+        .clicked()
+    {
+        commands.push(speaker.start_full_scan());
+    }
+}
+
+fn full_scan_outcome(ui: &mut Ui, speaker: &SpeakerState) {
+    match &speaker.full_scan {
+        FullScanState::Idle | FullScanState::Read(_) => {}
+        FullScanState::Running => {
+            ui.weak(texts::FULL_SCAN_RUNNING);
+        }
+        FullScanState::Written(path) => {
+            ui.add(egui::Label::new(texts::scan_written(path)).wrap());
+        }
+        FullScanState::Failed(reason) => {
+            ui.colored_label(ui.visuals().error_fg_color, texts::scan_failed(reason));
+        }
+    }
 }
 
 fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {

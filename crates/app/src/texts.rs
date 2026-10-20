@@ -227,6 +227,8 @@ pub const PLAYED_CHANNEL: Text = Text::new(
 );
 
 pub const ALL_VALUES: Text = Text::new("Alle Werte…", "All values…");
+pub const FULL_SCAN: Text = Text::new("Komplett scannen", "Full scan");
+pub const FULL_SCAN_RUNNING: Text = Text::new("Scan läuft …", "Scanning …");
 pub const APPLY: Text = Text::new("Übernehmen", "Apply");
 pub const ON: Text = Text::new("an", "on");
 pub const OFF: Text = Text::new("aus", "off");
@@ -590,6 +592,21 @@ pub fn frequency_mark(hertz: f64) -> String {
 /// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
+}
+
+/// Where the full scan's report went.
+pub fn scan_written(path: &str) -> String {
+    pick(
+        format!("Bericht geschrieben: {path}"),
+        format!("Report written: {path}"),
+    )
+}
+
+pub fn scan_failed(reason: &str) -> String {
+    pick(
+        format!("Scan fehlgeschlagen: {reason}"),
+        format!("Scan failed: {reason}"),
+    )
 }
 
 /// The device panel's trend heading: "Verlauf (2 h)".

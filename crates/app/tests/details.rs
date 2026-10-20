@@ -630,3 +630,36 @@ fn kh750_shows_its_auto_standby_switch() {
         3
     );
 }
+
+#[test]
+fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
+    let (_simulator, directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    harness.get_by_label(texts::FULL_SCAN.get()).click();
+    let written = |directory: &std::path::Path| -> Vec<std::path::PathBuf> {
+        std::fs::read_dir(directory)
+            .unwrap()
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("scan-"))
+            })
+            .collect()
+    };
+    wait_until(&mut harness, "both report files", |_| {
+        written(directory.path()).len() == 2
+    });
+    for path in written(directory.path()) {
+        let name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        assert!(name.starts_with("scan-KH-120-II-1_7_3-"), "{name}");
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("audio/out/level"), "{name}");
+        assert!(!text.contains("SIM0001234"), "{name} holds the serial");
+        assert!(!text.contains(KH120_DEVICE_NAME), "{name} holds the name");
+    }
+    wait_until(&mut harness, "the report noted in the panel", |harness| {
+        harness
+            .query_by_label_contains(&texts::scan_written(""))
+            .is_some()
+    });
+}

@@ -31,6 +31,19 @@ pub enum SpeakerKey {
     Address(SocketAddrV6),
 }
 
+/// "Komplett scannen": the walk, then its report file.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum FullScanState {
+    #[default]
+    Idle,
+    Running,
+    /// Read; the app writes the report and replaces this with the outcome.
+    Read(Vec<LeafReport>),
+    /// The JSON file's path.
+    Written(String),
+    Failed(String),
+}
+
 /// What the speaker's message is about, which decides when it ends.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MessageSource {
@@ -103,6 +116,7 @@ pub struct SpeakerState {
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
     pub warnings: Trend<Vec<String>>,
+    pub full_scan: FullScanState,
 }
 
 impl SpeakerState {
@@ -128,6 +142,7 @@ impl SpeakerState {
             pending: BTreeMap::new(),
             temperature: Trend::default(),
             warnings: Trend::default(),
+            full_scan: FullScanState::Idle,
         }
     }
 
@@ -235,8 +250,16 @@ impl SpeakerState {
                 self.temperature.record(now, None);
                 self.warnings.record(now, None);
             }
-            Event::AllValues(reports) => self.finish_all_values(AllValuesState::Loaded(reports)),
+            Event::AllValues(reports) => {
+                if self.full_scan == FullScanState::Running {
+                    self.full_scan = FullScanState::Read(reports.clone());
+                }
+                self.finish_all_values(AllValuesState::Loaded(reports));
+            }
             Event::AllValuesFailed(reason) => {
+                if self.full_scan == FullScanState::Running {
+                    self.full_scan = FullScanState::Failed(reason.clone());
+                }
                 self.finish_all_values(AllValuesState::Failed(reason));
             }
             Event::ResponseTime(time) => self.response_time = Some(time),
@@ -254,6 +277,12 @@ impl SpeakerState {
     /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
     pub fn read_all_values(&mut self) -> Command {
         self.all_values = AllValuesState::Loading;
+        Command::ReadAll
+    }
+
+    /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte".
+    pub fn start_full_scan(&mut self) -> Command {
+        self.full_scan = FullScanState::Running;
         Command::ReadAll
     }
 
