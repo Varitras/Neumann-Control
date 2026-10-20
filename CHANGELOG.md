@@ -38,6 +38,7 @@
 
 ### Fixed
 
+- A value that rounds to zero showed a minus ("-0 dB").
 - Number fields with a converted unit showed the device's unit as well ("0 1/48 kHz ms").
 
 ## [0.1.0] - 2026-10-18

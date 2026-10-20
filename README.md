@@ -211,9 +211,11 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   10 Hz to 24 kHz. The curves are computed from the settings, not measured. Each band has two
   levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
   height of its filter (the peak or shelf); at the band's frequency both add up.
-- Each band of the chosen EQ is a point: filled when on, hollow when off. Drag it to change
-  frequency and boost, turn the mouse wheel over it to change Q. Level is changed in the table
-  only, so a drag never moves the whole spectrum.
+- Each band of the chosen EQ that is on is a point; bands that are off have none and are switched
+  on in the table. Drag a point to change frequency and boost, turn the mouse wheel over it to
+  change Q. Level is changed in the table only, so a drag never moves the whole spectrum.
+- A point stands at its band's own height; the curves add every band up, so a point can lie
+  above or below them. The chosen band alone is drawn as a thin line in its EQ's colour.
 - The table below lists every band with on/off, type, frequency, Q, level and boost; numbers take
   a comma or a point, and a value outside the allowed range is refused with the reason.
 - A change is written when the gesture ends, and only for that one band, so the other bands
