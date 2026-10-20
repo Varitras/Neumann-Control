@@ -18,6 +18,15 @@
   device panel.
 - **Input mix** per output (input A and B, −100 to 0 dB) and **Mute persist** in the device
   panel; the KH 750 also shows the position of its AUTO STANDBY switch.
+- **Compare with** in the EQ window: the EQ sum of other speakers on the same output as a dashed
+  line.
+- Settings presets (chosen settings under a name) and EQ presets (all bands of an EQ), each loaded
+  with a preview as one history entry.
+- **Full scan** in the device panel: a report of everything a speaker answers, without its
+  identifiers, next to the executable.
+- A strip with the Windows volume of a chosen playback device, with mute and peak meters.
+- **Protect crossovers** in the settings (on by default); off, "Make flat" and EQ presets work on
+  the KH 750 crossovers too, with a warning.
 
 ### Changed
 

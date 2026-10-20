@@ -43,6 +43,8 @@ panel of one KH 750 open. The interface is shown in German.*
   group.
 - **EQ** in a window of its own: a computed response graph and a table of the bands.
 - **History and undo**: every write of the session, each one revertible, Ctrl+Z for the newest.
+- **Presets** of chosen settings and of EQs, and a comparison of EQ curves between speakers.
+- **Windows volume** of a playback device as a strip on the desk.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
@@ -151,7 +153,14 @@ on output B and both on its own woofer. **Mute persist** is the speaker's own se
 name; what it does has not been measured.
 
 **All values…** lists every value the speaker reports in its own schema, with a path
-filter and copy buttons, including paths the catalog does not know yet.
+filter and copy buttons, including paths the catalog does not know yet. **Full scan** reads the
+same and writes it next to the executable as `scan-<model>-<firmware>-<date>.json` and `.txt`,
+with what the app knows about each path; serial number, MAC address, the speaker's name and any
+network address are left out. It is meant for collecting what other models report.
+
+**Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
+offered, the name unchecked). **Load preset…** shows what a preset would change on this speaker and
+writes it as one history entry; settings this model may not write are listed as skipped.
 
 **Trend (2 h)** below the settings shows what the app read in this session, at most the last two
 hours: the temperature as a line (KH 750) with its lowest and highest value, and the warnings as a
@@ -215,6 +224,15 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
 - **Undo** in the window takes back the speaker's newest EQ change, also with Ctrl+Z while the
   window is in front; the line beside it says which change that is. When the values changed
   since, the window asks first.
+- **Compare with** lists the other speakers with the same output; a checked one shows the sum of
+  its EQs there as a dashed line.
+- **Save as EQ preset…** keeps all bands of the chosen EQ under a name; **Load EQ preset…** offers
+  the presets with the same number of bands, shows which bands change and writes them as one
+  history entry. Writing several settings of a band one after another can pass a short level
+  jump.
+- The crossovers are protected by default: no **Make flat** and no EQ presets there. Switching off
+  **Protect crossovers** in **Settings** allows both, with a warning that the output then plays
+  unfiltered.
 
 ### History and undo
 
@@ -236,7 +254,11 @@ recorded.
 - the language: like Windows, German or English. It changes at once. German shows a decimal comma; typed values
   take a comma or a point.
 - the lowest level the meters show: −120, −90 or −60 dB,
-- whether response times are shown.
+- whether response times are shown,
+- whether the EQ crossovers are protected (on by default),
+- whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
+  default device or a chosen one): a fader in percent, mute and a peak meter per channel. It
+  sets Windows' own volume, like the volume slider in the taskbar.
 
 ### Control mode
 
@@ -280,7 +302,8 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size for the desk and the compact mode, and the choices from **Settings** |
+| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, and the presets |
+| `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
