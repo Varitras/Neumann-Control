@@ -32,7 +32,7 @@
   settings.
 - **Import…** and **Export…** in the EQ window: filter lines of Equalizer APO and of Room EQ
   Wizard's "Generic" export, with a preview and one history entry; export as APO lines. Shelving
-  filters are not taken over yet.
+  filters are converted between the files' Q and the speakers' slope.
 - **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset", EQ presets
   and the import work on the KH 750 crossovers too, with a warning.
 
