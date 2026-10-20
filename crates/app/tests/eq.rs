@@ -801,7 +801,7 @@ fn a_shelf_in_the_file_is_named_and_refused() {
     import_file(&mut harness, &directory, "shelf.txt", text);
     let error = eq_file::ImportError::Line {
         line: 2,
-        problem: eq_file::LineProblem::ShelfNotSupported("LSC".to_owned()),
+        problem: eq_file::LineProblem::UnsupportedForm("LSC".to_owned()),
     };
     harness.get_by_label(&texts::eq_import_error(&error));
     let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());

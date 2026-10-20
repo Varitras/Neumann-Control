@@ -70,7 +70,7 @@ pub enum ImportError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineProblem {
     UnknownType(String),
-    ShelfNotSupported(String),
+    UnsupportedForm(String),
     Missing(Parameter),
     BadNumber(String),
     UnknownState(String),
@@ -102,7 +102,7 @@ fn file_type(token: &str) -> Result<Option<FileType>, LineProblem> {
         "NO" => shaped("NOTCH", false),
         "AP" => shaped("ALLPASS", false),
         "NONE" => Ok(None),
-        "LS" | "HS" | "LSC" | "HSC" => Err(LineProblem::ShelfNotSupported(token.to_owned())),
+        "LS" | "HS" | "LSC" | "HSC" => Err(LineProblem::UnsupportedForm(token.to_owned())),
         _ => Err(LineProblem::UnknownType(token.to_owned())),
     }
 }
@@ -493,14 +493,79 @@ mod tests {
         assert_eq!(imported.bands[&0], filter("HIGHPASS", 30.0, 0.0, 0.5));
     }
 
+    /// Exported by Room EQ Wizard 5.31.3, equaliser "Generic" (2026-10-21): two-word types,
+    /// all 20 slots, and a second block of two empty filters at the end.
+    const REW_GENERIC_EXPORT: &str = "Filter Settings file\r\n\r\nRoom EQ V5.31.3\r\n\
+        Dated: 21.10.2026 00:37:16\r\n\r\nNotes:testfilter\r\n\r\nEqualiser: Generic\r\n\
+        No measurement\r\n\
+        Filter  1: ON  PK       Fc   100.0 Hz  Gain  -3.00 dB  Q  1.410\r\n\
+        Filter  2: ON  LS Q     Fc   200.0 Hz  Gain   6.00 dB Q   2.00\r\n\
+        Filter  3: ON  HS Q     Fc    2000 Hz  Gain  -4.00 dB Q  0.700\r\n\
+        Filter  4: ON  LS       Fc   100.0 Hz  Gain   3.00 dB\r\n\
+        Filter  5: ON  HP Q     Fc   30.00 Hz  Q  0.700\r\n\
+        Filter  6: ON  LP1      Fc   15.00 Hz \r\n\
+        Filter  7: ON  None   \r\nFilter  8: ON  None   \r\nFilter  9: ON  None   \r\n\
+        Filter 10: ON  None   \r\nFilter 11: ON  None   \r\nFilter 12: ON  None   \r\n\
+        Filter 13: ON  None   \r\nFilter 14: ON  None   \r\nFilter 15: ON  None   \r\n\
+        Filter 16: ON  None   \r\nFilter 17: ON  None   \r\nFilter 18: ON  None   \r\n\
+        Filter 19: ON  None   \r\nFilter 20: ON  None   \r\n\
+        Filter  1: ON  None      \r\nFilter  2: ON  None      \r\n\r\n";
+
+    fn near(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1e-5, "{actual} vs {expected}");
+    }
+
     #[test]
-    fn shelves_are_refused_until_measured() {
+    fn a_real_rew_generic_export_reads_as_its_filters() {
+        let imported = parse(REW_GENERIC_EXPORT).unwrap();
+        assert!(imported.ignored.is_empty());
+        assert_eq!(imported.bands.len(), 20);
+        assert_eq!(imported.bands[&0], filter("PARAMETRIC", 100.0, -3.0, 1.41));
+        assert_eq!(imported.bands[&4], filter("HIGHPASS", 30.0, 0.0, 0.7));
+        let first_order = imported.bands[&5].as_ref().unwrap();
+        assert_eq!((first_order.kind, first_order.frequency), ("LO6DB", 15.0));
+        assert!((6..20).all(|band| imported.bands[&band].is_none()));
+    }
+
+    /// REW's shelf Q is the cookbook Q (read from the biquad it stores in a .req), the speakers'
+    /// shelf q is the cookbook slope S (measured): Q 2 at +6 dB is q 5.72, REW's plain shelf
+    /// (Q 0.7071) is q 1.
+    #[test]
+    fn a_rew_shelf_q_becomes_the_speakers_slope() {
+        let imported = parse(REW_GENERIC_EXPORT).unwrap();
+        let low = imported.bands[&1].as_ref().unwrap();
+        assert_eq!(
+            (low.kind, low.frequency, low.boost),
+            ("LOSHELF", 200.0, 6.0)
+        );
+        near(low.q, 5.723559);
+        let high = imported.bands[&2].as_ref().unwrap();
+        assert_eq!(
+            (high.kind, high.frequency, high.boost),
+            ("HISHELF", 2000.0, -4.0)
+        );
+        near(high.q, 0.980509);
+        let plain = imported.bands[&3].as_ref().unwrap();
+        assert_eq!((plain.kind, plain.boost), ("LOSHELF", 3.0));
+        near(plain.q, 1.0);
+    }
+
+    #[test]
+    fn empty_slots_beyond_the_eq_are_ignored() {
+        let current = vec![band("PARAMETRIC", 0.0, 100.0, 0.7); 10];
+        let imported = parse(REW_GENERIC_EXPORT).unwrap();
+        let preset = imported_preset("rew.txt", &imported, &current).unwrap();
+        assert_eq!(preset.bands, 10);
+    }
+
+    #[test]
+    fn shelves_by_slope_or_corner_frequency_are_refused() {
         for line in [
-            "Filter: ON LSC Fc 80 Hz Gain 4 dB Q 0.7",
-            "Filter: ON HS 6dB Fc 1 Hz",
+            "Filter: ON LSC 10.8 dB Fc 300 Hz Gain 5 dB",
+            "Filter: ON HS 6dB Fc 1000 Hz Gain 3 dB",
         ] {
             assert!(
-                matches!(problem_of(line), LineProblem::ShelfNotSupported(_)),
+                matches!(problem_of(line), LineProblem::UnsupportedForm(_)),
                 "{line}"
             );
         }
@@ -536,7 +601,7 @@ mod tests {
             problem_of("Filter: ON PK Fc abc Hz Gain 1 dB Q 1"),
             LineProblem::BadNumber("abc".to_owned())
         );
-        let twice = "Filter 1: ON None\nFilter 1: ON None";
+        let twice = "Filter 1: ON None\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 1";
         assert_eq!(problem_of(twice), LineProblem::SameBand(1));
     }
 
@@ -595,7 +660,7 @@ mod tests {
                 "Filter 1: ON PK Fc 1230 Hz Gain -3 dB Q 0.7",
                 "# Filter 1: flat level 1.5 dB not exported",
                 "# Filter 2: off",
-                "# Filter 3: LOSHELF not exported",
+                "Filter 3: ON LSC Fc 80 Hz Gain 4 dB Q 0.589",
                 "Filter 4: ON HPQ Fc 30.5 Hz Q 0.5",
             ]
         );
@@ -603,11 +668,7 @@ mod tests {
             export.notes,
             [
                 ExportNote::FlatLevel { band: 1, gain: 1.5 },
-                ExportNote::Off(2),
-                ExportNote::NotExportable {
-                    band: 3,
-                    kind: "LOSHELF".to_owned()
-                },
+                ExportNote::Off(2)
             ]
         );
     }
@@ -633,6 +694,25 @@ mod tests {
                 preset.leaves[leaf.name()],
                 leaf_array(leaf, &bands),
                 "{leaf:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_exported_shelf_reads_back_as_the_same_slope() {
+        let bands = vec![
+            band("LOSHELF", 6.0, 200.0, 2.0),
+            band("HISHELF", -4.0, 2000.0, 0.7),
+        ];
+        let imported = parse(&export(&bands, "EQ 2").text).unwrap();
+        for (place, expected) in bands.iter().enumerate() {
+            let back = imported.bands[&place].as_ref().unwrap();
+            assert_eq!(back.kind, expected.kind);
+            assert!(
+                (back.q - expected.q).abs() < 0.01,
+                "{} vs {}",
+                back.q,
+                expected.q
             );
         }
     }
