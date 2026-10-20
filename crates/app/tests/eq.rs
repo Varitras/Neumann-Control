@@ -26,10 +26,16 @@ fn spread(simulator: &Simulator) {
     simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
 }
 
+/// Opened from the strip: the KH 750's panel is taller than the test window, so its EQ button
+/// lies outside it.
 fn open_eq(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker_with(model, spread);
-    open_panel(&mut harness, device_name(model));
-    click_panel_eq(&mut harness);
+    // The embedded window is cut off in the small window, its close button with it.
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
     wait_for_label(&mut harness, &texts::eq_band(1));
     (simulator, directory, harness)
 }
@@ -61,8 +67,11 @@ fn gain_fields(harness: &Harness<'static, NeumannApp>) -> Vec<bool> {
 }
 
 #[test]
-fn the_eq_button_opens_the_window_with_both_containers() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+fn the_panels_eq_button_opens_the_window_with_both_containers() {
+    let (_simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, spread);
+    open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+    click_panel_eq(&mut harness);
+    wait_for_label(&mut harness, &texts::eq_band(1));
     harness.get_by_label("EQ 2");
     harness.get_by_label("EQ 3");
     assert_eq!(gain_fields(&harness), vec![false; 10]);
@@ -340,20 +349,6 @@ fn eq_change_then_mute(harness: &mut Harness<'static, NeumannApp>, simulator: &S
     wait_for_label(harness, &texts::eq_band(1));
 }
 
-fn open_from_strip(
-    model: SimModel,
-) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
-    let (simulator, directory, mut harness) = connected_speaker_with(model, spread);
-    // The embedded window is cut off in the small window, its close button with it.
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.run_steps(2);
-    harness
-        .get_by_role_and_label(Role::Button, texts::EQ.get())
-        .click();
-    wait_for_label(&mut harness, &texts::eq_band(1));
-    (simulator, directory, harness)
-}
-
 fn assert_band_2_written_back(simulator: &Simulator) {
     let boost = sets(simulator, BOOST_POINTER);
     assert_eq!(boost.len(), 2, "{boost:?}");
@@ -365,7 +360,7 @@ fn assert_band_2_written_back(simulator: &Simulator) {
 
 #[test]
 fn eq_undo_takes_back_the_speakers_last_eq_change() {
-    let (simulator, _directory, mut harness) = open_from_strip(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     eq_change_then_mute(&mut harness, &simulator);
     harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
     harness
@@ -379,7 +374,7 @@ fn eq_undo_takes_back_the_speakers_last_eq_change() {
 
 #[test]
 fn ctrl_z_in_the_eq_window_undoes_eq_only() {
-    let (simulator, _directory, mut harness) = open_from_strip(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     eq_change_then_mute(&mut harness, &simulator);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "the band written back", |_| {
@@ -392,7 +387,39 @@ fn ctrl_z_in_the_eq_window_undoes_eq_only() {
 
 #[test]
 fn eq_undo_is_disabled_without_eq_changes() {
-    let (_simulator, _directory, harness) = open_from_strip(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
     let undo = harness.get_by_role_and_label(Role::Button, texts::EQ_UNDO.get());
     assert!(undo.accesskit_node().is_disabled());
+}
+
+#[test]
+fn a_reset_reads_as_all_bands_in_the_history() {
+    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    for _ in 0..2 {
+        harness
+            .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+            .click();
+        harness.run_steps(2);
+    }
+    wait_until(&mut harness, "both arrays written", |_| {
+        !sets(&simulator, GAIN_POINTER).is_empty() && !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    harness.run_steps(2);
+    // The changes of an entry stand in the tooltip of its line.
+    harness
+        .get_by_label_contains(&texts::history_changes(None, 2))
+        .hover();
+    harness.run_steps(3);
+    let one_band = texts::eq_change_setting("EQ 2", 1, GAIN_LABEL);
+    assert!(harness.query_by_label_contains(&one_band).is_none());
+    harness.get_by_label_contains(&texts::eq_all_bands_setting("EQ 2", GAIN_LABEL));
 }
