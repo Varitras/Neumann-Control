@@ -35,6 +35,10 @@ pub struct EqView<'a> {
     pub undo: Option<String>,
     /// "Changed since" for the entry being undone: the changes another client made meanwhile.
     pub question: Option<Vec<String>>,
+    /// Other speakers with the same output: name and whether its sum is compared.
+    pub candidates: &'a [(String, bool)],
+    /// The compared curves that are drawn, for the legend: name and colour.
+    pub compared: &'a [(String, Color32)],
 }
 
 pub struct ResetOffer {
@@ -58,6 +62,8 @@ pub enum EqAction {
     Undo,
     QuestionConfirm,
     QuestionCancel,
+    /// The candidate at this place is compared or no longer.
+    Compare(usize, bool),
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
@@ -113,7 +119,14 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
             }
         }
         ui.label(RichText::new(texts::EQ_SUM).strong());
+        for (name, color) in view.compared {
+            let (swatch, _) =
+                ui.allocate_exact_size(vec2(LEGEND_SWATCH, LEGEND_SWATCH), egui::Sense::hover());
+            ui.painter().rect_filled(swatch, 2.0, *color);
+            ui.label(texts::compared_curve(name));
+        }
     });
+    actions.extend(compare_row(ui, view.candidates));
     actions.extend(
         eq_graph::show(ui, &view.graph)
             .into_iter()
@@ -139,6 +152,24 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
         actions.push(EqAction::Close);
     }
     actions
+}
+
+fn compare_row(ui: &mut Ui, candidates: &[(String, bool)]) -> Option<EqAction> {
+    if candidates.is_empty() {
+        return None;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.label(texts::COMPARE_WITH);
+        let mut action = None;
+        for (place, (name, checked)) in candidates.iter().enumerate() {
+            let mut now = *checked;
+            if ui.checkbox(&mut now, name).changed() {
+                action = Some(EqAction::Compare(place, now));
+            }
+        }
+        action
+    })
+    .inner
 }
 
 /// Reset and undo in one row; while the reset is asked about, its question takes the row.

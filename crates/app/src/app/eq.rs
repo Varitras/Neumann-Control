@@ -8,14 +8,14 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, container_of, flat, one_band, Band, Leaf, FLATTENING_LEAVES};
+use crate::eq::{bands_of, container_of, flat, has_eq, one_band, Band, Leaf, FLATTENING_LEAVES};
 use crate::eq_response::{curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::theme::group_color;
-use crate::views::eq_graph::{Graph, GraphAction, GraphCurve, GraphPoint};
+use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
 use crate::views::eq_window::{self, EqAction, EqView, ResetOffer};
 use crate::writes::{self, Intent};
@@ -32,6 +32,10 @@ pub(super) struct EqWindow {
     band: usize,
     refusal: Option<String>,
     asking_reset: bool,
+    /// Other speakers whose sum is drawn for comparison.
+    compared: Vec<SpeakerKey>,
+    /// The speakers offered for comparison in the last frame, in the order shown.
+    candidates: Vec<SpeakerKey>,
 }
 
 /// One container as the window shows it.
@@ -54,6 +58,8 @@ impl NeumannApp {
             band: 0,
             refusal: None,
             asking_reset: false,
+            compared: Vec::new(),
+            candidates: Vec::new(),
         });
     }
 
@@ -112,6 +118,41 @@ impl NeumannApp {
         let sum: Vec<f64> = (0..frequencies.len())
             .map(|point| shown.iter().map(|container| container.curve[point]).sum())
             .collect();
+        let key = shown.first().map(|shown| output_key(shown.container));
+        let others: Vec<&SpeakerState> = self
+            .speakers
+            .iter()
+            .map(|speaker| &speaker.state)
+            .filter(|other| other.key != window.key && has_eq(catalog, other))
+            .filter(|other| {
+                key.as_deref()
+                    .is_some_and(|key| has_output(catalog, other.product(), key))
+            })
+            .collect();
+        let candidate_keys: Vec<SpeakerKey> =
+            others.iter().map(|other| other.key.clone()).collect();
+        let candidates: Vec<(String, bool)> = others
+            .iter()
+            .map(|other| (other.display_name(), window.compared.contains(&other.key)))
+            .collect();
+        let compared_sums: Vec<(String, Color32, Vec<f64>)> = others
+            .iter()
+            .filter(|other| window.compared.contains(&other.key))
+            .filter_map(|other| {
+                let sum = output_sum(catalog, other, key.as_deref()?, &frequencies)?;
+                Some((other.display_name(), sum))
+            })
+            .enumerate()
+            .map(|(place, (name, sum))| (name, group_color((shown.len() + place) as u8), sum))
+            .collect();
+        let compared_curves: Vec<ComparedCurve> = compared_sums
+            .iter()
+            .map(|(_, color, db)| ComparedCurve { color: *color, db })
+            .collect();
+        let legend: Vec<(String, Color32)> = compared_sums
+            .iter()
+            .map(|(name, color, _)| (name.clone(), *color))
+            .collect();
         let chosen = window.container.min(shown.len().saturating_sub(1));
         let selected = shown.get(chosen);
         let bands = selected.and_then(|shown| shown.bands.clone());
@@ -159,6 +200,7 @@ impl NeumannApp {
             frequencies: &frequencies,
             curves: &curves,
             sum: &sum,
+            compared: &compared_curves,
             points: &points,
             color,
             selected: window.band,
@@ -219,8 +261,12 @@ impl NeumannApp {
             reset,
             undo,
             question,
+            candidates: &candidates,
+            compared: &legend,
         };
-        eq_window::show(context, &view)
+        let actions = eq_window::show(context, &view);
+        self.eq_windows[index].candidates = candidate_keys;
+        actions
     }
 
     /// The newest entry the EQ window of `key` can undo: open, and only EQ writes to it.
@@ -273,6 +319,15 @@ impl NeumannApp {
                 let key = window.key.clone();
                 if let Some(id) = self.eq_undo(&key) {
                     self.request_take_back(id);
+                }
+            }
+            EqAction::Compare(place, on) => {
+                let Some(key) = window.candidates.get(place).cloned() else {
+                    return;
+                };
+                window.compared.retain(|compared| *compared != key);
+                if on {
+                    window.compared.push(key);
                 }
             }
             EqAction::QuestionConfirm => self.answer_take_back(true),
@@ -390,17 +445,51 @@ fn is_eq_entry_of(entry: &Entry, key: &SpeakerKey, catalog: &Catalog) -> bool {
         .all(|change| change.speaker == *key && container_of(catalog, &change.path).is_some())
 }
 
+/// The output a container belongs to: `out`, `out1` or `out2`.
+fn output_key(container: &EqContainer) -> String {
+    container
+        .path
+        .segments()
+        .get(1)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn has_output(catalog: &Catalog, product: &str, key: &str) -> bool {
+    catalog
+        .eq_containers(product)
+        .iter()
+        .any(|container| output_key(container) == key)
+}
+
+/// The sum of the speaker's EQs on output `key`; `None` while it reported none of them.
+fn output_sum(
+    catalog: &Catalog,
+    speaker: &SpeakerState,
+    key: &str,
+    frequencies: &[f64],
+) -> Option<Vec<f64>> {
+    let curves: Vec<Vec<f64>> = catalog
+        .eq_containers(speaker.product())
+        .into_iter()
+        .filter(|container| output_key(container) == key)
+        .filter_map(|container| bands_of(&speaker.values, &container.path))
+        .map(|bands| curve_db(&bands, frequencies))
+        .collect();
+    if curves.is_empty() {
+        return None;
+    }
+    let sum = (0..frequencies.len())
+        .map(|point| curves.iter().map(|curve| curve[point]).sum())
+        .collect();
+    Some(sum)
+}
+
 /// The speaker's EQ containers by output (`out`, `out1`, `out2`), in catalog order.
 fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a EqContainer>)> {
     let mut outputs: Vec<(String, Vec<&EqContainer>)> = Vec::new();
     for container in catalog.eq_containers(product) {
-        let output = container
-            .path
-            .segments()
-            .get(1)
-            .cloned()
-            .unwrap_or_default();
-        let name = output_name(&output);
+        let name = output_name(&output_key(container));
         match outputs.iter_mut().find(|(known, _)| *known == name) {
             Some((_, containers)) => containers.push(container),
             None => outputs.push((name, vec![container])),

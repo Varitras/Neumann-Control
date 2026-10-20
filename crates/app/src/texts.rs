@@ -175,6 +175,7 @@ pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
+pub const COMPARE_WITH: Text = Text::new("Vergleichen mit:", "Compare with:");
 pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
     "This is a crossover: its low or high pass goes, the output plays unfiltered.",
@@ -630,6 +631,11 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
         format!("vor {minutes_ago} min: {value}"),
         format!("{minutes_ago} min ago: {value}"),
     )
+}
+
+/// The legend entry of another speaker's curve in the EQ graph.
+pub fn compared_curve(speaker: &str) -> String {
+    pick(format!("{speaker} (Summe)"), format!("{speaker} (sum)"))
 }
 
 /// Asked before a reset to flat, in the EQ window.

@@ -471,3 +471,41 @@ fn eq_2_has_no_crossover_warning() {
         .query_by_label_contains(texts::CROSSOVER_WARNING.get())
         .is_none());
 }
+
+/// The EQ window of the strip whose name is `name`, with two speakers on the desk.
+fn open_eq_of(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    let column = harness.get_by_label(name).rect().center().x;
+    let button = harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+        .min_by(|a, b| {
+            let distance = |node: &egui_kittest::Node| (node.rect().center().x - column).abs();
+            distance(a).total_cmp(&distance(b))
+        })
+        .expect("an EQ button");
+    button.click();
+    wait_for_label(harness, &texts::eq_band(1));
+}
+
+#[test]
+fn another_speakers_curve_can_be_compared() {
+    let (_kh120, _kh750, _directory, mut harness) = grouped(Vec::new());
+    open_eq_of(&mut harness, KH750_DEVICE_NAME);
+    let compared = texts::compared_curve(KH120_DEVICE_NAME);
+    assert!(harness.query_by_label(&compared).is_none());
+    harness
+        .get_by_role_and_label(Role::CheckBox, KH120_DEVICE_NAME)
+        .click();
+    wait_until(&mut harness, "the compared curve", |harness| {
+        harness.query_by_label(&compared).is_some()
+    });
+    // Output A has no counterpart on the KH 120 II, so nothing to compare there.
+    harness
+        .get_by_role_and_label(Role::Button, "Ausgang A")
+        .click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_role_and_label(Role::CheckBox, KH120_DEVICE_NAME)
+        .is_none());
+}

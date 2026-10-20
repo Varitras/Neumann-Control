@@ -26,6 +26,8 @@ const FREQUENCY_MARKS: [f64; 10] = [
 const LABEL_SIZE: f32 = 9.0;
 const CURVE_WIDTH: f32 = 1.5;
 const SUM_WIDTH: f32 = 2.5;
+const DASH_LENGTH: f32 = 6.0;
+const DASH_GAP: f32 = 4.0;
 const POINT_RADIUS: f32 = 5.0;
 const SELECTED_RING: f32 = 3.0;
 const POINT_GRAB: f32 = 14.0;
@@ -33,6 +35,12 @@ const DRAG_ID: &str = "eq_point_drag";
 const WHEEL_ID: &str = "eq_point_wheel";
 
 pub struct GraphCurve<'a> {
+    pub color: Color32,
+    pub db: &'a [f64],
+}
+
+/// Another speaker's sum on the same output, drawn dashed for comparison.
+pub struct ComparedCurve<'a> {
     pub color: Color32,
     pub db: &'a [f64],
 }
@@ -51,6 +59,7 @@ pub struct Graph<'a> {
     pub frequencies: &'a [f64],
     pub curves: &'a [GraphCurve<'a>],
     pub sum: &'a [f64],
+    pub compared: &'a [ComparedCurve<'a>],
     pub points: &'a [GraphPoint],
     pub color: Color32,
     pub selected: usize,
@@ -123,6 +132,10 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
             Stroke::new(CURVE_WIDTH, curve.color),
         );
     }
+    for curve in graph.compared {
+        let stroke = Stroke::new(CURVE_WIDTH, curve.color);
+        paint_dashed(ui, &axes, graph.frequencies, curve.db, stroke);
+    }
     paint_curve(
         ui,
         &axes,
@@ -141,7 +154,9 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
 /// pass falls without end and would squeeze everything else flat; such a curve leaves the
 /// graph at its bottom edge.
 fn db_span(graph: &Graph) -> f64 {
-    let curves = graph.curves.iter().flat_map(|curve| curve.db.iter());
+    let own = graph.curves.iter().map(|curve| curve.db);
+    let compared = graph.compared.iter().map(|curve| curve.db);
+    let curves = own.chain(compared).flatten();
     let boosts = curves.chain(graph.sum).copied().filter(|db| *db > 0.0);
     let points = graph
         .points
@@ -191,12 +206,22 @@ fn paint_grid(ui: &Ui, axes: &Axes, tokens: &Tokens) {
 }
 
 fn paint_curve(ui: &Ui, axes: &Axes, frequencies: &[f64], db: &[f64], stroke: Stroke) {
-    let points: Vec<Pos2> = frequencies
+    ui.painter()
+        .add(Shape::line(curve_points(axes, frequencies, db), stroke));
+}
+
+fn paint_dashed(ui: &Ui, axes: &Axes, frequencies: &[f64], db: &[f64], stroke: Stroke) {
+    let points = curve_points(axes, frequencies, db);
+    ui.painter()
+        .extend(Shape::dashed_line(&points, stroke, DASH_LENGTH, DASH_GAP));
+}
+
+fn curve_points(axes: &Axes, frequencies: &[f64], db: &[f64]) -> Vec<Pos2> {
+    frequencies
         .iter()
         .zip(db)
         .map(|(frequency, db)| pos2(axes.x(*frequency), axes.y(*db)))
-        .collect();
-    ui.painter().add(Shape::line(points, stroke));
+        .collect()
 }
 
 /// Draws one band's point and hands out what its gesture chose.
