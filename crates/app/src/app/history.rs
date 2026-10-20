@@ -46,15 +46,24 @@ struct Described {
     unit: Option<String>,
     /// For an EQ band write: the band it touched; its values are that band's entries.
     band: Option<usize>,
+    /// An EQ write of every band (a reset to flat).
+    all_bands: bool,
 }
 
 impl Described {
-    /// The part of `value` the line shows: the band's entry of an EQ array, else all of it.
+    /// The part of `value` the line shows: the band's entry of an EQ array, one entry for
+    /// all bands holding the same, else all of it.
     fn shown<'a>(&self, value: &'a Value) -> Option<&'a Value> {
-        match self.band {
-            Some(band) => value.as_array().and_then(|bands| bands.get(band)),
-            None => Some(value),
+        if let Some(band) = self.band {
+            return value.as_array().and_then(|bands| bands.get(band));
         }
+        let bands = value.as_array().filter(|_| self.all_bands);
+        let first = bands.and_then(|bands| bands.first());
+        let alike = bands.is_some_and(|bands| bands.iter().all(|band| Some(band) == first));
+        if alike {
+            return first;
+        }
+        Some(value)
     }
 }
 
@@ -231,22 +240,32 @@ impl NeumannApp {
             || change.path.to_string(),
             |entry| entry.label(language).to_owned(),
         );
-        let band = change
+        let given: Vec<usize> = change
             .after
             .as_array()
-            .and_then(|bands| bands.iter().position(|band| !band.is_null()));
+            .map(|bands| {
+                let written = bands.iter().enumerate().filter(|(_, band)| !band.is_null());
+                written.map(|(band, _)| band).collect()
+            })
+            .unwrap_or_default();
         let container = container_of(catalog, &change.path);
-        let setting = match (container, band) {
-            (Some(container), Some(band)) => {
-                texts::eq_change_setting(container.label(language), band + 1, &label)
+        let (setting, band, all_bands) = match (container, given.as_slice()) {
+            (Some(container), [band]) => {
+                let setting = texts::eq_change_setting(container.label(language), band + 1, &label);
+                (setting, Some(*band), false)
             }
-            _ => label,
+            (Some(container), [_, _, ..]) => {
+                let setting = texts::eq_all_bands_setting(container.label(language), &label);
+                (setting, None, true)
+            }
+            _ => (label, None, false),
         };
         Described {
             speaker,
             setting,
             unit: entry.and_then(|entry| entry.unit.clone()),
-            band: container.and(band),
+            band,
+            all_bands,
         }
     }
 

@@ -637,6 +637,14 @@ pub fn eq_leaf_refusal(leaf: &str, reason: &str) -> String {
     format!("{leaf}: {reason}")
 }
 
+/// What a write of every band touched: "EQ 2 · Pegel, alle Bänder".
+pub fn eq_all_bands_setting(container: &str, leaf: &str) -> String {
+    pick(
+        format!("{container} · {leaf}, alle Bänder"),
+        format!("{container} · {leaf}, all bands"),
+    )
+}
+
 /// A refused band write, under the EQ graph.
 pub fn eq_refusal(band: usize, leaf: &str, reason: &str) -> String {
     format!("{} {band} · {leaf}: {reason}", BAND.get())
