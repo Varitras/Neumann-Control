@@ -16,10 +16,12 @@ use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, Wi
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
 use crate::groups::{forget_member, member_id, rename_member, set_membership};
+use crate::meter::MeterState;
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::status_leds::average_response_time;
+use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{duplicate_speakers, follow_moves, forget, remember_serial, targets};
 use crate::texts;
 use crate::ui_kit::{fonts, theme};
@@ -37,6 +39,7 @@ mod eq;
 mod full_scan;
 mod history;
 mod preset_dialogs;
+mod system_volume;
 
 pub use history::TakeBackNotice;
 
@@ -86,6 +89,11 @@ pub struct NeumannApp {
     history: history::HistoryState,
     eq_windows: Vec<eq::EqWindow>,
     preset_dialog: Option<preset_dialogs::PresetDialog>,
+    system_audio: Box<dyn SystemAudio>,
+    /// The Windows strip's meters, one per channel of the device.
+    system_meters: Vec<MeterState>,
+    /// The playback devices for the settings dialog, listed when it opens.
+    audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
     system_language: Language,
 }
@@ -96,10 +104,18 @@ impl NeumannApp {
         context: &Context,
         settings_path: PathBuf,
         spawner: Box<dyn SpeakerSpawner>,
+        system_audio: Box<dyn SystemAudio>,
         system_language: Language,
     ) -> NeumannApp {
         let settings = settings::load(&settings_path);
-        NeumannApp::with_settings(context, settings_path, settings, spawner, system_language)
+        NeumannApp::with_settings(
+            context,
+            settings_path,
+            settings,
+            spawner,
+            system_audio,
+            system_language,
+        )
     }
 
     /// With settings already loaded from `settings_path`, as the start does to place the window:
@@ -109,6 +125,7 @@ impl NeumannApp {
         settings_path: PathBuf,
         settings: Settings,
         spawner: Box<dyn SpeakerSpawner>,
+        system_audio: Box<dyn SystemAudio>,
         system_language: Language,
     ) -> NeumannApp {
         fonts::install(context);
@@ -134,6 +151,9 @@ impl NeumannApp {
             history: history::HistoryState::default(),
             eq_windows: Vec::new(),
             preset_dialog: None,
+            system_audio,
+            system_meters: Vec::new(),
+            audio_devices: Vec::new(),
             system_language,
         };
         app.sync_targets();
@@ -356,7 +376,10 @@ impl NeumannApp {
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
             ToolbarAction::AddGroup => self.add_group(),
-            ToolbarAction::Settings => self.settings_open = true,
+            ToolbarAction::Settings => {
+                self.settings_open = true;
+                self.audio_devices = self.system_audio.devices();
+            }
             ToolbarAction::History => self.open_history(),
             ToolbarAction::ToggleCompact => self.toggle_compact(frame),
             ToolbarAction::None => {}
@@ -510,7 +533,8 @@ impl NeumannApp {
         if !self.settings_open {
             return;
         }
-        match settings_dialog::show(ui, &mut self.settings.desk) {
+        let audio = &mut self.settings.system_audio;
+        match settings_dialog::show(ui, &mut self.settings.desk, audio, &self.audio_devices) {
             SettingsAction::Changed => {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));
@@ -604,6 +628,7 @@ impl eframe::App for NeumannApp {
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         texts::set_language(self.settings.desk.language.resolve(self.system_language));
         wheel::track_burst(ui.ctx());
+        self.keep_system_meters_moving(ui.ctx());
         self.show(ui, frame);
     }
 

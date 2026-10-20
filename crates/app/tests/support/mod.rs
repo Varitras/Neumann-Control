@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -15,6 +15,7 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
+use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
@@ -93,6 +94,23 @@ pub fn harness_in(
     scan_result: ScanResult,
     system: Language,
 ) -> Harness<'static, NeumannApp> {
+    build(settings_path, scan_result, system, FakeAudio::default())
+}
+
+/// The app with `audio` standing in for Windows' playback devices.
+pub fn harness_with_audio(
+    settings_path: PathBuf,
+    audio: FakeAudio,
+) -> Harness<'static, NeumannApp> {
+    build(settings_path, Ok(Vec::new()), Language::German, audio)
+}
+
+fn build(
+    settings_path: PathBuf,
+    scan_result: ScanResult,
+    system: Language,
+    audio: FakeAudio,
+) -> Harness<'static, NeumannApp> {
     Harness::builder()
         .with_size(WINDOW_SIZE)
         .build_eframe(move |creation_context| {
@@ -100,9 +118,53 @@ pub fn harness_in(
                 &creation_context.egui_ctx,
                 settings_path,
                 Box::new(SimulatorSpawner { scan_result }),
+                Box::new(audio),
                 system,
             )
         })
+}
+
+/// What the fake playback devices hold and what the app asked of them.
+#[derive(Default)]
+pub struct FakeAudioState {
+    pub devices: Vec<AudioDevice>,
+    /// The device's state; `None`: gone.
+    pub state: Option<AudioState>,
+    pub volume_sets: Vec<f32>,
+    pub mute_sets: Vec<bool>,
+    /// The device each read asked for.
+    pub asked: Vec<Option<String>>,
+}
+
+#[derive(Clone, Default)]
+pub struct FakeAudio(pub Arc<Mutex<FakeAudioState>>);
+
+impl SystemAudio for FakeAudio {
+    fn devices(&mut self) -> Vec<AudioDevice> {
+        self.0.lock().unwrap().devices.clone()
+    }
+
+    fn state(&mut self, device: Option<&str>) -> Option<AudioState> {
+        let mut held = self.0.lock().unwrap();
+        held.asked.push(device.map(str::to_owned));
+        held.state.clone()
+    }
+
+    fn set_volume(&mut self, _device: Option<&str>, volume: f32) {
+        let mut held = self.0.lock().unwrap();
+        held.volume_sets.push(volume);
+        if let Some(state) = &mut held.state {
+            state.volume = volume;
+        }
+    }
+
+    fn set_mute(&mut self, _device: Option<&str>, mute: bool) {
+        let mut held = self.0.lock().unwrap();
+        held.mute_sets.push(mute);
+        if let Some(state) = &mut held.state {
+            state.mute = mute;
+        }
+    }
 }
 
 pub fn wait_until(

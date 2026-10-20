@@ -19,6 +19,7 @@ pub mod remove_speaker;
 pub mod scan_choice;
 pub mod settings_dialog;
 pub mod strip;
+pub mod system_strip;
 pub mod toolbar;
 pub mod trends;
 pub mod wheel;

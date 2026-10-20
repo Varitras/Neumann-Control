@@ -44,6 +44,17 @@ pub struct Settings {
     pub presets: Vec<SettingsPreset>,
     #[serde(deserialize_with = "readable_items")]
     pub eq_presets: Vec<EqPreset>,
+    #[serde(deserialize_with = "or_default")]
+    pub system_audio: SystemAudioSettings,
+}
+
+/// The strip with Windows' own volume of a playback device.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SystemAudioSettings {
+    pub shown: bool,
+    /// The endpoint id Windows gives the device; `None`: Windows' default playback device.
+    pub device: Option<String>,
 }
 
 /// Chosen settings of a speaker under a name, to write to it or another speaker later.

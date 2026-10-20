@@ -179,6 +179,17 @@ pub const EQ_PRESET_SAVE: Text = Text::new("Als EQ-Preset speichern…", "Save a
 pub const EQ_PRESET_LOAD: Text = Text::new("EQ-Preset laden…", "Load EQ preset…");
 pub const EQ_PRESET_SAVE_TITLE: Text = Text::new("EQ als Preset", "EQ as a preset");
 pub const EQ_PRESET_LOAD_TITLE: Text = Text::new("EQ-Preset laden", "Load an EQ preset");
+pub const SYSTEM_AUDIO_SHOW: Text = Text::new(
+    "Windows-Lautstärke im Pult zeigen",
+    "Show the Windows volume on the desk",
+);
+pub const SYSTEM_AUDIO_DEVICE: Text = Text::new("Gerät", "Device");
+pub const SYSTEM_AUDIO_DEFAULT: Text = Text::new("Windows-Standardgerät", "Windows default device");
+pub const SYSTEM_AUDIO_UNAVAILABLE: Text = Text::new("nicht verfügbar", "not available");
+pub const SYSTEM_AUDIO_NAME: Text = Text::new("Windows", "Windows");
+pub const SYSTEM_VOLUME: Text = Text::new("Windows-Lautstärke", "Windows volume");
+pub const SYSTEM_METERS: Text = Text::new("Windows-Pegel", "Windows level");
+pub const SYSTEM_MUTE: Text = Text::new("Windows stumm", "Windows mute");
 pub const COMPARE_WITH: Text = Text::new("Vergleichen mit:", "Compare with:");
 pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
@@ -687,6 +698,11 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
         format!("vor {minutes_ago} min: {value}"),
         format!("{minutes_ago} min ago: {value}"),
     )
+}
+
+/// The Windows volume under its fader: "52 %".
+pub fn percent(value: f64) -> String {
+    format!("{} %", value.round())
 }
 
 /// An EQ preset in the load dialog: its name and band count.

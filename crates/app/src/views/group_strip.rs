@@ -96,7 +96,7 @@ pub(super) fn shared_readout(level: Option<&SharedLevel>) -> String {
         .unwrap_or_default()
 }
 
-fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {
+pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {
     let tokens = Tokens::current(ui.ctx());
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     egui::Frame::new()

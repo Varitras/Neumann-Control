@@ -28,6 +28,18 @@ winit = "0.30"
 [target.'cfg(windows)'.dependencies]
 # Already in the tree through winit; asks Windows for its display language.
 windows-sys = { version = "0.61", features = ["Win32_Globalization"] }
+# Already in the tree through accesskit_windows; Core Audio (COM) for the Windows volume strip,
+# which windows-sys cannot call.
+windows = { version = "0.62", features = [
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
 
 [build-dependencies]
 # Puts the icon into the executable, for Explorer and the taskbar.

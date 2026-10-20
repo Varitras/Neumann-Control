@@ -22,6 +22,7 @@ use crate::texts;
 use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip;
+use crate::views::system_strip::{self, SystemStrip, SystemStripResponse};
 use crate::writes::Intent;
 
 const STRIP_CENTERS_ID: &str = "strip_centers";
@@ -36,6 +37,7 @@ pub(super) enum DeskAction {
     Master(MasterResponse),
     OpenPanel(OpenPanel),
     OpenEq(SpeakerKey),
+    System(SystemStripResponse),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -62,6 +64,8 @@ impl NeumannApp {
         };
         let mut centers = HashMap::new();
         let range = output_level_range();
+        let now = ui.input(|input| input.time);
+        let system = self.read_system_volume(now);
         let mut actions = Vec::new();
         ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
@@ -130,6 +134,16 @@ impl NeumannApp {
                     let muted = all_muted(&states);
                     let response = group_strip::master(ui, level.as_ref(), muted, range.clone());
                     actions.push(DeskAction::Master(response));
+                    if let Some(view) = &system {
+                        let strip = SystemStrip {
+                            name: &view.name,
+                            volume: view.volume,
+                            mute: view.mute,
+                            meters: &self.system_meters,
+                            floor: desk.meter_floor.db(),
+                        };
+                        actions.push(DeskAction::System(system_strip::show(ui, &strip)));
+                    }
                 });
             });
         ui.ctx()
@@ -179,6 +193,7 @@ impl NeumannApp {
             }
             DeskAction::OpenPanel(open) => self.panel = Some(open),
             DeskAction::OpenEq(key) => self.open_eq(key),
+            DeskAction::System(response) => self.apply_system_volume(response),
         }
     }
 

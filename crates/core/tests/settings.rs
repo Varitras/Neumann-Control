@@ -1,7 +1,7 @@
 use neumann_control_core::settings::{
     load, save, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language, LanguageChoice,
-    Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, ThemeChoice, WindowGeometry,
-    SETTINGS_FILE,
+    Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, SystemAudioSettings,
+    ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -335,4 +335,23 @@ fn presets_round_trip_and_a_broken_one_is_left_out() {
     let loaded = load(&path);
     assert_eq!(loaded.presets.len(), 1);
     assert!(loaded.eq_presets.is_empty());
+}
+
+#[test]
+fn the_windows_volume_strip_is_off_unless_chosen() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[]}"#).unwrap();
+    assert_eq!(load(&path).system_audio, SystemAudioSettings::default());
+    assert!(!load(&path).system_audio.shown);
+    fs::write(
+        &path,
+        r#"{"manual":[],"system_audio":{"shown":true,"device":"{0.0.0.00000000}.{id}"}}"#,
+    )
+    .unwrap();
+    let loaded = load(&path).system_audio;
+    assert!(loaded.shown);
+    assert_eq!(loaded.device.as_deref(), Some("{0.0.0.00000000}.{id}"));
+    fs::write(&path, r#"{"manual":[],"system_audio":7}"#).unwrap();
+    assert_eq!(load(&path).system_audio, SystemAudioSettings::default());
 }

@@ -11,6 +11,7 @@ use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
 use eframe::wgpu;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::spawner::CoreSpawner;
+use neumann_control_app::system_audio::CoreAudio;
 use neumann_control_app::system_language;
 use neumann_control_app::texts;
 use neumann_control_app::window_placement::{first_window_size, place_window, WINDOW_MIN_SIZE};
@@ -85,7 +86,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             let context = creation_context.egui_ctx.clone();
             let spawner = Box::new(CoreSpawner::new(context.clone()));
             let language = system_language::detect();
-            let app = NeumannApp::with_settings(&context, settings_path, saved, spawner, language);
+            let audio = Box::new(CoreAudio::new());
+            let app =
+                NeumannApp::with_settings(&context, settings_path, saved, spawner, audio, language);
             Ok(Box::new(app))
         }),
     )?;
