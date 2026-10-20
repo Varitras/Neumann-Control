@@ -172,12 +172,32 @@ mod tests {
         close(band_db(&band("HISHELF", -4.0, 2000.0, 0.7), 24000.0), -4.0);
     }
 
-    /// Measured on a KH 120 II (REW, UMIK-1, 1/12 octave, against the band switched off): the
-    /// speakers' `q` of a shelf is the cookbook's slope S, so q 2.0 overshoots only slightly.
+    /// How far a computed value may lie from a measured one: the measurements (REW, UMIK-1,
+    /// 1/12 octave, each against the band switched off) scatter by about 0.1 dB.
+    const MEASURED_TOLERANCE_DB: f64 = 0.3;
+
+    /// `band`'s value at each frequency against what a KH 120 II measured there.
+    fn as_measured(band: &Band, measured: &[(f64, f64)]) {
+        for (frequency, expected) in measured {
+            let actual = band_db(band, *frequency);
+            let off = (actual - expected).abs();
+            assert!(
+                off < MEASURED_TOLERANCE_DB,
+                "{} at {frequency} Hz: {actual:.2} vs measured {expected}",
+                band.kind
+            );
+        }
+    }
+
+    /// Measured on a KH 120 II: the speakers' `q` of a shelf is the cookbook's slope S, so
+    /// q 2.0 overshoots only slightly.
     #[test]
     fn a_shelf_q_of_2_overshoots_as_little_as_measured() {
         let near = |actual: f64, expected: f64| {
-            assert!((actual - expected).abs() < 0.3, "{actual} vs {expected}");
+            assert!(
+                (actual - expected).abs() < MEASURED_TOLERANCE_DB,
+                "{actual} vs {expected}"
+            );
         };
         let low = band("LOSHELF", 6.0, 200.0, 2.0);
         near(band_db(&low, 100.0), 6.54);
@@ -188,6 +208,64 @@ mod tests {
         let steepest_without_overshoot = band("LOSHELF", 6.0, 200.0, 1.0);
         near(band_db(&steepest_without_overshoot, 100.0), 5.70);
         near(band_db(&steepest_without_overshoot, 400.0), 0.41);
+    }
+
+    /// Measured on a KH 120 II: the EQ runs at 48 kHz, so near the top a band is narrower than
+    /// its analog form (a 14 kHz peak is 2.7 dB at 10 kHz, not 4).
+    #[test]
+    fn filters_near_the_top_are_as_narrow_as_measured() {
+        as_measured(
+            &band("PARAMETRIC", 6.0, 14000.0, 1.0),
+            &[
+                (7000.0, 1.02),
+                (10000.0, 2.72),
+                (14000.0, 5.93),
+                (16000.0, 4.67),
+            ],
+        );
+        as_measured(
+            &band("HISHELF", 6.0, 12000.0, 0.7),
+            &[
+                (6000.0, 0.56),
+                (10000.0, 2.0),
+                (14000.0, 3.99),
+                (16000.0, 4.82),
+            ],
+        );
+    }
+
+    /// Measured on a KH 120 II: `q` is the cookbook Q for these types, the 6 dB filters are first
+    /// order, the band pass peaks at 20·log10(Q).
+    #[test]
+    fn every_filter_type_is_drawn_as_measured() {
+        as_measured(
+            &band("PARAMETRIC", 6.0, 1000.0, 4.0),
+            &[(1000.0, 5.83), (1260.0, 1.37), (2000.0, 0.2)],
+        );
+        as_measured(
+            &band("LOWPASS", 0.0, 1000.0, FRAC_1_SQRT_2),
+            &[(500.0, -0.28), (1000.0, -3.01), (2000.0, -12.34)],
+        );
+        as_measured(
+            &band("HIGHPASS", 0.0, 1000.0, 1.0),
+            &[(500.0, -11.03), (1000.0, -0.04), (2000.0, 0.92)],
+        );
+        as_measured(
+            &band("LO6DB", 0.0, 1000.0, 0.7),
+            &[(500.0, -0.98), (1000.0, -3.02), (2000.0, -7.01)],
+        );
+        as_measured(
+            &band("HI6DB", 0.0, 1000.0, 0.7),
+            &[(500.0, -6.91), (1000.0, -3.01), (2000.0, -0.95)],
+        );
+        as_measured(
+            &band("NOTCH", 0.0, 1000.0, 2.0),
+            &[(700.0, -1.83), (1400.0, -1.85)],
+        );
+        as_measured(
+            &band("BANDPASS", 0.0, 1000.0, 2.0),
+            &[(250.0, -11.56), (1000.0, 5.98), (4000.0, -11.73)],
+        );
     }
 
     #[test]
