@@ -39,7 +39,7 @@ const DIALOG_SETTLE_FRAMES: usize = 2;
 const PRODUCT_PATH: &str = "device/identity/product";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
-const REPLY_DELAY: Duration = Duration::from_millis(5);
+pub const REPLY_DELAY: Duration = Duration::from_millis(5);
 
 pub struct SimulatorSpawner {
     pub scan_result: ScanResult,

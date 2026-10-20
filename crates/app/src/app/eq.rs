@@ -3,6 +3,7 @@
 
 use eframe::egui::{Color32, Context, Id, ViewportId};
 use neumann_control_core::catalog::{Catalog, EqContainer, EQ_TYPES};
+use neumann_control_core::settings::CrossoverGuard;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -197,11 +198,13 @@ impl NeumannApp {
             .filter(|_| self.eq_question_window() == Some(index))
             .and_then(|id| self.history.history.entry(id))
             .map(|entry| self.changed_lines(entry));
+        let crossovers_open = self.settings.desk.crossovers == CrossoverGuard::Open;
         let reset = selected
-            .filter(|shown| editable && !shown.container.crossover)
+            .filter(|shown| editable && (crossovers_open || !shown.container.crossover))
             .map(|shown| ResetOffer {
                 container: shown.container.label(texts::language()).to_owned(),
                 asking: window.asking_reset,
+                crossover: shown.container.crossover,
             });
         let view = EqView {
             viewport: ViewportId::from_hash_of(id),

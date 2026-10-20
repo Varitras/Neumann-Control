@@ -1,6 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, DeskSettings, GroupSettings, Language, LanguageChoice, Linkable, ManualSpeaker,
-    MeterFloor, Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, save, CrossoverGuard, DeskSettings, GroupSettings, Language, LanguageChoice, Linkable,
+    ManualSpeaker, MeterFloor, Settings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use std::fs;
 
@@ -135,6 +135,7 @@ fn desk_settings_round_trip() {
             show_response_times: false,
             language: LanguageChoice::English,
             compact: true,
+            crossovers: CrossoverGuard::Open,
         },
         compact_window: Some(WindowGeometry {
             x: 10.0,
@@ -292,4 +293,16 @@ fn like_windows_follows_the_system_language() {
         LanguageChoice::English.resolve(Language::German),
         Language::English
     );
+}
+
+#[test]
+fn crossovers_stay_protected_unless_opened_on_purpose() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"manual":[],"desk":{}}"#).unwrap();
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
+    fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"maybe"}}"#).unwrap();
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
+    fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"Open"}}"#).unwrap();
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Open);
 }

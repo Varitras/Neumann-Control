@@ -10,6 +10,7 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
+use neumann_control_core::settings::CrossoverGuard;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
 use support::*;
@@ -422,4 +423,51 @@ fn a_reset_reads_as_all_bands_in_the_history() {
     let one_band = texts::eq_change_setting("EQ 2", 1, GAIN_LABEL);
     assert!(harness.query_by_label_contains(&one_band).is_none());
     harness.get_by_label_contains(&texts::eq_all_bands_setting("EQ 2", GAIN_LABEL));
+}
+
+/// A KH 750 with its EQ window open, crossover protection switched off in the settings.
+fn open_eq_with_open_crossovers() -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let simulator = Simulator::start(SimModel::Kh750);
+    simulator.set_reply_delay(REPLY_DELAY);
+    spread(&simulator);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut settings = neumann_control_core::settings::load(&path);
+    settings.desk.crossovers = CrossoverGuard::Open;
+    neumann_control_core::settings::save(&settings, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_for_level(&mut harness, 100.0);
+    wait_for_initial_read(&mut harness, &simulator);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, &texts::eq_band(1));
+    (simulator, directory, harness)
+}
+
+#[test]
+fn with_open_crossovers_flat_is_offered_with_a_warning() {
+    let (_simulator, _directory, mut harness) = open_eq_with_open_crossovers();
+    harness.get_by_label("Weiche A").click();
+    harness.run_steps(2);
+    assert_eq!(reset_buttons(&harness), 1);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .click();
+    harness.run_steps(2);
+    harness.get_by_label_contains(texts::CROSSOVER_WARNING.get());
+}
+
+#[test]
+fn eq_2_has_no_crossover_warning() {
+    let (_simulator, _directory, mut harness) = open_eq_with_open_crossovers();
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_RESET.get())
+        .click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label_contains(texts::CROSSOVER_WARNING.get())
+        .is_none());
 }

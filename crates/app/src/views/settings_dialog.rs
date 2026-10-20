@@ -2,7 +2,9 @@
 //! response times. Every change applies at once; the app saves it.
 
 use eframe::egui::{Id, Modal, Ui};
-use neumann_control_core::settings::{DeskSettings, LanguageChoice, MeterFloor, ThemeChoice};
+use neumann_control_core::settings::{
+    CrossoverGuard, DeskSettings, LanguageChoice, MeterFloor, ThemeChoice,
+};
 
 use crate::texts;
 
@@ -46,6 +48,17 @@ fn contents(ui: &mut Ui, desk: &mut DeskSettings) -> SettingsAction {
         }
     });
     ui.checkbox(&mut desk.show_response_times, texts::SHOW_RESPONSE_TIMES);
+    let mut protected = desk.crossovers == CrossoverGuard::Protected;
+    if ui
+        .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)
+        .changed()
+    {
+        desk.crossovers = if protected {
+            CrossoverGuard::Protected
+        } else {
+            CrossoverGuard::Open
+        };
+    }
     ui.separator();
     if ui.button(texts::CLOSE).clicked() {
         return SettingsAction::Close;

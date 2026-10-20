@@ -108,6 +108,8 @@ pub struct DeskSettings {
     pub language: LanguageChoice,
     #[serde(deserialize_with = "or_default")]
     pub compact: bool,
+    #[serde(deserialize_with = "or_default")]
+    pub crossovers: CrossoverGuard,
 }
 
 impl Default for DeskSettings {
@@ -118,8 +120,18 @@ impl Default for DeskSettings {
             show_response_times: true,
             language: LanguageChoice::System,
             compact: false,
+            crossovers: CrossoverGuard::Protected,
         }
     }
+}
+
+/// Whether a crossover may be flattened or overwritten by an EQ preset: that removes the split
+/// between the outputs. A value that is not understood falls back to protected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CrossoverGuard {
+    #[default]
+    Protected,
+    Open,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

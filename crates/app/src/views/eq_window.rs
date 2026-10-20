@@ -41,6 +41,8 @@ pub struct ResetOffer {
     pub container: String,
     /// The question is shown instead of the button.
     pub asking: bool,
+    /// The container is a crossover (offered only with the protection off): the question warns.
+    pub crossover: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -182,6 +184,9 @@ fn question(ui: &mut Ui, lines: &[String]) -> Option<EqAction> {
 
 fn reset_question(ui: &mut Ui, reset: &ResetOffer) -> Option<EqAction> {
     ui.label(texts::eq_reset_question(&reset.container));
+    if reset.crossover {
+        ui.colored_label(ui.visuals().warn_fg_color, texts::CROSSOVER_WARNING);
+    }
     if ui.button(texts::EQ_RESET).clicked() {
         return Some(EqAction::ResetConfirm);
     }

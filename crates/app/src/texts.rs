@@ -175,6 +175,14 @@ pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
+pub const CROSSOVER_WARNING: Text = Text::new(
+    "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
+    "This is a crossover: its low or high pass goes, the output plays unfiltered.",
+);
+pub const PROTECT_CROSSOVERS: Text = Text::new(
+    "Weichen schützen (kein Flachstellen, keine EQ-Presets)",
+    "Protect crossovers (no flattening, no EQ presets)",
+);
 pub const NO_TREND_VALUES: Text = Text::new("Noch keine Werte", "No values yet");
 pub const TREND_NOW: Text = Text::new("jetzt", "now");
 pub const WARNING_TREND: Text = Text::new("Warnungsverlauf", "Warning trend");
