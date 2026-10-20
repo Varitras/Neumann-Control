@@ -145,6 +145,11 @@ input, standby, device, rear panel) in two columns. Settings the model may write
 the rest are shown greyed. The panel also shows model, firmware and the masked serial number.
 Escape, **Close** or a click outside closes it.
 
+Each output also has **Input mix**, one field per input (Input A, Input B, −100 to 0 dB): how
+much of each input that output plays. By default the KH 750 plays input A on output A, input B
+on output B and both on its own woofer. **Mute persist** is the speaker's own setting of that
+name; what it does has not been measured.
+
 **All values…** lists every value the speaker reports in its own schema, with a path
 filter and copy buttons, including paths the catalog does not know yet.
 
@@ -294,6 +299,8 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
   (vendor app, home automation), it can look unreachable as well.
 - On the KH 750, auto standby is shown but not written: it follows the AUTO STANDBY switch on the
   back, and the speaker refuses writes to it.
+- What **Mute persist** does is not known yet; the app only shows and writes the speaker's own
+  setting.
 - Models other than the KH 120 II and the KH 750 are read-only.
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.

@@ -16,6 +16,8 @@
 - **Undo** in the EQ window and Ctrl+Z there: takes back the speaker's newest EQ change.
 - Trends of the temperature and the warnings over the last two hours of the session in the
   device panel.
+- **Input mix** per output (input A and B, −100 to 0 dB) and **Mute persist** in the device
+  panel; the KH 750 also shows the position of its AUTO STANDBY switch.
 
 ### Changed
 
