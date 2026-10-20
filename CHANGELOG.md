@@ -48,6 +48,8 @@
 
 - Every write to the KH 120 II's 20-band EQ 3 was refused by the speaker ("code 413"): the
   request was one value too long for it.
+- The EQ graph drew bands near the top too wide (a 14 kHz peak by up to 1.3 dB): it now draws
+  the speakers' digital filters at 48 kHz.
 - The EQ graph drew shelving filters too steep, with an overshoot the speaker does not have: their
   Q is the shelf's slope.
 - A value that rounds to zero showed a minus ("-0 dB").
