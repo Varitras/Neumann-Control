@@ -1,6 +1,10 @@
-//! The magnitude response of EQ bands, computed from their settings (not measured): analog
-//! prototypes of the usual filter shapes, so no sample rate has to be assumed. Measured on the
-//! KH 750: a band's `gain` lifts every frequency, its `boost` is the height of the filter.
+//! The magnitude response of EQ bands, computed from their settings (not measured): the biquads
+//! of the RBJ audio EQ cookbook at the speakers' rate. Measured on a KH 120 II: every type
+//! follows its cookbook form, a shelf's `q` is the slope S, and near the top the bands are as
+//! narrow as at 48 kHz. Measured on the KH 750: a band's `gain` lifts every frequency, its
+//! `boost` is the height of the filter.
+
+use std::f64::consts::TAU;
 
 use crate::eq::Band;
 
@@ -9,23 +13,25 @@ pub const FREQUENCY_MIN: f64 = 10.0;
 pub const FREQUENCY_MAX: f64 = 24000.0;
 pub const GRAPH_POINTS: usize = 400;
 
-/// `a2·s² + a1·s + a0` at `s = j·x`, where `x` is the frequency over the band's frequency.
-#[derive(Clone, Copy)]
-struct Quadratic {
-    a2: f64,
-    a1: f64,
-    a0: f64,
+/// The rate the speakers run their EQ at (measured on the KH 120 II; assumed for the KH 750,
+/// whose bands sit low, where the rate makes no difference).
+const SAMPLE_RATE_HZ: f64 = 48000.0;
+
+/// `(b0 + b1·z⁻¹ + b2·z⁻²) / (a0 + a1·z⁻¹ + a2·z⁻²)`.
+struct Biquad {
+    b: [f64; 3],
+    a: [f64; 3],
 }
 
-impl Quadratic {
-    const fn new(a2: f64, a1: f64, a0: f64) -> Quadratic {
-        Quadratic { a2, a1, a0 }
-    }
-
-    fn magnitude(self, x: f64) -> f64 {
-        let real = self.a0 - self.a2 * x * x;
-        let imaginary = self.a1 * x;
-        real.hypot(imaginary)
+impl Biquad {
+    fn magnitude(&self, frequency: f64) -> f64 {
+        let w = TAU * frequency / SAMPLE_RATE_HZ;
+        let at = |c: &[f64; 3]| {
+            let real = c[0] + c[1] * w.cos() + c[2] * (2.0 * w).cos();
+            let imaginary = c[1] * w.sin() + c[2] * (2.0 * w).sin();
+            real.hypot(imaginary)
+        };
+        at(&self.b) / at(&self.a)
     }
 }
 
@@ -34,55 +40,82 @@ pub fn band_db(band: &Band, frequency: f64) -> f64 {
     if !band.enabled {
         return 0.0;
     }
-    let x = frequency / band.frequency;
-    let shape = transfer(band).map_or(0.0, |(scale, numerator, denominator)| {
-        let magnitude = scale * numerator.magnitude(x) / denominator.magnitude(x);
-        20.0 * magnitude.log10()
-    });
+    let shape = biquad(band).map_or(0.0, |filter| 20.0 * filter.magnitude(frequency).log10());
     band.gain + shape
 }
 
-/// Numerator and denominator of the shape (RBJ audio EQ cookbook, analog form), with a factor.
-fn transfer(band: &Band) -> Option<(f64, Quadratic, Quadratic)> {
-    let q = band.q;
+/// The band's filter as the cookbook defines it; `None` for a type that changes the phase only,
+/// an unknown type, or a setting the cookbook form does not cover.
+fn biquad(band: &Band) -> Option<Biquad> {
+    if band.frequency >= SAMPLE_RATE_HZ / 2.0 {
+        // At half the rate the form is undefined; what the speakers do there is not measured.
+        return None;
+    }
+    let w0 = TAU * band.frequency / SAMPLE_RATE_HZ;
+    let (cos, sin) = (w0.cos(), w0.sin());
     let a = 10f64.powf(band.boost / 40.0);
-    let resonant = Quadratic::new(1.0, 1.0 / q, 1.0);
-    let first_order = Quadratic::new(0.0, 1.0, 1.0);
-    // Measured on the KH 120 II: a shelf's `q` is the cookbook's slope S, not its Q.
-    let shelf_radicand = (a + 1.0 / a) * (1.0 / q - 1.0) + 2.0;
-    let is_shelf = matches!(band.kind.as_str(), "LOSHELF" | "HISHELF");
-    if is_shelf && shelf_radicand <= 0.0 {
+    let alpha = sin / (2.0 * band.q);
+    let resonant = [1.0 + alpha, -2.0 * cos, 1.0 - alpha];
+    let first_order_k = (w0 / 2.0).tan();
+    let first_order = [1.0 + first_order_k, first_order_k - 1.0, 0.0];
+    let filter = |b: [f64; 3], a: [f64; 3]| Some(Biquad { b, a });
+    match band.kind.as_str() {
+        "PARAMETRIC" => filter(
+            [1.0 + alpha * a, -2.0 * cos, 1.0 - alpha * a],
+            [1.0 + alpha / a, -2.0 * cos, 1.0 - alpha / a],
+        ),
+        "LOSHELF" | "HISHELF" => shelf(band, a, cos, sin),
+        "LOWPASS" => filter([(1.0 - cos) / 2.0, 1.0 - cos, (1.0 - cos) / 2.0], resonant),
+        "HIGHPASS" => filter(
+            [(1.0 + cos) / 2.0, -(1.0 + cos), (1.0 + cos) / 2.0],
+            resonant,
+        ),
+        // Measured: the centre is 20·log10(Q) dB, the constant-skirt form.
+        "BANDPASS" => filter([sin / 2.0, 0.0, -sin / 2.0], resonant),
+        "NOTCH" => filter([1.0, -2.0 * cos, 1.0], resonant),
+        "LO6DB" => filter([first_order_k, first_order_k, 0.0], first_order),
+        "HI6DB" => filter([1.0, -1.0, 0.0], first_order),
+        // ALLPASS and INVERSION change the phase only; an unknown type is drawn flat.
+        _ => None,
+    }
+}
+
+/// Measured on the KH 120 II: a shelf's `q` is the cookbook's slope S, not its Q.
+fn shelf(band: &Band, a: f64, cos: f64, sin: f64) -> Option<Biquad> {
+    let radicand = (a + 1.0 / a) * (1.0 / band.q - 1.0) + 2.0;
+    if radicand <= 0.0 {
         // A slope this steep for this height is outside the cookbook form; not measured.
         return None;
     }
-    let shelf_slope = a.sqrt() * shelf_radicand.max(0.0).sqrt();
-    let shape = match band.kind.as_str() {
-        "PARAMETRIC" => (
-            1.0,
-            Quadratic::new(1.0, a / q, 1.0),
-            Quadratic::new(1.0, 1.0 / (a * q), 1.0),
-        ),
-        "LOSHELF" => (
-            a,
-            Quadratic::new(1.0, shelf_slope, a),
-            Quadratic::new(a, shelf_slope, 1.0),
-        ),
-        "HISHELF" => (
-            a,
-            Quadratic::new(a, shelf_slope, 1.0),
-            Quadratic::new(1.0, shelf_slope, a),
-        ),
-        "LOWPASS" => (1.0, Quadratic::new(0.0, 0.0, 1.0), resonant),
-        "HIGHPASS" => (1.0, Quadratic::new(1.0, 0.0, 0.0), resonant),
-        // Measured: the centre is 20·log10(Q) dB, the constant-skirt form.
-        "BANDPASS" => (1.0, Quadratic::new(0.0, 1.0, 0.0), resonant),
-        "NOTCH" => (1.0, Quadratic::new(1.0, 0.0, 1.0), resonant),
-        "LO6DB" => (1.0, Quadratic::new(0.0, 0.0, 1.0), first_order),
-        "HI6DB" => (1.0, Quadratic::new(0.0, 1.0, 0.0), first_order),
-        // ALLPASS and INVERSION change the phase only; an unknown type is drawn flat.
-        _ => return None,
+    let lift = 2.0 * a.sqrt() * (sin / 2.0) * radicand.sqrt();
+    let (plus, minus) = (a + 1.0, a - 1.0);
+    let filter = match band.kind.as_str() {
+        "LOSHELF" => Biquad {
+            b: [
+                a * (plus - minus * cos + lift),
+                2.0 * a * (minus - plus * cos),
+                a * (plus - minus * cos - lift),
+            ],
+            a: [
+                plus + minus * cos + lift,
+                -2.0 * (minus + plus * cos),
+                plus + minus * cos - lift,
+            ],
+        },
+        _ => Biquad {
+            b: [
+                a * (plus + minus * cos + lift),
+                -2.0 * a * (minus + plus * cos),
+                a * (plus + minus * cos - lift),
+            ],
+            a: [
+                plus - minus * cos + lift,
+                2.0 * (minus - plus * cos),
+                plus - minus * cos - lift,
+            ],
+        },
     };
-    Some(shape)
+    Some(filter)
 }
 
 /// The sum of the bands at each frequency, in dB.
@@ -266,6 +299,13 @@ mod tests {
             &band("BANDPASS", 0.0, 1000.0, 2.0),
             &[(250.0, -11.56), (1000.0, 5.98), (4000.0, -11.73)],
         );
+    }
+
+    #[test]
+    fn a_band_at_half_the_rate_is_drawn_flat() {
+        let top = band("PARAMETRIC", 6.0, FREQUENCY_MAX, 1.0);
+        close(band_db(&top, 20000.0), 0.0);
+        assert!(band_db(&top, FREQUENCY_MAX).is_finite());
     }
 
     #[test]
