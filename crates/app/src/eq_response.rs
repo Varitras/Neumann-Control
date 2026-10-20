@@ -48,7 +48,14 @@ fn transfer(band: &Band) -> Option<(f64, Quadratic, Quadratic)> {
     let a = 10f64.powf(band.boost / 40.0);
     let resonant = Quadratic::new(1.0, 1.0 / q, 1.0);
     let first_order = Quadratic::new(0.0, 1.0, 1.0);
-    let shelf_slope = a.sqrt() / q;
+    // Measured on the KH 120 II: a shelf's `q` is the cookbook's slope S, not its Q.
+    let shelf_radicand = (a + 1.0 / a) * (1.0 / q - 1.0) + 2.0;
+    let is_shelf = matches!(band.kind.as_str(), "LOSHELF" | "HISHELF");
+    if is_shelf && shelf_radicand <= 0.0 {
+        // A slope this steep for this height is outside the cookbook form; not measured.
+        return None;
+    }
+    let shelf_slope = a.sqrt() * shelf_radicand.max(0.0).sqrt();
     let shape = match band.kind.as_str() {
         "PARAMETRIC" => (
             1.0,
