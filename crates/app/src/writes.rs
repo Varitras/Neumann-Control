@@ -582,6 +582,15 @@ mod tests {
     }
 
     #[test]
+    fn toggle_works_for_any_switch_path() {
+        let mut speaker = speaker("KH 120 II");
+        polled(&mut speaker, paths::PHASE_INVERSION, Value::Bool(false));
+        let phase = paths::path(paths::PHASE_INVERSION);
+        let command = speaker.request(Intent::Toggle(phase), Catalog::embedded(), 0.0);
+        assert_eq!(command, set(paths::PHASE_INVERSION, Value::Bool(true)));
+    }
+
+    #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);

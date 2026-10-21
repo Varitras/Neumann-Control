@@ -5,6 +5,7 @@ use neumann_control_core::ssc::wire::SscPath;
 
 pub const OUTPUT_LEVEL: &str = "audio/out/level";
 pub const MUTE: &str = "audio/out/mute";
+pub const PHASE_INVERSION: &str = "audio/out/phaseinversion";
 pub const IDENTIFY: &str = "device/identification/visual";
 pub const INPUT_METER: &str = "m/in/level";
 pub const OUTPUT_METER: &str = "m/out/level";
