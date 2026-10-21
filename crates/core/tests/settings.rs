@@ -251,7 +251,8 @@ fn an_unreadable_file_is_moved_aside_not_taken_for_missing() {
     fs::create_dir(&path).unwrap();
     assert_eq!(load(&path), Settings::default());
     assert!(!path.exists());
-    assert!(directory.path().join(format!("{SETTINGS_FILE}.bad")).is_dir());
+    let set_aside = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert!(set_aside.is_dir());
 }
 
 #[test]
