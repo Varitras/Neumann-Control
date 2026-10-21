@@ -244,6 +244,17 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
 }
 
 #[test]
+fn a_single_unknown_value_keeps_a_copy_of_the_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"desk": {"language": "French"}}"#;
+    fs::write(&path, text).unwrap();
+    assert_eq!(load(&path).desk.language, LanguageChoice::System);
+    let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert_eq!(fs::read_to_string(copy).unwrap(), text);
+}
+
+#[test]
 fn a_file_of_the_previous_version_keeps_its_speakers_and_window() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
