@@ -139,7 +139,10 @@ impl Shared {
                 continue;
             };
             let delivery = self.respond(request);
-            thread::sleep(self.state().reply_delay);
+            // Read first: the guard of `self.state()` would otherwise be held through the sleep
+            // and stall every other connection and test query for the whole delay.
+            let delay = self.state().reply_delay;
+            thread::sleep(delay);
             let lines = match delivery {
                 Delivery::Lines(lines) => lines,
                 Delivery::Silent => continue,
