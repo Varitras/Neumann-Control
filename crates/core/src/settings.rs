@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::ssc::wire::SscPath;
+
 pub const SETTINGS_FILE: &str = "settings.json";
 pub const LOG_FILE: &str = "neumann-control.log";
 
@@ -154,8 +156,9 @@ pub enum Linkable {
     Input,
 }
 
-/// What the settings dialog changes.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// How the desk looks and behaves: the settings dialog changes most of it, the strip editor the
+/// strip layouts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DeskSettings {
     #[serde(deserialize_with = "or_default")]
@@ -170,6 +173,51 @@ pub struct DeskSettings {
     pub compact: bool,
     #[serde(deserialize_with = "or_default")]
     pub crossovers: CrossoverGuard,
+    /// Per reported product name; a model without an entry shows the default strip.
+    #[serde(
+        deserialize_with = "readable_layouts",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub strip_layouts: BTreeMap<String, StoredStripLayout>,
+}
+
+/// One element a channel strip shows besides its fixed part: a catalog path, or the EQ button.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StripElement {
+    Path(SscPath),
+    Eq,
+}
+
+const EQ_ELEMENT: &str = "eq";
+
+impl Serialize for StripElement {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            StripElement::Path(path) => path.serialize(serializer),
+            StripElement::Eq => serializer.serialize_str(EQ_ELEMENT),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for StripElement {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<StripElement, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        if text == EQ_ELEMENT {
+            return Ok(StripElement::Eq);
+        }
+        SscPath::parse(&text)
+            .map(StripElement::Path)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+/// A model's strip elements above and below the fader, in order, as stored.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct StoredStripLayout {
+    #[serde(default, deserialize_with = "readable_items")]
+    pub above: Vec<StripElement>,
+    #[serde(default, deserialize_with = "readable_items")]
+    pub below: Vec<StripElement>,
 }
 
 impl Default for DeskSettings {
@@ -181,6 +229,7 @@ impl Default for DeskSettings {
             language: LanguageChoice::System,
             compact: false,
             crossovers: CrossoverGuard::Protected,
+            strip_layouts: BTreeMap::new(),
         }
     }
 }
@@ -313,6 +362,31 @@ where
     let left_out = total - readable.len();
     if left_out > 0 {
         log::warn!("{left_out} settings entries are not understood; left out");
+        NOT_UNDERSTOOD.with(|count| count.set(count.get() + left_out));
+    }
+    Ok(readable)
+}
+
+/// Like `readable_items` for the layout map: an entry this version cannot read is left out.
+fn readable_layouts<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<String, StoredStripLayout>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let serde_json::Value::Object(entries) = serde_json::Value::deserialize(deserializer)? else {
+        log::warn!("the strip layouts are not a map; left out");
+        NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
+        return Ok(BTreeMap::new());
+    };
+    let total = entries.len();
+    let readable: BTreeMap<String, StoredStripLayout> = entries
+        .into_iter()
+        .filter_map(|(model, layout)| Some((model, StoredStripLayout::deserialize(layout).ok()?)))
+        .collect();
+    let left_out = total - readable.len();
+    if left_out > 0 {
+        log::warn!("{left_out} strip layouts are not understood; left out");
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + left_out));
     }
     Ok(readable)

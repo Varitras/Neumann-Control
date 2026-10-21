@@ -20,7 +20,7 @@ impl NeumannApp {
             return;
         }
         let catalog = Catalog::embedded();
-        let desk = self.settings.desk;
+        let desk = self.settings.desk.clone();
         let ids = self.member_ids();
         let items = layout(&self.settings.order, &self.settings.groups, &ids);
         let rows = compact_rows(&items, &self.settings.groups, &ids);

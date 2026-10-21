@@ -1,7 +1,8 @@
 use neumann_control_core::settings::{
     load, save, BandCurves, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language,
-    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout,
-    StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
+    StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry,
+    SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -138,6 +139,7 @@ fn desk_settings_round_trip() {
             language: LanguageChoice::English,
             compact: true,
             crossovers: CrossoverGuard::Open,
+            ..DeskSettings::default()
         },
         compact_window: Some(WindowGeometry {
             x: 10.0,
@@ -441,7 +443,10 @@ fn strip_layouts_round_trip() {
         above: vec![element("audio/out/phaseinversion")],
         below: vec![element("audio/out/mute"), StripElement::Eq],
     };
-    settings.desk.strip_layouts.insert("KH 120 II".to_owned(), layout);
+    settings
+        .desk
+        .strip_layouts
+        .insert("KH 120 II".to_owned(), layout);
     save(&settings, &path).unwrap();
     assert_eq!(load(&path), settings);
 }
@@ -452,7 +457,10 @@ fn a_file_without_strip_layouts_loads_none() {
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, r#"{"desk": {"compact": false}}"#).unwrap();
     assert!(load(&path).desk.strip_layouts.is_empty());
-    assert!(!directory.path().join(format!("{SETTINGS_FILE}.bad")).exists());
+    assert!(!directory
+        .path()
+        .join(format!("{SETTINGS_FILE}.bad"))
+        .exists());
 }
 
 #[test]

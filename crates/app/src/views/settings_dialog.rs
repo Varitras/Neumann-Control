@@ -53,7 +53,7 @@ fn contents(
     curve_labels: &[(String, String)],
 ) -> SettingsAction {
     let before = (
-        settings.desk,
+        settings.desk.clone(),
         settings.system_audio.clone(),
         settings.eq_display.clone(),
     );
@@ -98,7 +98,7 @@ fn contents(
         return SettingsAction::Close;
     }
     let after = (
-        settings.desk,
+        settings.desk.clone(),
         settings.system_audio.clone(),
         settings.eq_display.clone(),
     );
