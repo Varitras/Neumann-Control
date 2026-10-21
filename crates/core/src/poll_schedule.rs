@@ -105,3 +105,74 @@ impl Schedule {
             .find(|&index| self.slots[index].due <= now)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::Catalog;
+
+    const MONITOR: &str = "KH 120 II";
+
+    fn timing() -> Timing {
+        Timing {
+            meter: Duration::from_secs(1),
+            fast: Duration::from_secs(2),
+            slow: Duration::from_secs(10),
+            ..Timing::default()
+        }
+    }
+
+    fn schedule(now: Instant) -> Schedule {
+        Schedule::new(&Catalog::embedded().entries_for(MONITOR), &timing(), now)
+    }
+
+    /// Takes every due path at `now`, meters left out.
+    fn due_paths(schedule: &mut Schedule, now: Instant) -> Vec<SscPath> {
+        let mut paths = Vec::new();
+        loop {
+            match schedule.take_due(now) {
+                Due::Meters(_) => {}
+                Due::Path(path) => paths.push(path),
+                Due::Nothing => return paths,
+            }
+        }
+    }
+
+    #[test]
+    fn every_due_path_is_read_once_before_any_is_read_again() {
+        let catalog = Catalog::embedded();
+        let entries = catalog.entries_for(MONITOR);
+        let first_with = |poll: Poll| *entries.iter().find(|entry| entry.poll == poll).unwrap();
+        let (fast, slow) = (first_with(Poll::Fast), first_with(Poll::Slow));
+        let start = Instant::now();
+        let mut schedule = Schedule::new(&[fast, slow], &timing(), start);
+        let both_due = start + timing().slow;
+        assert_eq!(schedule.take_due(both_due), Due::Path(fast.path.clone()));
+        // The fast path is due again, the slow one still waits for its first read: it goes first.
+        let fast_again = both_due + timing().fast;
+        assert_eq!(schedule.take_due(fast_again), Due::Path(slow.path.clone()));
+        assert_eq!(schedule.take_due(fast_again), Due::Path(fast.path.clone()));
+    }
+
+    #[test]
+    fn a_read_path_is_not_due_again_at_once() {
+        let start = Instant::now();
+        let mut schedule = schedule(start);
+        let all_due = start + Duration::from_secs(10);
+        let paths = due_paths(&mut schedule, all_due);
+        assert_eq!(paths.len(), schedule.slots.len());
+        assert!(due_paths(&mut schedule, all_due).is_empty());
+    }
+
+    #[test]
+    fn forget_removes_only_that_path() {
+        let start = Instant::now();
+        let mut schedule = schedule(start);
+        let forgotten = schedule.slots[0].path.clone();
+        let count = schedule.slots.len();
+        schedule.forget(&forgotten);
+        let paths = due_paths(&mut schedule, start + Duration::from_secs(10));
+        assert_eq!(paths.len(), count - 1);
+        assert!(!paths.contains(&forgotten));
+    }
+}
