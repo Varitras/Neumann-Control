@@ -1,8 +1,9 @@
 use neumann_control_core::settings::{
     load, save, BandCurves, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language,
-    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
-    SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout,
+    StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
+use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
 
 fn sample() -> Settings {
@@ -425,4 +426,43 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
 fn the_meter_floors_are_below_zero_db() {
     let floors = MeterFloor::ALL.map(MeterFloor::db);
     assert_eq!(floors, [-120.0, -90.0, -60.0]);
+}
+
+fn element(text: &str) -> StripElement {
+    StripElement::Path(SscPath::parse(text).unwrap())
+}
+
+#[test]
+fn strip_layouts_round_trip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut settings = Settings::default();
+    let layout = StoredStripLayout {
+        above: vec![element("audio/out/phaseinversion")],
+        below: vec![element("audio/out/mute"), StripElement::Eq],
+    };
+    settings.desk.strip_layouts.insert("KH 120 II".to_owned(), layout);
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path), settings);
+}
+
+#[test]
+fn a_file_without_strip_layouts_loads_none() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"desk": {"compact": false}}"#).unwrap();
+    assert!(load(&path).desk.strip_layouts.is_empty());
+    assert!(!directory.path().join(format!("{SETTINGS_FILE}.bad")).exists());
+}
+
+#[test]
+fn an_unreadable_strip_element_is_left_out_and_keeps_a_copy() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"desk": {"strip_layouts": {"KH 120 II": {"above": ["audio//out", "audio/out/delay"], "below": []}}}}"#;
+    fs::write(&path, text).unwrap();
+    let layouts = load(&path).desk.strip_layouts;
+    assert_eq!(layouts["KH 120 II"].above, vec![element("audio/out/delay")]);
+    let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert_eq!(fs::read_to_string(copy).unwrap(), text);
 }
