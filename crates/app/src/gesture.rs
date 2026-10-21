@@ -162,6 +162,14 @@ mod tests {
     }
 
     #[test]
+    fn the_wheel_steps_from_the_held_sent_value() {
+        let mut fader = GestureState::default();
+        fader.sent(90.0, 1.0);
+        fader.on_wheel(1.0, LEVEL_STEP, 80.0, LEVEL_RANGE, 1.1);
+        assert_eq!(fader.shown(80.0, 1.1), 90.5);
+    }
+
+    #[test]
     fn wheel_deadline_follows_the_last_step_and_ends_when_due() {
         let range = LEVEL_RANGE;
         let mut fader = GestureState::default();
