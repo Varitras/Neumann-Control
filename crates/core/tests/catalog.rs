@@ -446,3 +446,65 @@ fn element_labels_must_match_in_both_languages() {
     );
     assert!(invalid_reason(&list).is_some());
 }
+
+#[test]
+fn a_read_only_kind_listing_writable_models_is_an_error() {
+    let display = SUBWOOFER_OUTPUT.replace("kind = \"switch\"", "kind = \"display\"");
+    assert!(invalid_reason(&format!("{display}writable_on = [\"KH 750\"]")).is_some());
+    assert_eq!(invalid_reason(&display), None);
+}
+
+#[test]
+fn invert_takes_a_shown_value_back_to_the_devices_unit() {
+    for (conversion, device) in [
+        (Conversion::KelvinToCelsius, 313.0),
+        (Conversion::SamplesToMilliseconds, 96.0),
+    ] {
+        let shown = conversion.apply(device);
+        assert!(
+            (conversion.invert(shown) - device).abs() < 1e-9,
+            "{conversion:?}"
+        );
+        assert_ne!(shown, device, "{conversion:?}");
+    }
+}
+
+/// A level entry writable on the KH 750 with this `min` and `step`.
+fn stepped(min: f64, step: f64) -> Catalog {
+    let text = format!(
+        "[models]\nsubwoofer = [\"KH 750\"]\nlogo = []\n\n[[entry]]\n{LEVEL}\
+         min = {min:?}\nmax = 100.0\nstep = {step:?}\nwritable_on = [\"KH 750\"]"
+    );
+    Catalog::parse(&text).unwrap()
+}
+
+fn step_check(catalog: &Catalog, value: f64) -> Result<(), ValueError> {
+    catalog.entries[0].validate(&json!(value), SUBWOOFER, &catalog.classes)
+}
+
+#[test]
+fn the_step_grid_starts_at_the_minimum() {
+    let catalog = stepped(0.5, 2.0);
+    assert_eq!(step_check(&catalog, 2.5), Ok(()));
+    assert_eq!(step_check(&catalog, 3.0), Err(ValueError::NotAStep));
+    let catalog = stepped(0.0, 2.0);
+    assert_eq!(step_check(&catalog, 3.0), Err(ValueError::NotAStep));
+    let catalog = stepped(0.0, 0.5);
+    assert_eq!(step_check(&catalog, 0.5), Ok(()));
+}
+
+#[test]
+fn every_error_has_a_text() {
+    let errors = [
+        ValueError::NotAStep.to_string(),
+        CatalogError::Invalid {
+            path: path("audio/out/level"),
+            reason: "select without options",
+        }
+        .to_string(),
+        neumann_control_core::address::AddressError::Invalid.to_string(),
+    ];
+    for text in errors {
+        assert!(!text.is_empty());
+    }
+}
