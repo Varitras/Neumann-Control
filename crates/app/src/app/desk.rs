@@ -18,6 +18,7 @@ use crate::groups::{
 };
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
+use crate::strip_layout;
 use crate::texts;
 use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
@@ -85,11 +86,16 @@ impl NeumannApp {
                                             ui.multiply_opacity(DRAGGED_OPACITY);
                                         }
                                         let member = &ids[index];
+                                        let product = speaker.state.product();
+                                        let stored = desk.strip_layouts.get(product);
+                                        let layout =
+                                            strip_layout::resolve(stored, product, catalog);
                                         strip::show(
                                             ui,
                                             &mut speaker.state,
                                             catalog,
                                             &desk,
+                                            &layout,
                                             color,
                                             member,
                                         )

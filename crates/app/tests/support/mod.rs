@@ -463,7 +463,11 @@ pub fn turn_knob(
 pub fn desk_of(
     models: &[SimModel],
     strip_layouts: BTreeMap<String, StoredStripLayout>,
-) -> (Vec<Simulator>, tempfile::TempDir, Harness<'static, NeumannApp>) {
+) -> (
+    Vec<Simulator>,
+    tempfile::TempDir,
+    Harness<'static, NeumannApp>,
+) {
     let simulators: Vec<Simulator> = models
         .iter()
         .enumerate()

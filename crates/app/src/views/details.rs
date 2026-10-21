@@ -17,12 +17,10 @@ use crate::texts;
 const COLUMNS: usize = 2;
 const GROUP_GAP: f32 = 8.0;
 
-/// Drawn by the strip (level, mute, identify, meters) or the panel header (model, firmware,
-/// serial).
+/// Drawn by the strip's fixed part (level, meters) or the panel header (model, firmware,
+/// serial). Mute and identify stay listed: a layout can take them off the strip.
 const SHOWN_ELSEWHERE: &[&str] = &[
     paths::OUTPUT_LEVEL,
-    paths::MUTE,
-    paths::IDENTIFY,
     paths::INPUT_METER,
     paths::INPUT_CLIP,
     paths::PRODUCT,

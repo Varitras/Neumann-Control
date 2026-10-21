@@ -52,7 +52,10 @@ fn label(text: &str) -> &'static str {
 fn without_a_layout_the_strip_is_as_before() {
     let (_simulators, _directory, harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
     for knob in [paths::DELAY, paths::STANDBY_TIME] {
-        assert!(harness.query_all_by_label(label(knob)).next().is_some(), "{knob}");
+        assert!(
+            harness.query_all_by_label(label(knob)).next().is_some(),
+            "{knob}"
+        );
     }
     for button in [texts::MUTE.get(), texts::IDENTIFY.get(), texts::EQ.get()] {
         harness.get_by_role_and_label(Role::Button, button);

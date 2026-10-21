@@ -106,8 +106,9 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
 fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    // Short enough that the panel scrolls; `open_panel` makes the window tall.
-    harness.set_size(egui::vec2(1200.0, 420.0));
+    // Short enough that the panel scrolls (its delay knob stays below the window), tall enough
+    // that the logo knob is in view; `open_panel` makes the window tall.
+    harness.set_size(egui::vec2(1200.0, 480.0));
     harness.run_steps(2);
     let label = texts::knob_label("Logo-Helligkeit");
     let center = slider_center(&harness, &label);

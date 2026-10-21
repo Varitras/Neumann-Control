@@ -1,19 +1,21 @@
-//! One speaker as a channel strip: name (opens the device panel), status LEDs, delay and
-//! standby knobs, level fader with meters, readout, response time, mute and identify, and the
-//! last message. The strip only reports gestures; `writes` decides what becomes a command.
+//! One speaker as a channel strip: name (opens the device panel), status LEDs, the elements of
+//! its model's layout above and below the level fader with meters, readout and response time,
+//! and the last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, Rect, RichText, Role,
-    Sense, Stroke, Ui, Vec2, WidgetInfo,
+    self, vec2, Align, Button, Color32, ComboBox, CornerRadius, Label, Layout, Pos2, Rect,
+    RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
-use neumann_control_core::catalog::Catalog;
-use neumann_control_core::settings::DeskSettings;
+use neumann_control_core::catalog::{Catalog, Entry, Kind};
+use neumann_control_core::settings::{DeskSettings, StripElement};
 use neumann_control_core::speaker::Command;
+use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::meters::{self, Meters};
+use crate::display::shown_value;
 use crate::eq::has_eq;
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
 use crate::gesture::on_grid;
@@ -21,9 +23,10 @@ use crate::input_source::input_source;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
+use crate::strip_layout::StripLayout;
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
-use crate::writes::{self, Intent, Switch};
+use crate::writes::{self, Intent};
 
 pub const STRIP_WIDTH: f32 = 140.0;
 const STRIP_MARGIN: i8 = 6;
@@ -42,6 +45,7 @@ const METER_GROUP_GAP: f32 = 4.0;
 const METER_SPACING: f32 = 3.0;
 const CAPTION_HEIGHT: f32 = 16.0;
 const LEVEL_ENTRY_ID: &str = "level_entry";
+const KNOBS_PER_ROW: usize = 2;
 
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -58,6 +62,7 @@ pub fn show(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     desk: &DeskSettings,
+    layout: &StripLayout,
     group_color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
@@ -88,12 +93,12 @@ pub fn show(
                     })
                     .inner;
                 leds(ui, speaker, &tokens);
-                knobs(ui, speaker, catalog, &mut commands);
+                open_eq |= elements(ui, speaker, catalog, &layout.above, &mut commands);
                 level(ui, speaker, catalog, desk, &mut commands, &tokens);
                 if desk.show_response_times {
                     response_time(ui, speaker);
                 }
-                open_eq = buttons(ui, speaker, catalog, &mut commands);
+                open_eq |= elements(ui, speaker, catalog, &layout.below, &mut commands);
                 message(ui, speaker, &tokens);
                 open_panel
             })
@@ -169,32 +174,191 @@ fn led(ui: &mut Ui, color: Color32, text: &str) {
     response.on_hover_text(text);
 }
 
-fn knobs(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog, commands: &mut Vec<Command>) {
-    let product = speaker.product().to_owned();
-    let entries = catalog.entries_for(&product);
-    let entry = |path: &str| {
-        let path = paths::path(path);
-        entries.iter().copied().find(|entry| entry.path == path)
-    };
-    ui.columns(2, |columns| {
-        let knobs = [paths::DELAY, paths::STANDBY_TIME];
-        for (column, path) in columns.iter_mut().zip(knobs) {
-            let Some(entry) = entry(path) else {
-                continue;
-            };
-            // Named as in the device panel, so one setting has one name.
-            let label = entry.label(texts::language());
-            let sent = knob::for_entry(
-                column,
-                speaker,
-                catalog,
-                entry,
-                label,
-                true,
-                knob::KNOB_DIAMETER,
-            );
-            commands.extend(sent);
+/// One area of the layout. Neighbours of one kind share a row: knobs two by two, buttons
+/// wrapped; a select or a display takes the whole width. Paths the speaker lacks are skipped.
+fn elements(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    list: &[StripElement],
+    commands: &mut Vec<Command>,
+) -> bool {
+    let entries = catalog.entries_for(speaker.product());
+    let drawn: Vec<Drawn> = list
+        .iter()
+        .filter_map(|element| match element {
+            StripElement::Eq => has_eq(catalog, speaker).then_some(Drawn::Eq),
+            StripElement::Path(path) => entries
+                .iter()
+                .copied()
+                .find(|entry| entry.path == *path)
+                .filter(|_| !speaker.absent.contains(path))
+                .map(Drawn::Entry),
+        })
+        .collect();
+    let mut open_eq = false;
+    for run in drawn.chunk_by(|left, right| left.row() == right.row()) {
+        match run[0].row() {
+            Row::Knobs => knob_rows(ui, speaker, catalog, run, commands),
+            Row::Buttons => open_eq |= button_row(ui, speaker, catalog, run, commands),
+            Row::Select => {
+                for entry in run.iter().filter_map(Drawn::entry) {
+                    select(ui, speaker, catalog, entry, commands);
+                }
+            }
+            Row::Display => {
+                for entry in run.iter().filter_map(Drawn::entry) {
+                    display(ui, speaker, entry);
+                }
+            }
         }
+    }
+    open_eq
+}
+
+#[derive(Clone, Copy)]
+enum Drawn<'a> {
+    Entry(&'a Entry),
+    Eq,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Row {
+    Knobs,
+    Buttons,
+    Select,
+    Display,
+}
+
+impl<'a> Drawn<'a> {
+    fn entry(&self) -> Option<&'a Entry> {
+        match self {
+            Drawn::Entry(entry) => Some(entry),
+            Drawn::Eq => None,
+        }
+    }
+
+    fn row(&self) -> Row {
+        let Some(entry) = self.entry() else {
+            return Row::Buttons;
+        };
+        match entry.kind {
+            Kind::Number => Row::Knobs,
+            Kind::Switch => Row::Buttons,
+            Kind::Select => Row::Select,
+            _ => Row::Display,
+        }
+    }
+}
+
+fn knob_rows(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    run: &[Drawn],
+    commands: &mut Vec<Command>,
+) {
+    for pair in run.chunks(KNOBS_PER_ROW) {
+        ui.columns(KNOBS_PER_ROW, |columns| {
+            for (column, entry) in columns.iter_mut().zip(pair.iter().filter_map(Drawn::entry)) {
+                // Named as in the device panel, so one setting has one name.
+                let label = entry.label(texts::language());
+                let sent = knob::for_entry(
+                    column,
+                    speaker,
+                    catalog,
+                    entry,
+                    label,
+                    true,
+                    knob::KNOB_DIAMETER,
+                );
+                commands.extend(sent);
+            }
+        });
+    }
+}
+
+fn button_row(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    run: &[Drawn],
+    commands: &mut Vec<Command>,
+) -> bool {
+    ui.horizontal_wrapped(|ui| {
+        let mut open_eq = false;
+        for drawn in run {
+            match drawn {
+                Drawn::Eq => open_eq |= ui.button(texts::EQ).clicked(),
+                Drawn::Entry(entry) => {
+                    let text = button_text(entry);
+                    toggle(ui, speaker, catalog, commands, entry.path.clone(), text);
+                }
+            }
+        }
+        open_eq
+    })
+    .inner
+}
+
+/// The name from the panel, but identify keeps the strip's short one to fit beside mute.
+fn button_text(entry: &Entry) -> &str {
+    if entry.path == paths::path(paths::IDENTIFY) {
+        return texts::IDENTIFY.get();
+    }
+    entry.label(texts::language())
+}
+
+fn select(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    entry: &Entry,
+    commands: &mut Vec<Command>,
+) {
+    let current = speaker
+        .values
+        .get(&entry.path)
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let enabled = current.is_some() && writes::can_write(speaker, catalog, &entry.path);
+    let current = current.unwrap_or_default();
+    let caption = ui.label(RichText::new(entry.label(texts::language())).small());
+    let mut chosen = None;
+    ui.add_enabled_ui(enabled, |ui| {
+        ComboBox::from_id_salt(entry.path.to_string())
+            .selected_text(&current)
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for option in &entry.options {
+                    let selected = *option == current;
+                    if ui.selectable_label(selected, option).clicked() && !selected {
+                        chosen = Some(option.clone());
+                    }
+                }
+            })
+            .response
+            .labelled_by(caption.id);
+    });
+    if let Some(option) = chosen {
+        let now = ui.input(|input| input.time);
+        let intent = Intent::Write {
+            path: entry.path.clone(),
+            value: Value::String(option),
+        };
+        commands.extend(speaker.request(intent, catalog, now));
+    }
+}
+
+fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
+    let shown = speaker
+        .values
+        .get(&entry.path)
+        .map(|value| shown_value(entry, value))
+        .unwrap_or_default();
+    ui.horizontal_wrapped(|ui| {
+        ui.weak(RichText::new(entry.label(texts::language())).small());
+        ui.weak(RichText::new(shown).small());
     });
 }
 
@@ -329,45 +493,15 @@ fn response_time(ui: &mut Ui, speaker: &SpeakerState) {
 }
 
 /// Mute and identify, and EQ for models with EQ containers; true when EQ was clicked.
-fn buttons(
-    ui: &mut Ui,
-    speaker: &mut SpeakerState,
-    catalog: &Catalog,
-    commands: &mut Vec<Command>,
-) -> bool {
-    let has_eq = has_eq(catalog, speaker);
-    ui.horizontal(|ui| {
-        toggle(
-            ui,
-            speaker,
-            catalog,
-            commands,
-            Switch::Mute,
-            texts::MUTE.get(),
-        );
-        toggle(
-            ui,
-            speaker,
-            catalog,
-            commands,
-            Switch::Identify,
-            texts::IDENTIFY.get(),
-        );
-        has_eq && ui.button(texts::EQ).clicked()
-    })
-    .inner
-}
-
 /// A button showing a switch value of the speaker; a click asks for the opposite.
 pub(super) fn toggle(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     commands: &mut Vec<Command>,
-    switch: Switch,
+    path: SscPath,
     text: &str,
 ) {
-    let path = switch.path();
     let current = speaker.values.get(&path).and_then(Value::as_bool);
     let enabled = current.is_some() && writes::can_write(speaker, catalog, &path);
     let button = Button::new(text).selected(current.unwrap_or(false));

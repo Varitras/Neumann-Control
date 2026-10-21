@@ -80,7 +80,14 @@ pub fn speaker(
         let floor = desk.meter_floor.db();
         meters::bar(ui, loudest, floor, texts::INPUT_METERS.get(), &tokens);
         let mute = texts::MUTE.get();
-        strip::toggle(ui, speaker, catalog, &mut commands, Switch::Mute, mute);
+        strip::toggle(
+            ui,
+            speaker,
+            catalog,
+            &mut commands,
+            Switch::Mute.path(),
+            mute,
+        );
         if let Some(message) = &speaker.message {
             message_mark(ui, &texts::describe_message(message), &tokens);
         }

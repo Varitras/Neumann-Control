@@ -366,11 +366,12 @@ fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
 }
 
 #[test]
-fn strip_controls_are_not_repeated_in_the_panel() {
+fn the_fixed_part_of_the_strip_is_not_repeated_in_the_panel() {
     let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh120Ii);
-    assert_eq!(harness.query_all_by_label(texts::MUTE.get()).count(), 1);
-    assert_eq!(harness.query_all_by_label(texts::IDENTIFY.get()).count(), 1);
-    assert!(harness.query_by_label("Identifizieren").is_none());
+    // Mute and identify are listed in the panel too: a layout can take them off the strip.
+    let mutes = harness.query_all_by_role_and_label(Role::CheckBox, texts::MUTE.get());
+    assert_eq!(mutes.count(), 1);
+    assert!(harness.query_by_label("Identifizieren").is_some());
     assert!(harness.query_by_label("Eingangspegel").is_none());
     let faders = harness.query_all_by_role_and_label(Role::Slider, texts::LEVEL.get());
     assert_eq!(faders.count(), 1);
