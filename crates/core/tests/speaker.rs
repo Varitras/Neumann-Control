@@ -896,6 +896,37 @@ fn a_connection_lost_while_reading_leaves_fails_the_walk() {
         }
         simulator.inject(Fault::CloseConnection);
         let outcome = walk.join().unwrap();
-        assert!(matches!(outcome, Err(WalkError::Connection(_))), "{outcome:?}");
+        assert!(
+            matches!(outcome, Err(WalkError::Connection(_))),
+            "{outcome:?}"
+        );
     }
+}
+
+/// Every node the walk visits below the root: the leaves and the containers above them.
+fn visited_nodes(reports: &[neumann_control_core::schema_walk::LeafReport]) -> usize {
+    let mut containers = std::collections::BTreeSet::new();
+    for report in reports {
+        let segments = report.path.segments();
+        for depth in 1..segments.len() {
+            containers.insert(segments[..depth].to_vec());
+        }
+    }
+    reports.len() + containers.len()
+}
+
+#[test]
+fn exactly_the_node_limit_is_still_read() {
+    let plain = Simulator::start(SimModel::Kh120Ii);
+    let mut client = Client::connect(plain.address()).expect("simulator accepts");
+    let base = visited_nodes(&read_all(&mut client, &|| false).unwrap());
+    // One container `wide` plus its leaves fill the budget exactly.
+    let leaves = MAX_SCHEMA_NODES - base - 1;
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    for index in 0..leaves {
+        simulator.set_value(&format!("wide/node{index}"), json!(index));
+    }
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+    let reports = read_all(&mut client, &|| false).expect("the limit itself is allowed");
+    assert_eq!(visited_nodes(&reports), MAX_SCHEMA_NODES);
 }
