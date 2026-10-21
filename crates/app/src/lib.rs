@@ -17,6 +17,7 @@ pub mod scan_choice;
 pub mod scan_report;
 pub mod spawner;
 pub mod state;
+pub mod strip_layout;
 pub mod status_leds;
 pub mod system_audio;
 pub mod system_language;
