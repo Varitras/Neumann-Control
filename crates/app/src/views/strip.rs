@@ -373,7 +373,7 @@ pub(super) fn toggle(
     let button = Button::new(text).selected(current.unwrap_or(false));
     if ui.add_enabled(enabled, button).clicked() {
         let now = ui.input(|input| input.time);
-        commands.extend(speaker.request(Intent::Toggle(switch), catalog, now));
+        commands.extend(speaker.request(Intent::Toggle(path), catalog, now));
     }
 }
 

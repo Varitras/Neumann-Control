@@ -29,8 +29,8 @@ impl Switch {
 /// What a control of a speaker asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Intent {
-    /// Flip a switch to the opposite of its current value.
-    Toggle(Switch),
+    /// Flip the switch at the path to the opposite of its current value.
+    Toggle(SscPath),
     /// Set the output level.
     Level(f64),
     /// Set any catalog path to the given value.
@@ -55,7 +55,7 @@ impl Intent {
 
     pub fn path(&self) -> SscPath {
         match self {
-            Intent::Toggle(switch) => switch.path(),
+            Intent::Toggle(path) => path.clone(),
             Intent::Level(_) => paths::path(paths::OUTPUT_LEVEL),
             Intent::Write { path, .. } => path.clone(),
         }
@@ -209,7 +209,11 @@ mod tests {
     #[test]
     fn toggle_writes_the_opposite_switch_value() {
         let mut speaker = speaker("KH 120 II");
-        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        let command = speaker.request(
+            Intent::Toggle(Switch::Mute.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         assert_eq!(command, set(paths::MUTE, Value::Bool(true)));
         assert_eq!(speaker.message, None);
     }
@@ -306,7 +310,11 @@ mod tests {
         };
         speaker.apply(level, 2.0);
         assert!(speaker.message.is_some(), "a poll ended the refusal");
-        let command = speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 3.0);
+        let command = speaker.request(
+            Intent::Toggle(Switch::Mute.path()),
+            Catalog::embedded(),
+            3.0,
+        );
         assert_eq!(command, set(paths::MUTE, Value::Bool(true)));
         assert_eq!(speaker.message, None);
     }
@@ -405,7 +413,11 @@ mod tests {
             value: Value::Bool(false),
         };
         speaker.apply(identify, 0.0);
-        speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
+        speaker.request(
+            Intent::Toggle(Switch::Identify.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         speaker.request(Intent::Level(130.0), Catalog::embedded(), 0.0);
         assert!(speaker.written.is_empty(), "{:?}", speaker.written);
     }
@@ -482,16 +494,20 @@ mod tests {
     fn a_second_toggle_before_the_confirmation_toggles_back() {
         let mut speaker = speaker("KH 120 II");
         let catalog = Catalog::embedded();
-        let first = speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.0);
+        let first = speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.0);
         assert_eq!(first, set(paths::MUTE, Value::Bool(true)));
-        let second = speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.1);
+        let second = speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.1);
         assert_eq!(second, set(paths::MUTE, Value::Bool(false)));
     }
 
     #[test]
     fn a_poll_reply_older_than_the_write_does_not_undo_it() {
         let mut speaker = speaker("KH 120 II");
-        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        speaker.request(
+            Intent::Toggle(Switch::Mute.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         polled(&mut speaker, paths::MUTE, Value::Bool(false));
         assert_eq!(
             speaker.latest(&paths::path(paths::MUTE)),
@@ -517,8 +533,8 @@ mod tests {
     fn two_toggles_show_the_second_only_when_both_are_answered() {
         let mut speaker = speaker("KH 120 II");
         let catalog = Catalog::embedded();
-        speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.0);
-        speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.1);
+        speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.0);
+        speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.1);
         let mute = paths::path(paths::MUTE);
         answered(&mut speaker, paths::MUTE, Value::Bool(true));
         assert_eq!(speaker.values.get(&mute), Some(&Value::Bool(false)));
@@ -531,7 +547,11 @@ mod tests {
     #[test]
     fn a_rejected_write_lets_the_re_read_show_the_kept_value() {
         let mut speaker = speaker("KH 120 II");
-        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        speaker.request(
+            Intent::Toggle(Switch::Mute.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         let mute = paths::path(paths::MUTE);
         let error = DeviceError {
             code: READ_ONLY_CODE,
@@ -551,7 +571,11 @@ mod tests {
     #[test]
     fn a_failed_write_lets_the_reconnect_read_show_the_value() {
         let mut speaker = speaker("KH 120 II");
-        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        speaker.request(
+            Intent::Toggle(Switch::Mute.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         let mute = paths::path(paths::MUTE);
         let failed = Event::WriteFailed {
             path: mute.clone(),
@@ -593,7 +617,11 @@ mod tests {
     #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
-        let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
+        let command = speaker.request(
+            Intent::Toggle(Switch::Identify.path()),
+            Catalog::embedded(),
+            0.0,
+        );
         assert_eq!(command, None);
         let expected = Message::Refused(Refusal::ValueUnknown);
         assert_eq!(speaker.message, Some(expected));
