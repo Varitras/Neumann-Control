@@ -17,7 +17,7 @@ path = "src/lib.rs"
 [dependencies]
 neumann-control-core = { path = "../core" }
 serde_json = "1"
-eframe = "0.36"
+eframe = "0.37"
 log = "0.4"
 simplelog = "0.12"
 # Already in the tree through simplelog; the local clock time of the history's entries.
@@ -49,6 +49,6 @@ rfd = { version = "0.17", default-features = false }
 winresource = "0.1"
 
 [dev-dependencies]
-egui_kittest = { version = "0.36", features = ["eframe"] }
+egui_kittest = { version = "0.37", features = ["eframe"] }
 neumann-control-core = { path = "../core", features = ["test-support"] }
 tempfile = "3"

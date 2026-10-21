@@ -32,7 +32,7 @@ pub enum AddAddressAction {
 
 /// `listed` are the manual speakers already in the settings.
 pub fn show(ui: &mut Ui, form: &mut AddAddressForm, listed: &[ManualSpeaker]) -> AddAddressAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, form, listed));
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, form, listed));
     if modal.should_close() {
         return AddAddressAction::Cancel;
     }

@@ -5,8 +5,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Mesh, Pos2, Rect, Sense, Shape, Stroke,
-    Ui, WidgetInfo, WidgetType,
+    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Mesh, Pos2, Rect, Role, Sense, Shape,
+    Stroke, Ui, WidgetInfo,
 };
 
 use super::wheel::notches_for;
@@ -266,7 +266,7 @@ fn band_point(
     };
     let response = ui.interact(rect, id, sense);
     let label = texts::eq_band(band + 1);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, graph.editable, &label));
+    response.widget_info(|| WidgetInfo::labeled(Role::Button, graph.editable, &label));
     let mut actions = Vec::new();
     if response.clicked() || response.drag_started() {
         actions.push(GraphAction::Select(band));

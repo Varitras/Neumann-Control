@@ -224,7 +224,7 @@ impl NeumannApp {
                 })
                 .collect()
         });
-        let id = Id::new(EQ_VIEWPORT_ID).with(&window.key);
+        let id = Id::unique(EQ_VIEWPORT_ID).with(&window.key);
         let own_curves = bands
             .as_deref()
             .map(|bands| band_curves(bands, &frequencies))

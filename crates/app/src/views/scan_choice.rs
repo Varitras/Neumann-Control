@@ -18,7 +18,7 @@ pub enum ScanChoiceAction {
 }
 
 pub fn show(ui: &mut Ui, choice: &ScanChoice) -> ScanChoiceAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, choice));
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, choice));
     if modal.should_close() {
         return ScanChoiceAction::Cancel;
     }

@@ -147,7 +147,7 @@ impl NeumannApp {
                 });
             });
         ui.ctx()
-            .data_mut(|data| data.insert_temp(Id::new(STRIP_CENTERS_ID), centers));
+            .data_mut(|data| data.insert_temp(Id::unique(STRIP_CENTERS_ID), centers));
         let dropped = dragged.is_some() && ui.input(|input| input.pointer.any_released());
         if dropped {
             let order = order_of(&items, &ids, &self.settings.order);
@@ -364,7 +364,7 @@ fn previewed(
         .filter(|index| group_of(groups, &ids[*index]) == section)
         .collect();
     let centers: HashMap<String, f32> = context
-        .data(|data| data.get_temp(Id::new(STRIP_CENTERS_ID)))
+        .data(|data| data.get_temp(Id::unique(STRIP_CENTERS_ID)))
         .unwrap_or_default();
     let known: Option<Vec<f32>> = others
         .iter()

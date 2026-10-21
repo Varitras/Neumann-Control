@@ -108,6 +108,7 @@ fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
             unit: MouseWheelUnit::Line,
             delta: egui::vec2(0.0, 1.0),
             phase: TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
             modifiers: egui::Modifiers::NONE,
         });
     }
@@ -172,6 +173,7 @@ fn a_drag_replaces_wheel_steps_not_yet_sent() {
         unit: MouseWheelUnit::Line,
         delta: egui::vec2(0.0, 1.0),
         phase: TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
         modifiers: egui::Modifiers::NONE,
     });
     harness.drag_at(start);
@@ -482,6 +484,7 @@ fn knob_wheel_writes_after_idle() {
         unit: MouseWheelUnit::Line,
         delta: egui::vec2(0.0, 1.0),
         phase: TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
         modifiers: egui::Modifiers::NONE,
     });
     harness.step();

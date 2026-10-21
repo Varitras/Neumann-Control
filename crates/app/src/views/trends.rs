@@ -2,7 +2,7 @@
 //! as a bar, over the last two hours; hovering shows how long ago and what was read.
 
 use eframe::egui::{
-    self, pos2, vec2, Color32, Rect, RichText, Sense, Stroke, Ui, WidgetInfo, WidgetType,
+    self, pos2, vec2, Color32, Rect, RichText, Role, Sense, Stroke, Ui, WidgetInfo,
 };
 use neumann_control_core::catalog::Conversion;
 
@@ -155,7 +155,7 @@ fn temperature_line(
         previous = Some(right);
     }
     let label = texts::temperature_trend(current.as_deref().unwrap_or_default());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, &label));
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
     if let Some(pointer) = response.hover_pos() {
         let time = axis.time(pointer.x);
         let text = trend.value_at(time).map_or_else(
@@ -187,8 +187,7 @@ fn warning_bar(ui: &mut Ui, trend: &Trend<Vec<String>>, start: f64, now: f64, to
         );
         painter.rect_filled(span, 0.0, color);
     }
-    response
-        .widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, texts::WARNING_TREND.get()));
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, texts::WARNING_TREND.get()));
     if let Some(pointer) = response.hover_pos() {
         let time = axis.time(pointer.x);
         let text = match trend.value_at(time) {

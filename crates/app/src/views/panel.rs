@@ -65,13 +65,13 @@ pub fn show(
     let has_eq = has_eq(catalog, speaker);
     // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
     // drops the focus at the start of the Escape frame, so the last frame's state decides.
-    let editing_id = Id::new(PANEL_ID).with(EDITING_ID);
+    let editing_id = Id::unique(PANEL_ID).with(EDITING_ID);
     let editing = context.data(|data| data.get_temp::<bool>(editing_id).unwrap_or(false));
     // As tall as the window allows below the anchor, so rows are not hidden needlessly.
     let room = context.content_rect().bottom() - anchor.y - PANEL_CHROME_HEIGHT;
     let max_height = room.max(PANEL_MIN_HEIGHT);
     let window = Window::new(texts::PANEL_TITLE)
-        .id(Id::new(PANEL_ID))
+        .id(Id::unique(PANEL_ID))
         .title_bar(false)
         .collapsible(false)
         .resizable(false)

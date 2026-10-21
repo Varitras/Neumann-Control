@@ -3,8 +3,8 @@
 //! last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, Rect, RichText, Sense,
-    Stroke, Ui, Vec2, WidgetInfo, WidgetType,
+    self, vec2, Align, Button, Color32, CornerRadius, Label, Layout, Pos2, Rect, RichText, Role,
+    Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::DeskSettings;
@@ -110,7 +110,7 @@ pub fn show(
 /// The handle a strip is dragged by to another place on the desk; the payload is the speaker's
 /// identity in the saved order.
 fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
-    let id = ui.id().with(GRIP_ID);
+    let id = ui.scope_id().with(GRIP_ID);
     let response = ui
         .dnd_drag_source(id, member.to_owned(), |ui| {
             let size = vec2(GRIP_WIDTH, GRIP_HEIGHT);
@@ -128,7 +128,7 @@ fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
             }
         })
         .response;
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, texts::MOVE_STRIP));
+    response.widget_info(|| WidgetInfo::labeled(Role::Button, true, texts::MOVE_STRIP));
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
     }
@@ -165,7 +165,7 @@ fn led(ui: &mut Ui, color: Color32, text: &str) {
     let size = Vec2::splat(2.0 * LED_RADIUS);
     let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
     ui.painter().circle_filled(rect.center(), LED_RADIUS, color);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, text));
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, text));
     response.on_hover_text(text);
 }
 

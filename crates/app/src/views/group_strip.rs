@@ -3,9 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{
-    self, Button, Color32, CornerRadius, RichText, Stroke, Ui, WidgetInfo, WidgetType,
-};
+use eframe::egui::{self, Button, Color32, CornerRadius, RichText, Role, Stroke, Ui, WidgetInfo};
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
 use super::fader::{self, Orientation};
@@ -51,7 +49,7 @@ pub fn group(
             let button = Button::new(RichText::new(text).small()).wrap().selected(on);
             let button = ui.add(button);
             let label = texts::link_label(text);
-            button.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, on, &label));
+            button.widget_info(|| WidgetInfo::selected(Role::CheckBox, true, on, &label));
             if button.clicked() {
                 response.toggled_link = Some(linkable);
             }
@@ -116,6 +114,6 @@ pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui))
 pub(super) fn mute_button(ui: &mut Ui, label: &str, muted: Option<bool>) -> Option<bool> {
     let all = muted.unwrap_or(false);
     let button = ui.add_enabled(muted.is_some(), Button::new(texts::MUTE).selected(all));
-    button.widget_info(|| WidgetInfo::selected(WidgetType::Button, muted.is_some(), all, label));
+    button.widget_info(|| WidgetInfo::selected(Role::Button, muted.is_some(), all, label));
     button.clicked().then_some(!all)
 }

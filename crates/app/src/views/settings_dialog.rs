@@ -34,7 +34,7 @@ pub fn show(
     devices: &[AudioDevice],
     curve_labels: &[(String, String)],
 ) -> SettingsAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| {
         ScrollArea::vertical()
             .max_height(DIALOG_MAX_HEIGHT)
             .show(ui, |ui| contents(ui, settings, devices, curve_labels))

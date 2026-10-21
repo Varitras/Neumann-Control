@@ -26,7 +26,7 @@ pub enum SaveAction {
 
 /// `rows` empty: the preset holds a fixed set (an EQ), only its name is asked.
 pub fn save(ui: &mut Ui, title: &str, rows: &[SaveRow], name: &mut String) -> SaveAction {
-    let modal = Modal::new(Id::new(SAVE_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(SAVE_ID)).show(ui.ctx(), |ui| {
         ui.heading(title);
         let label = ui.label(texts::PRESET_NAME);
         ui.add(TextEdit::singleline(name)).labelled_by(label.id);
@@ -82,7 +82,7 @@ pub enum LoadAction {
 }
 
 pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
-    let modal = Modal::new(Id::new(LOAD_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(LOAD_ID)).show(ui.ctx(), |ui| {
         ui.heading(view.title);
         let mut action = LoadAction::None;
         if view.presets.is_empty() {

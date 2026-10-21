@@ -271,7 +271,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
 }
 
 fn import_preview(ui: &mut Ui, import: &ImportView) -> Option<EqAction> {
-    let modal = Modal::new(Id::new(IMPORT_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(IMPORT_ID)).show(ui.ctx(), |ui| {
         ui.heading(texts::EQ_IMPORT_TITLE);
         ui.label(texts::eq_import_from(import.file));
         if let Some(refusal) = import.refusal {

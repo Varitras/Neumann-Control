@@ -433,10 +433,12 @@ fn a_reset_reads_as_all_bands_in_the_history() {
     harness
         .get_by_label_contains(&texts::history_changes(None, 2))
         .hover();
-    harness.run_steps(3);
+    let all_bands = texts::eq_all_bands_setting("EQ 2", GAIN_LABEL);
+    wait_until(&mut harness, "the tooltip", |harness| {
+        harness.query_by_label_contains(&all_bands).is_some()
+    });
     let one_band = texts::eq_change_setting("EQ 2", 1, GAIN_LABEL);
     assert!(harness.query_by_label_contains(&one_band).is_none());
-    harness.get_by_label_contains(&texts::eq_all_bands_setting("EQ 2", GAIN_LABEL));
 }
 
 /// A KH 750 with its EQ window open, crossover protection switched off in the settings.

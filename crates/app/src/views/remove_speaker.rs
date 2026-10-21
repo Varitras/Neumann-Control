@@ -15,7 +15,7 @@ pub enum RemoveAction {
 
 /// `name` is the speaker's display name, so the user sees which speaker goes.
 pub fn show(ui: &mut Ui, name: &str) -> RemoveAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name));
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name));
     if modal.should_close() {
         return RemoveAction::Cancel;
     }

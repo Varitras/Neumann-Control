@@ -56,7 +56,7 @@ impl Fields<'_> {
             .horizontal_wrapped(|ui| {
                 let label = ui.label(entry.label(texts::language()));
                 let field = NumberField {
-                    id: ui.id().with(entry.path.to_string()),
+                    id: ui.scope_id().with(entry.path.to_string()),
                     device,
                     range: min..=max,
                     step: entry.step,
@@ -106,7 +106,7 @@ impl Fields<'_> {
                     .and_then(|entries| entries[index].as_f64());
                 let label = ui.label(name);
                 let field = NumberField {
-                    id: ui.id().with(entry.path.to_string()).with(index),
+                    id: ui.scope_id().with(entry.path.to_string()).with(index),
                     device,
                     range: min..=max,
                     step: entry.step,
@@ -193,7 +193,10 @@ impl Fields<'_> {
             .and_then(Value::as_str)
             .map(str::to_owned);
         let enabled = self.enabled(entry, reported.is_some());
-        let draft_id = ui.id().with(entry.path.to_string()).with(TEXT_DRAFT_ID);
+        let draft_id = ui
+            .scope_id()
+            .with(entry.path.to_string())
+            .with(TEXT_DRAFT_ID);
         let field_id = draft_id.with(TEXT_FIELD_ID);
         let mut draft = ui
             .data(|data| data.get_temp::<TextDraft>(draft_id))

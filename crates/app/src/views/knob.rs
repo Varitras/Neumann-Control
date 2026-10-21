@@ -86,7 +86,7 @@ pub fn for_entry(
         conversion: entry.conversion,
     };
     let mut state = speaker.knobs.remove(&entry.path).unwrap_or_default();
-    let id = ui.id().with(entry.path.to_string());
+    let id = ui.scope_id().with(entry.path.to_string());
     let sent = show(ui, id, &knob, &mut state);
     speaker.knobs.insert(entry.path.clone(), state);
     let sent = sent?;

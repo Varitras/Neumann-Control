@@ -3,8 +3,8 @@
 //! peak as a thin line, the held peak as a number below, and a clip lamp on top. The scale is the spread one from `meter`.
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, Response, RichText, Sense,
-    Stroke, Ui, Vec2, WidgetInfo, WidgetType,
+    pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, Response, RichText, Role,
+    Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
 use serde_json::Value;
 
@@ -113,7 +113,7 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         let label = texts::meter_label(name_of_group, &name);
         response.widget_info(|| WidgetInfo {
             value: readout.map(f64::from),
-            ..WidgetInfo::labeled(WidgetType::ProgressIndicator, true, &label)
+            ..WidgetInfo::labeled(Role::ProgressIndicator, true, &label)
         });
         let lamp_color = if clipped {
             tokens.danger
@@ -147,7 +147,7 @@ fn played_mark(ui: &mut Ui, tokens: &Tokens) -> Response {
     let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
     ui.painter()
         .circle_filled(rect.center(), PLAYED_MARK_RADIUS, tokens.text);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, texts::PLAYED_CHANNEL));
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, texts::PLAYED_CHANNEL));
     response.on_hover_text(texts::PLAYED_CHANNEL)
 }
 
@@ -258,7 +258,7 @@ pub fn bar(ui: &mut Ui, db: Option<f64>, floor: f64, label: &str, tokens: &Token
         let shown = Rect::from_x_y_ranges(x(start)..=x(lit.clamp(start, end)), rect.y_range());
         painter.rect_filled(shown, CornerRadius::same(BAR_RADIUS), color);
     }
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::ProgressIndicator, true, label));
+    response.widget_info(|| WidgetInfo::labeled(Role::ProgressIndicator, true, label));
 }
 
 fn zone_color(zone: Zone, tokens: &Tokens) -> Color32 {

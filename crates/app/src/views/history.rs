@@ -44,7 +44,7 @@ pub fn show(
     notice: Option<&str>,
 ) -> HistoryAction {
     let modal =
-        Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, count, row_at, notice));
+        Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, count, row_at, notice));
     if modal.should_close() {
         return HistoryAction::Close;
     }
@@ -111,7 +111,7 @@ fn row_line(ui: &mut Ui, row: &HistoryRow) -> Option<u64> {
 pub const UNDO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
 
 pub fn question(ui: &mut Ui, lines: &[String]) -> QuestionAction {
-    let modal = Modal::new(Id::new(QUESTION_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(QUESTION_ID)).show(ui.ctx(), |ui| {
         ui.heading(texts::CHANGED_SINCE);
         for line in lines {
             ui.label(line);

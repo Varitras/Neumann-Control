@@ -25,6 +25,7 @@ fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
         unit: MouseWheelUnit::Line,
         delta: egui::vec2(0.0, notches),
         phase: TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
         modifiers: egui::Modifiers::NONE,
     });
 }

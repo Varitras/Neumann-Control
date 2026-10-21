@@ -15,7 +15,7 @@ pub enum GroupDialogAction {
 }
 
 pub fn show(ui: &mut Ui, name: &mut String) -> GroupDialogAction {
-    let modal = Modal::new(Id::new(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name));
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name));
     if modal.should_close() {
         return GroupDialogAction::Close;
     }

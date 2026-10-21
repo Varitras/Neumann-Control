@@ -5,8 +5,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, CornerRadius, Layout, Pos2, RichText, Sense, Stroke, Ui,
-    WidgetInfo, WidgetType,
+    self, vec2, Align, Button, Color32, CornerRadius, Layout, Pos2, RichText, Role, Sense, Stroke,
+    Ui, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{DeskSettings, GroupSettings};
@@ -201,7 +201,7 @@ fn cell<R>(ui: &mut Ui, width: f32, contents: impl FnOnce(&mut Ui) -> R) -> R {
 fn message_mark(ui: &mut Ui, text: &str, tokens: &Tokens) {
     let mark = RichText::new(MESSAGE_MARK).strong().color(tokens.danger);
     let response = ui.add(egui::Label::new(mark).sense(Sense::hover()));
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, text));
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, text));
     response.on_hover_text(text);
 }
 

@@ -23,7 +23,7 @@ pub fn show(context: &Context, speaker: &mut SpeakerState, catalog: &Catalog) ->
     let mut open = true;
     let mut commands = Vec::new();
     Window::new(texts::all_values_title(&speaker.display_name()))
-        .id(Id::new((WINDOW_ID, speaker.key.clone())))
+        .id(Id::unique((WINDOW_ID, speaker.key.clone())))
         .default_size(DEFAULT_WINDOW_SIZE)
         .open(&mut open)
         .show(context, |ui| contents(ui, speaker, catalog, &mut commands));

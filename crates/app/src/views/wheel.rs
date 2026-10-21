@@ -33,7 +33,7 @@ pub fn track_burst(context: &Context) {
     let Some(pointer) = pointer.filter(|_| wheeling) else {
         return;
     };
-    let id = Id::new(BURST_ID);
+    let id = Id::unique(BURST_ID);
     let previous = context.data(|data| data.get_temp::<Burst>(id));
     let start = previous
         .filter(|burst| now - burst.last_event < WHEEL_IDLE_SECONDS)
@@ -48,7 +48,7 @@ pub fn track_burst(context: &Context) {
 /// This frame's wheel events in notches (lines), upwards positive, for the control at `rect` when
 /// the burst began over it; none otherwise.
 pub(super) fn notches_for(ui: &Ui, rect: Rect) -> Vec<f64> {
-    let burst = ui.data(|data| data.get_temp::<Burst>(Id::new(BURST_ID)));
+    let burst = ui.data(|data| data.get_temp::<Burst>(Id::unique(BURST_ID)));
     let now = ui.input(|input| input.time);
     let held_here = burst.is_some_and(|burst| {
         rect.contains(burst.start) && now - burst.last_event < WHEEL_IDLE_SECONDS
