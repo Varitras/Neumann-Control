@@ -4,6 +4,7 @@
 // Each test binary uses its own subset of these helpers.
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -21,7 +22,8 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, GroupSettings, Language, Linkable, ManualSpeaker, Settings, SETTINGS_FILE,
+    self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
+    StoredStripLayout, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
@@ -39,6 +41,7 @@ pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
 const PRODUCT_PATH: &str = "device/identity/product";
+const SERIAL_PATH: &str = "device/identity/serial";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);
@@ -453,4 +456,42 @@ pub fn turn_knob(
         harness.step();
     }
     around(center, radius, to)
+}
+
+/// One simulator per model, each with its own serial (the app keeps one strip per serial), all
+/// on the desk with `strip_layouts` stored, connected and read once.
+pub fn desk_of(
+    models: &[SimModel],
+    strip_layouts: BTreeMap<String, StoredStripLayout>,
+) -> (Vec<Simulator>, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let simulators: Vec<Simulator> = models
+        .iter()
+        .enumerate()
+        .map(|(index, model)| {
+            let simulator = Simulator::start(*model);
+            simulator.set_reply_delay(REPLY_DELAY);
+            simulator.set_value(SERIAL_PATH, Value::from(format!("SIM000000{index}")));
+            simulator
+        })
+        .collect();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let settings = Settings {
+        manual: simulators.iter().map(manual_for).collect(),
+        desk: DeskSettings {
+            strip_layouts,
+            ..DeskSettings::default()
+        },
+        ..Settings::default()
+    };
+    settings::save(&settings, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    harness.set_size(egui::vec2(1400.0, 900.0));
+    wait_until(&mut harness, "every strip connected", |harness| {
+        harness.query_all_by_label(&readout(100.0)).count() == models.len()
+    });
+    for simulator in &simulators {
+        wait_for_initial_read(&mut harness, simulator);
+    }
+    (simulators, directory, harness)
 }
