@@ -304,6 +304,9 @@ fn ctrl_z_on_a_changed_value_asks_and_reverts_on_confirm() {
     wait_for_level(&mut harness, 70.0);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_for_label(&mut harness, texts::REVERT.get());
+    // The question names the setting and the value the speaker holds now.
+    let now = texts::changed_now("", texts::LEVEL.get(), "70 dB SPL", "");
+    assert!(harness.query_by_label_contains(&now).is_some(), "{now}");
     harness.get_by_label(texts::REVERT.get()).click();
     wait_until(&mut harness, "the level written back", |_| {
         level_sets(&simulator).len() == 2
