@@ -115,6 +115,10 @@ fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
 }
 
 fn with_serial_masked(name: &str, serial: &str) -> String {
+    // An empty serial would be found at every position without moving on.
+    if serial.is_empty() {
+        return name.to_owned();
+    }
     let lower_name = name.to_ascii_lowercase();
     let lower_serial = serial.to_ascii_lowercase();
     let mask = mask_serial(serial);
