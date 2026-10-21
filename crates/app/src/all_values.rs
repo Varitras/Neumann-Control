@@ -20,6 +20,7 @@ const MAXIMUM_KEY: &str = "max";
 const OPTIONS_KEY: &str = "option";
 /// Leaves that name the device itself; shown masked like the serial in the device panel.
 const IDENTIFIER_PATHS: &[&str] = &[paths::SERIAL, paths::MAC_ADDRESSES];
+const IDENTIFIER_SEPARATOR: &str = ", ";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row<'a> {
@@ -62,14 +63,23 @@ fn row<'a>(report: &'a LeafReport, catalog: &Catalog) -> Row<'a> {
 }
 
 fn value_text(report: &LeafReport, path: &str) -> String {
-    let text = match &report.value {
+    match &report.value {
+        Ok(value) if IDENTIFIER_PATHS.contains(&path) => masked_identifier(value),
         Ok(value) => plain_text(value),
         Err(refusal) => refusal.clone(),
-    };
-    if IDENTIFIER_PATHS.contains(&path) {
-        return mask_serial(&text);
     }
-    text
+}
+
+/// A list (the MAC addresses) is masked entry by entry; masked as one JSON text only its
+/// closing bracket would be left.
+fn masked_identifier(value: &Value) -> String {
+    let Some(list) = value.as_array() else {
+        return mask_serial(&plain_text(value));
+    };
+    list.iter()
+        .map(|entry| mask_serial(&plain_text(entry)))
+        .collect::<Vec<_>>()
+        .join(IDENTIFIER_SEPARATOR)
 }
 
 /// Strings without their quotes, everything else as JSON.
