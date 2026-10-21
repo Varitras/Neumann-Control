@@ -296,6 +296,14 @@ mod tests {
     }
 
     #[test]
+    fn a_serial_in_another_letter_case_is_stripped_and_masked() {
+        assert_eq!(
+            announced_name("sim0001234 desk-sim0001234._ssc._tcp.local.", Some("SIM0001234")),
+            format!("{} desk", mask_serial("SIM0001234"))
+        );
+    }
+
+    #[test]
     fn without_a_txt_serial_the_instance_name_stays_unchanged() {
         assert_eq!(
             announced_name("Desk left-SIM0001234._ssc._tcp.local.", None),
