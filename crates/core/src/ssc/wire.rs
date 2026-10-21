@@ -91,7 +91,7 @@ pub struct DeviceError {
 }
 
 /// Merges `incoming` into `target`: objects recursively, anything else is replaced.
-pub fn merge(target: &mut Value, incoming: Value) {
+pub(crate) fn merge(target: &mut Value, incoming: Value) {
     match (target, incoming) {
         (Value::Object(existing), Value::Object(additions)) => {
             for (key, value) in additions {
