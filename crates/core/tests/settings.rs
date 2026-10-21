@@ -397,3 +397,9 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
     .unwrap();
     assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }
+
+#[test]
+fn the_meter_floors_are_below_zero_db() {
+    let floors = MeterFloor::ALL.map(MeterFloor::db);
+    assert_eq!(floors, [-120.0, -90.0, -60.0]);
+}
