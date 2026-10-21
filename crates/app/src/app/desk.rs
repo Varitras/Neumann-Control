@@ -18,7 +18,7 @@ use crate::groups::{
 };
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
-use crate::strip_layout;
+use crate::strip_layout::{self, LayoutChange};
 use crate::texts;
 use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
@@ -39,6 +39,8 @@ pub(super) enum DeskAction {
     OpenPanel(OpenPanel),
     OpenEq(SpeakerKey),
     System(SystemStripResponse),
+    /// A change of one model's strip layout.
+    Layout(String, LayoutChange),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -105,6 +107,10 @@ impl NeumannApp {
                                 actions.push(DeskAction::Commands(index, response.commands));
                                 if response.open_eq {
                                     actions.push(DeskAction::OpenEq(key.clone()));
+                                }
+                                if let Some(change) = response.layout {
+                                    let product = speaker.state.product().to_owned();
+                                    actions.push(DeskAction::Layout(product, change));
                                 }
                                 if let Some(anchor) = response.open_panel {
                                     let opened_now = true;
@@ -200,7 +206,28 @@ impl NeumannApp {
             DeskAction::OpenPanel(open) => self.panel = Some(open),
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
+            DeskAction::Layout(product, change) => self.change_layout(&product, &change, catalog),
         }
+    }
+
+    /// Applies `change` to the stored layout of `product` and saves; a reset drops the entry.
+    pub(super) fn change_layout(
+        &mut self,
+        product: &str,
+        change: &LayoutChange,
+        catalog: &Catalog,
+    ) {
+        let layouts = &mut self.settings.desk.strip_layouts;
+        let layout = strip_layout::resolve(layouts.get(product), product, catalog);
+        match strip_layout::apply(&layout, change) {
+            Some(stored) => {
+                layouts.insert(product.to_owned(), stored);
+            }
+            None => {
+                layouts.remove(product);
+            }
+        }
+        self.save_settings();
     }
 
     /// A group or master fader let go after moving by `moved` dB: every connected member moves by

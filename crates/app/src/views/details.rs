@@ -5,13 +5,16 @@
 
 use eframe::egui::{self, Button, RichText, Ui};
 use neumann_control_core::catalog::{Catalog, Entry, Group, Kind};
+use neumann_control_core::settings::StripElement;
 use neumann_control_core::speaker::Command;
 
 use super::details_fields::Fields;
 use super::knob;
+use super::layout_menu;
 use crate::display::shown_value;
 use crate::paths;
 use crate::state::{AllValuesState, FullScanState, SpeakerState, Status};
+use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
 const COLUMNS: usize = 2;
@@ -28,14 +31,33 @@ const SHOWN_ELSEWHERE: &[&str] = &[
     paths::SERIAL,
 ];
 
-/// Draws the area and returns the writes the user asked for that the write policy allowed.
-pub fn show(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
-    ui.vertical(|ui| rows(ui, speaker, catalog)).inner
+pub struct DetailsResponse {
+    /// The writes the user asked for that the write policy allowed.
+    pub commands: Vec<Command>,
+    /// A row put on the model's strips or taken off them.
+    pub layout: Option<LayoutChange>,
 }
 
-fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
+/// Draws the area; `layout` is the model's strip layout once the speaker reported its model.
+pub fn show(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    layout: Option<&StripLayout>,
+) -> DetailsResponse {
+    ui.vertical(|ui| rows(ui, speaker, catalog, layout)).inner
+}
+
+fn rows(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    layout: Option<&StripLayout>,
+) -> DetailsResponse {
     let product = speaker.product().to_owned();
     let groups = groups(catalog.entries_for(&product), speaker);
+    let addable = layout.map(|layout| strip_layout::addable(layout, &product, catalog));
+    let mut change = None;
     let mut commands = Vec::new();
     let mut fields = Fields {
         speaker,
@@ -49,7 +71,18 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
                 column.push_id(group.title(texts::language()), |ui| {
                     ui.label(RichText::new(group.title(texts::language())).strong());
                     for entry in entries {
-                        row(ui, &mut fields, entry);
+                        let rect = ui.scope(|ui| row(ui, &mut fields, entry)).response.rect;
+                        let (Some(layout), Some(addable)) = (layout, &addable) else {
+                            continue;
+                        };
+                        let element = StripElement::Path(entry.path.clone());
+                        let on_strip = strip_layout::on_strip(layout, &element);
+                        if !on_strip && !addable.contains(&element) {
+                            continue;
+                        }
+                        if let Some(wish) = layout_menu::row_menu(ui, rect, &element, on_strip) {
+                            change = Some(wish);
+                        }
                     }
                     ui.add_space(GROUP_GAP);
                 });
@@ -62,7 +95,10 @@ fn rows(ui: &mut Ui, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Comma
         full_scan_button(ui, fields.speaker, fields.commands);
     });
     full_scan_outcome(ui, fields.speaker);
-    commands
+    DetailsResponse {
+        commands,
+        layout: change,
+    }
 }
 
 type Groups<'a> = Vec<(Group, Vec<&'a Entry>)>;

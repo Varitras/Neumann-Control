@@ -491,8 +491,12 @@ pub fn desk_of(
     settings::save(&settings, &path).unwrap();
     let mut harness = harness(path, Vec::new());
     harness.set_size(egui::vec2(1400.0, 900.0));
+    // By name: a strip with a long layout can push its readout out of the window.
     wait_until(&mut harness, "every strip connected", |harness| {
-        harness.query_all_by_label(&readout(100.0)).count() == models.len()
+        models.iter().all(|model| {
+            let same_model = models.iter().filter(|other| *other == model).count();
+            harness.query_all_by_label(device_name(*model)).count() >= same_model
+        })
     });
     for simulator in &simulators {
         wait_for_initial_read(&mut harness, simulator);

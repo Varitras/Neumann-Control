@@ -5,7 +5,7 @@ mod support;
 
 use std::collections::BTreeMap;
 
-use eframe::egui::{self, accesskit::Role};
+use eframe::egui::accesskit::Role;
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
@@ -120,7 +120,9 @@ fn open_first_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
 }
 
 fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
-    harness.get_by_role_and_label(Role::Button, label).click_secondary();
+    harness
+        .get_by_role_and_label(Role::Button, label)
+        .click_secondary();
     harness.run_steps(2);
 }
 
@@ -165,13 +167,13 @@ fn hide_from_the_strip_menu() {
         .click_secondary();
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::ADD_TO_STRIP.get()).is_some());
-    harness.key_press(egui::Key::Escape);
-    harness.run_steps(2);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click_secondary();
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::REMOVE_FROM_STRIP.get()).is_some());
+    assert!(harness
+        .query_by_label(texts::REMOVE_FROM_STRIP.get())
+        .is_some());
 }
 
 #[test]
@@ -230,9 +232,8 @@ fn the_menu_writes_nothing() {
     right_click_button(&mut harness, texts::MUTE.get());
     choose(&mut harness, texts::HIDE.get());
     barrier(&simulators[0]);
-    let written = simulators[0]
-        .requests()
-        .iter()
-        .any(|request| request.to_string().contains("true") || request.to_string().contains("false"));
+    let written = simulators[0].requests().iter().any(|request| {
+        request.to_string().contains("true") || request.to_string().contains("false")
+    });
     assert!(!written, "a set reached the speaker");
 }

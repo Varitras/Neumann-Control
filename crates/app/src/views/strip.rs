@@ -14,6 +14,7 @@ use serde_json::Value;
 
 use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
+use super::layout_menu::{self, Offer};
 use super::meters::{self, Meters};
 use crate::display::shown_value;
 use crate::eq::has_eq;
@@ -23,7 +24,7 @@ use crate::input_source::input_source;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
-use crate::strip_layout::StripLayout;
+use crate::strip_layout::{LayoutChange, StripLayout};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
@@ -55,6 +56,15 @@ pub struct StripResponse {
     /// The strip's area, where another strip can be dropped.
     pub rect: Rect,
     pub open_eq: bool,
+    /// A change of the model's layout from an element's context menu.
+    pub layout: Option<LayoutChange>,
+}
+
+/// What the strip's areas asked for besides writes.
+#[derive(Default)]
+struct Wishes {
+    open_eq: bool,
+    layout: Option<LayoutChange>,
 }
 
 pub fn show(
@@ -68,7 +78,13 @@ pub fn show(
 ) -> StripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
-    let mut open_eq = false;
+    let mut wishes = Wishes::default();
+    // Only a speaker that reported its model can change that model's layout.
+    let offers = speaker
+        .identity
+        .is_some()
+        .then(|| layout_menu::offers(layout, speaker.product(), catalog));
+    let offers = offers.as_deref();
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let frame = egui::Frame::new()
         .fill(tokens.card)
@@ -93,12 +109,30 @@ pub fn show(
                     })
                     .inner;
                 leds(ui, speaker, &tokens);
-                open_eq |= elements(ui, speaker, catalog, &layout.above, &mut commands);
+                let above = &layout.above;
+                elements(
+                    ui,
+                    speaker,
+                    catalog,
+                    above,
+                    offers,
+                    &mut commands,
+                    &mut wishes,
+                );
                 level(ui, speaker, catalog, desk, &mut commands, &tokens);
                 if desk.show_response_times {
                     response_time(ui, speaker);
                 }
-                open_eq |= elements(ui, speaker, catalog, &layout.below, &mut commands);
+                let below = &layout.below;
+                elements(
+                    ui,
+                    speaker,
+                    catalog,
+                    below,
+                    offers,
+                    &mut commands,
+                    &mut wishes,
+                );
                 message(ui, speaker, &tokens);
                 open_panel
             })
@@ -108,7 +142,8 @@ pub fn show(
         commands,
         open_panel: frame.inner,
         rect: frame.response.rect,
-        open_eq,
+        open_eq: wishes.open_eq,
+        layout: wishes.layout,
     }
 }
 
@@ -181,8 +216,10 @@ fn elements(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     list: &[StripElement],
+    offers: Option<&[Offer]>,
     commands: &mut Vec<Command>,
-) -> bool {
+    wishes: &mut Wishes,
+) {
     let entries = catalog.entries_for(speaker.product());
     let drawn: Vec<Drawn> = list
         .iter()
@@ -196,24 +233,42 @@ fn elements(
                 .map(Drawn::Entry),
         })
         .collect();
-    let mut open_eq = false;
     for run in drawn.chunk_by(|left, right| left.row() == right.row()) {
         match run[0].row() {
-            Row::Knobs => knob_rows(ui, speaker, catalog, run, commands),
-            Row::Buttons => open_eq |= button_row(ui, speaker, catalog, run, commands),
-            Row::Select => {
-                for entry in run.iter().filter_map(Drawn::entry) {
-                    select(ui, speaker, catalog, entry, commands);
-                }
-            }
-            Row::Display => {
-                for entry in run.iter().filter_map(Drawn::entry) {
-                    display(ui, speaker, entry);
+            Row::Knobs => knob_rows(ui, speaker, catalog, run, offers, commands, wishes),
+            Row::Buttons => button_row(ui, speaker, catalog, run, offers, commands, wishes),
+            Row::Select | Row::Display => {
+                for drawn in run {
+                    with_menu(ui, drawn.element(), offers, wishes, |ui| {
+                        match drawn.entry() {
+                            Some(entry) if entry.kind == Kind::Select => {
+                                select(ui, speaker, catalog, entry, commands);
+                            }
+                            Some(entry) => display(ui, speaker, entry),
+                            None => {}
+                        }
+                    });
                 }
             }
         }
     }
-    open_eq
+}
+
+/// Draws one element and gives it its context menu, when the model's layout can be changed.
+fn with_menu(
+    ui: &mut Ui,
+    element: StripElement,
+    offers: Option<&[Offer]>,
+    wishes: &mut Wishes,
+    draw: impl FnOnce(&mut Ui),
+) {
+    let rect = ui.scope(draw).response.rect;
+    let Some(offers) = offers else {
+        return;
+    };
+    if let Some(change) = layout_menu::element_menu(ui, rect, &element, offers) {
+        wishes.layout = Some(change);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -238,6 +293,13 @@ impl<'a> Drawn<'a> {
         }
     }
 
+    fn element(&self) -> StripElement {
+        match self {
+            Drawn::Entry(entry) => StripElement::Path(entry.path.clone()),
+            Drawn::Eq => StripElement::Eq,
+        }
+    }
+
     fn row(&self) -> Row {
         let Some(entry) = self.entry() else {
             return Row::Buttons;
@@ -256,23 +318,28 @@ fn knob_rows(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     run: &[Drawn],
+    offers: Option<&[Offer]>,
     commands: &mut Vec<Command>,
+    wishes: &mut Wishes,
 ) {
     for pair in run.chunks(KNOBS_PER_ROW) {
         ui.columns(KNOBS_PER_ROW, |columns| {
             for (column, entry) in columns.iter_mut().zip(pair.iter().filter_map(Drawn::entry)) {
-                // Named as in the device panel, so one setting has one name.
-                let label = entry.label(texts::language());
-                let sent = knob::for_entry(
-                    column,
-                    speaker,
-                    catalog,
-                    entry,
-                    label,
-                    true,
-                    knob::KNOB_DIAMETER,
-                );
-                commands.extend(sent);
+                let element = StripElement::Path(entry.path.clone());
+                with_menu(column, element, offers, wishes, |ui| {
+                    // Named as in the device panel, so one setting has one name.
+                    let label = entry.label(texts::language());
+                    let sent = knob::for_entry(
+                        ui,
+                        speaker,
+                        catalog,
+                        entry,
+                        label,
+                        true,
+                        knob::KNOB_DIAMETER,
+                    );
+                    commands.extend(sent);
+                });
             }
         });
     }
@@ -283,22 +350,23 @@ fn button_row(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     run: &[Drawn],
+    offers: Option<&[Offer]>,
     commands: &mut Vec<Command>,
-) -> bool {
+    wishes: &mut Wishes,
+) {
+    let mut open_eq = false;
     ui.horizontal_wrapped(|ui| {
-        let mut open_eq = false;
         for drawn in run {
-            match drawn {
+            with_menu(ui, drawn.element(), offers, wishes, |ui| match drawn {
                 Drawn::Eq => open_eq |= ui.button(texts::EQ).clicked(),
                 Drawn::Entry(entry) => {
                     let text = button_text(entry);
                     toggle(ui, speaker, catalog, commands, entry.path.clone(), text);
                 }
-            }
+            });
         }
-        open_eq
-    })
-    .inner
+    });
+    wishes.open_eq |= open_eq;
 }
 
 /// The name from the panel, but identify keeps the strip's short one to fit beside mute.

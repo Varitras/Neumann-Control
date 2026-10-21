@@ -14,6 +14,7 @@ use crate::eq::has_eq;
 use crate::groups::linkable_label;
 use crate::paths;
 use crate::state::SpeakerState;
+use crate::strip_layout::{LayoutChange, StripLayout};
 use crate::texts;
 
 const PANEL_ID: &str = "device_panel";
@@ -36,6 +37,8 @@ pub struct PanelResponse {
     pub open_eq: bool,
     pub save_preset: bool,
     pub load_preset: bool,
+    /// A row put on the model's strips or taken off them.
+    pub layout: Option<LayoutChange>,
 }
 
 /// The groups the speaker could be in, which one it is in, and what that group links.
@@ -54,6 +57,7 @@ pub fn show(
     anchor: Pos2,
     opened_now: bool,
     groups: &GroupChoice,
+    layout: Option<&StripLayout>,
 ) -> PanelResponse {
     let mut close = false;
     let mut remove = false;
@@ -85,7 +89,7 @@ pub fn show(
             close = header(ui, speaker);
             group = group_choice(ui, groups);
             copy_to_group = copy_buttons(ui, groups);
-            let commands = details::show(ui, speaker, catalog);
+            let details = details::show(ui, speaker, catalog, layout);
             ui.separator();
             trends::show(ui, &trends_of(ui, speaker, catalog));
             ui.separator();
@@ -95,7 +99,7 @@ pub fn show(
             });
             open_eq = has_eq && ui.button(texts::EQ).clicked();
             remove = ui.button(texts::REMOVE).clicked();
-            commands
+            details
         })
         .expect("the panel window is open");
     let escape = !editing && context.input(|input| input.key_pressed(Key::Escape));
@@ -111,8 +115,13 @@ pub fn show(
         layer != Some(window.response.layer_id) && !on_popup
     });
     let clicked_outside = pressed && outside;
+    let details = window.inner;
+    let (commands, layout) = details.map_or((Vec::new(), None), |details| {
+        (details.commands, details.layout)
+    });
     PanelResponse {
-        commands: window.inner.unwrap_or_default(),
+        commands,
+        layout,
         close: close || escape || (clicked_outside && !opened_now),
         remove,
         group,

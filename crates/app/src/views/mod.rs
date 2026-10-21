@@ -11,6 +11,7 @@ pub mod group_dialog;
 pub mod group_strip;
 pub mod history;
 mod knob;
+mod layout_menu;
 mod meters;
 mod number_field;
 pub mod panel;

@@ -22,6 +22,7 @@ use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::status_leds::average_response_time;
+use crate::strip_layout;
 use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{duplicate_speakers, follow_moves, forget, remember_serial, targets};
 use crate::texts;
@@ -467,7 +468,24 @@ impl NeumannApp {
             linked: &linked,
         };
         let state = &mut self.speakers[index].state;
-        let response = panel::show(context, state, catalog, anchor, opened_now, &choice);
+        let product = state.product().to_owned();
+        let stored = self.settings.desk.strip_layouts.get(&product);
+        let layout = state
+            .identity
+            .is_some()
+            .then(|| strip_layout::resolve(stored, &product, catalog));
+        let response = panel::show(
+            context,
+            state,
+            catalog,
+            anchor,
+            opened_now,
+            &choice,
+            layout.as_ref(),
+        );
+        if let Some(change) = &response.layout {
+            self.change_layout(&product, change, catalog);
+        }
         let now = context.input(|input| input.time);
         for command in response.commands {
             self.send_with_links(index, command, catalog, &ids, now);
