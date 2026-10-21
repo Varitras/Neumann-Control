@@ -563,6 +563,25 @@ mod tests {
     }
 
     #[test]
+    fn a_knob_holds_its_sent_value_until_the_write_is_answered() {
+        let mut speaker = speaker("KH 120 II");
+        let delay = paths::path(paths::DELAY);
+        polled(&mut speaker, paths::DELAY, Value::from(0));
+        speaker
+            .knobs
+            .insert(delay.clone(), crate::gesture::GestureState::default());
+        let intent = Intent::Write {
+            path: delay.clone(),
+            value: Value::from(48),
+        };
+        speaker.request(intent, Catalog::embedded(), 0.0);
+        polled(&mut speaker, paths::DELAY, Value::from(0));
+        assert_eq!(speaker.knobs[&delay].shown(0.0, 0.5), 48.0);
+        answered(&mut speaker, paths::DELAY, Value::from(48));
+        assert_eq!(speaker.knobs[&delay].shown(0.0, 0.5), 0.0);
+    }
+
+    #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Toggle(Switch::Identify), Catalog::embedded(), 0.0);
