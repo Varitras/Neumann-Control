@@ -77,5 +77,19 @@ fn entries_without_serial_are_kept_by_address() {
         found(None, SIMULATED_LINK_LOCAL, 7),
         found(None, SIMULATED_GLOBAL, 0),
     ]);
-    assert_eq!(merged.len(), 2);
+    let addresses: Vec<Ipv6Addr> = merged.iter().map(|entry| *entry.address.ip()).collect();
+    assert_eq!(
+        addresses,
+        [address(SIMULATED_LINK_LOCAL), address(SIMULATED_GLOBAL)]
+    );
+}
+
+#[test]
+fn a_later_link_local_address_replaces_an_earlier_one() {
+    let merged = merge_found(vec![
+        found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 7),
+        found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 15),
+    ]);
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].address.scope_id(), 15);
 }
