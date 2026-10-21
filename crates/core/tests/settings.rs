@@ -244,6 +244,28 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
 }
 
 #[test]
+fn an_unreadable_file_is_moved_aside_not_taken_for_missing() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    // A folder in its place cannot be read, and is not "not found" either.
+    fs::create_dir(&path).unwrap();
+    assert_eq!(load(&path), Settings::default());
+    assert!(!path.exists());
+    assert!(directory.path().join(format!("{SETTINGS_FILE}.bad")).is_dir());
+}
+
+#[test]
+fn an_unknown_list_entry_alone_keeps_a_copy_of_the_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"manual": [{"address": "fe80::2%7"}]}"#;
+    fs::write(&path, text).unwrap();
+    assert!(load(&path).manual.is_empty());
+    let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert_eq!(fs::read_to_string(copy).unwrap(), text);
+}
+
+#[test]
 fn a_single_unknown_value_keeps_a_copy_of_the_file() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
