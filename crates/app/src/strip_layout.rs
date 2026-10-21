@@ -3,7 +3,7 @@
 //! hand-edited or older file never puts something on a strip that the model cannot show.
 
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
-use neumann_control_core::settings::{StoredStripLayout, StripElement};
+use neumann_control_core::settings::{Language, StoredStripLayout, StripElement};
 
 use crate::paths;
 
@@ -29,7 +29,10 @@ pub enum LayoutChange {
     MoveTo(StripElement, Area, usize),
     MoveUp(StripElement),
     MoveDown(StripElement),
-    Swap { old: StripElement, new: StripElement },
+    Swap {
+        old: StripElement,
+        new: StripElement,
+    },
     Reset,
 }
 
@@ -38,29 +41,172 @@ const DEFAULT_BELOW: [&str; 2] = [paths::MUTE, paths::IDENTIFY];
 
 /// Today's strip: delay and standby time above the fader, mute, identify and EQ below.
 pub fn default_layout(product: &str, catalog: &Catalog) -> StoredStripLayout {
-    todo!()
+    let paths_of = |texts: &[&str]| -> Vec<StripElement> {
+        texts
+            .iter()
+            .map(|text| StripElement::Path(paths::path(text)))
+            .filter(|element| shows(element, product, catalog))
+            .collect()
+    };
+    let mut below = paths_of(&DEFAULT_BELOW);
+    if shows(&StripElement::Eq, product, catalog) {
+        below.push(StripElement::Eq);
+    }
+    StoredStripLayout {
+        above: paths_of(&DEFAULT_ABOVE),
+        below,
+    }
 }
 
+/// The stored layout, or the default one, without what the model cannot show and without
+/// repeats (the first one stays).
 pub fn resolve(
     stored: Option<&StoredStripLayout>,
     product: &str,
     catalog: &Catalog,
 ) -> StripLayout {
-    todo!()
+    let layout = stored
+        .cloned()
+        .unwrap_or_else(|| default_layout(product, catalog));
+    let mut seen: Vec<StripElement> = Vec::new();
+    let mut keep = |elements: Vec<StripElement>| -> Vec<StripElement> {
+        elements
+            .into_iter()
+            .filter(|element| {
+                let new = shows(element, product, catalog) && !seen.contains(element);
+                if new {
+                    seen.push(element.clone());
+                }
+                new
+            })
+            .collect()
+    };
+    let above = keep(layout.above);
+    let below = keep(layout.below);
+    StripLayout { above, below }
 }
 
 /// What could still be put on the strip, in catalog order, the EQ button last.
 pub fn addable(layout: &StripLayout, product: &str, catalog: &Catalog) -> Vec<StripElement> {
-    todo!()
+    let mut addable: Vec<StripElement> = catalog
+        .entries_for(product)
+        .into_iter()
+        .filter(|entry| fits_a_strip(entry))
+        .map(|entry| StripElement::Path(entry.path.clone()))
+        .filter(|element| !on_strip(layout, element))
+        .collect();
+    let eq = StripElement::Eq;
+    if shows(&eq, product, catalog) && !on_strip(layout, &eq) {
+        addable.push(eq);
+    }
+    addable
 }
 
 /// The layout to store after `change`; `None` drops the model's entry, so it shows the default.
 pub fn apply(layout: &StripLayout, change: &LayoutChange) -> Option<StoredStripLayout> {
-    todo!()
+    let mut changed = layout.clone();
+    match change {
+        LayoutChange::Reset => return None,
+        LayoutChange::Add(element, area) if !on_strip(layout, element) => {
+            changed.area_mut(*area).push(element.clone());
+        }
+        LayoutChange::Add(..) => {}
+        LayoutChange::Remove(element) => {
+            changed.take(element);
+        }
+        LayoutChange::MoveTo(element, area, index) => {
+            if changed.take(element).is_some() {
+                let list = changed.area_mut(*area);
+                list.insert((*index).min(list.len()), element.clone());
+            }
+        }
+        LayoutChange::MoveUp(element) => changed.move_up(element),
+        LayoutChange::MoveDown(element) => changed.move_down(element),
+        LayoutChange::Swap { old, new } => {
+            changed.take(new);
+            if let Some((area, index)) = changed.place(old) {
+                changed.area_mut(area)[index] = new.clone();
+            }
+        }
+    }
+    Some(StoredStripLayout {
+        above: changed.above,
+        below: changed.below,
+    })
 }
 
 pub fn on_strip(layout: &StripLayout, element: &StripElement) -> bool {
-    todo!()
+    layout.place(element).is_some()
+}
+
+impl StripLayout {
+    fn area_mut(&mut self, area: Area) -> &mut Vec<StripElement> {
+        match area {
+            Area::Above => &mut self.above,
+            Area::Below => &mut self.below,
+        }
+    }
+
+    fn place(&self, element: &StripElement) -> Option<(Area, usize)> {
+        let in_area = |list: &[StripElement]| list.iter().position(|other| other == element);
+        let above = in_area(&self.above).map(|index| (Area::Above, index));
+        above.or_else(|| in_area(&self.below).map(|index| (Area::Below, index)))
+    }
+
+    fn take(&mut self, element: &StripElement) -> Option<(Area, usize)> {
+        let (area, index) = self.place(element)?;
+        self.area_mut(area).remove(index);
+        Some((area, index))
+    }
+
+    /// One place up; the first below the fader goes to the end above it.
+    fn move_up(&mut self, element: &StripElement) {
+        match self.place(element) {
+            Some((Area::Below, 0)) => {
+                self.below.remove(0);
+                self.above.push(element.clone());
+            }
+            Some((area, index)) if index > 0 => self.area_mut(area).swap(index, index - 1),
+            _ => {}
+        }
+    }
+
+    /// One place down; the last above the fader goes to the start below it.
+    fn move_down(&mut self, element: &StripElement) {
+        let Some((area, index)) = self.place(element) else {
+            return;
+        };
+        let last = self.area_mut(area).len() - 1;
+        match area {
+            Area::Above if index == last => {
+                self.above.remove(index);
+                self.below.insert(0, element.clone());
+            }
+            _ if index < last => self.area_mut(area).swap(index, index + 1),
+            _ => {}
+        }
+    }
+}
+
+/// Whether `element` can be drawn on a strip of `product`.
+fn shows(element: &StripElement, product: &str, catalog: &Catalog) -> bool {
+    match element {
+        StripElement::Eq => !catalog.eq_containers(product).is_empty(),
+        StripElement::Path(path) => catalog
+            .entries_for(product)
+            .into_iter()
+            .any(|entry| entry.path == *path && fits_a_strip(entry)),
+    }
+}
+
+/// One value a strip can show: no text field, no band list, no list of numbers, no meter.
+fn fits_a_strip(entry: &Entry) -> bool {
+    let one_value = !entry.bands && entry.element_labels(Language::German).is_empty();
+    let kind = matches!(
+        entry.kind,
+        Kind::Number | Kind::Switch | Kind::Select | Kind::Display
+    );
+    kind && one_value
 }
 
 #[cfg(test)]
@@ -106,7 +252,12 @@ mod tests {
     #[test]
     fn resolve_drops_what_the_model_cannot_show() {
         let stored = StoredStripLayout {
-            above: elements(&[paths::DEVICE_NAME, PHASE_INVERSION, paths::DELAY, paths::DELAY]),
+            above: elements(&[
+                paths::DEVICE_NAME,
+                PHASE_INVERSION,
+                paths::DELAY,
+                paths::DELAY,
+            ]),
             below: Vec::new(),
         };
         let layout = resolve(Some(&stored), SUBWOOFER, Catalog::embedded());
