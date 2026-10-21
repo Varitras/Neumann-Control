@@ -14,6 +14,8 @@ use serde_json::{json, Value};
 use support::*;
 
 const LEVEL_PATH: &str = "audio/out/level";
+/// Long enough that the speaker's confirmation of a write is still out when the test acts.
+const UNCONFIRMED_WRITE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
 fn entries(harness: &Harness<'static, NeumannApp>) -> Vec<Entry> {
     harness.state().history().entries().cloned().collect()
@@ -255,6 +257,22 @@ fn ctrl_z_takes_back_the_newest_write() {
     wait_until(&mut harness, "unmute", |_| {
         sets(&simulator, "/audio/out/mute") == [json!(true), json!(false)]
     });
+}
+
+#[test]
+fn a_take_back_before_the_speaker_confirmed_the_write_does_not_ask() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
+    harness.get_by_label(texts::MUTE.get()).click();
+    wait_until(&mut harness, "mute", |_| {
+        sets(&simulator, "/audio/out/mute") == [json!(true)]
+    });
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(3);
+    assert_eq!(harness.state().take_back_question(), None);
+    let entries = entries(&harness);
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].takes_back, Some(entries[1].id));
 }
 
 #[test]
