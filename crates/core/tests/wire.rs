@@ -1,5 +1,6 @@
 use neumann_control_core::ssc::wire::{
-    device_error, extract, number, parse_line, reply_xid, request_line, SscPath, WireError,
+    device_error, extract, number, parse_line, reply_xid, request_line, token_count, SscPath,
+    WireError, MAX_REQUEST_TOKENS,
 };
 use serde_json::{json, Value};
 
@@ -182,4 +183,18 @@ fn a_twenty_band_eq_write_leaves_out_the_xid() {
         parse_line(line.as_bytes()).unwrap(),
         json!({"osc": {"xid": 6}, "audio": {"out": {"eq2": {"enabled": ten}}}})
     );
+}
+
+/// `audio/out/eq2/enabled` with n values and the xid is 13 + n tokens: 16 values are exactly
+/// the 29 the speaker takes, 17 are one too many.
+#[test]
+fn the_xid_stays_up_to_exactly_the_token_limit() {
+    let at_limit = Value::Array(vec![Value::Null; 16]);
+    let line = request_line(&path("audio/out/eq2/enabled"), at_limit.clone(), 7);
+    let request = parse_line(line.as_bytes()).unwrap();
+    assert_eq!(token_count(&request), MAX_REQUEST_TOKENS);
+    assert_eq!(reply_xid(&request), Some(7));
+    let over = Value::Array(vec![Value::Null; 17]);
+    let line = request_line(&path("audio/out/eq2/enabled"), over, 8);
+    assert_eq!(reply_xid(&parse_line(line.as_bytes()).unwrap()), None);
 }
