@@ -13,6 +13,7 @@ const SILENCE_TIMEOUT: Duration = Duration::from_millis(400);
 const PARTIAL_LINE_PAUSE: Duration = Duration::from_millis(200);
 const LINE_LIMIT_BYTES: usize = 1_048_576;
 const FOREIGN_XID_OFFSET: u64 = 1000;
+const SLOW_REPLY_DELAY: Duration = Duration::from_secs(2);
 const KH_120_II: &str = "KH 120 II";
 const KH_750: &str = "KH 750";
 const KH_120_II_LEAVES: usize = 50;
@@ -514,5 +515,23 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
     assert!(
         device_error(&with_mute).is_none(),
         "25 tokens are taken: {with_mute}"
+    );
+}
+
+#[test]
+fn a_delayed_reply_does_not_hold_up_other_callers() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(SLOW_REPLY_DELAY);
+    let mut client = Client::connect(&simulator);
+    client.send(&json!({"audio": {"out": {"mute": null}}}));
+    let sent = std::time::Instant::now();
+    while simulator.requests().is_empty() {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    simulator.value("audio/out/mute");
+    assert!(
+        sent.elapsed() < SLOW_REPLY_DELAY / 2,
+        "waited {:?} for a lock held through the reply delay",
+        sent.elapsed()
     );
 }
