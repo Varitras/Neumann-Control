@@ -867,3 +867,35 @@ fn commands_queued_during_long_work_keep_their_order() {
     assert!(seen.contains(&first_set), "the first set did not run first");
     assert_eq!(simulator.value("audio/out/level"), Some(json!(90.0)));
 }
+
+/// Long enough to inject a fault between seeing a request and the walk's next one.
+const SLOW_WALK_REPLY: Duration = Duration::from_millis(50);
+
+fn is_leaf_read(request: &Value) -> bool {
+    request.pointer("/osc/schema").is_none() && request.pointer("/osc/limits").is_none()
+}
+
+fn is_limits_read(request: &Value) -> bool {
+    request.pointer("/osc/limits").is_some()
+}
+
+/// The connection drops right after the walk asked for a leaf's value (its limits come next)
+/// and right after it asked for a leaf's limits (the next value comes next): either way the
+/// walk fails as lost instead of listing every later leaf as refused.
+#[test]
+fn a_connection_lost_while_reading_leaves_fails_the_walk() {
+    for seen in [is_leaf_read as fn(&Value) -> bool, is_limits_read] {
+        let simulator = Simulator::start(SimModel::Kh120Ii);
+        simulator.set_reply_delay(SLOW_WALK_REPLY);
+        let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+        let walk = thread::spawn(move || read_all(&mut client, &|| false));
+        let end = Instant::now() + EVENT_DEADLINE;
+        while !simulator.requests().last().is_some_and(seen) {
+            assert!(Instant::now() < end, "the walk never read a leaf");
+            thread::sleep(Duration::from_millis(1));
+        }
+        simulator.inject(Fault::CloseConnection);
+        let outcome = walk.join().unwrap();
+        assert!(matches!(outcome, Err(WalkError::Connection(_))), "{outcome:?}");
+    }
+}
