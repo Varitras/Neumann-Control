@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 use neumann_control_core::ssc::client::{
-    Client, NodeKind, SscError, MAX_LINE_BYTES, MAX_RESPONSE_BYTES, MAX_RESPONSE_LINES,
+    Client, NodeKind, SscError, MAX_LINE_BYTES, MAX_READ_DURATION, MAX_RESPONSE_BYTES,
+    MAX_RESPONSE_LINES,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::{json, Value};
@@ -350,4 +351,12 @@ fn reply_with_null_value_keeps_the_connection() {
     assert!(matches!(error, SscError::Unusable(_)), "got {error:?}");
     assert!(!error.is_connection_lost());
     assert!(!client.is_closed());
+}
+
+#[test]
+fn the_read_budgets_are_the_specified_ones() {
+    assert_eq!(MAX_LINE_BYTES, 1024 * 1024);
+    assert_eq!(MAX_RESPONSE_LINES, 256);
+    assert_eq!(MAX_RESPONSE_BYTES, 4 * 1024 * 1024);
+    assert_eq!(MAX_READ_DURATION, Duration::from_secs(10));
 }

@@ -71,7 +71,12 @@ fn kh120ii_has_logo_but_kh750_not() {
 
 #[test]
 fn unknown_model_is_read_only() {
-    for candidate in &Catalog::embedded().entries {
+    let entries = &Catalog::embedded().entries;
+    // Without a writable entry for a known model the loop below would prove nothing.
+    assert!(entries
+        .iter()
+        .any(|candidate| candidate.is_writable(MONITOR)));
+    for candidate in entries {
         assert!(
             !candidate.is_writable(UNKNOWN_PRODUCT),
             "{}",
