@@ -88,7 +88,15 @@ pub enum Event {
     Connected(Identity),
     /// Sent once per outage; the text is the masked error.
     Unreachable(String),
+    /// A read: the value as the speaker held it when the request was answered.
     Value {
+        path: SscPath,
+        value: Value,
+    },
+    /// The speaker's answer to one `Set`: the value it now holds. Each `Set` gets exactly one of
+    /// `Written`, `Absent`, `WriteRejected` or `WriteFailed`, so the app can tell its own write
+    /// confirmed from a read that was answered before the write arrived.
+    Written {
         path: SscPath,
         value: Value,
     },
@@ -446,7 +454,7 @@ impl Worker {
     ) -> Result<(), Interruption> {
         let error = match session.client.set(&path, value) {
             Ok(confirmed) => {
-                self.outbox.emit(Event::Value {
+                self.outbox.emit(Event::Written {
                     path,
                     value: confirmed,
                 });

@@ -110,13 +110,20 @@ pub struct SpeakerState {
     /// What this frame sent: path, value before, value written. The app takes it into the
     /// history at the end of the frame.
     pub written: Vec<(SscPath, Option<Value>, Value)>,
-    /// Sent values the speaker has not reported back yet; the value before of the next write.
-    pending: BTreeMap<SscPath, Value>,
+    /// Sent values the speaker has not answered yet; the value before of the next write.
+    pending: BTreeMap<SscPath, Pending>,
     /// `device/temperature` as reported (kelvin), for the device panel's trend.
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
     pub warnings: Trend<Vec<String>>,
     pub full_scan: FullScanState,
+}
+
+/// The newest value sent to one path and how many of its `Set`s are still unanswered.
+#[derive(Clone, Debug, PartialEq)]
+struct Pending {
+    value: Value,
+    unanswered: usize,
 }
 
 impl SpeakerState {
@@ -191,18 +198,52 @@ impl SpeakerState {
         if *path == paths::path(paths::IDENTIFY) {
             return;
         }
-        let base = self.pending.get(path).or_else(|| self.values.get(path));
+        let base = self.latest(path);
         let before = base.map(|base| matching(base, value)).filter(is_given);
-        let pending = merged(base, value);
+        let merged = merged(base, value);
+        let unanswered = self
+            .pending
+            .get(path)
+            .map_or(0, |pending| pending.unanswered);
         self.written.push((path.clone(), before, value.clone()));
+        let pending = Pending {
+            value: merged,
+            unanswered: unanswered + 1,
+        };
         self.pending.insert(path.clone(), pending);
     }
 
-    /// The newest sent value not yet reported back, else the reported one: what the speaker
-    /// holds once its writes are through. A take-back compares with this, so its own write
+    /// The newest sent value not yet answered, else the reported one: what the speaker holds
+    /// once its writes are through. The next toggle and a take-back start from this, so a write
     /// still on the way does not count as someone else's change.
     pub fn latest(&self, path: &SscPath) -> Option<&Value> {
-        self.pending.get(path).or_else(|| self.values.get(path))
+        let sent = self.pending.get(path).map(|pending| &pending.value);
+        sent.or_else(|| self.values.get(path))
+    }
+
+    /// Counts one `Set` to `path` as answered; when none is left, the sent value is no longer
+    /// held. Whether the speaker took it, its next report says.
+    fn settle(&mut self, path: &SscPath) {
+        if let Some(pending) = self.pending.get_mut(path) {
+            pending.unanswered = pending.unanswered.saturating_sub(1);
+            if pending.unanswered > 0 {
+                return;
+            }
+            self.pending.remove(path);
+        }
+        if *path == paths::path(paths::OUTPUT_LEVEL) {
+            self.fader.confirmed();
+        }
+        if let Some(knob) = self.knobs.get_mut(path) {
+            knob.confirmed();
+        }
+    }
+
+    fn take_reported(&mut self, path: SscPath, value: Value, now: f64) {
+        self.absent.remove(&path);
+        self.feed_meters(&path, &value, now);
+        self.record_trends(&path, &value, now);
+        self.values.insert(path, value);
     }
 
     pub fn apply(&mut self, event: Event, now: f64) {
@@ -225,33 +266,40 @@ impl SpeakerState {
                 self.temperature.record(now, None);
                 self.warnings.record(now, None);
             }
+            // The worker answers one request at a time, so a read answered before a write was
+            // sent can arrive after it; the write's own answer follows and wins.
             Event::Value { path, value } => {
-                if path == paths::path(paths::OUTPUT_LEVEL) {
-                    self.fader.confirmed();
+                if !self.pending.contains_key(&path) {
+                    self.take_reported(path, value, now);
                 }
-                if let Some(knob) = self.knobs.get_mut(&path) {
-                    knob.confirmed();
+            }
+            Event::Written { path, value } => {
+                self.settle(&path);
+                if !self.pending.contains_key(&path) {
+                    self.take_reported(path, value, now);
                 }
-                self.absent.remove(&path);
-                self.pending.remove(&path);
-                self.feed_meters(&path, &value, now);
-                self.record_trends(&path, &value, now);
-                self.values.insert(path, value);
             }
             Event::Absent(path) => {
+                // Every later write to the path is answered the same way, so none is awaited.
+                self.pending.remove(&path);
+                self.settle(&path);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
-            Event::WriteRejected { error, .. } => {
+            // A re-read or, for a lost connection, the reconnect follows; it shows the real value.
+            Event::WriteRejected { path, error } => {
+                self.settle(&path);
                 let message = Message::Rejected(error.code);
                 self.set_message(Some(message), MessageSource::Write);
             }
-            Event::WriteFailed { .. } => {
+            Event::WriteFailed { path, .. } => {
+                self.settle(&path);
                 self.set_message(Some(Message::WriteFailed), MessageSource::Write);
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
                 self.response_time = None;
+                self.pending.clear();
                 let message = Message::SerialMismatch(mask_serial(&found));
                 self.set_message(Some(message), MessageSource::Connection);
                 self.temperature.record(now, None);
@@ -626,12 +674,18 @@ mod tests {
     }
 
     #[test]
-    fn a_reported_level_ends_the_held_fader_value() {
+    fn the_answer_to_the_level_write_ends_the_held_fader_value() {
         let mut speaker = state();
+        let level = path(paths::OUTPUT_LEVEL);
         speaker.fader.sent(90.0, 0.0);
+        speaker.record_written(&level, &json!(90.0));
         speaker.apply(value_event("device/name", json!("left")), 0.5);
         assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
-        speaker.apply(value_event(paths::OUTPUT_LEVEL, json!(80.0)), 0.5);
+        let answer = Event::Written {
+            path: level,
+            value: json!(80.0),
+        };
+        speaker.apply(answer, 0.5);
         assert_eq!(speaker.fader.shown(80.0, 0.5), 80.0);
     }
 

@@ -400,7 +400,7 @@ fn commands_run_before_polling() {
     let after_send = simulator.requests().len();
     collect_until(&events, EVENT_DEADLINE, |event| {
         *event
-            == Event::Value {
+            == Event::Written {
                 path: level.clone(),
                 value: json!(90.0),
             }
@@ -610,7 +610,7 @@ fn set_during_read_all_is_written_before_the_walk_ends() {
     });
     let written = seen.iter().position(|event| {
         *event
-            == Event::Value {
+            == Event::Written {
                 path: level.clone(),
                 value: json!(90.0),
             }
@@ -807,7 +807,7 @@ fn oversized_schema_fails_read_all_but_keeps_connection() {
     });
     let seen = collect_until(&events, EVENT_DEADLINE, |event| {
         *event
-            == Event::Value {
+            == Event::Written {
                 path: mute.clone(),
                 value: json!(true),
             }
@@ -855,12 +855,12 @@ fn commands_queued_during_long_work_keep_their_order() {
             value: json!(value),
         });
     }
-    let last_set = Event::Value {
+    let last_set = Event::Written {
         path: level.clone(),
         value: json!(90.0),
     };
     let seen = collect_until(&events, RECOVERY_DEADLINE, |event| *event == last_set);
-    let first_set = Event::Value {
+    let first_set = Event::Written {
         path: level,
         value: json!(80.0),
     };

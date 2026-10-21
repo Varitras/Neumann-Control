@@ -157,7 +157,7 @@ impl SpeakerState {
             Intent::Level(level) => Ok(Value::from(*level)),
             Intent::Write { value, .. } => Ok(value.clone()),
             Intent::Toggle(_) => {
-                let current = self.values.get(path).and_then(Value::as_bool);
+                let current = self.latest(path).and_then(Value::as_bool);
                 let current = current.ok_or(Refusal::ValueUnknown)?;
                 Ok(Value::Bool(!current))
             }
@@ -171,8 +171,11 @@ mod tests {
     use neumann_control_core::address::parse_address;
     use neumann_control_core::discovery::Found;
     use neumann_control_core::speaker::{Event, Identity};
+    use neumann_control_core::ssc::wire::DeviceError;
 
     use crate::state::SpeakerKey;
+
+    const READ_ONLY_CODE: i64 = 405;
 
     const ADDRESS_TEXT: &str = "fe80::2a36:38ff:fe12:3456%7";
 
@@ -382,11 +385,14 @@ mod tests {
                 (path.clone(), Some(Value::from(90.0)), Value::from(95.0)),
             ]
         );
-        let reported = Event::Value {
-            path: path.clone(),
-            value: Value::from(93.0),
-        };
-        speaker.apply(reported, 0.5);
+        // Both writes answered; the speaker kept 93 of the 95.
+        for answered in [90.0, 93.0] {
+            let answer = Event::Written {
+                path: path.clone(),
+                value: Value::from(answered),
+            };
+            speaker.apply(answer, 0.5);
+        }
         speaker.request(Intent::Level(85.0), Catalog::embedded(), 1.0);
         assert_eq!(speaker.written[0].1, Some(Value::from(93.0)));
     }
@@ -500,6 +506,60 @@ mod tests {
         speaker.request(Intent::Level(90.0), Catalog::embedded(), 0.0);
         polled(&mut speaker, paths::OUTPUT_LEVEL, Value::from(80.0));
         assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
+    }
+
+    fn answered(speaker: &mut SpeakerState, path: &str, value: Value) {
+        let path = paths::path(path);
+        speaker.apply(Event::Written { path, value }, 0.0);
+    }
+
+    #[test]
+    fn two_toggles_show_the_second_only_when_both_are_answered() {
+        let mut speaker = speaker("KH 120 II");
+        let catalog = Catalog::embedded();
+        speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.0);
+        speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.1);
+        let mute = paths::path(paths::MUTE);
+        answered(&mut speaker, paths::MUTE, Value::Bool(true));
+        assert_eq!(speaker.values.get(&mute), Some(&Value::Bool(false)));
+        assert_eq!(speaker.latest(&mute), Some(&Value::Bool(false)));
+        answered(&mut speaker, paths::MUTE, Value::Bool(false));
+        polled(&mut speaker, paths::MUTE, Value::Bool(true));
+        assert_eq!(speaker.values.get(&mute), Some(&Value::Bool(true)));
+    }
+
+    #[test]
+    fn a_rejected_write_lets_the_re_read_show_the_kept_value() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        let mute = paths::path(paths::MUTE);
+        let error = DeviceError {
+            code: READ_ONLY_CODE,
+            description: String::new(),
+        };
+        speaker.apply(
+            Event::WriteRejected {
+                path: mute.clone(),
+                error,
+            },
+            0.0,
+        );
+        polled(&mut speaker, paths::MUTE, Value::Bool(false));
+        assert_eq!(speaker.latest(&mute), Some(&Value::Bool(false)));
+    }
+
+    #[test]
+    fn a_failed_write_lets_the_reconnect_read_show_the_value() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        let mute = paths::path(paths::MUTE);
+        let failed = Event::WriteFailed {
+            path: mute.clone(),
+            message: String::new(),
+        };
+        speaker.apply(failed, 0.0);
+        polled(&mut speaker, paths::MUTE, Value::Bool(false));
+        assert_eq!(speaker.latest(&mute), Some(&Value::Bool(false)));
     }
 
     #[test]
