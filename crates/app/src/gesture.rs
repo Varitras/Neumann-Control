@@ -51,7 +51,8 @@ impl GestureState {
         if whole == 0 {
             return;
         }
-        let base = self.pending.unwrap_or(current);
+        // The shown value: a sent level still held counts, not the one the speaker reported last.
+        let base = self.shown(current, now);
         let target = base + whole as f64 * step;
         let moved = bounded_move(base, target, &range).filter(|moved| *moved != base);
         if let Some(moved) = moved {
