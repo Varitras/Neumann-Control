@@ -198,6 +198,13 @@ impl SpeakerState {
         self.pending.insert(path.clone(), pending);
     }
 
+    /// The newest sent value not yet reported back, else the reported one: what the speaker
+    /// holds once its writes are through. A take-back compares with this, so its own write
+    /// still on the way does not count as someone else's change.
+    pub fn latest(&self, path: &SscPath) -> Option<&Value> {
+        self.pending.get(path).or_else(|| self.values.get(path))
+    }
+
     pub fn apply(&mut self, event: Event, now: f64) {
         match event {
             Event::Connected(identity) => {

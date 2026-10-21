@@ -114,10 +114,11 @@ impl History {
     }
 }
 
-/// Whether the speaker now reports something else than the change wrote. A value it has not
-/// reported is no reason to ask: the write policy decides about that speaker anyway.
-pub fn changed_since(change: &Change, reported: Option<&Value>, step: Option<f64>) -> bool {
-    reported.is_some_and(|reported| !same_value(reported, &change.after, step))
+/// Whether the speaker's latest value (`SpeakerState::latest`) is another than the change
+/// wrote. A value it has not reported is no reason to ask: the write policy decides about that
+/// speaker anyway.
+pub fn changed_since(change: &Change, latest: Option<&Value>, step: Option<f64>) -> bool {
+    latest.is_some_and(|latest| !same_value(latest, &change.after, step))
 }
 
 pub fn is_open(change: &Change) -> bool {

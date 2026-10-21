@@ -193,14 +193,14 @@ impl NeumannApp {
         texts::history_change(&described.speaker, &described.setting, &before, &after)
     }
 
-    /// The open changes whose speakers now report another value than the written one.
+    /// The open changes whose speakers now hold another value than the written one.
     pub(super) fn changed_lines(&self, entry: &Entry) -> Vec<String> {
         let catalog = Catalog::embedded();
         let mut lines = Vec::new();
         for change in entry.changes.iter().filter(|change| is_open(change)) {
-            let reported = self.reported(change);
+            let latest = self.latest(change);
             let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-            let Some(now) = reported.filter(|_| changed_since(change, reported, step)) else {
+            let Some(now) = latest.filter(|_| changed_since(change, latest, step)) else {
                 continue;
             };
             let described = self.describe(change);
@@ -217,12 +217,12 @@ impl NeumannApp {
         lines
     }
 
-    fn reported(&self, change: &Change) -> Option<&serde_json::Value> {
+    fn latest(&self, change: &Change) -> Option<&serde_json::Value> {
         let speaker = self
             .speakers
             .iter()
             .find(|speaker| speaker.state.key == change.speaker);
-        speaker.and_then(|speaker| speaker.state.values.get(&change.path))
+        speaker.and_then(|speaker| speaker.state.latest(&change.path))
     }
 
     fn describe(&self, change: &Change) -> Described {
@@ -370,13 +370,8 @@ impl NeumannApp {
             .iter()
             .filter(|change| is_open(change))
             .any(|change| {
-                let speaker = self
-                    .speakers
-                    .iter()
-                    .find(|speaker| speaker.state.key == change.speaker);
-                let reported = speaker.and_then(|speaker| speaker.state.values.get(&change.path));
                 let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-                changed_since(change, reported, step)
+                changed_since(change, self.latest(change), step)
             })
     }
 }
