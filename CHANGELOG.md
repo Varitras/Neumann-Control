@@ -54,6 +54,14 @@
   Q is the shelf's slope.
 - A value that rounds to zero showed a minus ("-0 dB").
 - Number fields with a converted unit showed the device's unit as well ("0 1/48 kHz ms").
+- A second click on a switch before the speaker had answered the first repeated it (two quick
+  clicks on mute muted twice), and a fader or knob could jump back to its old value for a moment
+  after a write.
+- **Undo** right after a write asked whether the value had changed since, and wrote nothing.
+- The mouse wheel stepped a fader or knob from the level before the last drag, not from the shown
+  one.
+- The MAC addresses in **All values** showed only `…"]`; each address is now masked on its own.
+- A speaker name announced with the serial in other letter case showed the serial unmasked.
 
 ## [0.1.0] - 2026-10-18
 
