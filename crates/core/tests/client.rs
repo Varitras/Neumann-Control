@@ -360,3 +360,19 @@ fn the_read_budgets_are_the_specified_ones() {
     assert_eq!(MAX_RESPONSE_BYTES, 4 * 1024 * 1024);
     assert_eq!(MAX_READ_DURATION, Duration::from_secs(10));
 }
+
+#[test]
+fn every_request_carries_its_own_xid() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+    for _ in 0..3 {
+        client.get(&path("audio/out/level")).unwrap();
+    }
+    let xids: Vec<u64> = simulator
+        .requests()
+        .iter()
+        .filter_map(|request| request.pointer("/osc/xid").and_then(Value::as_u64))
+        .collect();
+    assert_eq!(xids.len(), 3);
+    assert!(xids.windows(2).all(|pair| pair[0] != pair[1]), "{xids:?}");
+}
