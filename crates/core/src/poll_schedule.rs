@@ -174,5 +174,9 @@ mod tests {
         let paths = due_paths(&mut schedule, start + Duration::from_secs(10));
         assert_eq!(paths.len(), count - 1);
         assert!(!paths.contains(&forgotten));
+        let meters = schedule.meters.clone();
+        assert!(!meters.is_empty());
+        let meter_time = start + Duration::from_secs(20);
+        assert_eq!(schedule.take_due(meter_time), Due::Meters(meters));
     }
 }
