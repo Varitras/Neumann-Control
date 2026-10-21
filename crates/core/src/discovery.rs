@@ -98,11 +98,35 @@ fn add_found(mut found: Vec<Found>, candidate: Found) -> Vec<Found> {
 
 /// Speakers announce "<device name>-<serial>"; the suffix only repeats the TXT serial. A name
 /// that is nothing but the suffix is kept, so the speaker never loses its announced name.
+// Serials are ASCII; comparing without case keeps a differently cased copy from showing whole.
 fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
     let suffix = format!("{SERIAL_SEPARATOR}{serial}");
-    name.strip_suffix(&suffix)
-        .filter(|rest| !rest.is_empty())
-        .unwrap_or(name)
+    let Some(start) = name.len().checked_sub(suffix.len()) else {
+        return name;
+    };
+    let ends_with_serial = name
+        .get(start..)
+        .is_some_and(|end| end.eq_ignore_ascii_case(&suffix));
+    // A name that is only the serial keeps it, masked below, rather than becoming empty.
+    if ends_with_serial && start > 0 {
+        return &name[..start];
+    }
+    name
+}
+
+fn with_serial_masked(name: &str, serial: &str) -> String {
+    let lower_name = name.to_ascii_lowercase();
+    let lower_serial = serial.to_ascii_lowercase();
+    let mask = mask_serial(serial);
+    let mut masked = String::new();
+    let mut rest = 0;
+    while let Some(offset) = lower_name[rest..].find(&lower_serial) {
+        masked.push_str(&name[rest..rest + offset]);
+        masked.push_str(&mask);
+        rest += offset + serial.len();
+    }
+    masked.push_str(&name[rest..]);
+    masked
 }
 
 fn found_from_parts(
@@ -116,7 +140,7 @@ fn found_from_parts(
     let serial = txt_value(serial);
     let mut name = instance_name(fullname, service_type).to_owned();
     if let Some(serial) = &serial {
-        name = without_serial_suffix(&name, serial).replace(serial.as_str(), &mask_serial(serial));
+        name = with_serial_masked(without_serial_suffix(&name, serial), serial);
     }
     Some(Found {
         name: capped(&name),
@@ -298,7 +322,10 @@ mod tests {
     #[test]
     fn a_serial_in_another_letter_case_is_stripped_and_masked() {
         assert_eq!(
-            announced_name("sim0001234 desk-sim0001234._ssc._tcp.local.", Some("SIM0001234")),
+            announced_name(
+                "sim0001234 desk-sim0001234._ssc._tcp.local.",
+                Some("SIM0001234")
+            ),
             format!("{} desk", mask_serial("SIM0001234"))
         );
     }
