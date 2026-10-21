@@ -3,6 +3,7 @@
 use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV6};
 
+/// The TCP port Sennheiser Sound Control listens on.
 pub const SSC_PORT: u16 = 45;
 
 const SCOPE_SEPARATOR: char = '%';
@@ -32,10 +33,13 @@ impl fmt::Display for AddressError {
 
 impl std::error::Error for AddressError {}
 
+/// `fe80::/10`: reachable only through one interface, so it needs a scope.
 pub fn is_link_local(address: &Ipv6Addr) -> bool {
     address.segments()[0] & LINK_LOCAL_PREFIX_MASK == LINK_LOCAL_PREFIX
 }
 
+/// Reads an address as typed or stored: optional brackets and blanks, a numeric `%index`
+/// scope (required for link-local), no IPv4 or IPv4-mapped form.
 pub fn parse_address(input: &str, port: u16) -> Result<SocketAddrV6, AddressError> {
     let trimmed = input.trim();
     let unbracketed = trimmed

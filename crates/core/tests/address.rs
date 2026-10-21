@@ -92,6 +92,28 @@ fn scope_with_plus_sign_is_not_numeric() {
 }
 
 #[test]
+fn empty_scope_is_not_numeric() {
+    assert_eq!(
+        parse_address("fe80::1%", SSC_PORT),
+        Err(AddressError::ScopeNotNumeric)
+    );
+}
+
+#[test]
+fn loopback_needs_no_scope() {
+    let address = parse_address("::1", SSC_PORT).unwrap();
+    assert_eq!(*address.ip(), Ipv6Addr::LOCALHOST);
+    assert_eq!(address.scope_id(), 0);
+}
+
+#[test]
+fn bracketed_address_keeps_its_scope() {
+    let address = parse_address(" [fe80::1%12] ", SSC_PORT).unwrap();
+    assert_eq!(address.scope_id(), 12);
+    assert_eq!(format_host(&address), "fe80::1%12");
+}
+
+#[test]
 fn ipv4_mapped_address_is_refused() {
     assert_eq!(
         parse_address("::ffff:192.168.1.10", SSC_PORT),

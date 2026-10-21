@@ -24,6 +24,7 @@ pub fn mask_host(address: &SocketAddrV6) -> String {
     format!("{prefix}{MASK_PLACEHOLDER}{last_byte:02x}{scope}")
 }
 
+/// Keeps the last three characters, enough to tell two speakers apart in a log.
 pub fn mask_serial(serial: &str) -> String {
     let characters: Vec<char> = serial.chars().collect();
     if characters.len() <= KEPT_SERIAL_CHARACTERS {
