@@ -294,7 +294,6 @@ where
 }
 
 /// A list keeps the entries this version can read; one it cannot is left out, not the list.
-/// Something that is not a list at all means a damaged file, which `load` sets aside whole.
 fn readable_items<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
