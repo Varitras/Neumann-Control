@@ -331,6 +331,11 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_serial_leaves_the_name_as_it_is() {
+        assert_eq!(with_serial_masked("Desk left", ""), "Desk left");
+    }
+
+    #[test]
     fn without_a_txt_serial_the_instance_name_stays_unchanged() {
         assert_eq!(
             announced_name("Desk left-SIM0001234._ssc._tcp.local.", None),
