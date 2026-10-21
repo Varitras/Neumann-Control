@@ -503,6 +503,8 @@ fn every_error_has_a_text() {
         }
         .to_string(),
         neumann_control_core::address::AddressError::Invalid.to_string(),
+        neumann_control_core::ssc::client::SscError::Timeout.to_string(),
+        neumann_control_core::ssc::wire::WireError::Malformed.to_string(),
     ];
     for text in errors {
         assert!(!text.is_empty());
