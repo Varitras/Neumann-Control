@@ -372,6 +372,11 @@ and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with
 executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
 `SHA256SUMS`.
 
+Mutation testing uses `cargo-mutants` with the settings in `.cargo/mutants.toml` (simulator
+and drawing code left out): `cargo mutants -p neumann-control-core` for the core, and
+`cargo mutants --workspace --in-diff <patch>` for the lines a change touched. A full run over
+the app takes hours.
+
 The workspace has two crates: `crates/core` (the SSC client, discovery, the path catalog,
 settings and a speaker simulator for the tests) and `crates/app` (the window).
 

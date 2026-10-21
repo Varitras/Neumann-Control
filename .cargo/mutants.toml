@@ -1,0 +1,13 @@
+# cargo-mutants: `cargo mutants --workspace` (see README, "Mutation testing").
+exclude_globs = [
+    # Test infrastructure; its own faults show up as failing tests elsewhere.
+    "crates/core/src/simulator/**",
+    # Drawing code: a moved pixel survives every test by design, which would bury real gaps.
+    "crates/app/src/views/**",
+    "crates/app/src/ui_kit/**",
+    "crates/app/src/main.rs",
+]
+# The core's integration tests need the simulator.
+features = ["neumann-control-core/test-support"]
+# Kittests wait on real sockets; a slow mutant is not a caught one.
+timeout_multiplier = 3.0
