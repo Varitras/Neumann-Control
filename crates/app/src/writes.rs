@@ -467,6 +467,41 @@ mod tests {
         );
     }
 
+    fn polled(speaker: &mut SpeakerState, path: &str, value: Value) {
+        let path = paths::path(path);
+        speaker.apply(Event::Value { path, value }, 0.0);
+    }
+
+    #[test]
+    fn a_second_toggle_before_the_confirmation_toggles_back() {
+        let mut speaker = speaker("KH 120 II");
+        let catalog = Catalog::embedded();
+        let first = speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.0);
+        assert_eq!(first, set(paths::MUTE, Value::Bool(true)));
+        let second = speaker.request(Intent::Toggle(Switch::Mute), catalog, 0.1);
+        assert_eq!(second, set(paths::MUTE, Value::Bool(false)));
+    }
+
+    #[test]
+    fn a_poll_reply_older_than_the_write_does_not_undo_it() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.request(Intent::Toggle(Switch::Mute), Catalog::embedded(), 0.0);
+        polled(&mut speaker, paths::MUTE, Value::Bool(false));
+        assert_eq!(
+            speaker.latest(&paths::path(paths::MUTE)),
+            Some(&Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn a_level_poll_older_than_the_write_keeps_the_fader_holding() {
+        let mut speaker = speaker("KH 120 II");
+        polled(&mut speaker, paths::OUTPUT_LEVEL, Value::from(80.0));
+        speaker.request(Intent::Level(90.0), Catalog::embedded(), 0.0);
+        polled(&mut speaker, paths::OUTPUT_LEVEL, Value::from(80.0));
+        assert_eq!(speaker.fader.shown(80.0, 0.5), 90.0);
+    }
+
     #[test]
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
