@@ -174,6 +174,13 @@ mod tests {
     }
 
     #[test]
+    fn a_list_of_mac_addresses_is_masked_address_by_address() {
+        let macs = json!(["00:1b:66:00:00:aa", "00:1b:66:00:00:bb"]);
+        let row = one(report(paths::MAC_ADDRESSES, Ok(macs), None));
+        assert_eq!(row.value, "…:aa, …:bb");
+    }
+
+    #[test]
     fn a_refusal_is_the_value_text() {
         let row = one(report("warnings", Err("refused (404)".to_owned()), None));
         assert_eq!(row.value, "refused (404)");
