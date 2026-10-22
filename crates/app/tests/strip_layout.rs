@@ -436,3 +436,24 @@ fn the_hint_names_the_model() {
     start_editing(&mut harness);
     harness.get_by_label(&texts::applies_to_every(MONITOR));
 }
+
+#[test]
+fn the_button_row_keeps_its_size_and_its_words() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let buttons = [texts::MUTE.get(), texts::IDENTIFY.get(), texts::EQ.get()];
+    let rects = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
+        buttons
+            .iter()
+            .map(|label| harness.get_by_role_and_label(Role::Button, label).rect())
+            .collect()
+    };
+    let first = rects(&harness);
+    for _ in 0..6 {
+        harness.step();
+        assert_eq!(rects(&harness), first, "the buttons moved between frames");
+    }
+    let one_line = first[0].height();
+    for (label, rect) in buttons.iter().zip(&first) {
+        assert_eq!(rect.height(), one_line, "{label} wraps its text");
+    }
+}
