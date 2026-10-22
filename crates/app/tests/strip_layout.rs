@@ -458,7 +458,7 @@ fn the_button_row_keeps_its_size_and_its_words() {
 }
 
 #[test]
-fn in_edit_mode_no_hide_mark_covers_another_control() {
+fn in_edit_mode_no_hide_mark_covers_a_knob() {
     let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
     let knobs = [paths::DELAY, paths::STANDBY_TIME];
@@ -466,11 +466,11 @@ fn in_edit_mode_no_hide_mark_covers_another_control() {
         let mark = harness
             .get_by_label(&texts::hide_element(label(own)))
             .rect();
-        for other in knobs.iter().filter(|other| **other != own) {
+        for knob_path in knobs {
             let knob = harness
-                .get_by_role_and_label(Role::Slider, label(other))
+                .get_by_role_and_label(Role::Slider, label(knob_path))
                 .rect();
-            assert!(!mark.intersects(knob), "the × of {own} lies on {other}");
+            assert!(!mark.intersects(knob), "the × of {own} lies on {knob_path}");
         }
     }
 }
