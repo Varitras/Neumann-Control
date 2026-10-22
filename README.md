@@ -102,9 +102,12 @@ delete the folder.
 
    or with `netsh interface ipv6 show interfaces` (column `Idx`).
 
-Added speakers are remembered and reconnected at every start without a scan. When a later scan
-finds a remembered speaker at a different address (link-local addresses and interface indexes can
-change), the stored address is updated. IPv4 addresses are not accepted: the speakers are
+Added speakers are remembered and reconnected at every start. When a scan finds a remembered
+speaker at a different address (link-local addresses and interface indexes can change), the
+stored address is updated. The app scans for that by itself, without a dialog: once at the start,
+and when a remembered speaker stays unreachable for 30 seconds, then at most every 5 minutes
+while one is missing. Speakers are matched by their serial; one added by address that never
+connected has none yet and is not followed. IPv4 addresses are not accepted: the speakers are
 reachable only over IPv6.
 
 ## Using the app

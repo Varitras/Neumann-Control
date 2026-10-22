@@ -46,6 +46,9 @@
 - The language follows the Windows display language unless one is chosen in the settings.
 - Standby time and standby level can be set on the KH 750 too.
 - Wider meters; the held peak is a thin line instead of a lit segment.
+- Remembered speakers are looked for without asking: a silent scan at the start and when one stays
+  unreachable for 30 seconds (then at most every 5 minutes) follows them, by serial, to a changed
+  address or interface index.
 
 ### Fixed
 
