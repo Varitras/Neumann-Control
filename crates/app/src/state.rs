@@ -95,6 +95,8 @@ pub struct SpeakerState {
     pub values: BTreeMap<SscPath, Value>,
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
+    /// When the current outage began (the UI clock); `None` while connected or connecting.
+    pub unreachable_since: Option<f64>,
     pub message: Option<Message>,
     message_source: MessageSource,
     pub input_meters: Vec<MeterState>,
@@ -136,6 +138,7 @@ impl SpeakerState {
             values: BTreeMap::new(),
             absent: BTreeSet::new(),
             status: Status::Connecting,
+            unreachable_since: None,
             message: None,
             message_source: MessageSource::Connection,
             input_meters: Vec::new(),
@@ -254,11 +257,13 @@ impl SpeakerState {
                 }
                 self.identity = Some(identity);
                 self.status = Status::Connected;
+                self.unreachable_since = None;
                 self.set_message(None, MessageSource::Connection);
             }
             // The masked reason is for the log; the strip only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
+                self.unreachable_since.get_or_insert(now);
                 self.set_message(Some(Message::Unreachable), MessageSource::Connection);
                 self.reset_meters();
                 self.response_time = None;
@@ -298,6 +303,7 @@ impl SpeakerState {
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
+                self.unreachable_since.get_or_insert(now);
                 self.response_time = None;
                 self.pending.clear();
                 let message = Message::SerialMismatch(mask_serial(&found));

@@ -18,6 +18,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{forget_member, member_id, rename_member, set_membership};
 use crate::meter::MeterState;
+use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
@@ -82,6 +83,9 @@ pub struct NeumannApp {
     /// Everything scans reported this session; names and models for the strips.
     found: Vec<Found>,
     scan: Option<Receiver<ScanResult>>,
+    /// The running scan was started by the app itself: it opens no dialog and reports no failure.
+    scan_silent: bool,
+    rediscovery: Rediscovery,
     scan_choice: Option<ScanChoice>,
     notice: Option<texts::Text>,
     add_address: Option<AddAddressForm>,
@@ -148,6 +152,8 @@ impl NeumannApp {
             speakers: Vec::new(),
             found: Vec::new(),
             scan: None,
+            scan_silent: false,
+            rediscovery: Rediscovery::default(),
             scan_choice: None,
             notice: None,
             add_address: None,
@@ -283,6 +289,31 @@ impl NeumannApp {
         }
     }
 
+    /// Starts a silent scan when the start or a speaker that stays unreachable calls for one; it
+    /// follows remembered speakers to their new address and adds none.
+    fn rediscover(&mut self, now: f64) {
+        let followable = self
+            .settings
+            .manual
+            .iter()
+            .any(|entry| entry.serial.is_some());
+        let unreachable_for = self
+            .speakers
+            .iter()
+            .filter_map(|speaker| speaker.state.unreachable_since)
+            .map(|since| now - since)
+            .reduce(f64::max);
+        let scanning = self.scan.is_some();
+        if self
+            .rediscovery
+            .due(now, followable, unreachable_for, scanning)
+        {
+            log::info!("looking for remembered speakers again");
+            self.scan = Some(self.spawner.scan());
+            self.scan_silent = true;
+        }
+    }
+
     fn poll_scan(&mut self) {
         let Some(receiver) = &self.scan else {
             return;
@@ -293,11 +324,14 @@ impl NeumannApp {
             Err(TryRecvError::Disconnected) => Err("the scan ended without a result".to_owned()),
         };
         self.scan = None;
+        let silent = std::mem::take(&mut self.scan_silent);
         let found = match result {
             Ok(found) => merge_found(found),
             Err(reason) => {
                 log::warn!("scan failed: {reason}");
-                self.show_scan_failure();
+                if !silent {
+                    self.show_scan_failure();
+                }
                 return;
             }
         };
@@ -387,6 +421,7 @@ impl NeumannApp {
             ToolbarAction::Scan => {
                 self.notice = None;
                 self.scan = Some(self.spawner.scan());
+                self.scan_silent = false;
                 self.scan_choice = Some(ScanChoice::Scanning);
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
@@ -652,6 +687,7 @@ impl eframe::App for NeumannApp {
         let now = context.input(|input| input.time);
         self.drain_events(now);
         self.write_scan_reports();
+        self.rediscover(now);
         self.poll_scan();
         let pixels_per_point = context.pixels_per_point();
         let geometry = context.input(|input| window_geometry(input.viewport(), pixels_per_point));

@@ -24,7 +24,26 @@ impl Rediscovery {
         unreachable_for: Option<f64>,
         scanning: bool,
     ) -> bool {
-        todo!()
+        if scanning {
+            return false;
+        }
+        // The start counts once, also with nothing to follow yet: a serial learned later is no
+        // reason for a start scan.
+        let start = !self.started;
+        self.started = true;
+        if !followable {
+            return false;
+        }
+        if start {
+            return true;
+        }
+        let missing = unreachable_for.is_some_and(|seconds| seconds >= UNREACHABLE_GRACE_SECONDS);
+        let rested = self.last.is_none_or(|last| now - last >= REPEAT_SECONDS);
+        if !(missing && rested) {
+            return false;
+        }
+        self.last = Some(now);
+        true
     }
 }
 
@@ -67,10 +86,20 @@ mod tests {
     }
 
     #[test]
+    fn a_serial_learned_later_brings_no_start_scan() {
+        let mut rediscovery = Rediscovery::default();
+        assert!(!rediscovery.due(0.0, false, None, false));
+        assert!(!rediscovery.due(5.0, true, None, false));
+    }
+
+    #[test]
     fn never_while_a_scan_runs() {
         let mut rediscovery = Rediscovery::default();
         assert!(!rediscovery.due(0.0, true, None, true));
-        assert!(rediscovery.due(1.0, true, None, false), "the start scan comes after");
+        assert!(
+            rediscovery.due(1.0, true, None, false),
+            "the start scan comes after"
+        );
         assert!(!rediscovery.due(50.0, true, Some(50.0), true));
     }
 }

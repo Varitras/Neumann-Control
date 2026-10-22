@@ -119,7 +119,12 @@ fn build(
     system: Language,
     audio: FakeAudio,
 ) -> Harness<'static, NeumannApp> {
-    build_shared(settings_path, Arc::new(Mutex::new(scan_result)), system, audio)
+    build_shared(
+        settings_path,
+        Arc::new(Mutex::new(scan_result)),
+        system,
+        audio,
+    )
 }
 
 /// The app with a scan result the test can change while it runs.
@@ -127,7 +132,12 @@ pub fn harness_with_shared_scan(
     settings_path: PathBuf,
     shared: SharedScan,
 ) -> Harness<'static, NeumannApp> {
-    build_shared(settings_path, shared, Language::German, FakeAudio::default())
+    build_shared(
+        settings_path,
+        shared,
+        Language::German,
+        FakeAudio::default(),
+    )
 }
 
 fn build_shared(

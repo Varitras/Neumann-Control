@@ -372,7 +372,10 @@ fn a_moved_speaker_is_found_at_the_start() {
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
     wait_for_level(&mut harness, 100.0);
     assert!(saved_at(&path, &simulator));
-    assert!(harness.query_by_label(texts::ALREADY_ADDED.get()).is_none(), "no dialog");
+    assert!(
+        harness.query_by_label(texts::ALREADY_ADDED.get()).is_none(),
+        "no dialog"
+    );
 }
 
 #[test]
