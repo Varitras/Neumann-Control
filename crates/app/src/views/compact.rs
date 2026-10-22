@@ -87,6 +87,7 @@ pub fn speaker(
             &mut commands,
             Switch::Mute.path(),
             mute,
+            true,
         );
         if let Some(message) = &speaker.message {
             message_mark(ui, &texts::describe_message(message), &tokens);

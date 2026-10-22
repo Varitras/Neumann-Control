@@ -183,14 +183,13 @@ fn swap_keeps_the_place() {
     choose(&mut harness, texts::SWAP_FOR.get());
     let phase = label(paths::PHASE_INVERSION);
     choose(&mut harness, phase);
-    let left = |label: &str| {
-        harness
-            .get_by_role_and_label(Role::Button, label)
-            .rect()
-            .left()
+    // In reading order: a wide button moves to the next line of the row.
+    let place = |label: &str| {
+        let rect = harness.get_by_role_and_label(Role::Button, label).rect();
+        (rect.top() as i32, rect.left() as i32)
     };
-    assert!(left(texts::MUTE.get()) < left(phase));
-    assert!(left(phase) < left(texts::EQ.get()));
+    assert!(place(texts::MUTE.get()) < place(phase));
+    assert!(place(phase) < place(texts::EQ.get()));
 }
 
 #[test]

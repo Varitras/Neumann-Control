@@ -4,7 +4,7 @@
 
 use eframe::egui::{
     self, vec2, Align, Button, Color32, ComboBox, CornerRadius, Label, Layout, Pos2, Rect,
-    RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
+    Response, RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{DeskSettings, StripElement};
@@ -331,6 +331,43 @@ fn element_cell(
         false => ui.scope(draw).response.rect,
         true => editable_cell(ui, &element, arrange.catalog, wishes, draw),
     };
+    arrange_at(ui, rect, element, offers, arrange, wishes);
+}
+
+/// Like `element_cell` for a button in a wrapped row. It gets no child area of its own: one would
+/// only get the rest of the line and wrap the button's text instead of the row. `draw` is told
+/// whether the button may be used and returns its response.
+fn inline_cell(
+    ui: &mut Ui,
+    element: StripElement,
+    arrange: &Arrange,
+    wishes: &mut Wishes,
+    draw: impl FnOnce(&mut Ui, bool) -> Response,
+) {
+    let response = draw(ui, !arrange.editing);
+    let Some(offers) = arrange.offers else {
+        return;
+    };
+    if arrange.editing {
+        let drag_id = ui
+            .scope_id()
+            .with((DRAG_ID, layout_menu::menu_key(&element)));
+        let handle = ui.interact(response.rect, drag_id, Sense::drag());
+        handle.dnd_set_drag_payload(element.clone());
+        hide_button(ui, &element, arrange.catalog, wishes);
+    }
+    arrange_at(ui, response.rect, element, offers, arrange, wishes);
+}
+
+/// The context menu of an element drawn at `rect` and, while editing, the drop target on it.
+fn arrange_at(
+    ui: &mut Ui,
+    rect: Rect,
+    element: StripElement,
+    offers: &[Offer],
+    arrange: &Arrange,
+    wishes: &mut Wishes,
+) {
     if let Some(change) = layout_menu::element_menu(ui, rect, &element, offers) {
         wishes.layout = Some(change);
     }
@@ -362,15 +399,20 @@ fn editable_cell(
         ui.dnd_drag_source(drag_id, element.clone(), |ui| {
             ui.add_enabled_ui(false, draw);
         });
-        let hide_label = texts::hide_element(&layout_menu::element_label(element, catalog));
-        let hide = ui.small_button(texts::HIDE_MARK);
-        hide.widget_info(|| WidgetInfo::labeled(Role::Button, true, &hide_label));
-        if hide.on_hover_text(&hide_label).clicked() {
-            wishes.layout = Some(LayoutChange::Remove(element.clone()));
-        }
+        hide_button(ui, element, catalog, wishes);
     })
     .response
     .rect
+}
+
+/// The × beside an element while editing, named after the element.
+fn hide_button(ui: &mut Ui, element: &StripElement, catalog: &Catalog, wishes: &mut Wishes) {
+    let hide_label = texts::hide_element(&layout_menu::element_label(element, catalog));
+    let hide = ui.small_button(texts::HIDE_MARK);
+    hide.widget_info(|| WidgetInfo::labeled(Role::Button, true, &hide_label));
+    if hide.on_hover_text(&hide_label).clicked() {
+        wishes.layout = Some(LayoutChange::Remove(element.clone()));
+    }
 }
 
 /// A thin target after the last element of an area, so an empty area can take one too.
@@ -491,13 +533,24 @@ fn button_row(
     let mut open_eq = false;
     ui.horizontal_wrapped(|ui| {
         for drawn in run {
-            element_cell(ui, drawn.element(), arrange, wishes, |ui| match drawn {
-                Drawn::Eq => open_eq |= ui.button(texts::EQ).clicked(),
-                Drawn::Entry(entry) => {
-                    let text = button_text(entry);
-                    toggle(ui, speaker, catalog, commands, entry.path.clone(), text);
-                }
-            });
+            inline_cell(
+                ui,
+                drawn.element(),
+                arrange,
+                wishes,
+                |ui, usable| match drawn {
+                    Drawn::Eq => {
+                        let eq = ui.add_enabled(usable, Button::new(texts::EQ));
+                        open_eq |= eq.clicked();
+                        eq
+                    }
+                    Drawn::Entry(entry) => {
+                        let text = button_text(entry);
+                        let path = entry.path.clone();
+                        toggle(ui, speaker, catalog, commands, path, text, usable)
+                    }
+                },
+            );
         }
     });
     wishes.open_eq |= open_eq;
@@ -703,14 +756,17 @@ pub(super) fn toggle(
     commands: &mut Vec<Command>,
     path: SscPath,
     text: &str,
-) {
+    usable: bool,
+) -> Response {
     let current = speaker.values.get(&path).and_then(Value::as_bool);
-    let enabled = current.is_some() && writes::can_write(speaker, catalog, &path);
+    let enabled = usable && current.is_some() && writes::can_write(speaker, catalog, &path);
     let button = Button::new(text).selected(current.unwrap_or(false));
-    if ui.add_enabled(enabled, button).clicked() {
+    let response = ui.add_enabled(enabled, button);
+    if response.clicked() {
         let now = ui.input(|input| input.time);
         commands.extend(speaker.request(Intent::Toggle(path), catalog, now));
     }
+    response
 }
 
 fn message(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {
