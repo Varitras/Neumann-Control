@@ -5,7 +5,7 @@ mod support;
 
 use std::collections::BTreeMap;
 
-use eframe::egui::accesskit::Role;
+use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
@@ -236,4 +236,192 @@ fn the_menu_writes_nothing() {
         request.to_string().contains("true") || request.to_string().contains("false")
     });
     assert!(!written, "a set reached the speaker");
+}
+
+fn start_editing(harness: &mut Harness<'static, NeumannApp>) {
+    harness.get_by_label(texts::CUSTOMIZE_STRIPS.get()).click();
+    harness.run_steps(2);
+}
+
+fn hide_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, path: &str) {
+    harness.get_by_label(&texts::hide_element(label(path))).click();
+    harness.run_steps(2);
+}
+
+fn add_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, offer: &str) {
+    harness.get_by_label(texts::ADD_ELEMENT.get()).click();
+    harness.run_steps(2);
+    choose(harness, offer);
+}
+
+const DRAG_FRAMES: usize = 6;
+
+fn drag(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, to: egui::Pos2) {
+    harness.drag_at(from);
+    for frame in 1..=DRAG_FRAMES {
+        let progress = frame as f32 / DRAG_FRAMES as f32;
+        harness.hover_at(from + (to - from) * progress);
+        harness.step();
+    }
+    harness.drop_at(to);
+    harness.run_steps(3);
+}
+
+fn center(harness: &Harness<'static, NeumannApp>, role: Role, label: &str) -> egui::Pos2 {
+    harness.get_by_role_and_label(role, label).rect().center()
+}
+
+fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, notches),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+/// Whether any request carried a value: reads ask with `null` only.
+fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
+    simulator.requests().iter().any(|request| {
+        let text = request.to_string();
+        let leaves = text.matches(':').count();
+        let nulls = text.matches("null").count();
+        let xids = text.matches("\"xid\"").count();
+        leaves > nulls + xids
+    })
+}
+
+#[test]
+fn editing_hides_and_adds() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    add_in_edit_mode(&mut harness, label(paths::PHASE_INVERSION));
+    harness.get_by_label(texts::DONE.get()).click();
+    harness.run_steps(2);
+    let phase = label(paths::PHASE_INVERSION);
+    assert!(harness.query_by_role_and_label(Role::Button, phase).is_some());
+    let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
+    assert!(identify.is_none());
+    assert!(harness.query_by_label(texts::ADD_ELEMENT.get()).is_none());
+    let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
+    assert!(stored.below.contains(&element(paths::PHASE_INVERSION)));
+    assert!(!stored.below.contains(&element(paths::IDENTIFY)));
+}
+
+#[test]
+fn editing_sends_nothing() {
+    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    harness
+        .get_by_role_and_label(Role::Button, texts::MUTE.get())
+        .click();
+    harness.hover_at(center(&harness, Role::Slider, label(paths::DELAY)));
+    for _ in 0..4 {
+        wheel(&mut harness, 1.0);
+        harness.step();
+    }
+    let fader = center(&harness, Role::Slider, texts::LEVEL.get());
+    drag(&mut harness, fader, fader + egui::vec2(0.0, 40.0));
+    barrier(&simulators[0]);
+    assert!(!any_set(&simulators[0]), "a set reached the speaker in edit mode");
+    harness.get_by_label(texts::DONE.get()).click();
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::MUTE.get())
+        .click();
+    wait_until(&mut harness, "the mute after editing", |_| {
+        !sets(&simulators[0], "/audio/out/mute").is_empty()
+    });
+}
+
+#[test]
+fn dragging_moves_across_the_fader() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    let from = center(&harness, Role::Slider, label(paths::DELAY));
+    let to = center(&harness, Role::Button, texts::MUTE.get());
+    drag(&mut harness, from, to);
+    let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
+    assert_eq!(stored.below.first(), Some(&element(paths::DELAY)));
+    let knob = harness
+        .get_by_role_and_label(Role::Slider, label(paths::DELAY))
+        .rect();
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
+        .rect();
+    assert!(knob.top() > fader.bottom());
+}
+
+#[test]
+fn a_drag_next_to_an_absent_element_keeps_the_stored_order() {
+    let above = [paths::DELAY, paths::PHASE_INVERSION, paths::STANDBY_TIME];
+    let stored = layouts(MONITOR, &above, &[]);
+    let (_simulators, directory, mut harness) =
+        desk_prepared(&[SimModel::Kh120Ii], stored, |simulators| {
+            simulators[0].remove_value(paths::PHASE_INVERSION);
+        });
+    start_editing(&mut harness);
+    let from = center(&harness, Role::Slider, label(paths::STANDBY_TIME));
+    let to = center(&harness, Role::Slider, label(paths::DELAY));
+    drag(&mut harness, from, to);
+    let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
+    let expected = [paths::STANDBY_TIME, paths::DELAY, paths::PHASE_INVERSION];
+    assert_eq!(stored.above, expected.map(element).to_vec());
+}
+
+#[test]
+fn an_unreachable_strip_can_still_be_edited() {
+    let (mut simulators, directory, mut harness) =
+        desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    simulators.remove(0).stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    start_editing(&mut harness);
+    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
+    assert!(!stored.below.contains(&element(paths::IDENTIFY)));
+}
+
+#[test]
+fn default_restores_todays_strip() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    harness.get_by_label(texts::DEFAULT_LAYOUT.get()).click();
+    harness.run_steps(2);
+    let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
+    assert!(identify.is_some());
+    assert_eq!(stored_layout(&directory, MONITOR), None);
+}
+
+#[test]
+fn compact_mode_ends_editing() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    for _ in 0..2 {
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
+        harness.run_steps(3);
+    }
+    assert!(harness.query_by_label(texts::ADD_ELEMENT.get()).is_none());
+    let hide = texts::hide_element(label(paths::IDENTIFY));
+    assert!(harness.query_by_label(&hide).is_none());
+}
+
+#[test]
+fn everything_hidden_keeps_the_way_back() {
+    let stored = layouts(MONITOR, &[], &[]);
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], stored);
+    let mute = texts::MUTE.get();
+    assert!(harness.query_by_role_and_label(Role::Button, mute).is_none());
+    start_editing(&mut harness);
+    add_in_edit_mode(&mut harness, label(paths::MUTE));
+    assert!(harness.query_by_role_and_label(Role::Button, mute).is_some());
+}
+
+#[test]
+fn the_hint_names_the_model() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    start_editing(&mut harness);
+    harness.get_by_label(&texts::applies_to_every(MONITOR));
 }

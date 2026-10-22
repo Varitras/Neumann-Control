@@ -146,6 +146,10 @@ pub const MOVE_UP: Text = Text::new("Nach oben", "Move up");
 pub const MOVE_DOWN: Text = Text::new("Nach unten", "Move down");
 pub const ADD_TO_STRIP: Text = Text::new("Auf den Zug", "Add to strip");
 pub const REMOVE_FROM_STRIP: Text = Text::new("Vom Zug nehmen", "Remove from strip");
+pub const CUSTOMIZE_STRIPS: Text = Text::new("Züge anpassen", "Customize strips");
+pub const DONE: Text = Text::new("Fertig", "Done");
+pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
+pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
@@ -340,6 +344,19 @@ pub const WRITE_FAILED: Text = Text::new("Schreiben fehlgeschlagen", "Write fail
 const REJECTED_LOCAL_MODE_CODE: i64 = 401;
 const REJECTED_READ_ONLY_CODE: i64 = 405;
 const REJECTED_WRONG_VALUE_CODE: i64 = 406;
+
+/// The edit mode's note that a strip layout belongs to the model, not to the one speaker.
+pub fn applies_to_every(model: &str) -> String {
+    pick(
+        format!("gilt für alle {model}"),
+        format!("applies to every {model}"),
+    )
+}
+
+/// The × beside an element in edit mode, named after the element.
+pub fn hide_element(name: &str) -> String {
+    pick(format!("Ausblenden: {name}"), format!("Hide {name}"))
+}
 
 pub fn speaker_count(count: usize) -> String {
     pick(

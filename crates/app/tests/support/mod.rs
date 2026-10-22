@@ -460,14 +460,19 @@ pub fn turn_knob(
 
 /// One simulator per model, each with its own serial (the app keeps one strip per serial), all
 /// on the desk with `strip_layouts` stored, connected and read once.
-pub fn desk_of(
+pub fn desk_of(models: &[SimModel], strip_layouts: BTreeMap<String, StoredStripLayout>) -> Desk {
+    desk_prepared(models, strip_layouts, |_| {})
+}
+
+/// The simulators, the folder of the settings file and the app.
+pub type Desk = (Vec<Simulator>, tempfile::TempDir, Harness<'static, NeumannApp>);
+
+/// Like `desk_of`, with the simulators changed before the app first reads them.
+pub fn desk_prepared(
     models: &[SimModel],
     strip_layouts: BTreeMap<String, StoredStripLayout>,
-) -> (
-    Vec<Simulator>,
-    tempfile::TempDir,
-    Harness<'static, NeumannApp>,
-) {
+    prepare: impl FnOnce(&[Simulator]),
+) -> Desk {
     let simulators: Vec<Simulator> = models
         .iter()
         .enumerate()
@@ -478,6 +483,7 @@ pub fn desk_of(
             simulator
         })
         .collect();
+    prepare(&simulators);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     let settings = Settings {
