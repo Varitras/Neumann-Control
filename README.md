@@ -115,19 +115,33 @@ Each speaker has a channel strip:
 
 - its name (click it to open the device panel) and a grip to drag the strip elsewhere,
 - four LEDs: connection, clip, device warning, and LOCAL (the rear CONTROL switch locks writing),
-- knobs for **Delay** (shown in ms) and **Standby time**,
+- by default knobs for **Delay** (shown in ms) and **Standby time**,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
-- the response time, **Mute**, **Ident.** (identify) and **EQ**, which opens the speaker's EQ
-  window once the speaker has reported its model.
+- the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
+  speaker's EQ window once the speaker has reported its model.
+
+What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
+speaker of that model at once:
+
+- Right-click a knob or button on a strip to **Hide** it, **Swap for …** another setting, or move it
+  up or down (past the fader too). Right-click a row in the device panel to put it on the strip
+  (**Add to strip**) or take it off.
+- **↕** in the toolbar (**Customize strips**) switches every strip into edit mode: **×** hides an
+  element, **+ Add** adds one, dragging an element moves it (also across the fader), and
+  **Default** brings back the strip above. The controls write nothing while you edit; **↕** again
+  (**Done**) ends it.
+- Any number, switch, choice or read-only value of the device panel can go on a strip; the
+  device name and lists such as the input mix stay in the panel.
 
 On the KH 120 II the input meters are captioned with the rear input switch (Analog, AES3 L,
 AES3 R, Mono), and a dot marks the channels the speaker plays. That channel A is the left AES3
 channel is assumed, not measured.
 
-The toolbar shows the number of speakers and the average response time of the connected ones.
+The toolbar shows the number of speakers (not in the narrowest window) and the average response
+time of the connected ones.
 
 ### Faders and knobs
 

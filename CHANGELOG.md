@@ -35,6 +35,9 @@
   filters are converted between the files' Q and the speakers' slope.
 - **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset", EQ presets
   and the import work on the KH 750 crossovers too, with a warning.
+- Strips you can customize per model: hide, swap and move what a strip shows besides its fader,
+  put any setting of the device panel on it, from a context menu or in an edit mode (**↕** in the
+  toolbar). Mute and identify are listed in the device panel too.
 
 ### Changed
 
