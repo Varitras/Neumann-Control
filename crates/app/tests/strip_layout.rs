@@ -504,3 +504,66 @@ fn the_meters_stay_in_place_while_the_levels_change() {
         }
     }
 }
+
+#[test]
+fn no_strip_moves_while_values_change() {
+    let models = [
+        SimModel::Kh120Ii,
+        SimModel::Kh750,
+        SimModel::Kh750,
+        SimModel::Kh120Ii,
+    ];
+    let (simulators, _directory, mut harness) = desk_of(&models, BTreeMap::new());
+    let places = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
+        let names = [KH120_DEVICE_NAME, KH750_DEVICE_NAME]
+            .into_iter()
+            .flat_map(|name| harness.query_all_by_label(name).map(|node| node.rect()));
+        let faders = harness
+            .query_all_by_role_and_label(Role::Slider, texts::LEVEL.get())
+            .map(|node| node.rect());
+        names.chain(faders).collect()
+    };
+    let first = places(&harness);
+    for (round, level) in [-119.0, -6.0, -60.0, -0.5, -100.0, -20.0]
+        .into_iter()
+        .enumerate()
+    {
+        for simulator in &simulators {
+            simulator.set_value("m/in/level", json!([level, level - 1.0]));
+            simulator.set_value("m/out/level", json!([level, level, level]));
+        }
+        harness.run_steps(4);
+        assert_eq!(places(&harness), first, "round {round}");
+    }
+}
+
+#[test]
+fn no_strip_moves_in_a_window_narrower_than_the_desk() {
+    let models = [
+        SimModel::Kh120Ii,
+        SimModel::Kh750,
+        SimModel::Kh750,
+        SimModel::Kh120Ii,
+    ];
+    let (_simulators, _directory, mut harness) = desk_of(&models, BTreeMap::new());
+    for (width, height) in [
+        (700.0, 600.0),
+        (900.0, 700.0),
+        (1100.0, 500.0),
+        (600.0, 900.0),
+    ] {
+        harness.set_size(egui::vec2(width, height));
+        harness.run_steps(4);
+        let places = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
+            harness
+                .query_all_by_role_and_label(Role::Slider, texts::LEVEL.get())
+                .map(|node| node.rect())
+                .collect()
+        };
+        let first = places(&harness);
+        for frame in 0..8 {
+            harness.step();
+            assert_eq!(places(&harness), first, "{width}x{height}, frame {frame}");
+        }
+    }
+}
