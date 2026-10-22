@@ -50,7 +50,6 @@ const KNOBS_PER_ROW: usize = 2;
 const DRAG_ID: &str = "strip_element_drag";
 const DROP_ID: &str = "strip_element_drop";
 const DROP_ZONE_HEIGHT: f32 = 8.0;
-const HIDE_MARK_SIZE: f32 = 16.0;
 
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -396,18 +395,16 @@ fn editable_cell(
     let drag_id = ui
         .scope_id()
         .with((DRAG_ID, layout_menu::menu_key(element)));
-    let rect = ui
-        .dnd_drag_source(drag_id, element.clone(), |ui| {
+    // Under the element: beside it the × reached into the neighbouring knob's column, on it
+    // it covered the knob.
+    ui.vertical_centered(|ui| {
+        ui.dnd_drag_source(drag_id, element.clone(), |ui| {
             ui.add_enabled_ui(false, draw);
-        })
-        .response
-        .rect;
-    // In the cell's corner: beside it, the × would reach into the neighbouring knob's column.
-    let size = Vec2::splat(HIDE_MARK_SIZE);
-    let corner = Rect::from_min_size(rect.right_top() - vec2(size.x, 0.0), size);
-    let hide = ui.put(corner, Button::new(texts::HIDE_MARK).small());
-    on_hide(hide, element, catalog, wishes);
-    rect
+        });
+        hide_button(ui, element, catalog, wishes);
+    })
+    .response
+    .rect
 }
 
 /// The × beside a button in a row while editing.

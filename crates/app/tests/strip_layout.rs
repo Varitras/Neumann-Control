@@ -474,3 +474,33 @@ fn in_edit_mode_no_hide_mark_covers_a_knob() {
         }
     }
 }
+
+/// The input meters' places while the levels change, in normal and in edit mode.
+fn meters_while_levels_change(editing: bool) -> Vec<Vec<egui::Rect>> {
+    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    if editing {
+        start_editing(&mut harness);
+    }
+    let mut places = Vec::new();
+    for level in [-119.0, -60.0, -6.0, -100.0, -0.5, -45.0] {
+        simulators[0].set_value("m/in/level", json!([level, level - 3.0]));
+        harness.run_steps(4);
+        let meters: Vec<egui::Rect> = harness
+            .query_all_by_role(Role::ProgressIndicator)
+            .map(|node| node.rect())
+            .collect();
+        places.push(meters);
+    }
+    places
+}
+
+#[test]
+fn the_meters_stay_in_place_while_the_levels_change() {
+    for editing in [false, true] {
+        let places = meters_while_levels_change(editing);
+        assert!(!places[0].is_empty());
+        for later in &places[1..] {
+            assert_eq!(*later, places[0], "editing {editing}");
+        }
+    }
+}
