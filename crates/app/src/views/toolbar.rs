@@ -47,8 +47,8 @@ pub fn show(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
         .inner
 }
 
-/// The right side is placed first, so in a narrow window the count and a notice on the left are
-/// cut (whole on hover) instead of being drawn under the buttons.
+/// The right side is placed first, so in a narrow window a notice on the left is cut (whole on
+/// hover) and the count left out instead of being drawn under the buttons.
 fn controls(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     let (left, right) = Sides::new()
         .shrink_left()
