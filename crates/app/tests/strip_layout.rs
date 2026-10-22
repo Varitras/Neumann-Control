@@ -505,6 +505,35 @@ fn the_meters_stay_in_place_while_the_levels_change() {
     }
 }
 
+/// Peak readouts wider than "−120" in the app's proportional font.
+const WIDE_READOUTS: [i32; 6] = [-109, -108, -106, -104, -103, -100];
+
+/// A wide peak readout must not widen its column and push the meters beside it.
+#[test]
+fn no_meter_moves_when_the_peak_readout_changes() {
+    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh750], BTreeMap::new());
+    let places = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
+        harness
+            .query_all_by_role(Role::ProgressIndicator)
+            .map(|node| node.rect())
+            .collect()
+    };
+    simulators[0].set_value("m/in/level", json!([-119.0, -119.0]));
+    harness.run_steps(8);
+    let first = places(&harness);
+    assert!(!first.is_empty());
+    // Rising, so the held peak and with it the readout takes each level at once.
+    for readout in WIDE_READOUTS {
+        let level = f64::from(readout);
+        simulators[0].set_value("m/in/level", json!([level, level]));
+        let shown = texts::meter_readout(Some(readout));
+        wait_until(&mut harness, &shown, |harness| {
+            harness.query_all_by_label_contains(&shown).next().is_some()
+        });
+        assert_eq!(places(&harness), first, "readout {shown}");
+    }
+}
+
 #[test]
 fn no_strip_moves_while_values_change() {
     let models = [

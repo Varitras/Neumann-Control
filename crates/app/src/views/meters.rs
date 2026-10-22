@@ -30,8 +30,6 @@ const SCALE_MARKS_DB: [f64; 5] = [0.0, -6.0, -20.0, -60.0, -90.0];
 const CHANNEL_NAME_HEIGHT: f32 = 12.0;
 const CHANNEL_NAME_SIZE: f32 = 9.0;
 const READOUT_HEIGHT: f32 = 12.0;
-/// The widest readout, so a column keeps its width whatever the level.
-const WIDEST_READOUT: Option<i32> = Some(-120);
 const PEAK_LINE_HEIGHT: f32 = 2.0;
 const PLAYED_MARK_SPACE: f32 = 8.0;
 const PLAYED_MARK_RADIUS: f32 = 2.0;
@@ -58,6 +56,19 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
     let (name_of_group, channels, meters) = (group.name, group.channels, group.levels);
     let now = ui.input(|input| input.time);
     let clips = group.clips.and_then(Value::as_array);
+    let font = FontId::proportional(CHANNEL_NAME_SIZE);
+    let painter = ui.painter().clone();
+    let text_width = |text: String| {
+        painter
+            .layout_no_wrap(text, font.clone(), tokens.text_dim)
+            .size()
+            .x
+    };
+    // Digits differ in width ("−104" is wider than "−120"), so a column keeps its width whatever
+    // the level only if it fits every readout the meter can show.
+    let readout_width = readouts(floor)
+        .map(|readout| text_width(texts::meter_readout(readout)))
+        .fold(0.0, f32::max);
     for (channel, meter) in meters.iter().enumerate() {
         let clipped = clips
             .and_then(|clips| clips.get(channel))
@@ -66,16 +77,7 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         // The channel's name goes below `height`, so the scale beside stays level with it; the
         // column is as wide as the name ("Sub"), with the meter in its middle.
         let name = texts::channel_name(channels, channel);
-        let font = FontId::proportional(CHANNEL_NAME_SIZE);
-        let text_width = |text: String| {
-            let painter = ui.painter();
-            painter
-                .layout_no_wrap(text, font.clone(), tokens.text_dim)
-                .size()
-                .x
-        };
-        let name_width =
-            text_width(name.clone()).max(text_width(texts::meter_readout(WIDEST_READOUT)));
+        let name_width = text_width(name.clone()).max(readout_width);
         let mark_space = if group.played.is_empty() {
             0.0
         } else {
@@ -139,6 +141,13 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         return Rect::from_min_size(ui.cursor().min, Vec2::ZERO);
     }
     covered
+}
+
+/// Every readout a meter can show above `floor`, and none.
+fn readouts(floor: f64) -> impl Iterator<Item = Option<i32>> {
+    let lowest = floor.round() as i32;
+    let highest = METER_CEILING_DB.round() as i32;
+    std::iter::once(None).chain((lowest..=highest).map(Some))
 }
 
 /// The dot under a channel the speaker plays.
