@@ -358,3 +358,40 @@ fn cancel_remove_keeps_speaker() {
     harness.get_by_label(&readout(100.0));
     assert_eq!(settings::load(&path).manual.len(), 1);
 }
+
+#[test]
+fn a_moved_speaker_is_found_at_the_start() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let stale = ManualSpeaker {
+        address: LOOPBACK.to_owned(),
+        port: SSC_PORT,
+        serial: Some(SIMULATED_SERIAL.to_owned()),
+    };
+    let path = settings_file(directory.path(), vec![stale]);
+    let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
+    wait_for_level(&mut harness, 100.0);
+    assert!(saved_at(&path, &simulator));
+    assert!(harness.query_by_label(texts::ALREADY_ADDED.get()).is_none(), "no dialog");
+}
+
+#[test]
+fn a_speaker_that_stays_unreachable_is_looked_for_again() {
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let mut entry = manual_for(&first);
+    entry.serial = Some(SIMULATED_SERIAL.to_owned());
+    let path = settings_file(directory.path(), vec![entry]);
+    let shared: SharedScan = std::sync::Arc::new(std::sync::Mutex::new(Ok(Vec::new())));
+    let mut harness = harness_with_shared_scan(path.clone(), shared.clone());
+    wait_for_level(&mut harness, 100.0);
+    first.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    let moved = Simulator::start(SimModel::Kh120Ii);
+    *shared.lock().unwrap() = Ok(vec![kh120_found(&moved)]);
+    // The last level stays shown while unreachable; the saved address and the status tell.
+    wait_until(&mut harness, "the new address", |_| saved_at(&path, &moved));
+    wait_until(&mut harness, "the reconnect", |harness| {
+        harness.query_by_label(texts::UNREACHABLE.get()).is_none()
+    });
+}

@@ -46,8 +46,11 @@ const SERIAL_PATH: &str = "device/identity/serial";
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);
 
+/// What every scan finds; a test may change it while the app runs.
+pub type SharedScan = Arc<Mutex<ScanResult>>;
+
 pub struct SimulatorSpawner {
-    pub scan_result: ScanResult,
+    pub scan_result: SharedScan,
 }
 
 impl SpeakerSpawner for SimulatorSpawner {
@@ -57,7 +60,8 @@ impl SpeakerSpawner for SimulatorSpawner {
 
     fn scan(&self) -> Receiver<ScanResult> {
         let (sender, receiver) = mpsc::channel();
-        sender.send(self.scan_result.clone()).unwrap();
+        let result = self.scan_result.lock().unwrap().clone();
+        sender.send(result).unwrap();
         receiver
     }
 }
@@ -115,13 +119,32 @@ fn build(
     system: Language,
     audio: FakeAudio,
 ) -> Harness<'static, NeumannApp> {
+    build_shared(settings_path, Arc::new(Mutex::new(scan_result)), system, audio)
+}
+
+/// The app with a scan result the test can change while it runs.
+pub fn harness_with_shared_scan(
+    settings_path: PathBuf,
+    shared: SharedScan,
+) -> Harness<'static, NeumannApp> {
+    build_shared(settings_path, shared, Language::German, FakeAudio::default())
+}
+
+fn build_shared(
+    settings_path: PathBuf,
+    shared: SharedScan,
+    system: Language,
+    audio: FakeAudio,
+) -> Harness<'static, NeumannApp> {
     Harness::builder()
         .with_size(WINDOW_SIZE)
         .build_eframe(move |creation_context| {
             let mut app = NeumannApp::new(
                 &creation_context.egui_ctx,
                 settings_path,
-                Box::new(SimulatorSpawner { scan_result }),
+                Box::new(SimulatorSpawner {
+                    scan_result: shared,
+                }),
                 Box::new(audio),
                 system,
             );
