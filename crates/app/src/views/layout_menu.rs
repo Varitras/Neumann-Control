@@ -29,7 +29,7 @@ pub fn offers(layout: &StripLayout, product: &str, catalog: &Catalog) -> Vec<Off
         .collect()
 }
 
-fn element_label(element: &StripElement, catalog: &Catalog) -> String {
+pub(super) fn element_label(element: &StripElement, catalog: &Catalog) -> String {
     let StripElement::Path(path) = element else {
         return texts::EQ.get().to_owned();
     };
@@ -119,7 +119,7 @@ fn menu(ui: &Ui, id: Id, rect: Rect, contents: impl FnOnce(&mut Ui)) {
     .show(contents);
 }
 
-fn menu_key(element: &StripElement) -> String {
+pub(super) fn menu_key(element: &StripElement) -> String {
     match element {
         StripElement::Path(path) => path.to_string(),
         StripElement::Eq => texts::EQ.get().to_owned(),

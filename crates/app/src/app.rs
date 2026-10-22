@@ -89,6 +89,8 @@ pub struct NeumannApp {
     panel: Option<OpenPanel>,
     group_draft: Option<desk::GroupDraft>,
     settings_open: bool,
+    /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
+    editing: bool,
     window: Option<WindowGeometry>,
     history: history::HistoryState,
     eq_windows: Vec<eq::EqWindow>,
@@ -153,6 +155,7 @@ impl NeumannApp {
             panel: None,
             group_draft: None,
             settings_open: false,
+            editing: false,
             history: history::HistoryState::default(),
             eq_windows: Vec::new(),
             preset_dialog: None,
@@ -374,6 +377,7 @@ impl NeumannApp {
     fn show(&mut self, ui: &mut Ui, frame: &eframe::Frame) {
         let facts = ToolbarFacts {
             compact: self.settings.desk.compact,
+            editing: self.editing,
             scanning: self.scan.is_some(),
             speaker_count: self.speakers.len(),
             notice: self.notice,
@@ -393,6 +397,7 @@ impl NeumannApp {
             }
             ToolbarAction::History => self.open_history(),
             ToolbarAction::ToggleCompact => self.toggle_compact(frame),
+            ToolbarAction::ToggleEditing => self.editing = !self.editing,
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {

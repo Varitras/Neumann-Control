@@ -24,7 +24,7 @@ use crate::input_source::input_source;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
-use crate::strip_layout::{LayoutChange, StripLayout};
+use crate::strip_layout::{Area, LayoutChange, StripLayout};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
@@ -47,6 +47,9 @@ const METER_SPACING: f32 = 3.0;
 const CAPTION_HEIGHT: f32 = 16.0;
 const LEVEL_ENTRY_ID: &str = "level_entry";
 const KNOBS_PER_ROW: usize = 2;
+const DRAG_ID: &str = "strip_element_drag";
+const DROP_ID: &str = "strip_element_drop";
+const DROP_ZONE_HEIGHT: f32 = 8.0;
 
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -60,6 +63,43 @@ pub struct StripResponse {
     pub layout: Option<LayoutChange>,
 }
 
+/// How one area is drawn: what it holds as stored, whether it is being edited, and what could
+/// still be added (none before the speaker reported its model).
+struct Arrange<'a> {
+    offers: Option<&'a [Offer]>,
+    editing: bool,
+    area: Area,
+    stored: &'a [StripElement],
+    catalog: &'a Catalog,
+}
+
+impl Arrange<'_> {
+    /// Where `dropped` goes when let go on `target`: just before it, counted in the stored list
+    /// without `dropped`, so an element the speaker lacks keeps its place.
+    fn before(&self, dropped: &StripElement, target: &StripElement) -> LayoutChange {
+        let others: Vec<&StripElement> = self
+            .stored
+            .iter()
+            .filter(|element| *element != dropped)
+            .collect();
+        let index = others
+            .iter()
+            .position(|element| *element == target)
+            .unwrap_or(others.len());
+        LayoutChange::MoveTo(dropped.clone(), self.area, index)
+    }
+
+    /// Where `dropped` goes when let go after the last element of the area.
+    fn at_end(&self, dropped: &StripElement) -> LayoutChange {
+        let others = self
+            .stored
+            .iter()
+            .filter(|element| *element != dropped)
+            .count();
+        LayoutChange::MoveTo(dropped.clone(), self.area, others)
+    }
+}
+
 /// What the strip's areas asked for besides writes.
 #[derive(Default)]
 struct Wishes {
@@ -67,15 +107,22 @@ struct Wishes {
     layout: Option<LayoutChange>,
 }
 
+/// What the strip shows besides its fixed part, and whether it is being edited.
+pub struct StripView<'a> {
+    pub layout: &'a StripLayout,
+    pub editing: bool,
+}
+
 pub fn show(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     desk: &DeskSettings,
-    layout: &StripLayout,
+    view: StripView,
     group_color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
+    let StripView { layout, editing } = view;
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let mut wishes = Wishes::default();
@@ -85,6 +132,16 @@ pub fn show(
         .is_some()
         .then(|| layout_menu::offers(layout, speaker.product(), catalog));
     let offers = offers.as_deref();
+    let arrange = |area: Area| Arrange {
+        offers,
+        editing,
+        area,
+        stored: match area {
+            Area::Above => &layout.above,
+            Area::Below => &layout.below,
+        },
+        catalog,
+    };
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let frame = egui::Frame::new()
         .fill(tokens.card)
@@ -109,30 +166,30 @@ pub fn show(
                     })
                     .inner;
                 leds(ui, speaker, &tokens);
-                let above = &layout.above;
                 elements(
                     ui,
                     speaker,
-                    catalog,
-                    above,
-                    offers,
+                    &arrange(Area::Above),
                     &mut commands,
                     &mut wishes,
                 );
-                level(ui, speaker, catalog, desk, &mut commands, &tokens);
+                // While editing the fader is as still as the other controls.
+                ui.add_enabled_ui(!editing, |ui| {
+                    level(ui, speaker, catalog, desk, &mut commands, &tokens);
+                });
                 if desk.show_response_times {
                     response_time(ui, speaker);
                 }
-                let below = &layout.below;
                 elements(
                     ui,
                     speaker,
-                    catalog,
-                    below,
-                    offers,
+                    &arrange(Area::Below),
                     &mut commands,
                     &mut wishes,
                 );
+                if let (true, Some(offers)) = (editing, offers) {
+                    edit_controls(ui, speaker.product(), offers, &mut wishes);
+                }
                 message(ui, speaker, &tokens);
                 open_panel
             })
@@ -214,14 +271,14 @@ fn led(ui: &mut Ui, color: Color32, text: &str) {
 fn elements(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
-    catalog: &Catalog,
-    list: &[StripElement],
-    offers: Option<&[Offer]>,
+    arrange: &Arrange,
     commands: &mut Vec<Command>,
     wishes: &mut Wishes,
 ) {
+    let catalog = arrange.catalog;
     let entries = catalog.entries_for(speaker.product());
-    let drawn: Vec<Drawn> = list
+    let drawn: Vec<Drawn> = arrange
+        .stored
         .iter()
         .filter_map(|element| match element {
             StripElement::Eq => has_eq(catalog, speaker).then_some(Drawn::Eq),
@@ -235,11 +292,11 @@ fn elements(
         .collect();
     for run in drawn.chunk_by(|left, right| left.row() == right.row()) {
         match run[0].row() {
-            Row::Knobs => knob_rows(ui, speaker, catalog, run, offers, commands, wishes),
-            Row::Buttons => button_row(ui, speaker, catalog, run, offers, commands, wishes),
+            Row::Knobs => knob_rows(ui, speaker, arrange, run, commands, wishes),
+            Row::Buttons => button_row(ui, speaker, arrange, run, commands, wishes),
             Row::Select | Row::Display => {
                 for drawn in run {
-                    with_menu(ui, drawn.element(), offers, wishes, |ui| {
+                    element_cell(ui, drawn.element(), arrange, wishes, |ui| {
                         match drawn.entry() {
                             Some(entry) if entry.kind == Kind::Select => {
                                 select(ui, speaker, catalog, entry, commands);
@@ -252,23 +309,100 @@ fn elements(
             }
         }
     }
+    if arrange.editing && arrange.offers.is_some() {
+        drop_zone(ui, arrange, wishes);
+    }
 }
 
-/// Draws one element and gives it its context menu, when the model's layout can be changed.
-fn with_menu(
+/// Draws one element with its context menu. While editing it is a still control beside a ×,
+/// dragged as a whole, and what is let go on it lands before it.
+fn element_cell(
     ui: &mut Ui,
     element: StripElement,
-    offers: Option<&[Offer]>,
+    arrange: &Arrange,
     wishes: &mut Wishes,
     draw: impl FnOnce(&mut Ui),
 ) {
-    let rect = ui.scope(draw).response.rect;
-    let Some(offers) = offers else {
+    let Some(offers) = arrange.offers else {
+        ui.add_enabled_ui(!arrange.editing, draw);
         return;
+    };
+    let rect = match arrange.editing {
+        false => ui.scope(draw).response.rect,
+        true => editable_cell(ui, &element, arrange.catalog, wishes, draw),
     };
     if let Some(change) = layout_menu::element_menu(ui, rect, &element, offers) {
         wishes.layout = Some(change);
     }
+    if !arrange.editing {
+        return;
+    }
+    let drop_id = ui
+        .scope_id()
+        .with((DROP_ID, layout_menu::menu_key(&element)));
+    let target = ui.interact(rect, drop_id, Sense::hover());
+    if let Some(dropped) = target.dnd_release_payload::<StripElement>() {
+        if *dropped != element {
+            wishes.layout = Some(arrange.before(&dropped, &element));
+        }
+    }
+}
+
+fn editable_cell(
+    ui: &mut Ui,
+    element: &StripElement,
+    catalog: &Catalog,
+    wishes: &mut Wishes,
+    draw: impl FnOnce(&mut Ui),
+) -> Rect {
+    let drag_id = ui
+        .scope_id()
+        .with((DRAG_ID, layout_menu::menu_key(element)));
+    ui.horizontal(|ui| {
+        ui.dnd_drag_source(drag_id, element.clone(), |ui| {
+            ui.add_enabled_ui(false, draw);
+        });
+        let hide_label = texts::hide_element(&layout_menu::element_label(element, catalog));
+        let hide = ui.small_button(texts::HIDE_MARK);
+        hide.widget_info(|| WidgetInfo::labeled(Role::Button, true, &hide_label));
+        if hide.on_hover_text(&hide_label).clicked() {
+            wishes.layout = Some(LayoutChange::Remove(element.clone()));
+        }
+    })
+    .response
+    .rect
+}
+
+/// A thin target after the last element of an area, so an empty area can take one too.
+fn drop_zone(ui: &mut Ui, arrange: &Arrange, wishes: &mut Wishes) {
+    let size = vec2(ui.available_width(), DROP_ZONE_HEIGHT);
+    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+    if response.dnd_hover_payload::<StripElement>().is_some() {
+        let tokens = Tokens::current(ui.ctx());
+        let radius = CornerRadius::same(STRIP_RADIUS);
+        ui.painter().rect_filled(rect, radius, tokens.border);
+    }
+    if let Some(dropped) = response.dnd_release_payload::<StripElement>() {
+        wishes.layout = Some(arrange.at_end(&dropped));
+    }
+}
+
+/// Under the strip while editing: whose layout it is, "+ Add" and "Default".
+fn edit_controls(ui: &mut Ui, model: &str, offers: &[Offer], wishes: &mut Wishes) {
+    ui.label(RichText::new(texts::applies_to_every(model)).small().weak());
+    ui.horizontal_wrapped(|ui| {
+        ui.menu_button(texts::ADD_ELEMENT, |ui| {
+            for offer in offers {
+                if ui.button(&offer.label).clicked() {
+                    let added = LayoutChange::Add(offer.element.clone(), Area::Below);
+                    wishes.layout = Some(added);
+                }
+            }
+        });
+        if ui.button(texts::DEFAULT_LAYOUT).clicked() {
+            wishes.layout = Some(LayoutChange::Reset);
+        }
+    });
 }
 
 #[derive(Clone, Copy)]
@@ -316,17 +450,17 @@ impl<'a> Drawn<'a> {
 fn knob_rows(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
-    catalog: &Catalog,
+    arrange: &Arrange,
     run: &[Drawn],
-    offers: Option<&[Offer]>,
     commands: &mut Vec<Command>,
     wishes: &mut Wishes,
 ) {
+    let catalog = arrange.catalog;
     for pair in run.chunks(KNOBS_PER_ROW) {
         ui.columns(KNOBS_PER_ROW, |columns| {
             for (column, entry) in columns.iter_mut().zip(pair.iter().filter_map(Drawn::entry)) {
                 let element = StripElement::Path(entry.path.clone());
-                with_menu(column, element, offers, wishes, |ui| {
+                element_cell(column, element, arrange, wishes, |ui| {
                     // Named as in the device panel, so one setting has one name.
                     let label = entry.label(texts::language());
                     let sent = knob::for_entry(
@@ -348,16 +482,16 @@ fn knob_rows(
 fn button_row(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
-    catalog: &Catalog,
+    arrange: &Arrange,
     run: &[Drawn],
-    offers: Option<&[Offer]>,
     commands: &mut Vec<Command>,
     wishes: &mut Wishes,
 ) {
+    let catalog = arrange.catalog;
     let mut open_eq = false;
     ui.horizontal_wrapped(|ui| {
         for drawn in run {
-            with_menu(ui, drawn.element(), offers, wishes, |ui| match drawn {
+            element_cell(ui, drawn.element(), arrange, wishes, |ui| match drawn {
                 Drawn::Eq => open_eq |= ui.button(texts::EQ).clicked(),
                 Drawn::Entry(entry) => {
                     let text = button_text(entry);

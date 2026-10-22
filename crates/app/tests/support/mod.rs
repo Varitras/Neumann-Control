@@ -465,7 +465,11 @@ pub fn desk_of(models: &[SimModel], strip_layouts: BTreeMap<String, StoredStripL
 }
 
 /// The simulators, the folder of the settings file and the app.
-pub type Desk = (Vec<Simulator>, tempfile::TempDir, Harness<'static, NeumannApp>);
+pub type Desk = (
+    Vec<Simulator>,
+    tempfile::TempDir,
+    Harness<'static, NeumannApp>,
+);
 
 /// Like `desk_of`, with the simulators changed before the app first reads them.
 pub fn desk_prepared(

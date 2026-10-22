@@ -143,6 +143,7 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
         texts::SCAN.get(),
         texts::ADD_ADDRESS.get(),
         texts::ADD_GROUP.get(),
+        texts::CUSTOMIZE_STRIPS.get(),
         texts::COMPACT.get(),
         texts::SETTINGS.get(),
     ];

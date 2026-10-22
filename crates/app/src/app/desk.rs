@@ -22,7 +22,7 @@ use crate::strip_layout::{self, LayoutChange};
 use crate::texts;
 use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
-use crate::views::strip;
+use crate::views::strip::{self, StripView};
 use crate::views::system_strip::{self, SystemStrip, SystemStripResponse};
 use crate::writes::Intent;
 
@@ -57,6 +57,7 @@ impl NeumannApp {
         }
         let catalog = Catalog::embedded();
         let desk = self.settings.desk.clone();
+        let editing = self.editing;
         let ids = self.member_ids();
         let items = layout(&self.settings.order, &self.settings.groups, &ids);
         let dragged = DragAndDrop::payload::<String>(ui.ctx())
@@ -97,7 +98,10 @@ impl NeumannApp {
                                             &mut speaker.state,
                                             catalog,
                                             &desk,
-                                            &layout,
+                                            StripView {
+                                                layout: &layout,
+                                                editing,
+                                            },
                                             color,
                                             member,
                                         )

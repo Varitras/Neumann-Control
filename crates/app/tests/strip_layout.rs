@@ -232,10 +232,7 @@ fn the_menu_writes_nothing() {
     right_click_button(&mut harness, texts::MUTE.get());
     choose(&mut harness, texts::HIDE.get());
     barrier(&simulators[0]);
-    let written = simulators[0].requests().iter().any(|request| {
-        request.to_string().contains("true") || request.to_string().contains("false")
-    });
-    assert!(!written, "a set reached the speaker");
+    assert!(!any_set(&simulators[0]), "a set reached the speaker");
 }
 
 fn start_editing(harness: &mut Harness<'static, NeumannApp>) {
@@ -244,7 +241,9 @@ fn start_editing(harness: &mut Harness<'static, NeumannApp>) {
 }
 
 fn hide_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, path: &str) {
-    harness.get_by_label(&texts::hide_element(label(path))).click();
+    harness
+        .get_by_label(&texts::hide_element(label(path)))
+        .click();
     harness.run_steps(2);
 }
 
@@ -281,15 +280,18 @@ fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
     });
 }
 
-/// Whether any request carried a value: reads ask with `null` only.
+/// Whether any request carried a value: reads ask with `null` only, `osc` holds the id.
 fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
-    simulator.requests().iter().any(|request| {
-        let text = request.to_string();
-        let leaves = text.matches(':').count();
-        let nulls = text.matches("null").count();
-        let xids = text.matches("\"xid\"").count();
-        leaves > nulls + xids
-    })
+    fn carries_a_value(value: &serde_json::Value) -> bool {
+        match value {
+            serde_json::Value::Null => false,
+            serde_json::Value::Object(members) => members
+                .iter()
+                .any(|(key, member)| key != "osc" && carries_a_value(member)),
+            _ => true,
+        }
+    }
+    simulator.requests().iter().any(carries_a_value)
 }
 
 #[test]
@@ -301,7 +303,9 @@ fn editing_hides_and_adds() {
     harness.get_by_label(texts::DONE.get()).click();
     harness.run_steps(2);
     let phase = label(paths::PHASE_INVERSION);
-    assert!(harness.query_by_role_and_label(Role::Button, phase).is_some());
+    assert!(harness
+        .query_by_role_and_label(Role::Button, phase)
+        .is_some());
     let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
     assert!(identify.is_none());
     assert!(harness.query_by_label(texts::ADD_ELEMENT.get()).is_none());
@@ -325,7 +329,10 @@ fn editing_sends_nothing() {
     let fader = center(&harness, Role::Slider, texts::LEVEL.get());
     drag(&mut harness, fader, fader + egui::vec2(0.0, 40.0));
     barrier(&simulators[0]);
-    assert!(!any_set(&simulators[0]), "a set reached the speaker in edit mode");
+    assert!(
+        !any_set(&simulators[0]),
+        "a set reached the speaker in edit mode"
+    );
     harness.get_by_label(texts::DONE.get()).click();
     harness.run_steps(2);
     harness
@@ -334,6 +341,7 @@ fn editing_sends_nothing() {
     wait_until(&mut harness, "the mute after editing", |_| {
         !sets(&simulators[0], "/audio/out/mute").is_empty()
     });
+    assert!(any_set(&simulators[0]), "the check itself sees a set");
 }
 
 #[test]
@@ -373,8 +381,7 @@ fn a_drag_next_to_an_absent_element_keeps_the_stored_order() {
 
 #[test]
 fn an_unreachable_strip_can_still_be_edited() {
-    let (mut simulators, directory, mut harness) =
-        desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (mut simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
     simulators.remove(0).stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     start_editing(&mut harness);
@@ -413,10 +420,14 @@ fn everything_hidden_keeps_the_way_back() {
     let stored = layouts(MONITOR, &[], &[]);
     let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], stored);
     let mute = texts::MUTE.get();
-    assert!(harness.query_by_role_and_label(Role::Button, mute).is_none());
+    assert!(harness
+        .query_by_role_and_label(Role::Button, mute)
+        .is_none());
     start_editing(&mut harness);
     add_in_edit_mode(&mut harness, label(paths::MUTE));
-    assert!(harness.query_by_role_and_label(Role::Button, mute).is_some());
+    assert!(harness
+        .query_by_role_and_label(Role::Button, mute)
+        .is_some());
 }
 
 #[test]
