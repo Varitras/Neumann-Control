@@ -49,6 +49,8 @@
 - Remembered speakers are looked for without asking: a silent scan at the start and when one stays
   unreachable for 30 seconds (then at most every 5 minutes) follows them, by serial, to a changed
   address or interface index.
+- Falling meters are drawn 20 times a second instead of at the monitor's rate, which kept the
+  graphics card busy while the window was idle.
 
 ### Fixed
 

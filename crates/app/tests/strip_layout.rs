@@ -4,6 +4,7 @@
 mod support;
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
@@ -532,6 +533,24 @@ fn no_meter_moves_when_the_peak_readout_changes() {
         });
         assert_eq!(places(&harness), first, "readout {shown}");
     }
+}
+
+/// A falling meter asks for its next frame after a pause, not at once: at the monitor's own
+/// rate the window kept the GPU busy all the time.
+#[test]
+fn a_falling_meter_does_not_repaint_at_once() {
+    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    simulators[0].set_value("m/in/level", json!([-6.0, -6.0]));
+    let high = texts::meter_readout(Some(-6));
+    wait_until(&mut harness, &high, |harness| {
+        harness.query_all_by_label_contains(&high).next().is_some()
+    });
+    simulators[0].set_value("m/in/level", json!([-119.0, -119.0]));
+    // A new reading wakes the window at once; the frames of the fall after it must not.
+    wait_until(&mut harness, "a frame booked after a pause", |harness| {
+        let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+        !delay.is_zero() && delay < Duration::MAX
+    });
 }
 
 #[test]

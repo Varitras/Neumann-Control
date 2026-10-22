@@ -6,6 +6,8 @@ use eframe::egui::{
     pos2, vec2, Align2, Color32, CornerRadius, FontId, Label, Rect, Response, RichText, Role,
     Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
+use std::time::Duration;
+
 use serde_json::Value;
 
 use crate::meter::{
@@ -36,6 +38,9 @@ const PLAYED_MARK_RADIUS: f32 = 2.0;
 const BAR_WIDTH: f32 = 72.0;
 const BAR_HEIGHT: f32 = 6.0;
 const BAR_RADIUS: u8 = 2;
+/// How often a falling meter is drawn anew; the monitor's own rate would keep the GPU busy for
+/// a movement the eye does not resolve finer.
+const METER_FRAME: Duration = Duration::from_millis(50);
 
 /// One group of meters, side by side.
 pub struct Meters<'a> {
@@ -134,7 +139,7 @@ pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Token
         }
     }
     if meters.iter().any(|meter| meter.is_moving(now)) {
-        ui.ctx().request_repaint();
+        ui.ctx().request_repaint_after(METER_FRAME);
     }
     // Before the first reading there are no meters; an empty area would be infinitely negative.
     if meters.is_empty() {
