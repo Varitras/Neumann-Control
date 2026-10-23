@@ -222,6 +222,82 @@ fn panel_opens_from_strip_name_and_closes_on_escape() {
     assert!(harness.query_by_label(texts::ALL_VALUES.get()).is_none());
 }
 
+/// From the panel's close button up to the title bar of its embedded window.
+const PANEL_TITLE_ABOVE_CLOSE: f32 = 24.0;
+const PANEL_MOVE: f32 = 520.0;
+
+fn drag_from_to(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, to: egui::Pos2) {
+    harness.hover_at(from);
+    harness.event(egui::Event::PointerButton {
+        pos: from,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(1);
+    for step in 1..=DRAG_STEPS {
+        harness.hover_at(from + (to - from) * (step as f32 / DRAG_STEPS as f32));
+        harness.run_steps(1);
+    }
+    harness.event(egui::Event::PointerButton {
+        pos: to,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(2);
+}
+
+const DRAG_STEPS: usize = 5;
+
+#[test]
+fn the_details_button_opens_the_panel() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::DETAILS.get())
+        .click();
+    wait_for_label(&mut harness, texts::ALL_VALUES.get());
+}
+
+/// Each speaker's panel is a window of its own; opening a second leaves the first open.
+#[test]
+fn two_panels_stay_open_side_by_side() {
+    let (_simulators, _directory, mut harness) = desk_of(
+        &[SimModel::Kh120Ii, SimModel::Kh750],
+        std::collections::BTreeMap::new(),
+    );
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    // In the test window the panel is embedded over the desk: move it off the other strip.
+    let title = harness.get_by_label(texts::CLOSE.get()).rect().center()
+        - egui::vec2(0.0, PANEL_TITLE_ABOVE_CLOSE);
+    drag_from_to(&mut harness, title, title + egui::vec2(PANEL_MOVE, 0.0));
+    harness.get_by_label(KH750_DEVICE_NAME).click();
+    wait_until(&mut harness, "two panels", |harness| {
+        harness.query_all_by_label(texts::ALL_VALUES.get()).count() == 2
+    });
+}
+
+/// A window beside the desk stays open while you work on the desk.
+#[test]
+fn a_click_on_the_desk_keeps_the_panel_open() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    let below_the_strip = egui::pos2(20.0, EXPANDED_WINDOW_SIZE[1] - 20.0);
+    harness.hover_at(below_the_strip);
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: below_the_strip,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    harness.run_steps(2);
+    harness.get_by_label(texts::ALL_VALUES.get());
+}
+
 #[test]
 fn panel_closes_when_its_speaker_goes_away() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);

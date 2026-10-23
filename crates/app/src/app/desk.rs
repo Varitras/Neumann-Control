@@ -10,7 +10,7 @@ use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::{NeumannApp, OpenPanel, DESK_SCROLL_ID};
+use super::{NeumannApp, DESK_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{
     insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of, shared_level,
@@ -36,7 +36,7 @@ pub(super) enum DeskAction {
     Commands(usize, Vec<Command>),
     Group(usize, GroupStripResponse),
     Master(MasterResponse),
-    OpenPanel(OpenPanel),
+    OpenPanel(SpeakerKey),
     OpenEq(SpeakerKey),
     System(SystemStripResponse),
     /// A change of one model's strip layout.
@@ -116,14 +116,8 @@ impl NeumannApp {
                                     let product = speaker.state.product().to_owned();
                                     actions.push(DeskAction::Layout(product, change));
                                 }
-                                if let Some(anchor) = response.open_panel {
-                                    let opened_now = true;
-                                    let open = OpenPanel {
-                                        key,
-                                        anchor,
-                                        opened_now,
-                                    };
-                                    actions.push(DeskAction::OpenPanel(open));
+                                if response.open_panel {
+                                    actions.push(DeskAction::OpenPanel(key));
                                 }
                             }
                             DeskItem::GroupStrip(group) => {
@@ -207,7 +201,7 @@ impl NeumannApp {
                 let everyone: Vec<usize> = (0..self.speakers.len()).collect();
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
-            DeskAction::OpenPanel(open) => self.panel = Some(open),
+            DeskAction::OpenPanel(key) => self.open_panel(key),
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(product, change) => self.change_layout(&product, &change, catalog),

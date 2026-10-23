@@ -5,8 +5,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, CornerRadius, Layout, Pos2, RichText, Role, Sense, Stroke,
-    Ui, WidgetInfo,
+    self, vec2, Align, Button, Color32, CornerRadius, Layout, RichText, Role, Sense, Stroke, Ui,
+    WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{DeskSettings, GroupSettings};
@@ -41,8 +41,8 @@ const MESSAGE_MARK: &str = "!";
 pub struct SpeakerRowResponse {
     /// The writes the user asked for that the write policy allowed.
     pub commands: Vec<Command>,
-    /// Where the device panel opens when the name was clicked.
-    pub open_panel: Option<Pos2>,
+    /// The name was clicked: the speaker's panel opens.
+    pub open_panel: bool,
 }
 
 pub fn speaker(

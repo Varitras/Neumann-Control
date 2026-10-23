@@ -33,7 +33,6 @@ fn kh750_found(simulator: &Simulator) -> Found {
     announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
 }
 
-const SCROLL_FRAMES: usize = 4;
 /// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
 const SILENCE_SETTLE: Duration = Duration::from_millis(300);
 /// Far below the 3 s a joined worker could take, far above two frames.
@@ -336,7 +335,7 @@ fn add_address_names_an_address_already_listed() {
 /// Opens the device panel of the only speaker and asks to remove it.
 fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
     open_panel(harness, KH120_DEVICE_NAME);
-    harness.get_by_label(texts::REMOVE.get()).click();
+    click_in_panel(harness, texts::REMOVE.get());
     wait_for_label(harness, texts::REMOVE_TITLE.get());
 }
 
@@ -459,12 +458,8 @@ fn remove_named(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     confirm_remove(harness);
 }
 
-/// The KH 750's panel is taller than the test window; "Remove" sits at its foot.
 fn ask_in_open_panel(harness: &mut Harness<'static, NeumannApp>) {
-    harness.get_by_label(texts::REMOVE.get()).scroll_to_me();
-    // Scrolling is animated.
-    harness.run_steps(SCROLL_FRAMES);
-    harness.get_by_label(texts::REMOVE.get()).click();
+    click_in_panel(harness, texts::REMOVE.get());
     wait_for_label(harness, texts::REMOVE_TITLE.get());
 }
 

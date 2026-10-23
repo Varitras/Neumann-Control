@@ -404,6 +404,15 @@ pub fn device_name(model: SimModel) -> &'static str {
 }
 
 /// Clicks the strip's name and waits until the device panel shows its settings.
+/// The panel scrolls in its window; a button at its foot is scrolled to (animated) first.
+pub fn click_in_panel(harness: &mut Harness<'static, NeumannApp>, label: &str) {
+    harness.get_by_label(label).scroll_to_me();
+    harness.run_steps(PANEL_SCROLL_FRAMES);
+    harness.get_by_label(label).click();
+}
+
+pub const PANEL_SCROLL_FRAMES: usize = 4;
+
 pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     // The panel takes its size from the window it opens in.
     harness.set_size(EXPANDED_WINDOW_SIZE.into());

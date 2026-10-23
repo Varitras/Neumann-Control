@@ -3,8 +3,8 @@
 //! and the last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, ComboBox, CornerRadius, Label, Layout, Pos2, Rect,
-    Response, RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
+    self, vec2, Align, Button, Color32, ComboBox, CornerRadius, Label, Layout, Rect, Response,
+    RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{DeskSettings, StripElement};
@@ -54,8 +54,8 @@ const DROP_ZONE_HEIGHT: f32 = 8.0;
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
     pub commands: Vec<Command>,
-    /// Where the device panel opens when the name was clicked.
-    pub open_panel: Option<Pos2>,
+    /// The name or "Details" was clicked: the speaker's panel opens.
+    pub open_panel: bool,
     /// The strip's area, where another strip can be dropped.
     pub rect: Rect,
     pub open_eq: bool,
@@ -191,7 +191,8 @@ pub fn show(
                     edit_controls(ui, speaker.product(), offers, &mut wishes);
                 }
                 message(ui, speaker, &tokens);
-                open_panel
+                let details = ui.button(texts::DETAILS).clicked();
+                open_panel || details
             })
             .inner
         });
@@ -231,10 +232,10 @@ fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
     }
 }
 
-pub(super) fn name(ui: &mut Ui, speaker: &SpeakerState) -> Option<Pos2> {
+/// True when clicked: the name opens the speaker's panel.
+pub(super) fn name(ui: &mut Ui, speaker: &SpeakerState) -> bool {
     let text = RichText::new(speaker.display_name()).strong();
-    let response = ui.add(Button::new(text).frame(false).truncate());
-    response.clicked().then(|| response.rect.left_bottom())
+    ui.add(Button::new(text).frame(false).truncate()).clicked()
 }
 
 pub(super) fn leds(ui: &mut Ui, speaker: &SpeakerState, tokens: &Tokens) {

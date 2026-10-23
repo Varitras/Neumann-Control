@@ -7,7 +7,10 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
 
-use eframe::egui::{self, Context, Key, KeyboardShortcut, Modifiers, Pos2, Ui, ViewportInfo};
+use eframe::egui::{
+    self, Context, Id, Key, KeyboardShortcut, Modifiers, Ui, ViewportCommand, ViewportId,
+    ViewportInfo,
+};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
@@ -50,6 +53,7 @@ pub use history::TakeBackNotice;
 
 const DESK_SCROLL_ID: &str = "desk";
 const COMPACT_SCROLL_ID: &str = "compact";
+const PANEL_VIEWPORT_ID: &str = "device_panel";
 const COMPACT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
 
 struct Speaker {
@@ -58,12 +62,13 @@ struct Speaker {
     events: Events,
 }
 
-/// The speaker whose device panel is open and where it opens.
+/// A speaker's device panel, open in a window of its own.
 struct OpenPanel {
     key: SpeakerKey,
-    anchor: Pos2,
-    /// The opening click is still in this frame's input and must not close the panel.
-    opened_now: bool,
+    /// Fixed when it opens: the key can change while the speaker connects, the window stays.
+    viewport: ViewportId,
+    /// Opened again while open: the window comes to the front.
+    focus: bool,
 }
 
 /// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
@@ -90,7 +95,7 @@ pub struct NeumannApp {
     notice: Option<texts::Text>,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
-    panel: Option<OpenPanel>,
+    panels: Vec<OpenPanel>,
     group_draft: Option<desk::GroupDraft>,
     settings_open: bool,
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
@@ -158,7 +163,7 @@ impl NeumannApp {
             notice: None,
             add_address: None,
             removal: None,
-            panel: None,
+            panels: Vec::new(),
             group_draft: None,
             settings_open: false,
             editing: false,
@@ -264,7 +269,7 @@ impl NeumannApp {
     /// A speaker's key changed (its serial became known): its group, its place in the order and
     /// its open panel go with it.
     fn follow_key(&mut self, before: &SpeakerKey, after: &SpeakerKey) -> bool {
-        if let Some(panel) = self.panel.as_mut().filter(|panel| panel.key == *before) {
+        for panel in self.panels.iter_mut().filter(|panel| panel.key == *before) {
             panel.key = after.clone();
         }
         let (old, new) = (member_id(before), member_id(after));
@@ -445,7 +450,7 @@ impl NeumannApp {
                 self.show_desk(ui);
             }
         });
-        self.show_panel(ui.ctx());
+        self.show_panels(ui.ctx());
         self.show_dialog(ui);
         self.show_scan_choice(ui);
         self.show_removal(ui);
@@ -474,22 +479,53 @@ impl NeumannApp {
         }
     }
 
-    /// The open device panel; it closes when its speaker is gone or unreachable.
-    fn show_panel(&mut self, context: &Context) {
-        let Some(open) = &mut self.panel else {
+    /// Opens the speaker's panel, or brings it to the front when it is open.
+    fn open_panel(&mut self, key: SpeakerKey) {
+        if let Some(open) = self.panels.iter_mut().find(|panel| panel.key == key) {
+            open.focus = true;
             return;
-        };
-        let index = self
+        }
+        let viewport = ViewportId::from_hash_of(Id::unique(PANEL_VIEWPORT_ID).with(&key));
+        self.panels.push(OpenPanel {
+            key,
+            viewport,
+            focus: false,
+        });
+    }
+
+    /// Every open device panel; one closes when its speaker is gone or unreachable.
+    fn show_panels(&mut self, context: &Context) {
+        let speakers = &self.speakers;
+        self.panels.retain(|panel| {
+            speakers.iter().any(|speaker| {
+                speaker.state.key == panel.key && speaker.state.status != Status::Unreachable
+            })
+        });
+        let mut closed = Vec::new();
+        for panel in 0..self.panels.len() {
+            if self.show_panel(context, panel) {
+                closed.push(panel);
+            }
+        }
+        for panel in closed.into_iter().rev() {
+            self.panels.remove(panel);
+        }
+    }
+
+    /// One panel; true when it is to close.
+    fn show_panel(&mut self, context: &Context, panel: usize) -> bool {
+        let open = &mut self.panels[panel];
+        let Some(index) = self
             .speakers
             .iter()
             .position(|speaker| speaker.state.key == open.key)
-            .filter(|index| self.speakers[*index].state.status != Status::Unreachable);
-        let Some(index) = index else {
-            self.panel = None;
-            return;
+        else {
+            return true;
         };
-        let (anchor, opened_now) = (open.anchor, open.opened_now);
-        open.opened_now = false;
+        let viewport = open.viewport;
+        if std::mem::take(&mut open.focus) {
+            context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
+        }
         let catalog = Catalog::embedded();
         let ids = self.member_ids();
         let names: Vec<String> = self
@@ -514,15 +550,7 @@ impl NeumannApp {
             .identity
             .is_some()
             .then(|| strip_layout::resolve(stored, &product, catalog));
-        let response = panel::show(
-            context,
-            state,
-            catalog,
-            anchor,
-            opened_now,
-            &choice,
-            layout.as_ref(),
-        );
+        let response = panel::show(context, viewport, state, catalog, &choice, layout.as_ref());
         if let Some(change) = &response.layout {
             self.change_layout(&product, change, catalog);
         }
@@ -555,9 +583,7 @@ impl NeumannApp {
         if response.load_preset {
             self.open_preset_load(key);
         }
-        if response.close || response.remove {
-            self.panel = None;
-        }
+        response.close || response.remove
     }
 
     fn show_group_dialog(&mut self, ui: &mut Ui) {

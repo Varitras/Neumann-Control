@@ -54,12 +54,17 @@ fn open_eq_with(
 }
 
 /// The strip has an "EQ" button too; the panel's lies below it, at the panel's foot.
+/// The panel's EQ button, the lowest one (the strip has one too), at the panel's foot.
 fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>) {
-    let lowest = harness
-        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
-        .max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y))
-        .expect("an EQ button");
-    lowest.click();
+    fn lowest<'h>(harness: &'h Harness<'static, NeumannApp>) -> egui_kittest::Node<'h> {
+        harness
+            .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+            .max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y))
+            .expect("an EQ button")
+    }
+    lowest(harness).scroll_to_me();
+    harness.run_steps(PANEL_SCROLL_FRAMES);
+    lowest(harness).click();
 }
 
 fn drag(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, by: egui::Vec2) {

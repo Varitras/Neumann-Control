@@ -258,6 +258,8 @@ pub const CONTROL_HINT: Text = Text::new(
 /// Faders take no typed value themselves (the strip's readout below does).
 pub const FADER_HINT: Text = Text::new("Shift: fein", "Shift: fine");
 pub const PANEL_TITLE: Text = Text::new("Lautsprecher", "Speaker");
+/// The button under a strip that opens the speaker's panel.
+pub const DETAILS: Text = Text::new("Details", "Details");
 pub const SETTINGS: Text = Text::new("Einstellungen", "Settings");
 pub const COMPACT: Text = Text::new("Kompakt", "Compact");
 pub const COMPACT_HINT: Text = Text::new("Strg+K", "Ctrl+K");
@@ -661,6 +663,11 @@ pub fn take_back_skipped(names: &[String]) -> String {
 /// Names a band's point in the EQ graph.
 pub fn eq_band(number: usize) -> String {
     format!("{} {number}", BAND.get())
+}
+
+/// The panel window's title: "Lautsprecher · <name>".
+pub fn panel_window_title(speaker: &str) -> String {
+    format!("{} · {speaker}", PANEL_TITLE.get())
 }
 
 pub fn eq_window_title(speaker: &str) -> String {

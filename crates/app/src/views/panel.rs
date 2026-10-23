@@ -1,7 +1,10 @@
-//! The device panel: every setting of one speaker, opened from its strip and floating beside
-//! it. It closes on Escape, its close button, or a click outside it.
+//! The device panel: every setting of one speaker, in a window of its own that can be moved
+//! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
-use eframe::egui::{Button, ComboBox, Context, Id, Key, Label, Order, Pos2, RichText, Ui, Window};
+use eframe::egui::{
+    self, Button, ComboBox, Context, Id, Key, Label, RichText, ScrollArea, Ui, ViewportBuilder,
+    ViewportClass, ViewportId,
+};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::settings::Linkable;
@@ -20,10 +23,8 @@ use crate::texts;
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
 const EDITING_ID: &str = "editing";
-const PANEL_WIDTH: f32 = 600.0;
-/// Room kept free below the panel and for its header and footer.
-const PANEL_CHROME_HEIGHT: f32 = 120.0;
-const PANEL_MIN_HEIGHT: f32 = 160.0;
+const PANEL_WINDOW_SIZE: [f32; 2] = [600.0, 760.0];
+const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -48,88 +49,85 @@ pub struct GroupChoice<'a> {
     pub linked: &'a [Linkable],
 }
 
-/// `opened_now` is true in the frame of the click that opened the panel, which must not count
-/// as a click outside.
+/// The panel in its own window (`viewport`), one per speaker.
 pub fn show(
     context: &Context,
+    viewport: ViewportId,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
-    anchor: Pos2,
-    opened_now: bool,
     groups: &GroupChoice,
     layout: Option<&StripLayout>,
 ) -> PanelResponse {
-    let mut close = false;
-    let mut remove = false;
-    let mut group = None;
-    let mut copy_to_group = None;
-    let mut open_eq = false;
-    let mut save_preset = false;
-    let mut load_preset = false;
+    let builder = ViewportBuilder::default()
+        .with_title(texts::panel_window_title(&speaker.display_name()))
+        .with_inner_size(PANEL_WINDOW_SIZE)
+        .with_min_inner_size(PANEL_WINDOW_MIN_SIZE);
+    context.show_viewport_immediate(viewport, builder, |ui, class| {
+        // Several panels can be open; their widgets must not share state.
+        let mut response = ui
+            .push_id(viewport, |ui| match class {
+                ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, groups, layout),
+                _ => {
+                    egui::CentralPanel::default()
+                        .show(ui, |ui| contents(ui, speaker, catalog, groups, layout))
+                        .inner
+                }
+            })
+            .inner;
+        // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
+        // drops the focus at the start of the Escape frame, so the last frame's state decides.
+        let editing_id = Id::unique(PANEL_ID).with(viewport).with(EDITING_ID);
+        let editing = ui.data(|data| data.get_temp::<bool>(editing_id).unwrap_or(false));
+        let escape = !editing && ui.input(|input| input.key_pressed(Key::Escape));
+        let editing_now = ui.memory(|memory| memory.focused().is_some());
+        ui.data_mut(|data| data.insert_temp(editing_id, editing_now));
+        let close_requested = ui.input(|input| input.viewport().close_requested());
+        response.close |= escape || close_requested;
+        response
+    })
+}
+
+/// Everything the panel shows, scrolling when the window is shorter.
+fn contents(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    groups: &GroupChoice,
+    layout: Option<&StripLayout>,
+) -> PanelResponse {
     let has_eq = has_eq(catalog, speaker);
-    // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
-    // drops the focus at the start of the Escape frame, so the last frame's state decides.
-    let editing_id = Id::unique(PANEL_ID).with(EDITING_ID);
-    let editing = context.data(|data| data.get_temp::<bool>(editing_id).unwrap_or(false));
-    // As tall as the window allows below the anchor, so rows are not hidden needlessly.
-    let room = context.content_rect().bottom() - anchor.y - PANEL_CHROME_HEIGHT;
-    let max_height = room.max(PANEL_MIN_HEIGHT);
-    let window = Window::new(texts::PANEL_TITLE)
-        .id(Id::unique(PANEL_ID))
-        .title_bar(false)
-        .collapsible(false)
-        .resizable(false)
-        .fixed_pos(anchor)
-        .min_width(PANEL_WIDTH)
-        .max_width(PANEL_WIDTH)
-        .max_height(max_height)
-        .default_height(max_height)
-        .vscroll(true)
-        .show(context, |ui| {
-            close = header(ui, speaker);
-            group = group_choice(ui, groups);
-            copy_to_group = copy_buttons(ui, groups);
+    ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            let close = header(ui, speaker);
+            let group = group_choice(ui, groups);
+            let copy_to_group = copy_buttons(ui, groups);
             let details = details::show(ui, speaker, catalog, layout);
             ui.separator();
             trends::show(ui, &trends_of(ui, speaker, catalog));
             ui.separator();
-            ui.horizontal(|ui| {
-                save_preset = ui.button(texts::SAVE_PRESET).clicked();
-                load_preset = ui.button(texts::LOAD_PRESET).clicked();
-            });
-            open_eq = has_eq && ui.button(texts::EQ).clicked();
-            remove = ui.button(texts::REMOVE).clicked();
-            details
+            let (save_preset, load_preset) = ui
+                .horizontal(|ui| {
+                    let save = ui.button(texts::SAVE_PRESET).clicked();
+                    let load = ui.button(texts::LOAD_PRESET).clicked();
+                    (save, load)
+                })
+                .inner;
+            let open_eq = has_eq && ui.button(texts::EQ).clicked();
+            let remove = ui.button(texts::REMOVE).clicked();
+            PanelResponse {
+                commands: details.commands,
+                layout: details.layout,
+                close,
+                remove,
+                group,
+                copy_to_group,
+                open_eq,
+                save_preset,
+                load_preset,
+            }
         })
-        .expect("the panel window is open");
-    let escape = !editing && context.input(|input| input.key_pressed(Key::Escape));
-    let editing_now = context.memory(|memory| memory.focused().is_some());
-    context.data_mut(|data| data.insert_temp(editing_id, editing_now));
-    let pressed = context.input(|input| input.pointer.any_pressed());
-    let position = context.input(|input| input.pointer.interact_pos());
-    // Popups the panel opens (a combo box's list) lie on layers above it; a click there
-    // belongs to the panel.
-    let outside = position.is_some_and(|position| {
-        let layer = context.layer_id_at(position);
-        let on_popup = layer.is_some_and(|layer| layer.order > Order::Middle);
-        layer != Some(window.response.layer_id) && !on_popup
-    });
-    let clicked_outside = pressed && outside;
-    let details = window.inner;
-    let (commands, layout) = details.map_or((Vec::new(), None), |details| {
-        (details.commands, details.layout)
-    });
-    PanelResponse {
-        commands,
-        layout,
-        close: close || escape || (clicked_outside && !opened_now),
-        remove,
-        group,
-        copy_to_group,
-        open_eq,
-        save_preset,
-        load_preset,
-    }
+        .inner
 }
 
 /// The speaker's trends; the temperature only where the catalog lists it for the model.

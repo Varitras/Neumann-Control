@@ -5,7 +5,7 @@ use eframe::egui::{ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, levels, members_of, DeskAction};
-use super::{NeumannApp, OpenPanel, COMPACT_SCROLL_ID};
+use super::{NeumannApp, COMPACT_SCROLL_ID};
 use crate::fader::output_level_range;
 use crate::groups::{compact_rows, layout, reference_level, shared_level, CompactRow};
 use crate::texts;
@@ -43,14 +43,8 @@ impl NeumannApp {
                                 })
                                 .inner;
                             actions.push(DeskAction::Commands(index, response.commands));
-                            if let Some(anchor) = response.open_panel {
-                                let opened_now = true;
-                                let open = OpenPanel {
-                                    key,
-                                    anchor,
-                                    opened_now,
-                                };
-                                actions.push(DeskAction::OpenPanel(open));
+                            if response.open_panel {
+                                actions.push(DeskAction::OpenPanel(key));
                             }
                         }
                         CompactRow::Group(group) => {

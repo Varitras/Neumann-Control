@@ -129,8 +129,9 @@ Each speaker has a channel strip:
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
   speaker's EQ window once the speaker has reported its model; on the KH 120 II also
   **Auto standby**, on the KH 750 **Mute A** and **Mute B** for its outputs A and B and its
-  **Temperature**. Above the fader every model shows the same, so
-  the faders of a mixed desk stand level.
+  **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
+  stand level,
+- **Details** at the foot, which opens the device panel.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
 speaker of that model at once:
@@ -165,10 +166,12 @@ time of the connected ones.
 
 ### Device panel
 
-Click a speaker's name. The panel lists every setting the catalog knows for that model (output,
-input, standby, device, rear panel) in two columns. Settings the model may write get a control;
-the rest are shown greyed. The panel also shows model, firmware and the masked serial number.
-Escape, **Close** or a click outside closes it.
+Click a speaker's name or **Details** under its strip. The panel opens in a window of its own,
+one per speaker, which you can move anywhere, also beside the main window or onto another screen;
+opening it again brings it to the front. It lists every setting the catalog knows for that model
+(output, input, standby, device, rear panel) in two columns. Settings the model may write get a
+control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
+number. Escape, **Close** or the window's close button closes it.
 
 Each output also has **Input mix**, one field per input (Input A, Input B, −100 to 0 dB): how
 much of each input that output plays. By default the KH 750 plays input A on output A, input B

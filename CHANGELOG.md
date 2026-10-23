@@ -58,6 +58,9 @@
   customized stays as it is.
 - The input interface and the current input are read every 2 seconds instead of every 30, so the
   current input follows a switch of the interface right away.
+- The device panel opens in a window of its own, one per speaker, that can be moved anywhere
+  (also outside the main window); a click beside it no longer closes it. **Details** under each
+  strip opens it, as does the speaker's name.
 
 ### Fixed
 
