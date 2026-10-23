@@ -55,8 +55,8 @@ them. This README uses the English names.
 
 ## Status
 
-Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated tests
-against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
+Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated
+tests against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
 KH 750 speakers the app was checked for scanning, reading, metering and writing level, mute,
 identify and standby time. Groups, the compact mode and the English interface are so far covered
 by the simulator tests only.
@@ -77,15 +77,15 @@ The app needs no installer. A release folder holds:
 | File | Content |
 |------|---------|
 | `neumann-control.exe` | The app |
-| `neumann-control-manual.html` | This manual, opened by **?** → **Manual** in the app |
+| `neumann-control-manual.html` | This README as one HTML page, opened by **?** → **Manual** in the app |
 | `LICENSE` | The app's licence (MIT) |
 | `THIRD-PARTY-LICENSES.html` | The licences of the libraries and fonts built into it |
 | `SHA256SUMS` | Checksums of the files above |
 
 Put the folder anywhere you can write to, for example in your documents, and start
 `neumann-control.exe`. The app keeps its settings and log in that folder (see
-[Files and privacy](#files-and-privacy)). To update, replace the executable; to remove the app,
-delete the folder.
+[Files and privacy](#files-and-privacy)). To update, replace the executable and the manual; to
+remove the app, delete the folder.
 
 ## Getting started
 
@@ -143,8 +143,9 @@ speaker of that model at once:
 - The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**
   adds an element, dragging one with the left button moves it (also across the fader; while you
   drag, the strip already shows it where it would land, faded, and the others make room; it
-  goes to strips of the same model only), right-click hides it, and **Default** brings back the strip above. The controls write nothing
-  while you edit; the pen again (**Done**) ends it.
+  goes to strips of the same model only), right-click hides it, and **Default** brings back the
+  model's default strip. The controls write nothing while you edit; the pen again (**Done**) ends
+  it.
 - Any number, switch, choice or read-only value of the device panel can go on a strip; the
   device name and lists such as the input mix stay in the panel.
 
@@ -193,9 +194,9 @@ name; what it does has not been measured.
 **All values…** opens a window of its own (Escape closes it) that lists every value the speaker
 reports in its own schema, with a path
 filter and copy buttons, including paths the catalog does not know yet. **Full scan** reads the
-same and writes it next to the executable as `scan-<model>-<firmware>-<date>.json` and `.txt`,
-with what the app knows about each path; serial number, MAC address, the speaker's name and any
-network address are left out. It is meant for collecting what other models report.
+same and writes it next to the executable as `scan-<model>-<firmware>-<date>-<time>.json` and
+`.txt`, with what the app knows about each path; serial number, MAC address, the speaker's name
+and any network address are left out. It is meant for collecting what other models report.
 
 **Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
 offered, the name unchecked). **Load preset…** shows what a preset would change on this speaker and
@@ -233,9 +234,9 @@ cancels.
 **Compact** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
 ungrouped speaker and per group, each with LEDs (a group: its colour), the name, a lying level
 fader with its value and the loudest input as a small meter, and a master row at the bottom. A
-speaker's row then has **Mute**, **EQ** and **Details** (the device panel); a group or the master
-row has **Mute**. A group row moves its members like the group strip. A **!** stands for a
-speaker's message (on a group or the master row, a member's), which shows on hover.
+speaker's row then has, by default, **Mute**, **EQ** and **Details** (the device panel); a group
+or the master row has **Mute**. A group row moves its members like the group strip. A **!** stands
+for a speaker's message (on a group or the master row, a member's), which shows on hover.
 
 Right-click a button of a speaker's row to hide it, move it left or right, add another (a switch
 such as **Ident.**, **Mute A**/**Mute B** or auto standby, or EQ and Details again) or go back to
@@ -247,11 +248,11 @@ its rows. Scanning and adding speakers or groups stay on the desk.
 
 ### EQ
 
-**EQ** on a speaker's strip or in its device panel opens its EQ in a window of its own (one per speaker; it can
-be moved to another screen). On the KH 750 choose the output first (Subwoofer for its own
-woofer, Output A and Output B for its two output sockets); then each EQ of that output has a
-tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("Crossover A",
-"Crossover B").
+**EQ** on a speaker's strip, its compact row or in its device panel opens its EQ in a window of
+its own (one per speaker; it can be moved to another screen). On the KH 750 choose the output
+first (Subwoofer for its own woofer, Output A and Output B for its two output sockets); then each
+EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and
+input B ("Crossover A", "Crossover B").
 
 ![The EQ window of a KH 750: the curves of EQ 2, EQ 3 and the crossovers with their sum, and the band table](docs/images/eq.png)
 
@@ -303,7 +304,8 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
   entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
-  filters and inversion have no APO line; they are written as comments and listed after saving. Room EQ Wizard cannot load text filter files.
+  filters and inversion have no APO line; they are written as comments and listed after saving.
+  Room EQ Wizard cannot load text filter files.
 - The crossovers are protected by default: no **Make flat**, no **Reset**, no EQ presets and no
   **Import…** there. Switching off **Protect crossovers** in **Settings** allows them, with a
   warning that the output then plays unfiltered.
@@ -313,7 +315,8 @@ tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("C
 **History** in the toolbar lists every setting the app wrote in this session, newest first, with
 the time, the speaker, the setting and the value before and after. A group or master move is one
 entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
-while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is itself an entry, so it can be undone too.
+while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is
+itself an entry, so it can be undone too.
 
 When a value changed since it was written (in another app or on the speaker), the app lists the
 changes and asks before writing the old value back. A speaker that is not connected is left out,
@@ -325,8 +328,8 @@ recorded.
 **Settings** sets:
 
 - the theme: like Windows, light or dark,
-- the language: like Windows, German or English. It changes at once. German shows a decimal comma; typed values
-  take a comma or a point.
+- the language: like Windows, German or English. It changes at once. German shows a decimal
+  comma; typed values take a comma or a point.
 - the lowest level the meters show: −120 to −30 dB in 10 dB steps,
 - whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
   in that time (343 m/s, at 20 °C); the speakers still get samples,
@@ -429,7 +432,8 @@ cargo build --release --locked -p neumann-control-app
 
 The executable is `target\release\neumann-control.exe`.
 
-`check.ps1` runs the quality gates: format, licence check, `cargo audit`, clippy and the tests.
+`check.ps1` runs the quality gates: guards against format widths taken at run time and stray
+carriage returns, format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree
 and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with the
 executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The manual is
@@ -440,7 +444,8 @@ cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
 ```
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
-`.cargo/mutants.toml` (simulator and drawing code left out) and the `mutants` profile in
+`.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into
+Windows' browser and network left out) and the `mutants` profile in
 `.config/nextest.toml`, which ends a run at the first failing test:
 
 ```powershell
