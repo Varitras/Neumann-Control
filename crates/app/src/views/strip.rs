@@ -3,8 +3,8 @@
 //! and the last message. The strip only reports gestures; `writes` decides what becomes a command.
 
 use eframe::egui::{
-    self, vec2, Align, Button, Color32, ComboBox, CornerRadius, Label, Layout, Rect, Response,
-    RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
+    self, vec2, Align, Button, Color32, ComboBox, CornerRadius, CursorIcon, DragAndDrop, Label,
+    Layout, PointerButton, Rect, Response, RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{DeskSettings, StripElement};
@@ -316,8 +316,8 @@ fn elements(
     }
 }
 
-/// Draws one element with its context menu. While editing it is a still control beside a ×,
-/// dragged as a whole, and what is let go on it lands before it.
+/// Draws one element with its context menu (which also hides it). While editing it is a still
+/// control, dragged as a whole with the primary button, and what is let go on it lands before it.
 fn element_cell(
     ui: &mut Ui,
     element: StripElement,
@@ -331,7 +331,7 @@ fn element_cell(
     };
     let rect = match arrange.editing {
         false => ui.scope(draw).response.rect,
-        true => editable_cell(ui, &element, arrange.catalog, wishes, draw),
+        true => editable_cell(ui, &element, draw),
     };
     arrange_at(ui, rect, element, offers, arrange, wishes);
 }
@@ -351,12 +351,7 @@ fn inline_cell(
         return;
     };
     if arrange.editing {
-        let drag_id = ui
-            .scope_id()
-            .with((DRAG_ID, layout_menu::menu_key(&element)));
-        let handle = ui.interact(response.rect, drag_id, Sense::drag());
-        handle.dnd_set_drag_payload(element.clone());
-        hide_button(ui, &element, arrange.catalog, wishes);
+        drag_handle(ui, response.rect, &element);
     }
     arrange_at(ui, response.rect, element, offers, arrange, wishes);
 }
@@ -387,40 +382,24 @@ fn arrange_at(
     }
 }
 
-fn editable_cell(
-    ui: &mut Ui,
-    element: &StripElement,
-    catalog: &Catalog,
-    wishes: &mut Wishes,
-    draw: impl FnOnce(&mut Ui),
-) -> Rect {
+fn editable_cell(ui: &mut Ui, element: &StripElement, draw: impl FnOnce(&mut Ui)) -> Rect {
+    let rect = ui.scope(|ui| ui.add_enabled_ui(false, draw)).response.rect;
+    drag_handle(ui, rect, element);
+    rect
+}
+
+/// Lies over a still element while editing. Only the primary button drags: the secondary one
+/// opens the element's menu, and egui would start a drag for it as well.
+fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement) {
     let drag_id = ui
         .scope_id()
         .with((DRAG_ID, layout_menu::menu_key(element)));
-    // Under the element: beside it the × reached into the neighbouring knob's column, on it
-    // it covered the knob.
-    ui.vertical_centered(|ui| {
-        ui.dnd_drag_source(drag_id, element.clone(), |ui| {
-            ui.add_enabled_ui(false, draw);
-        });
-        hide_button(ui, element, catalog, wishes);
-    })
-    .response
-    .rect
-}
-
-/// The × beside a button in a row while editing.
-fn hide_button(ui: &mut Ui, element: &StripElement, catalog: &Catalog, wishes: &mut Wishes) {
-    let hide = ui.small_button(texts::HIDE_MARK);
-    on_hide(hide, element, catalog, wishes);
-}
-
-/// Names the × after its element and hides that element when it is clicked.
-fn on_hide(hide: Response, element: &StripElement, catalog: &Catalog, wishes: &mut Wishes) {
-    let hide_label = texts::hide_element(&layout_menu::element_label(element, catalog));
-    hide.widget_info(|| WidgetInfo::labeled(Role::Button, true, &hide_label));
-    if hide.on_hover_text(&hide_label).clicked() {
-        wishes.layout = Some(LayoutChange::Remove(element.clone()));
+    let handle = ui.interact(rect, drag_id, Sense::drag());
+    if handle.drag_started_by(PointerButton::Primary) {
+        DragAndDrop::set_payload(ui.ctx(), element.clone());
+    }
+    if handle.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
 }
 

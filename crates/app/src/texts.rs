@@ -155,8 +155,6 @@ pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
 pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
 /// The toolbar's narrow edit button; its name for screen readers is `CUSTOMIZE_STRIPS`/`DONE`.
 pub const EDIT_MARK: Text = Text::new("↕", "↕");
-/// The × beside an element in edit mode; its name is `hide_element`.
-pub const HIDE_MARK: Text = Text::new("×", "×");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
@@ -369,11 +367,6 @@ pub fn applies_to_every(model: &str) -> String {
         format!("gilt für alle {model}"),
         format!("applies to every {model}"),
     )
-}
-
-/// The × beside an element in edit mode, named after the element.
-pub fn hide_element(name: &str) -> String {
-    pick(format!("Ausblenden: {name}"), format!("Hide {name}"))
 }
 
 pub fn speaker_count(count: usize) -> String {

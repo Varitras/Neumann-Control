@@ -68,6 +68,8 @@
 
 ### Fixed
 
+- In edit mode a right-drag moved the element along; only the left button drags now, and the ×
+  beside each element is gone (right-click → **Hide** hides it).
 - A speaker not reached since the start showed no meters, and their caption lay over the scale;
   it now shows two empty meters until the first reading.
 - Every write to the KH 120 II's 20-band EQ 3 was refused by the speaker ("code 413"): the

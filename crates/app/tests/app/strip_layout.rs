@@ -250,11 +250,12 @@ fn start_editing(harness: &mut Harness<'static, NeumannApp>) {
     harness.run_steps(2);
 }
 
-fn hide_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, path: &str) {
-    harness
-        .get_by_label(&texts::hide_element(label(path)))
-        .click();
+/// Edit mode has no × any more: an element is hidden from its context menu. `shown` is the
+/// element's text on the strip ("Ident." for identify).
+fn hide_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, shown: &str) {
+    harness.get_by_label(shown).click_secondary();
     harness.run_steps(2);
+    choose(harness, texts::HIDE.get());
 }
 
 fn add_in_edit_mode(harness: &mut Harness<'static, NeumannApp>, offer: &str) {
@@ -308,7 +309,7 @@ fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
 fn editing_hides_and_adds() {
     let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
-    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    hide_in_edit_mode(&mut harness, texts::IDENTIFY.get());
     add_in_edit_mode(&mut harness, label(paths::PHASE_INVERSION));
     harness.get_by_label(texts::DONE.get()).click();
     harness.run_steps(2);
@@ -395,7 +396,7 @@ fn an_unreachable_strip_can_still_be_edited() {
     simulators.remove(0).stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     start_editing(&mut harness);
-    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    hide_in_edit_mode(&mut harness, texts::IDENTIFY.get());
     let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
     assert!(!stored.below.contains(&element(paths::IDENTIFY)));
 }
@@ -404,7 +405,7 @@ fn an_unreachable_strip_can_still_be_edited() {
 fn default_restores_todays_strip() {
     let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
-    hide_in_edit_mode(&mut harness, paths::IDENTIFY);
+    hide_in_edit_mode(&mut harness, texts::IDENTIFY.get());
     harness.get_by_label(texts::DEFAULT_LAYOUT.get()).click();
     harness.run_steps(2);
     let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
@@ -421,8 +422,6 @@ fn compact_mode_ends_editing() {
         harness.run_steps(3);
     }
     assert!(harness.query_by_label(texts::ADD_ELEMENT.get()).is_none());
-    let hide = texts::hide_element(label(paths::IDENTIFY));
-    assert!(harness.query_by_label(&hide).is_none());
 }
 
 #[test]
@@ -468,23 +467,37 @@ fn the_button_row_keeps_its_size_and_its_words() {
     }
 }
 
+/// A right click opens the element's menu; with the button held and moved it does not drag the
+/// element along (it used to jump to the pointer).
 #[test]
-fn in_edit_mode_no_hide_mark_covers_a_knob() {
-    let (_simulators, _directory, mut harness) =
-        desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+fn a_right_drag_in_edit_mode_moves_nothing() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
-    let knobs = [paths::DELAY, paths::STANDBY_TIME];
-    for own in knobs {
-        let mark = harness
-            .get_by_label(&texts::hide_element(label(own)))
-            .rect();
-        for knob_path in knobs {
-            let knob = harness
-                .get_by_role_and_label(Role::Slider, label(knob_path))
-                .rect();
-            assert!(!mark.intersects(knob), "the × of {own} lies on {knob_path}");
-        }
+    let from = center(&harness, Role::Slider, label(paths::DELAY));
+    let to = center(&harness, Role::Button, texts::MUTE.get());
+    harness.hover_at(from);
+    let press = |pressed, pos| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Secondary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    harness.event(press(true, from));
+    harness.step();
+    for frame in 1..=DRAG_FRAMES {
+        let progress = frame as f32 / DRAG_FRAMES as f32;
+        harness.hover_at(from + (to - from) * progress);
+        harness.step();
+        assert_eq!(
+            center(&harness, Role::Slider, label(paths::DELAY)),
+            from,
+            "the knob followed the right button"
+        );
     }
+    harness.event(press(false, to));
+    harness.run_steps(3);
+    let stored = stored_layout(&directory, MONITOR).expect("the test layout");
+    assert_eq!(stored.above.first(), Some(&element(paths::DELAY)));
 }
 
 /// The input meters' places while the levels change, in normal and in edit mode.

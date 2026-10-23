@@ -140,8 +140,9 @@ speaker of that model at once:
 - Right-click a knob or button on a strip to **Hide** it, **Swap for …** another setting, or move it
   up or down (past the fader too). Right-click a row in the device panel to put it on the strip
   (**Add to strip**) or take it off.
-- **↕** in the toolbar (**Customize strips**) switches every strip into edit mode: **×** hides an
-  element, **+ Add** adds one, dragging an element moves it (also across the fader), and
+- **↕** in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add** adds
+  an element, dragging one with the left button moves it (also across the fader), right-click
+  hides it, and
   **Default** brings back the strip above. The controls write nothing while you edit; **↕** again
   (**Done**) ends it.
 - Any number, switch, choice or read-only value of the device panel can go on a strip; the
