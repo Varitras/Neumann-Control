@@ -120,15 +120,16 @@ Each speaker has a channel strip:
 - its name (click it to open the device panel) and a grip to drag the strip elsewhere,
 - four LEDs: connection, clip, device warning, and LOCAL (the rear CONTROL switch locks writing),
 - by default the **Input interface** (a choice), the **Current input** and the standby
-  **Countdown**; set-up values such as the delay and the standby time are in the device panel,
+  **Countdown**; set-up values such as the delay, the standby time and the logo brightness are in
+  the device panel,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
   speaker's EQ window once the speaker has reported its model; on the KH 120 II also
-  **Auto standby** and a knob for the **Logo brightness**, on the KH 750 **Mute A** and **Mute B**
-  for its outputs A and B and its **Temperature**. Above the fader every model shows the same, so
+  **Auto standby**, on the KH 750 **Mute A** and **Mute B** for its outputs A and B and its
+  **Temperature**. Above the fader every model shows the same, so
   the faders of a mixed desk stand level.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every

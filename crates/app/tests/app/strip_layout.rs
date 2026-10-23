@@ -57,7 +57,6 @@ fn without_a_layout_the_strip_shows_the_working_values() {
         paths::INPUT_INTERFACE,
         paths::CURRENT_INPUT,
         paths::STANDBY_COUNTDOWN,
-        paths::LOGO_BRIGHTNESS,
         paths::STANDBY_ENABLED,
     ];
     for path in shown {
@@ -66,7 +65,7 @@ fn without_a_layout_the_strip_shows_the_working_values() {
             "{path}"
         );
     }
-    for set_once in [paths::DELAY, paths::STANDBY_TIME] {
+    for set_once in [paths::DELAY, paths::STANDBY_TIME, paths::LOGO_BRIGHTNESS] {
         assert!(
             harness.query_all_by_label(label(set_once)).next().is_none(),
             "{set_once}"

@@ -36,9 +36,9 @@ pub enum LayoutChange {
     Reset,
 }
 
-/// What is looked at or switched while working; set-up values (delay, standby time, phase) stay
-/// in the panel. Above the fader only what every model has, so the faders of a mixed desk stand
-/// level; each model gets the ones it has of the rest.
+/// What is looked at or switched while working; set-up values (delay, standby time, phase, logo)
+/// stay in the panel. Above the fader only what every model has, so the faders of a mixed desk
+/// stand level; each model gets the ones it has of the rest.
 const DEFAULT_ABOVE: [&str; 3] = [
     paths::INPUT_INTERFACE,
     paths::CURRENT_INPUT,
@@ -52,7 +52,7 @@ const DEFAULT_BUTTONS: [&str; 5] = [
     paths::STANDBY_ENABLED,
 ];
 /// After the buttons and EQ: the model's own values.
-const DEFAULT_MODEL_VALUES: [&str; 2] = [paths::TEMPERATURE, paths::LOGO_BRIGHTNESS];
+const DEFAULT_MODEL_VALUES: [&str; 1] = [paths::TEMPERATURE];
 
 /// The working values above the fader; the buttons, EQ and the model's own values below.
 pub fn default_layout(product: &str, catalog: &Catalog) -> StoredStripLayout {
@@ -296,7 +296,6 @@ mod tests {
         assert_eq!(layout.above, elements(&WORKING_ABOVE));
         let mut below = elements(&[paths::MUTE, paths::IDENTIFY, paths::STANDBY_ENABLED]);
         below.push(StripElement::Eq);
-        below.push(element(paths::LOGO_BRIGHTNESS));
         assert_eq!(layout.below, below);
     }
 
