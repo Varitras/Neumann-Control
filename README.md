@@ -12,10 +12,9 @@ strips on a desk, with level faders, meters, groups and a master.
 > This is an independent project. It is not affiliated with or endorsed by Neumann or
 > Sennheiser.
 
-![The desk: four speakers, a group strip, and the device panel of a KH 750](docs/images/desk.png)
+![The desk: two KH 120 II and two KH 750 with their meters, and the master strip](docs/images/desk.png)
 
-*The desk with four speakers (two KH 120 II, two KH 750), the group strip "Front", and the device
-panel of one KH 750 open. The interface is shown in German.*
+*The desk with four speakers (two KH 120 II, two KH 750) and the master strip.*
 
 ## Contents
 
@@ -36,22 +35,28 @@ panel of one KH 750 open. The interface is shown in German.*
 
 - **Find speakers** on the local network (mDNS) and choose which to add, or add one by its IPv6
   address. Added speakers are remembered.
-- **A desk of channel strips**: status LEDs, delay and standby knobs, a level fader, input
-  meters (on the KH 750 also its output meters), mute and identify.
+- **A desk of channel strips**: status LEDs, the input and the standby countdown, a level fader,
+  input meters (on the KH 750 also its output meters), mute and identify; what a strip shows can
+  be changed per model.
 - **A device panel** per speaker with every setting the catalog knows for its model.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
+- **EQ** in a window of its own: a computed response graph and a table of the bands.
+- **History and undo**: every write of the session, each one revertible, Ctrl+Z for the newest.
+- **Presets** of chosen settings and of EQs, and a comparison of EQ curves between speakers.
+- **Windows volume** of a playback device as a strip on the desk.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
 
-The interface starts in German; switch it to English in **Settings** → **Language** (in German:
-**Einstellungen** → **Sprache**). This README uses the English names.
+The interface follows the Windows display language: German on a German Windows, English on any
+other. **Settings** → **Language** (in German: **Einstellungen** → **Sprache**) can fix one of
+them. This README uses the English names.
 
 ## Status
 
-Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated tests
-against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
+Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated
+tests against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
 KH 750 speakers the app was checked for scanning, reading, metering and writing level, mute,
 identify and standby time. Groups, the compact mode and the English interface are so far covered
 by the simulator tests only.
@@ -72,21 +77,23 @@ The app needs no installer. A release folder holds:
 | File | Content |
 |------|---------|
 | `neumann-control.exe` | The app |
+| `neumann-control-manual.html` | This README as one HTML page, opened by **?** → **Manual** in the app |
 | `LICENSE` | The app's licence (MIT) |
 | `THIRD-PARTY-LICENSES.html` | The licences of the libraries and fonts built into it |
 | `SHA256SUMS` | Checksums of the files above |
 
 Put the folder anywhere you can write to, for example in your documents, and start
 `neumann-control.exe`. The app keeps its settings and log in that folder (see
-[Files and privacy](#files-and-privacy)). To update, replace the executable; to remove the app,
-delete the folder.
+[Files and privacy](#files-and-privacy)). To update, replace the executable and the manual; to
+remove the app, delete the folder.
 
 ## Getting started
 
 1. Start `neumann-control.exe` and press **Scan**. The scan takes 4 seconds. The dialog
    "Speakers found" lists every speaker found with its name, model and masked address. Check the
    ones you want and press **Add**; each gets a strip. Speakers that already have one are marked
-   "already added". **Cancel** adds nothing.
+   "already added". **Scan again** looks once more, for a speaker that was still starting up;
+   the list and your checks stay, new speakers are added below. **Cancel** adds nothing.
 2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
    the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
@@ -97,9 +104,12 @@ delete the folder.
 
    or with `netsh interface ipv6 show interfaces` (column `Idx`).
 
-Added speakers are remembered and reconnected at every start without a scan. When a later scan
-finds a remembered speaker at a different address (link-local addresses and interface indexes can
-change), the stored address is updated. IPv4 addresses are not accepted: the speakers are
+Added speakers are remembered and reconnected at every start. When a scan finds a remembered
+speaker at a different address (link-local addresses and interface indexes can change), the
+stored address is updated. The app scans for that by itself, without a dialog: once at the start,
+and when a remembered speaker stays unreachable for 30 seconds, then at most every 5 minutes
+while one is missing. Speakers are matched by their serial; one added by address that never
+connected has none yet and is not followed. IPv4 addresses are not accepted: the speakers are
 reachable only over IPv6.
 
 ## Using the app
@@ -110,17 +120,45 @@ Each speaker has a channel strip:
 
 - its name (click it to open the device panel) and a grip to drag the strip elsewhere,
 - four LEDs: connection, clip, device warning, and LOCAL (the rear CONTROL switch locks writing),
-- knobs for **Delay** (shown in ms) and **Standby time**,
+- by default the **Input interface** (a choice), the **Current input** and the standby
+  **Countdown**; set-up values such as the delay, the standby time and the logo brightness are in
+  the device panel,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
-  and Sub, captioned "Out",
-- the response time, **Mute** and **Ident.** (identify).
+  and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
+  number under the channel shows it in whole dB ("–" below the meter range),
+- the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
+  speaker's EQ window once the speaker has reported its model; on the KH 120 II also
+  **Auto standby**, on the KH 750 **Mute A** and **Mute B** for its outputs A and B and its
+  **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
+  stand level,
+- **Details** at the foot, which opens the device panel.
+
+What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
+speaker of that model at once:
+
+- Right-click a knob or button on a strip to **Hide** it, **Swap for …** another setting, or move it
+  up or down (past the fader too). Right-click a row in the device panel to put it on the strip
+  (**Add to strip**) or take it off.
+- The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**
+  adds an element, dragging one with the left button moves it (also across the fader; while you
+  drag, the strip already shows it where it would land, faded, and the others make room; it
+  goes to strips of the same model only), right-click hides it, and **Default** brings back the
+  model's default strip. The controls write nothing while you edit; the pen again (**Done**) ends
+  it.
+- Any number, switch, choice or read-only value of the device panel can go on a strip; the
+  device name and lists such as the input mix stay in the panel.
 
 On the KH 120 II the input meters are captioned with the rear input switch (Analog, AES3 L,
 AES3 R, Mono), and a dot marks the channels the speaker plays. That channel A is the left AES3
 channel is assumed, not measured.
 
-The toolbar shows the number of speakers and the average response time of the connected ones.
+At the first start, and whenever no window size is saved, the window is made as large as the
+desk needs and grows with it (a speaker added, a strip that widens once its model is known)
+until you size it yourself; from then on the app keeps the size you chose.
+
+The toolbar shows the number of speakers (not in the narrowest window) and the average response
+time of the connected ones.
 
 ### Faders and knobs
 
@@ -129,19 +167,46 @@ The toolbar shows the number of speakers and the average response time of the co
   below it lets you type one. While you drag, the value stands beside the fader.
 - **Knobs**: turn them by moving the pointer around the knob (clockwise is more; one and a half
   turns cover the whole range), with Shift for fine steps, or with the mouse wheel. A double-click
-  lets you type a value (the delay in ms). While a knob moves, its value stands beside it.
+  lets you type a value (the delay in ms, or in meters, see below). While a knob moves, its value
+  stands beside it.
 - Values are written once: when you let go (only if the value changed), when the wheel stops, or
   when you press Enter. Escape cancels a drag or a typed value.
 
 ### Device panel
 
-Click a speaker's name. The panel lists every setting the catalog knows for that model (output,
-input, standby, device, rear panel) in two columns. Settings the model may write get a control;
-the rest are shown greyed. The panel also shows model, firmware and the masked serial number.
-Escape, **Close** or a click outside closes it.
+Click a speaker's name or **Details** under its strip. The panel opens in a window of its own,
+one per speaker, at the top left of the main window and no taller than the screen leaves below
+it, which you can move anywhere, also beside the main window or onto another screen;
+opening it again brings it to the front. It lists every setting the catalog knows for that model
+by topic in two columns: the outputs first and together (on the KH 750 its own,
+then A and B), then input, standby, device and rear panel; in each topic what can be set comes
+before what is only shown. Settings the model may write get a
+control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
+number. Escape, **Close** or the window's close button closes it.
 
-**All values…** lists every value the speaker reports in its own schema, with a path
-filter and copy buttons, including paths the catalog does not know yet.
+![The device panel of a KH 750: its outputs on the left, standby, device and rear panel on the right](docs/images/panel.png)
+
+Each output also has **Input mix**, one field per input (Input A, Input B, −100 to 0 dB): how
+much of each input that output plays. By default the KH 750 plays input A on output A, input B
+on output B and both on its own woofer. **Mute persist** is the speaker's own setting of that
+name; what it does has not been measured.
+
+**All values…** opens a window of its own (Escape closes it) that lists every value the speaker
+reports in its own schema, with a path
+filter and copy buttons, including paths the catalog does not know yet. **Full scan** reads the
+same and writes it next to the executable as `scan-<model>-<firmware>-<date>-<time>.json` and
+`.txt`, with what the app knows about each path; serial number, MAC address, the speaker's name
+and any network address are left out. It is meant for collecting what other models report.
+
+**Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
+offered, the name unchecked). **Load preset…** shows what a preset would change on this speaker and
+writes it as one history entry; settings this model may not write are listed as skipped.
+
+**Trend (2 h)** below the settings shows what the app read in this session, at most the last two
+hours, on models with a temperature (KH 750): the temperature as a line, with its highest and
+lowest value at the left and the current one at its end in °C, and the warnings as a bar, red
+while a warning was active. Hover over them for the value and how long ago it was read.
+Gaps mark the times the speaker could not be read.
 
 To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
 longer remembered, and it also leaves its group and its place in the order.
@@ -157,7 +222,7 @@ longer remembered, and it also leaves its group and its place in the order.
   change on one member goes to the others whose model may write it. Members that are not
   connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
-- Click the group's name to rename or delete it.
+- Click the group's name or **Details** at the foot of the group strip to rename or delete it.
 - The master strip at the end moves and mutes all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the
@@ -168,22 +233,122 @@ cancels.
 
 **Compact** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
 ungrouped speaker and per group, each with LEDs (a group: its colour), the name, a lying level
-fader with its value, the loudest input as a small meter and **Mute**, and a master row at the
-bottom. A group row moves its members like the group strip. A **!** stands for a speaker's message
-(on a group or the master row, a member's), which shows on hover.
+fader with its value and the loudest input as a small meter, and a master row at the bottom. A
+speaker's row then has, by default, **Mute**, **EQ** and **Details** (the device panel); a group
+or the master row has **Mute**. A group row moves its members like the group strip. A **!** stands
+for a speaker's message (on a group or the master row, a member's), which shows on hover.
+
+Right-click a button of a speaker's row to hide it, move it left or right, add another (a switch
+such as **Ident.**, **Mute A**/**Mute B** or auto standby, or EQ and Details again) or go back to
+**Default**; right-click elsewhere in the row to add one when none is left. The buttons are chosen
+per model, like the strips.
 
 The compact window keeps its own size and position and scrolls sideways when it is narrower than
 its rows. Scanning and adding speakers or groups stay on the desk.
+
+### EQ
+
+**EQ** on a speaker's strip, its compact row or in its device panel opens its EQ in a window of
+its own (one per speaker; it can be moved to another screen). On the KH 750 choose the output
+first (Subwoofer for its own woofer, Output A and Output B for its two output sockets); then each
+EQ of that output has a tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and
+input B ("Crossover A", "Crossover B").
+
+![The EQ window of a KH 750: the curves of EQ 2, EQ 3 and the crossovers with their sum, and the band table](docs/images/eq.png)
+
+- The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
+  10 Hz to 24 kHz. The curves are computed from the settings, not measured, as the speakers'
+  digital filters at 48 kHz (checked against measurements of every filter type). Each band has two
+  levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
+  height of its filter (the peak or shelf); at the band's frequency both add up. For a shelving
+  filter the speakers' **Q** is its slope (1 is the steepest without overshoot), as measured.
+- Each band of the chosen EQ that is on is a point in its band's colour with its number inside;
+  bands that are off have none and are switched on in the table. Drag a point to change
+  frequency and boost, turn the mouse wheel over it to change Q. Level is changed in the table
+  only, so a drag never moves the whole spectrum.
+- A point stands at its band's own height; the curves add every band up, so a point can lie
+  above or below them. Each band's own curve is drawn thin in its colour, the chosen band's
+  stronger with its area to 0 dB.
+- The table below lists every band with on/off, type, frequency, Q, level and boost; numbers take
+  a comma or a point, and a value outside the allowed range is refused with the reason.
+- A change is written when the gesture ends, and only for that one band, so the other bands
+  stay as they are. Every change appears in the history and can be undone.
+- **Make flat** sets level and boost of every band of the chosen EQ to 0 dB, after a question;
+  frequency, Q, type and on/off stay. It is one history entry. The crossovers have no **Make
+  flat**: flattening them would remove the subwoofer's low pass.
+- **Reset** switches every band of the chosen EQ off and sets it back to PARAMETRIC, 100 Hz,
+  Q 0.7, level and boost 0 dB, after a question. The bands are switched off first; it is one
+  history entry.
+- **Undo** in the window takes back the speaker's newest EQ change, also with Ctrl+Z while the
+  window is in front; the line beside it says which change that is. When the values changed
+  since, the window asks first.
+- **Compare with** lists the other speakers with the same output; a checked one shows the sum of
+  its EQs there as a dashed line.
+- **Save as EQ preset…** keeps all bands of the chosen EQ under a name; **Load EQ preset…** offers
+  the presets with the same number of bands, shows which bands change and writes them as one
+  history entry. Writing several settings of a band one after another can pass a short level
+  jump.
+- **Import…** reads the filter lines of an Equalizer APO `config.txt` or of a filter file Room EQ
+  Wizard exported for its "Generic" equaliser (`Filter 1: ON PK Fc 100 Hz Gain -3.0 dB Q 1.41`).
+  A filter with a number goes to that band, one without to the next band; bands the file does not
+  name are switched off; empty slots (`None`) are passed over. The file's `Gain` becomes the band's
+  boost. Taken over: peaking (`PK`, `PEQ`, `Modal`), low and high pass with Q (`LP`/`LPQ`/`LP Q`,
+  `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), band pass (`BP`), notch (`NO`),
+  all pass (`AP`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
+  instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
+  shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1).
+  Refused: shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, a
+  missing Q, more filters than the EQ has bands and values the speaker would refuse: then nothing
+  is written. `Preamp` and other APO commands are not taken over; the preview
+  names them. The preview shows which bands change before **Write** sends them as one history
+  entry.
+- **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
+  `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
+  filters and inversion have no APO line; they are written as comments and listed after saving.
+  Room EQ Wizard cannot load text filter files.
+- The crossovers are protected by default: no **Make flat**, no **Reset**, no EQ presets and no
+  **Import…** there. Switching off **Protect crossovers** in **Settings** allows them, with a
+  warning that the output then plays unfiltered.
+
+### History and undo
+
+**History** in the toolbar lists every setting the app wrote in this session, newest first, with
+the time, the speaker, the setting and the value before and after. A group or master move is one
+entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
+while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is
+itself an entry, so it can be undone too.
+
+When a value changed since it was written (in another app or on the speaker), the app lists the
+changes and asks before writing the old value back. A speaker that is not connected is left out,
+and its change can be undone later. The history starts empty at every start; identify is not
+recorded.
 
 ### Settings
 
 **Settings** sets:
 
 - the theme: like Windows, light or dark,
-- the language: German or English. It changes at once. German shows a decimal comma; typed values
-  take a comma or a point.
-- the lowest level the meters show: −120, −90 or −60 dB,
-- whether response times are shown.
+- the language: like Windows, German or English. It changes at once. German shows a decimal
+  comma; typed values take a comma or a point.
+- the lowest level the meters show: −120 to −30 dB in 10 dB steps,
+- whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
+  in that time (343 m/s, at 20 °C); the speakers still get samples,
+- whether response times are shown,
+- whether the master strip (and its row in the compact mode) is shown,
+- whether the EQ crossovers are protected (on by default),
+- the EQ display: own curves of all bands, or only of the chosen band and the one under the
+  pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
+- whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
+  default device or a chosen one): a fader in percent, mute and a peak meter per channel. It
+  sets Windows' own volume, like the volume slider in the taskbar.
+
+### Help and updates
+
+**?** in the toolbar opens the **Manual** (the file next to the executable, in your browser), the
+[**Wiki**](https://github.com/Varitras/Neumann-Control/wiki) with the SSC protocol reference and
+the speakers' measured behaviour, and **About Neumann Control**: version, licence and a link to
+the project page. **Check for updates** there asks GitHub once for the newest release and, if it
+is newer, links to its page; the app does not download or install anything itself.
 
 ### Control mode
 
@@ -213,7 +378,7 @@ When the app writes to a speaker:
 | Model | Read | Write |
 |-------|------|-------|
 | KH 120 II | yes | yes |
-| KH 750 | yes | yes, except standby (see [Known limits](#known-limits)) |
+| KH 750 | yes | yes, except auto standby (see [Known limits](#known-limits)) |
 | Other models in the catalog (for example KH 80, KH 150) | yes | no |
 
 The catalog is [`crates/core/src/paths.toml`](crates/core/src/paths.toml). A product that is not
@@ -223,11 +388,16 @@ models.
 
 ## Files and privacy
 
+The app talks to the speakers on the local network. It goes to the internet only when you click
+**Check for updates**: then it asks `api.github.com` for the latest release of this project,
+with the app's name and version as its user agent.
+
 The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial), groups and the strip order, the window position and size for the desk and the compact mode, and the choices from **Settings** |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, each model's strip layout and compact buttons, and the presets |
+| `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
@@ -244,8 +414,10 @@ fall back to their defaults, the rest is kept, and a copy of the file is kept as
   switched off ("unreachable (off or standby)").
 - A speaker accepts only a few TCP connections at a time (about four). With more clients connected
   (vendor app, home automation), it can look unreachable as well.
-- On the KH 750, auto standby, standby time and standby level are shown but not written; writing
-  them is untested on that model.
+- On the KH 750, auto standby is shown but not written: it follows the AUTO STANDBY switch on the
+  back, and the speaker refuses writes to it.
+- What **Mute persist** does is not known yet; the app only shows and writes the speaker's own
+  setting.
 - Models other than the KH 120 II and the KH 750 are read-only.
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.
@@ -260,13 +432,33 @@ cargo build --release --locked -p neumann-control-app
 
 The executable is `target\release\neumann-control.exe`.
 
-`check.ps1` runs the quality gates: format, licence check, `cargo audit`, clippy and the tests.
+`check.ps1` runs the quality gates: guards against format widths taken at run time and stray
+carriage returns, format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree
-and writes `release\<version>\` with the executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
-`SHA256SUMS`.
+and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with the
+executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The manual is
+this README as one HTML file with its pictures embedded, made by `crates/manual`:
 
-The workspace has two crates: `crates/core` (the SSC client, discovery, the path catalog,
-settings and a speaker simulator for the tests) and `crates/app` (the window).
+```powershell
+cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
+```
+
+Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
+`.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into
+Windows' browser and network left out) and the `mutants` profile in
+`.config/nextest.toml`, which ends a run at the first failing test:
+
+```powershell
+$env:NEXTEST_PROFILE = 'mutants'
+cargo mutants --workspace -j 4                    # everything, about four hours
+cargo mutants --workspace -j 4 --in-diff <patch>  # the lines a change touched
+```
+
+More than four jobs did not make it faster on a 32-thread machine.
+
+The workspace has three crates: `crates/core` (the SSC client, discovery, the path catalog,
+settings and a speaker simulator for the tests), `crates/app` (the window) and `crates/manual`
+(the manual generator, not part of the app).
 
 ## Licence
 
