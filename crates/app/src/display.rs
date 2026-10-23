@@ -1,7 +1,10 @@
 //! How a value the speaker reports reads on screen: the raw value with its unit, switches as
 //! on/off, lists joined, and temperatures in whole degrees Celsius.
 
+use std::cell::Cell;
+
 use neumann_control_core::catalog::{Conversion, Entry};
+use neumann_control_core::settings::DelayUnit;
 use serde_json::Value;
 
 use crate::texts;
@@ -13,6 +16,26 @@ const LIST_SEPARATOR: &str = ", ";
 const DEVICE_VERSION_SEPARATOR: char = '_';
 const SHOWN_VERSION_SEPARATOR: char = '.';
 
+thread_local! {
+    /// Like the language: read on the UI thread only, per thread for parallel UI tests.
+    static DELAY_UNIT: Cell<DelayUnit> = const { Cell::new(DelayUnit::Milliseconds) };
+}
+
+/// The unit every delay of this thread is shown and typed in from now on.
+pub fn set_delay_unit(unit: DelayUnit) {
+    DELAY_UNIT.with(|current| current.set(unit));
+}
+
+/// The conversion `entry`'s values are shown and typed with: the catalog's, with the delay in
+/// the chosen unit. Every reader of a converted value goes through here.
+pub fn conversion_of(entry: &Entry) -> Option<Conversion> {
+    let meters = DELAY_UNIT.with(Cell::get) == DelayUnit::Meters;
+    match entry.conversion {
+        Some(Conversion::SamplesToMilliseconds) if meters => Some(Conversion::SamplesToMeters),
+        conversion => conversion,
+    }
+}
+
 /// The device reports its firmware as `major_minor_patch`; people write it with dots.
 pub fn firmware_version(reported: &str) -> String {
     reported.replace(
@@ -22,7 +45,7 @@ pub fn firmware_version(reported: &str) -> String {
 }
 
 pub fn shown_value(entry: &Entry, value: &Value) -> String {
-    if let (Some(conversion), Some(number)) = (entry.conversion, value.as_f64()) {
+    if let (Some(conversion), Some(number)) = (conversion_of(entry), value.as_f64()) {
         return converted(conversion, number);
     }
     let text = capped(&raw_text(value));
@@ -43,14 +66,16 @@ pub fn capped(text: &str) -> String {
 }
 
 /// In the unit shown. The device reports whole kelvin, so tenths of a degree would only show
-/// rounding noise; a delay sample is about 0.02 ms, so it needs two decimals.
+/// rounding noise; a delay sample is about 0.02 ms (7 mm), so it needs two decimals.
 pub fn converted(conversion: Conversion, number: f64) -> String {
     let shown = conversion.apply(number);
     let unit = converted_unit(conversion);
     match conversion {
         // Adding zero turns the -0 of a slightly negative reading into 0.
         Conversion::KelvinToCelsius => format!("{} {unit}", shown.round() + 0.0),
-        Conversion::SamplesToMilliseconds => format!("{} {unit}", texts::two_decimals(shown)),
+        Conversion::SamplesToMilliseconds | Conversion::SamplesToMeters => {
+            format!("{} {unit}", texts::two_decimals(shown))
+        }
     }
 }
 
@@ -59,6 +84,7 @@ pub fn converted_unit(conversion: Conversion) -> &'static str {
     match conversion {
         Conversion::KelvinToCelsius => texts::CELSIUS,
         Conversion::SamplesToMilliseconds => texts::MILLISECONDS,
+        Conversion::SamplesToMeters => texts::METERS,
     }
 }
 
@@ -98,6 +124,25 @@ mod tests {
         assert!(shown.ends_with(ELLIPSIS));
         let exact = "x".repeat(VALUE_CHARACTER_LIMIT);
         assert_eq!(capped(&exact), exact);
+    }
+
+    #[test]
+    fn delay_is_shown_and_typed_in_meters_when_chosen() {
+        let delay = entry("audio/out/delay");
+        set_delay_unit(DelayUnit::Meters);
+        let shown = shown_value(delay, &json!(480));
+        let typed = crate::gesture::typed_value("3,43", conversion_of(delay));
+        set_delay_unit(DelayUnit::Milliseconds);
+        assert_eq!(shown, "3,43 m");
+        assert!((typed.unwrap() - 480.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn only_the_delay_follows_the_delay_unit() {
+        set_delay_unit(DelayUnit::Meters);
+        let temperature = conversion_of(entry("device/temperature"));
+        set_delay_unit(DelayUnit::Milliseconds);
+        assert_eq!(temperature, Some(Conversion::KelvinToCelsius));
     }
 
     #[test]

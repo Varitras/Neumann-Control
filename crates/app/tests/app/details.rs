@@ -676,7 +676,7 @@ const LEVEL_POINTER: &str = "/audio/out/level";
 #[test]
 fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     let (simulator, directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    click_in_panel(&mut harness, texts::SAVE_PRESET.get());
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
     harness.run_steps(3);
     harness
         .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
@@ -712,7 +712,7 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
         open_panel(&mut harness, device_name(SimModel::Kh120Ii));
     }
-    click_in_panel(&mut harness, texts::LOAD_PRESET.get());
+    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
         .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))

@@ -160,7 +160,8 @@ time of the connected ones.
   below it lets you type one. While you drag, the value stands beside the fader.
 - **Knobs**: turn them by moving the pointer around the knob (clockwise is more; one and a half
   turns cover the whole range), with Shift for fine steps, or with the mouse wheel. A double-click
-  lets you type a value (the delay in ms). While a knob moves, its value stands beside it.
+  lets you type a value (the delay in ms, or in meters, see below). While a knob moves, its value
+  stands beside it.
 - Values are written once: when you let go (only if the value changed), when the wheel stops, or
   when you press Enter. Escape cancels a drag or a typed value.
 
@@ -306,6 +307,8 @@ recorded.
 - the language: like Windows, German or English. It changes at once. German shows a decimal comma; typed values
   take a comma or a point.
 - the lowest level the meters show: −120, −90 or −60 dB,
+- whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
+  in that time (343 m/s, at 20 °C); the speakers still get samples,
 - whether response times are shown,
 - whether the EQ crossovers are protected (on by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the

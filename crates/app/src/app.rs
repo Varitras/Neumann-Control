@@ -18,6 +18,7 @@ use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, WindowGeometry};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
+use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{delete_group, forget_member, member_id, rename_member, set_membership};
 use crate::meter::MeterState;
@@ -719,6 +720,7 @@ impl eframe::App for NeumannApp {
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
         texts::set_language(self.settings.desk.language.resolve(self.system_language));
+        display::set_delay_unit(self.settings.desk.delay_unit);
         wheel::track_burst(ui.ctx());
         self.keep_system_meters_moving(ui.ctx());
         self.show(ui, frame);

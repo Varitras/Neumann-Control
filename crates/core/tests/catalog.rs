@@ -464,11 +464,19 @@ fn a_read_only_kind_listing_writable_models_is_an_error() {
     assert_eq!(invalid_reason(&display), None);
 }
 
+/// Sound travels 343 m/s at 20 °C: 480 samples (10 ms at 48 kHz) are 3.43 m of distance.
+#[test]
+fn a_delay_reads_as_the_distance_sound_travels_meanwhile() {
+    let metres = Conversion::SamplesToMeters.apply(480.0);
+    assert!((metres - 3.43).abs() < 1e-9, "{metres}");
+}
+
 #[test]
 fn invert_takes_a_shown_value_back_to_the_devices_unit() {
     for (conversion, device) in [
         (Conversion::KelvinToCelsius, 313.0),
         (Conversion::SamplesToMilliseconds, 96.0),
+        (Conversion::SamplesToMeters, 96.0),
     ] {
         let shown = conversion.apply(device);
         assert!(

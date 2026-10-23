@@ -1,6 +1,6 @@
 use neumann_control_core::settings::{
-    load, save, BandCurves, CrossoverGuard, DeskSettings, EqPreset, GroupSettings, Language,
-    LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
+    load, save, BandCurves, CrossoverGuard, DelayUnit, DeskSettings, EqPreset, GroupSettings,
+    Language, LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
     StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry,
     SETTINGS_FILE,
 };
@@ -218,7 +218,8 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
     // a group without a colour, a speaker entry without a port.
     let text = r#"{
         "manual": [{"address": "fe80::1%7", "port": 45, "serial": "SIM1"}, {"address": "fe80::2%7"}],
-        "desk": {"language": "French", "meter_floor": "Minus200", "show_response_times": false},
+        "desk": {"language": "French", "meter_floor": "Minus200", "show_response_times": false,
+                 "delay_unit": "Furlongs"},
         "groups": [
             {"name": "Front", "members": ["serial:SIM1"], "linked": ["Level", "Delay"]},
             {"name": "Sub", "color": 1, "members": []}
@@ -230,6 +231,7 @@ fn a_value_this_version_does_not_know_costs_only_that_value() {
     assert_eq!(loaded.manual.len(), 1, "the readable speaker stays");
     assert_eq!(loaded.desk.language, LanguageChoice::System);
     assert_eq!(loaded.desk.meter_floor, MeterFloor::Minus120);
+    assert_eq!(loaded.desk.delay_unit, DelayUnit::Milliseconds);
     assert!(
         !loaded.desk.show_response_times,
         "a readable neighbour stays"

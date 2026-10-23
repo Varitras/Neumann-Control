@@ -63,7 +63,7 @@ fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>) {
             .expect("an EQ button")
     }
     lowest(harness).scroll_to_me();
-    harness.run_steps(PANEL_SCROLL_FRAMES);
+    harness.run_steps(SCROLL_FRAMES);
     lowest(harness).click();
 }
 
@@ -648,16 +648,9 @@ fn the_eq_display_is_chosen_and_reset_in_the_settings() {
     wait_for_level(&mut harness, 100.0);
     harness.get_by_label(texts::SETTINGS.get()).click();
     harness.run_steps(4);
-    harness
-        .get_by_label(texts::BAND_CURVES_CHOSEN.get())
-        .click();
+    scroll_to_and_click(&mut harness, texts::BAND_CURVES_CHOSEN.get());
     harness.run_steps(2);
-    // The dialog scrolls; the button lies below what it shows at first.
-    harness
-        .get_by_label(texts::DEFAULT_COLORS.get())
-        .scroll_to_me();
-    harness.run_steps(3);
-    harness.get_by_label(texts::DEFAULT_COLORS.get()).click();
+    scroll_to_and_click(&mut harness, texts::DEFAULT_COLORS.get());
     harness.run_steps(2);
     let stored = neumann_control_core::settings::load(&path).eq_display;
     assert_eq!(

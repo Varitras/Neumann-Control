@@ -7,7 +7,7 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use super::number_field::{self, NumberField};
-use crate::display::capped;
+use crate::display::{capped, conversion_of};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::writes::{self, Intent};
@@ -62,7 +62,7 @@ impl Fields<'_> {
                     step: entry.step,
                     drag_speed: entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED),
                     unit: entry.unit.as_deref(),
-                    conversion: entry.conversion,
+                    conversion: conversion_of(entry),
                     enabled: self.enabled(entry, device.is_some()),
                     labelled_by: Some(label.id),
                 };
@@ -112,7 +112,7 @@ impl Fields<'_> {
                     step: entry.step,
                     drag_speed: entry.step.unwrap_or(UNSTEPPED_DRAG_SPEED),
                     unit: entry.unit.as_deref(),
-                    conversion: entry.conversion,
+                    conversion: conversion_of(entry),
                     enabled: self.enabled(entry, device.is_some()),
                     labelled_by: Some(label.id),
                 };

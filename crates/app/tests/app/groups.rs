@@ -255,7 +255,7 @@ fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
 fn removing_a_speaker_also_forgets_its_group() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    click_in_panel(&mut harness, texts::REMOVE.get());
+    scroll_to_and_click(&mut harness, texts::REMOVE.get());
     wait_for_label(&mut harness, texts::REMOVE_TITLE.get());
     harness
         .query_all_by_label(texts::REMOVE.get())

@@ -275,6 +275,13 @@ pub const LANGUAGE_GERMAN: &str = "Deutsch";
 pub const LANGUAGE_ENGLISH: &str = "English";
 pub const METER_RANGE: Text = Text::new("Pegelanzeige ab", "Meters from");
 pub const SHOW_RESPONSE_TIMES: Text = Text::new("Antwortzeiten anzeigen", "Show response times");
+pub const DELAY_SHOWN_IN: Text = Text::new("Verzögerung anzeigen in", "Show delays in");
+pub const DELAY_IN_MILLISECONDS: Text = Text::new("Millisekunden", "milliseconds");
+/// 343 m/s, the speed of sound at 20 °C, as `catalog` converts with.
+pub const DELAY_IN_METERS: Text = Text::new(
+    "Metern (Schallweg bei 20 °C)",
+    "meters (sound path at 20 °C)",
+);
 pub const INPUT_METERS: Text = Text::new("Eingangspegel", "Input level");
 pub const OUTPUT_METERS: Text = Text::new("Ausgangspegel", "Output level");
 pub const METER_INPUT_SHORT: Text = Text::new("Eing.", "In");
@@ -309,6 +316,7 @@ pub const ON: Text = Text::new("an", "on");
 pub const OFF: Text = Text::new("aus", "off");
 pub const CELSIUS: &str = "°C";
 pub const MILLISECONDS: &str = "ms";
+pub const METERS: &str = "m";
 
 pub const ALL_VALUES_FILTER_LABEL: Text = Text::new("Pfad enthält", "Path contains");
 pub const ALL_VALUES_RELOAD: Text = Text::new("Neu einlesen", "Read again");

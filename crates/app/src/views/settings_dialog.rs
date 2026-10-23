@@ -5,7 +5,7 @@
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
 use eframe::egui::{ComboBox, Grid, Id, Modal, ScrollArea, Theme, Ui};
 use neumann_control_core::settings::{
-    BandCurves, CrossoverGuard, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
+    BandCurves, CrossoverGuard, DelayUnit, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
     SystemAudioSettings, ThemeChoice,
 };
 
@@ -77,6 +77,12 @@ fn contents(
         for floor in MeterFloor::ALL {
             ui.radio_value(&mut desk.meter_floor, floor, texts::meter_floor(floor.db()));
         }
+    });
+    ui.label(texts::DELAY_SHOWN_IN);
+    ui.horizontal(|ui| {
+        let unit = &mut desk.delay_unit;
+        ui.radio_value(unit, DelayUnit::Milliseconds, texts::DELAY_IN_MILLISECONDS);
+        ui.radio_value(unit, DelayUnit::Meters, texts::DELAY_IN_METERS);
     });
     ui.checkbox(&mut desk.show_response_times, texts::SHOW_RESPONSE_TIMES);
     let mut protected = desk.crossovers == CrossoverGuard::Protected;

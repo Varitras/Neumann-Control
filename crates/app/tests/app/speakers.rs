@@ -335,7 +335,7 @@ fn add_address_names_an_address_already_listed() {
 /// Opens the device panel of the only speaker and asks to remove it.
 fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
     open_panel(harness, KH120_DEVICE_NAME);
-    click_in_panel(harness, texts::REMOVE.get());
+    scroll_to_and_click(harness, texts::REMOVE.get());
     wait_for_label(harness, texts::REMOVE_TITLE.get());
 }
 
@@ -459,7 +459,7 @@ fn remove_named(harness: &mut Harness<'static, NeumannApp>, name: &str) {
 }
 
 fn ask_in_open_panel(harness: &mut Harness<'static, NeumannApp>) {
-    click_in_panel(harness, texts::REMOVE.get());
+    scroll_to_and_click(harness, texts::REMOVE.get());
     wait_for_label(harness, texts::REMOVE_TITLE.get());
 }
 

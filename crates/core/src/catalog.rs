@@ -18,6 +18,11 @@ const STEP_TOLERANCE: f64 = 1e-9;
 const KELVIN_OFFSET: f64 = 273.15;
 /// The speakers count delay in samples at 48 kHz.
 const SAMPLES_PER_MILLISECOND: f64 = 48.0;
+/// Speed of sound in air at 20 °C.
+const SPEED_OF_SOUND_METERS_PER_SECOND: f64 = 343.0;
+const MILLISECONDS_PER_SECOND: f64 = 1000.0;
+const SAMPLES_PER_METER: f64 =
+    SAMPLES_PER_MILLISECOND * MILLISECONDS_PER_SECOND / SPEED_OF_SOUND_METERS_PER_SECOND;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -98,6 +103,8 @@ pub enum ModelClass {
 pub enum Conversion {
     KelvinToCelsius,
     SamplesToMilliseconds,
+    /// The distance sound travels in the delay; chosen in the settings instead of milliseconds.
+    SamplesToMeters,
 }
 
 impl Conversion {
@@ -106,6 +113,7 @@ impl Conversion {
         match self {
             Conversion::KelvinToCelsius => value - KELVIN_OFFSET,
             Conversion::SamplesToMilliseconds => value / SAMPLES_PER_MILLISECOND,
+            Conversion::SamplesToMeters => value / SAMPLES_PER_METER,
         }
     }
 
@@ -114,6 +122,7 @@ impl Conversion {
         match self {
             Conversion::KelvinToCelsius => value + KELVIN_OFFSET,
             Conversion::SamplesToMilliseconds => value * SAMPLES_PER_MILLISECOND,
+            Conversion::SamplesToMeters => value * SAMPLES_PER_METER,
         }
     }
 }

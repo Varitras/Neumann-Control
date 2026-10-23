@@ -12,7 +12,7 @@ use neumann_control_core::speaker::Command;
 
 use super::details;
 use super::trends::{self, TemperatureTrend, Trends};
-use crate::display::firmware_version;
+use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
 use crate::paths;
@@ -140,7 +140,7 @@ fn trends_of<'a>(ui: &Ui, speaker: &'a SpeakerState, catalog: &'a Catalog) -> Tr
         .and_then(|entry| {
             Some(TemperatureTrend {
                 trend: &speaker.temperature,
-                conversion: entry.conversion?,
+                conversion: conversion_of(entry)?,
                 label: entry.label(texts::language()),
             })
         });

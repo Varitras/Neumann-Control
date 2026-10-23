@@ -619,9 +619,34 @@ fn settings_dialog_switches_theme_and_saves_on_change() {
         saved.desk.theme,
         neumann_control_core::settings::ThemeChoice::Light
     );
-    harness.get_by_label(texts::CLOSE.get()).click();
+    scroll_to_and_click(&mut harness, texts::CLOSE.get());
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
+}
+
+/// The delay as the distance sound travels: shown at once on the strip's knob and saved.
+#[test]
+fn the_delay_unit_switches_to_meters_and_is_saved() {
+    let (_simulator, directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("audio/out/delay", serde_json::json!(480));
+        });
+    harness.get_by_label("10,00 ms");
+    open_settings(&mut harness);
+    scroll_to_and_click(&mut harness, texts::DELAY_IN_METERS.get());
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::CLOSE.get());
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::THEME.get()).is_none());
+    harness.get_by_label("3,43 m");
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    let saved = neumann_control_core::settings::load(&path);
+    assert_eq!(
+        saved.desk.delay_unit,
+        neumann_control_core::settings::DelayUnit::Meters
+    );
 }
 
 #[test]

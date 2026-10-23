@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use super::fader::{drag_aborted, value_beside, FINE_DIVISOR};
 use super::wheel::notches_for;
-use crate::display::shown_value;
+use crate::display::{conversion_of, shown_value};
 use crate::gesture::{bounded_move, released, typed_value, GestureState};
 use crate::state::SpeakerState;
 use crate::texts;
@@ -83,7 +83,7 @@ pub fn for_entry(
         enabled: writes::can_write(speaker, catalog, &entry.path),
         diameter,
         format: &format,
-        conversion: entry.conversion,
+        conversion: conversion_of(entry),
     };
     let mut state = speaker.knobs.remove(&entry.path).unwrap_or_default();
     let id = ui.scope_id().with(entry.path.to_string());

@@ -173,6 +173,8 @@ pub struct DeskSettings {
     pub compact: bool,
     #[serde(deserialize_with = "or_default")]
     pub crossovers: CrossoverGuard,
+    #[serde(deserialize_with = "or_default")]
+    pub delay_unit: DelayUnit,
     /// Per reported product name; a model without an entry shows the default strip.
     #[serde(
         deserialize_with = "readable_layouts",
@@ -229,6 +231,7 @@ impl Default for DeskSettings {
             language: LanguageChoice::System,
             compact: false,
             crossovers: CrossoverGuard::Protected,
+            delay_unit: DelayUnit::Milliseconds,
             strip_layouts: BTreeMap::new(),
         }
     }
@@ -280,6 +283,18 @@ impl LanguageChoice {
             LanguageChoice::English => Language::English,
         }
     }
+}
+
+/// How delays are shown and typed: in time, or as the distance sound travels in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum DelayUnit {
+    #[default]
+    Milliseconds,
+    Meters,
+}
+
+impl DelayUnit {
+    pub const ALL: [DelayUnit; 2] = [DelayUnit::Milliseconds, DelayUnit::Meters];
 }
 
 /// The lowest level a meter shows; quiet room volume reads about -90 dB on the inputs.
