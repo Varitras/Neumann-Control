@@ -8,6 +8,7 @@ use std::time::Duration;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::{mask_host, mask_serial};
 use neumann_control_core::schema_walk::LeafReport;
+use neumann_control_core::settings::KnownSpeaker;
 use neumann_control_core::speaker::{Command, Event, Identity};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -92,6 +93,8 @@ pub struct SpeakerState {
     pub identity: Option<Identity>,
     /// What the last scan reported for this speaker; names may be empty.
     pub discovered: Option<Found>,
+    /// What it reported when it last connected, from the settings; names it while it is off.
+    pub remembered: Option<KnownSpeaker>,
     pub values: BTreeMap<SscPath, Value>,
     pub absent: BTreeSet<SscPath>,
     pub status: Status,
@@ -135,6 +138,7 @@ impl SpeakerState {
             address,
             identity: None,
             discovered: None,
+            remembered: None,
             values: BTreeMap::new(),
             absent: BTreeSet::new(),
             status: Status::Connecting,
@@ -156,15 +160,16 @@ impl SpeakerState {
         }
     }
 
-    /// The speaker's own name, else the announced one, else the model, else the masked
-    /// address; mDNS names and device names can both be empty.
+    /// The speaker's own name, else the announced one, else the one it had when it last
+    /// connected, else the model, else the masked address; any of these names can be empty.
     pub fn display_name(&self) -> String {
         let own = self
             .identity
             .as_ref()
             .map(|identity| identity.name.as_str());
         let announced = self.discovered.as_ref().map(|found| found.name.as_str());
-        [own, announced, self.model()]
+        let remembered = self.remembered.as_ref().map(|known| known.name.as_str());
+        [own, announced, remembered, self.model()]
             .into_iter()
             .flatten()
             .find(|name| !name.is_empty())
@@ -190,7 +195,8 @@ impl SpeakerState {
             .discovered
             .as_ref()
             .and_then(|found| found.product.as_deref());
-        [reported, announced]
+        let remembered = self.remembered.as_ref().map(|known| known.product.as_str());
+        [reported, announced, remembered]
             .into_iter()
             .flatten()
             .find(|model| !model.is_empty())

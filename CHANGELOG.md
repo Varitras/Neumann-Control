@@ -4,6 +4,8 @@
 
 ### Added
 
+- A speaker that is off keeps the name and model it last reported, instead of its masked
+  address; removing the speaker forgets them.
 - **Scan again** in the dialog of found speakers: scans once more and adds what it finds, keeping
   the list and the checks so far.
 - Delays in meters: **Settings** shows and takes every delay as the distance sound travels in it

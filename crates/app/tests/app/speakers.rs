@@ -371,10 +371,29 @@ fn remove_needs_confirmation_and_forgets_speaker() {
     assert!(harness.query_by_label(texts::REMOVE_TITLE.get()).is_none());
     harness.get_by_label(&texts::speaker_count(0));
     assert!(settings::load(&path).manual.is_empty());
+    assert!(
+        settings::load(&path).known.is_empty(),
+        "its name is forgotten too"
+    );
     drop(harness);
     let mut restarted = crate::support::harness(path, Vec::new());
     restarted.run_steps(2);
     restarted.get_by_label(&texts::speaker_count(0));
+}
+
+/// Off at the next start, a speaker is still called by the name it last reported, not by its
+/// masked address; removing it forgets the name too.
+#[test]
+fn a_speaker_that_is_off_keeps_its_last_name() {
+    let (simulator, directory, harness) = connected_speaker(SimModel::Kh120Ii);
+    let path = directory.path().join(SETTINGS_FILE);
+    let address = simulator.address();
+    drop(harness);
+    simulator.stop();
+    let mut restarted = crate::support::harness(path.clone(), Vec::new());
+    wait_for_label(&mut restarted, texts::UNREACHABLE.get());
+    restarted.get_by_label(KH120_DEVICE_NAME);
+    assert!(restarted.query_by_label(&mask_host(&address)).is_none());
 }
 
 #[test]

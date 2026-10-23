@@ -1,11 +1,13 @@
 //! Which speakers to talk to: the remembered entries in the settings, one target each, and how
 //! scan results relate to them.
 
+use std::collections::BTreeMap;
 use std::net::SocketAddrV6;
 
 use neumann_control_core::address::{format_host, parse_address};
 use neumann_control_core::discovery::Found;
-use neumann_control_core::settings::ManualSpeaker;
+use neumann_control_core::settings::{KnownSpeaker, ManualSpeaker};
+use neumann_control_core::speaker::Identity;
 
 use crate::state::SpeakerKey;
 
@@ -119,6 +121,19 @@ pub fn remember_serial(manual: &mut [ManualSpeaker], serial: &str, address: Sock
     changed
 }
 
+/// Keeps a speaker's name and product under its serial, so it is named while it is off; true
+/// when that changed what is kept.
+pub fn remember_identity(known: &mut BTreeMap<String, KnownSpeaker>, identity: &Identity) -> bool {
+    if identity.serial.is_empty() {
+        return false;
+    }
+    let kept = KnownSpeaker {
+        name: identity.name.clone(),
+        product: identity.product.clone(),
+    };
+    known.insert(identity.serial.clone(), kept.clone()) != Some(kept)
+}
+
 /// Positions of speakers whose serial an earlier one already has: one speaker reached at two
 /// addresses. The first stays.
 pub fn duplicate_speakers(keys: &[SpeakerKey]) -> Vec<usize> {
@@ -133,6 +148,26 @@ pub fn duplicate_speakers(keys: &[SpeakerKey]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
+
+    fn identity(serial: &str, name: &str) -> Identity {
+        Identity {
+            product: "KH 750".to_owned(),
+            version: "2_1_2".to_owned(),
+            serial: serial.to_owned(),
+            name: name.to_owned(),
+        }
+    }
+
+    #[test]
+    fn an_identity_is_kept_under_its_serial_and_changes_count_once() {
+        let mut known = BTreeMap::new();
+        assert!(remember_identity(&mut known, &identity("SIM1", "Sub")));
+        assert!(!remember_identity(&mut known, &identity("SIM1", "Sub")));
+        assert!(remember_identity(&mut known, &identity("SIM1", "Sub left")));
+        assert_eq!(known["SIM1"].name, "Sub left");
+        assert!(!remember_identity(&mut known, &identity("", "Nobody")));
+        assert_eq!(known.len(), 1);
+    }
     use super::*;
 
     const SERIAL: &str = "SIM0001234";

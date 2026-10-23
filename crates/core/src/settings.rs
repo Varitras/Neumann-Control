@@ -50,6 +50,19 @@ pub struct Settings {
     pub system_audio: SystemAudioSettings,
     #[serde(deserialize_with = "or_default")]
     pub eq_display: EqDisplaySettings,
+    /// Serial → what that speaker last reported about itself, so it keeps its name while off.
+    #[serde(
+        deserialize_with = "or_default",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub known: BTreeMap<String, KnownSpeaker>,
+}
+
+/// A speaker's own name and product as it reported them when it last connected.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownSpeaker {
+    pub name: String,
+    pub product: String,
 }
 
 /// How the EQ graph draws its bands, and the colours the user chose instead of the defaults.

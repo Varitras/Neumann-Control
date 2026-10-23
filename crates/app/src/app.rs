@@ -29,7 +29,9 @@ use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::status_leds::average_response_time;
 use crate::strip_layout;
 use crate::system_audio::{AudioDevice, SystemAudio};
-use crate::targets::{duplicate_speakers, follow_moves, forget, remember_serial, targets};
+use crate::targets::{
+    duplicate_speakers, follow_moves, forget, remember_identity, remember_serial, targets,
+};
 use crate::texts;
 use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
@@ -198,6 +200,9 @@ impl NeumannApp {
             let Some(position) = existing else {
                 let mut state = SpeakerState::new(key.clone(), address);
                 state.discovered = discovered.cloned();
+                if let SpeakerKey::Serial(serial) = &key {
+                    state.remembered = self.settings.known.get(serial).cloned();
+                }
                 let (handle, events) = self.spawn(&key, address);
                 self.speakers.push(Speaker {
                     state,
@@ -242,7 +247,7 @@ impl NeumannApp {
         for speaker in &mut self.speakers {
             while let Ok(event) = speaker.events.try_recv() {
                 if let Event::Connected(identity) = &event {
-                    connected.push((identity.serial.clone(), speaker.state.address));
+                    connected.push((identity.clone(), speaker.state.address));
                 }
                 let before = speaker.state.key.clone();
                 speaker.state.apply(event, now);
@@ -255,8 +260,9 @@ impl NeumannApp {
             return;
         }
         let mut changed = false;
-        for (serial, address) in &connected {
-            changed |= remember_serial(&mut self.settings.manual, serial, *address);
+        for (identity, address) in &connected {
+            changed |= remember_serial(&mut self.settings.manual, &identity.serial, *address);
+            changed |= remember_identity(&mut self.settings.known, identity);
         }
         for (before, after) in &renamed {
             changed |= self.follow_key(before, after);
@@ -401,7 +407,10 @@ impl NeumannApp {
         log::info!("speaker at {} removed", mask_host(&address));
         let ids = [member_id(&key), member_id(&SpeakerKey::Address(address))];
         let settings = &mut self.settings;
-        let forgotten = forget_member(&mut settings.groups, &mut settings.order, &ids);
+        let mut forgotten = forget_member(&mut settings.groups, &mut settings.order, &ids);
+        if let SpeakerKey::Serial(serial) = &key {
+            forgotten |= settings.known.remove(serial).is_some();
+        }
         if forget(&mut settings.manual, &key, address) | forgotten {
             self.save_settings();
         }
