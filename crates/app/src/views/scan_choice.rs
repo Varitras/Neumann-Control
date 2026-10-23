@@ -1,5 +1,6 @@
 //! The "Gefundene Lautsprecher" dialog after "Suchen": a spinner while the scan runs, then one
-//! row per found speaker to check. Speakers already shown are listed but not offered.
+//! row per found speaker to check. Speakers already shown are listed but not offered. "Erneut
+//! suchen" scans again and keeps the rows and checks so far.
 
 use eframe::egui::{Button, Checkbox, Grid, Id, Modal, Ui};
 
@@ -15,17 +16,20 @@ pub enum ScanChoiceAction {
     Toggle(usize),
     Add,
     Cancel,
+    ScanAgain,
 }
 
-pub fn show(ui: &mut Ui, choice: &ScanChoice) -> ScanChoiceAction {
-    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, choice));
+/// `scanning`: a scan runs, whose speakers will join the rows.
+pub fn show(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceAction {
+    let modal =
+        Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, choice, scanning));
     if modal.should_close() {
         return ScanChoiceAction::Cancel;
     }
     modal.inner
 }
 
-fn contents(ui: &mut Ui, choice: &ScanChoice) -> ScanChoiceAction {
+fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceAction {
     ui.heading(texts::SCAN_CHOICE_TITLE);
     let mut action = match choice {
         ScanChoice::Scanning => {
@@ -48,6 +52,16 @@ fn contents(ui: &mut Ui, choice: &ScanChoice) -> ScanChoiceAction {
             .clicked()
         {
             action = ScanChoiceAction::Add;
+        }
+        if ui
+            .add_enabled(!scanning, Button::new(texts::SCAN_AGAIN))
+            .clicked()
+        {
+            action = ScanChoiceAction::ScanAgain;
+        }
+        // The rows stay while a new scan runs; the spinner says that more may come.
+        if scanning && !matches!(choice, ScanChoice::Scanning) {
+            ui.spinner();
         }
         if ui.button(texts::CANCEL).clicked() {
             action = ScanChoiceAction::Cancel;

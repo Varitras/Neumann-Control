@@ -347,6 +347,7 @@ pub const ADDRESS_ALREADY_LISTED: Text = Text::new(
 
 pub const SCAN_CHOICE_TITLE: Text = Text::new("Gefundene Lautsprecher", "Speakers found");
 pub const NOTHING_FOUND: Text = Text::new("Keine Lautsprecher gefunden", "No speakers found");
+pub const SCAN_AGAIN: Text = Text::new("Erneut suchen", "Scan again");
 pub const ALREADY_ADDED: Text = Text::new("bereits hinzugefügt", "already added");
 
 pub const REMOVE: Text = Text::new("Entfernen", "Remove");

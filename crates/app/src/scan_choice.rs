@@ -39,6 +39,30 @@ impl ScanChoice {
         ScanChoice::Offered(offers)
     }
 
+    /// After "Erneut suchen": the rows offered so far stay, with their checks; one found again
+    /// takes what the new scan says (a new address), and newly found speakers come after.
+    pub fn again(&self, found: &[Found], shown: &[(SpeakerKey, SocketAddrV6)]) -> ScanChoice {
+        let mut offers = self.offers().to_vec();
+        for found in found {
+            match offers
+                .iter_mut()
+                .find(|offer| same_speaker(&offer.found, found))
+            {
+                Some(offer) => offer.found = found.clone(),
+                None => offers.push(Offer {
+                    found: found.clone(),
+                    known: false,
+                    checked: false,
+                }),
+            }
+        }
+        for offer in &mut offers {
+            offer.known = is_shown(&offer.found, shown);
+            offer.checked &= !offer.known;
+        }
+        ScanChoice::Offered(offers)
+    }
+
     /// Flips the check of one row; rows of speakers already shown stay unchecked.
     pub fn toggle(&mut self, index: usize) {
         let ScanChoice::Offered(offers) = self else {
@@ -70,6 +94,14 @@ impl ScanChoice {
             ScanChoice::Offered(offers) => offers,
             ScanChoice::Scanning | ScanChoice::Failed => &[],
         }
+    }
+}
+
+/// By serial when both announce one, else by address.
+fn same_speaker(one: &Found, other: &Found) -> bool {
+    match (&one.serial, &other.serial) {
+        (Some(one), Some(other)) => one == other,
+        _ => one.address == other.address,
     }
 }
 
@@ -173,6 +205,53 @@ mod tests {
                 serial: Some(NEW_SERIAL.to_owned()),
             }]
         );
+    }
+
+    /// "Erneut suchen": what the first scan offered stays with its checks, a speaker found at a
+    /// new address keeps its check there, and what is new comes after.
+    #[test]
+    fn a_new_scan_keeps_the_checks_and_adds_what_it_finds() {
+        let mut first = choice();
+        first.toggle(1);
+        const REAR_SERIAL: &str = "SIM0007501";
+        const MOVED_TEXT: &str = "fe80::2a36:38ff:fe12:3458%7";
+        let again = first.again(
+            &[
+                found("Sub", NEW_SERIAL, MOVED_TEXT),
+                found("Rear", REAR_SERIAL, NEW_ADDRESS_TEXT),
+            ],
+            &[(
+                SpeakerKey::Serial(KNOWN_SERIAL.to_owned()),
+                address(KNOWN_ADDRESS_TEXT),
+            )],
+        );
+        let ScanChoice::Offered(offers) = &again else {
+            panic!("a finished scan offers its speakers");
+        };
+        let rows: Vec<(&str, bool, bool)> = offers
+            .iter()
+            .map(|offer| (offer.found.name.as_str(), offer.known, offer.checked))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("Desk", true, false),
+                ("Sub", false, true),
+                ("Rear", false, false)
+            ]
+        );
+        assert_eq!(offers[1].found.address, address(MOVED_TEXT));
+    }
+
+    #[test]
+    fn a_new_scan_after_nothing_offers_what_it_finds() {
+        for first in [ScanChoice::Failed, ScanChoice::Offered(Vec::new())] {
+            let again = first.again(&[found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)], &[]);
+            assert_eq!(
+                again,
+                ScanChoice::offer(&[found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)], &[])
+            );
+        }
     }
 
     #[test]

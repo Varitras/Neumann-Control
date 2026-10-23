@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Scan again** in the dialog of found speakers: scans once more and adds what it finds, keeping
+  the list and the checks so far.
 - Delays in meters: **Settings** shows and takes every delay as the distance sound travels in it
   (343 m/s, at 20 °C) instead of in milliseconds.
 - An EQ window per speaker: a computed response graph of every EQ and their sum, band points to

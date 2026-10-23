@@ -90,6 +90,22 @@ fn scan_says_when_nothing_was_found() {
         .is_none());
 }
 
+/// A speaker still starting up was missed: "Scan again" finds it without closing the dialog.
+#[test]
+fn scan_again_finds_a_speaker_the_first_scan_missed() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let shared: SharedScan = std::sync::Arc::new(std::sync::Mutex::new(Ok(Vec::new())));
+    let mut harness = harness_with_shared_scan(path, shared.clone());
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    *shared.lock().unwrap() = Ok(vec![kh120_found(&simulator)]);
+    harness.get_by_label(texts::SCAN_AGAIN.get()).click();
+    wait_for_label(&mut harness, &mask_host(&simulator.address()));
+    harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
+}
+
 #[test]
 fn a_failed_scan_says_so_in_the_dialog() {
     let directory = tempfile::tempdir().unwrap();

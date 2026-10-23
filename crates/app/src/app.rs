@@ -349,8 +349,8 @@ impl NeumannApp {
             self.save_settings();
         }
         self.sync_targets();
-        if self.scan_choice.is_some() {
-            self.scan_choice = Some(ScanChoice::offer(&found, &self.shown_speakers()));
+        if let Some(choice) = &self.scan_choice {
+            self.scan_choice = Some(choice.again(&found, &self.shown_speakers()));
         }
     }
 
@@ -670,8 +670,15 @@ impl NeumannApp {
         let Some(choice) = &mut self.scan_choice else {
             return;
         };
-        match scan_choice_view::show(ui, choice) {
+        match scan_choice_view::show(ui, choice, self.scan.is_some()) {
             ScanChoiceAction::None => {}
+            ScanChoiceAction::ScanAgain => {
+                if self.scan.is_none() {
+                    self.scan = Some(self.spawner.scan());
+                }
+                // A silent scan that runs already now reports to the dialog, failures too.
+                self.scan_silent = false;
+            }
             ScanChoiceAction::Toggle(index) => choice.toggle(index),
             ScanChoiceAction::Cancel => self.scan_choice = None,
             ScanChoiceAction::Add => {
