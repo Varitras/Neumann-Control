@@ -6,15 +6,18 @@
 use std::time::Duration;
 
 use eframe::egui::{
-    self, containers::Sides, Button, RichText, Role, TextStyle, TextWrapMode, Ui, WidgetInfo,
-    WidgetText,
+    self, containers::Sides, vec2, Button, Color32, Painter, Pos2, RichText, Role, Shape, Stroke,
+    TextStyle, TextWrapMode, Ui, WidgetInfo, WidgetText,
 };
 
 use crate::texts;
 
 const PANEL_ID: &str = "toolbar";
 /// A mark needs less room around it than a word.
-const EDIT_BUTTON_PADDING: f32 = 2.0;
+/// The drawn pen on the edit button, in points.
+const PEN_LENGTH: f32 = 13.0;
+const PEN_WIDTH: f32 = 3.5;
+const PEN_TIP_LENGTH: f32 = 3.5;
 /// A separator with the item spacing on both sides.
 const SEPARATOR_ROOM: f32 = 16.0;
 
@@ -138,19 +141,34 @@ fn adding(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     action
 }
 
-/// "Züge anpassen" / "Fertig" as a mark, not a word: the narrowest window has no room for one
-/// more labelled button.
+/// "Züge anpassen" / "Fertig" as a drawn pen, not a word: the narrowest window has no room for
+/// one more labelled button, and the fonts have no pen glyph.
 fn edit_button(ui: &mut Ui, editing: bool) -> bool {
     let name = match editing {
         true => texts::DONE.get(),
         false => texts::CUSTOMIZE_STRIPS.get(),
     };
-    let edit = ui
-        .scope(|ui| {
-            ui.spacing_mut().button_padding.x = EDIT_BUTTON_PADDING;
-            ui.add(Button::new(texts::EDIT_MARK).selected(editing))
-        })
-        .inner;
+    let side = ui.spacing().interact_size.y;
+    let edit = ui.add(Button::new("").min_size(vec2(side, side)).selected(editing));
+    let color = ui
+        .style()
+        .interact_selectable(&edit, editing)
+        .fg_stroke
+        .color;
+    paint_pen(ui.painter(), edit.rect.center(), color);
     edit.widget_info(|| WidgetInfo::selected(Role::Button, true, editing, name));
     edit.on_hover_text(name).clicked()
+}
+
+/// A pen from its tip at the lower left to its end at the upper right.
+fn paint_pen(painter: &Painter, center: Pos2, color: Color32) {
+    let along = vec2(1.0, -1.0).normalized();
+    let across = vec2(1.0, 1.0).normalized() * (PEN_WIDTH / 2.0);
+    let tip = center - along * (PEN_LENGTH / 2.0);
+    let end = center + along * (PEN_LENGTH / 2.0);
+    let shaft = tip + along * PEN_TIP_LENGTH;
+    let body = vec![shaft + across, end + across, end - across, shaft - across];
+    painter.add(Shape::convex_polygon(body, color, Stroke::NONE));
+    let point = vec![tip, shaft + across, shaft - across];
+    painter.add(Shape::convex_polygon(point, color, Stroke::NONE));
 }

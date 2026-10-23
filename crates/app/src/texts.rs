@@ -153,8 +153,6 @@ pub const CUSTOMIZE_STRIPS: Text = Text::new("Züge anpassen", "Customize strips
 pub const DONE: Text = Text::new("Fertig", "Done");
 pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
 pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
-/// The toolbar's narrow edit button; its name for screen readers is `CUSTOMIZE_STRIPS`/`DONE`.
-pub const EDIT_MARK: Text = Text::new("↕", "↕");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
