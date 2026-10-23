@@ -210,7 +210,7 @@ longer remembered, and it also leaves its group and its place in the order.
   change on one member goes to the others whose model may write it. Members that are not
   connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
-- Click the group's name to rename or delete it.
+- Click the group's name or **Details** at the foot of the group strip to rename or delete it.
 - The master strip at the end moves and mutes all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the

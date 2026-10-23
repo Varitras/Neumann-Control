@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Details** on each group strip opens the group's dialog (rename, delete), as its name does.
 - A speaker that is off keeps the name and model it last reported, instead of its masked
   address; removing the speaker forgets them.
 - **Scan again** in the dialog of found speakers: scans once more and adds what it finds, keeping

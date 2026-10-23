@@ -459,6 +459,14 @@ pub fn group_mute(group: &str) -> String {
     pick(format!("{group} stumm"), format!("Mute {group}"))
 }
 
+/// Names the group strip's "Details" apart from the speakers' ones.
+pub fn group_details(group: &str) -> String {
+    pick(
+        format!("Details der Gruppe {group}"),
+        format!("Details of group {group}"),
+    )
+}
+
 pub fn response_time(milliseconds: u128) -> String {
     format!("{milliseconds} ms")
 }

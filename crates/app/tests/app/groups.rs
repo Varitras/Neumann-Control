@@ -104,6 +104,15 @@ fn link_buttons_toggle_and_are_saved() {
 }
 
 #[test]
+fn the_group_strips_details_button_opens_its_dialog() {
+    let (_kh120, _kh750, _directory, mut harness) = grouped(Vec::new());
+    harness
+        .get_by_label(&texts::group_details(GROUP_NAME))
+        .click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+}
+
+#[test]
 fn group_dialog_renames_and_deletes() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     harness.get_by_label(GROUP_NAME).click();

@@ -59,6 +59,10 @@ pub fn group(
         let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, &texts::group_mute(&group.name), muted);
+        let details = ui.button(texts::DETAILS);
+        let label = texts::group_details(&group.name);
+        details.widget_info(|| WidgetInfo::labeled(Role::Button, true, &label));
+        response.open_settings |= details.clicked();
     });
     response
 }
