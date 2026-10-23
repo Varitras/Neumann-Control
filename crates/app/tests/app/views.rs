@@ -398,6 +398,17 @@ fn filter_all_values(harness: &mut Harness<'static, NeumannApp>, text: &str) {
     harness.run_steps(3);
 }
 
+/// A window of its own like the EQ and the panel: Escape closes it.
+#[test]
+fn all_values_closes_on_escape() {
+    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    let title = texts::all_values_title(SPEAKER_NAME);
+    harness.get_by_label(&title);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(harness.query_by_label(&title).is_none());
+}
+
 #[test]
 fn all_values_lists_50_leaves_for_kh120ii() {
     let (_simulator, _directory, harness) = all_values_window(SimModel::Kh120Ii);

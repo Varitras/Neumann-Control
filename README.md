@@ -188,7 +188,8 @@ much of each input that output plays. By default the KH 750 plays input A on out
 on output B and both on its own woofer. **Mute persist** is the speaker's own setting of that
 name; what it does has not been measured.
 
-**All values…** lists every value the speaker reports in its own schema, with a path
+**All values…** opens a window of its own (Escape closes it) that lists every value the speaker
+reports in its own schema, with a path
 filter and copy buttons, including paths the catalog does not know yet. **Full scan** reads the
 same and writes it next to the executable as `scan-<model>-<firmware>-<date>.json` and `.txt`,
 with what the app knows about each path; serial number, MAC address, the speaker's name and any

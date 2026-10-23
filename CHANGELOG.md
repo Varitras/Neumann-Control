@@ -53,6 +53,7 @@
 
 ### Changed
 
+- **All values** opens in a window of its own like the EQ and the device panel; Escape closes it.
 - The temperature trend shows its highest, lowest and current value in °C at the line; models
   without a temperature (KH 120 II) show no trend section.
 - The lowest level the meters show is chosen from a list in 10 dB steps (−120 to −30 dB) instead

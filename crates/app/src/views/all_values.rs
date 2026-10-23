@@ -1,7 +1,11 @@
-//! The "Alle Werte" window: every leaf of the device schema with its value, read-only. The
-//! only thing it can ask the worker for is a fresh read.
+//! The "Alle Werte" window: every leaf of the device schema with its value, read-only, in a
+//! window of its own like the EQ and the panel. The only thing it can ask the worker for is a
+//! fresh read.
 
-use eframe::egui::{Context, Id, Label, ScrollArea, TextEdit, Ui, Window};
+use eframe::egui::{
+    self, Context, Id, Key, Label, ScrollArea, TextEdit, Ui, ViewportBuilder, ViewportClass,
+    ViewportId,
+};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
@@ -18,16 +22,27 @@ const KNOWN_WIDTH: f32 = 70.0;
 const FILTER_WIDTH: f32 = 220.0;
 
 /// Draws the window while the speaker's state is not idle and closes it (back to idle) when
-/// the user does. Returns the commands the user asked for.
+/// the user does: its close button, or Escape outside the filter. Returns the commands the user
+/// asked for.
 pub fn show(context: &Context, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
-    let mut open = true;
+    let viewport = ViewportId::from_hash_of(Id::unique((WINDOW_ID, speaker.key.clone())));
+    let builder = ViewportBuilder::default()
+        .with_title(texts::all_values_title(&speaker.display_name()))
+        .with_inner_size(DEFAULT_WINDOW_SIZE);
     let mut commands = Vec::new();
-    Window::new(texts::all_values_title(&speaker.display_name()))
-        .id(Id::unique((WINDOW_ID, speaker.key.clone())))
-        .default_size(DEFAULT_WINDOW_SIZE)
-        .open(&mut open)
-        .show(context, |ui| contents(ui, speaker, catalog, &mut commands));
-    if !open {
+    let close = context.show_viewport_immediate(viewport, builder, |ui, class| {
+        ui.push_id(viewport, |ui| match class {
+            ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, &mut commands),
+            _ => {
+                egui::CentralPanel::default()
+                    .show(ui, |ui| contents(ui, speaker, catalog, &mut commands));
+            }
+        });
+        let typing = ui.memory(|memory| memory.focused().is_some());
+        let escape = !typing && ui.input(|input| input.key_pressed(Key::Escape));
+        escape || ui.input(|input| input.viewport().close_requested())
+    });
+    if close {
         speaker.close_all_values();
     }
     commands
