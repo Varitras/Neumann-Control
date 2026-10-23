@@ -1,3 +1,4 @@
+pub mod about;
 pub mod add_address;
 pub mod all_values;
 pub mod compact;

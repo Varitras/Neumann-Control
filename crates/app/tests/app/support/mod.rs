@@ -14,6 +14,7 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
+use neumann_control_app::help::{Help, Release};
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
@@ -205,6 +206,8 @@ fn build_shared(
             );
             // Never Windows' dialog in a test: it would wait for a click nobody makes.
             app.set_file_dialog(Box::new(FakeFiles::default()));
+            // Nor a browser or a question to GitHub.
+            app.set_help(Arc::new(FakeHelp::default()));
             app
         })
 }
@@ -226,6 +229,25 @@ impl FileDialog for FakeFiles {
     fn save(&mut self, suggested: &str) -> Option<PathBuf> {
         self.suggested.lock().unwrap().push(suggested.to_owned());
         self.save.clone()
+    }
+}
+
+/// Stands in for the browser and GitHub: keeps what the app opened and answers the update
+/// question with `release` (`None`: nothing published).
+#[derive(Clone, Default)]
+pub struct FakeHelp {
+    pub opened: Arc<Mutex<Vec<String>>>,
+    pub release: Option<Release>,
+}
+
+impl Help for FakeHelp {
+    fn open(&self, target: &str) -> bool {
+        self.opened.lock().unwrap().push(target.to_owned());
+        true
+    }
+
+    fn latest_release(&self) -> Result<Option<Release>, String> {
+        Ok(self.release.clone())
     }
 }
 

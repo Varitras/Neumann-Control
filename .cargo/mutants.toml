@@ -6,7 +6,11 @@ exclude_globs = [
     "crates/app/src/views/**",
     "crates/app/src/ui_kit/**",
     "crates/app/src/main.rs",
+    # The manual generator only runs in the release build, which fails on a broken manual.
+    "crates/manual/src/main.rs",
 ]
+# Windows' browser and WinHTTP: no test may start one or go online.
+exclude_re = ["windows_help"]
 # nextest runs the tests of all test binaries at once and stops at the first failure; the
 # tests themselves are short, run one binary after another they were most of a mutant's time.
 test_tool = "nextest"

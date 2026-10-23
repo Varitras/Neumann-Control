@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 # The one list of what a release folder holds; anything else in it fails the build.
-$releaseFiles = @('neumann-control.exe', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
+$releaseFiles = @('neumann-control.exe', 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
 # Only the version line of [workspace.package]: a plain match would also hit a dependency
 # pinned with `version = "..."`.
 $workspaceVersionLine = [regex]'(\[workspace\.package\][^\[]*?\nversion = ")([^"]+)(")'
@@ -89,9 +89,16 @@ New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item 'target\release\neumann-control.exe' $releaseDirectory
 Copy-Item 'LICENSE' $releaseDirectory
 
+# The app opens this file from its own folder (help.rs names it the same).
+$manualPath = Join-Path $releaseDirectory 'neumann-control-manual.html'
+Invoke-Step 'Generate the manual' {
+    cargo run --release --locked -q -p neumann-control-manual -- README.md $manualPath
+}
+
 $licensesPath = Join-Path $releaseDirectory 'THIRD-PARTY-LICENSES.html'
 Invoke-Step 'Generate third-party licenses' {
-    cargo about generate --workspace --locked --fail -c about.toml about.hbs -o $licensesPath
+    # The app's graph only: the manual generator is not part of what ships.
+    cargo about generate -m crates\app\Cargo.toml --locked --fail -c about.toml about.hbs -o $licensesPath
 }
 
 $sumsPath = Join-Path $releaseDirectory 'SHA256SUMS'

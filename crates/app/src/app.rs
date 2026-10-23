@@ -21,6 +21,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{delete_group, forget_member, member_id, rename_member, set_membership};
+use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE};
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
@@ -35,6 +36,7 @@ use crate::targets::{
 use crate::texts;
 use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
+use crate::views::about::{self, AboutAction, UpdateView};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction};
 use crate::views::panel::PanelPlacement;
@@ -115,6 +117,10 @@ pub struct NeumannApp {
     preset_dialog: Option<preset_dialogs::PresetDialog>,
     system_audio: Box<dyn SystemAudio>,
     file_dialog: Box<dyn FileDialog>,
+    help: Arc<dyn Help>,
+    /// The "Über" dialog while it is open, with its update check.
+    about: Option<UpdateView>,
+    update_check: Option<UpdateCheck>,
     /// The Windows strip's meters, one per channel of the device.
     system_meters: Vec<MeterState>,
     /// The playback devices for the settings dialog, listed when it opens.
@@ -183,6 +189,9 @@ impl NeumannApp {
             preset_dialog: None,
             system_audio,
             file_dialog: Box::new(NativeFileDialog),
+            help: Arc::new(WindowsHelp),
+            about: None,
+            update_check: None,
             system_meters: Vec::new(),
             audio_devices: Vec::new(),
             system_language,
@@ -194,6 +203,11 @@ impl NeumannApp {
     /// The dialog the EQ import and export choose their files with; the tests' stand-in.
     pub fn set_file_dialog(&mut self, file_dialog: Box<dyn FileDialog>) {
         self.file_dialog = file_dialog;
+    }
+
+    /// What opens the manual and web pages and asks GitHub; the tests' stand-in.
+    pub fn set_help(&mut self, help: Arc<dyn Help>) {
+        self.help = help;
     }
 
     /// Starts workers for remembered speakers not shown yet and moves speakers whose entry now
@@ -456,6 +470,8 @@ impl NeumannApp {
             ToolbarAction::History => self.open_history(),
             ToolbarAction::ToggleCompact => self.toggle_compact(frame),
             ToolbarAction::ToggleEditing => self.editing = !self.editing,
+            ToolbarAction::Manual => self.open_manual(),
+            ToolbarAction::About => self.about = Some(UpdateView::NotAsked),
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
@@ -472,6 +488,7 @@ impl NeumannApp {
         self.show_dialog(ui);
         self.show_scan_choice(ui);
         self.show_removal(ui);
+        self.show_about(ui);
         self.show_preset_dialog(ui);
         self.show_settings(ui);
         self.show_group_dialog(ui);
@@ -666,6 +683,44 @@ impl NeumannApp {
             }
             SettingsAction::Close => self.settings_open = false,
             SettingsAction::None => {}
+        }
+    }
+
+    /// From the exe's folder, where the release puts it next to the settings.
+    fn open_manual(&mut self) {
+        let manual = self.settings_path.with_file_name(MANUAL_FILE);
+        let opened = manual.is_file() && self.help.open(&manual.to_string_lossy());
+        if !opened {
+            log::warn!("the manual could not be opened");
+            self.notice = Some(texts::MANUAL_MISSING);
+        }
+    }
+
+    fn show_about(&mut self, ui: &mut Ui) {
+        let Some(view) = &mut self.about else {
+            return;
+        };
+        if let Some(result) = self.update_check.as_ref().and_then(UpdateCheck::result) {
+            *view = UpdateView::Done(result);
+            self.update_check = None;
+        }
+        match about::show(ui, view) {
+            AboutAction::None => {}
+            AboutAction::Close => {
+                // A check still out finishes on its own; its answer is dropped.
+                self.about = None;
+                self.update_check = None;
+            }
+            AboutAction::CheckForUpdates => {
+                *view = UpdateView::Checking;
+                let wake = Arc::clone(&self.wake);
+                self.update_check = Some(UpdateCheck::start(Arc::clone(&self.help), wake));
+            }
+            AboutAction::Open(url) => {
+                if !self.help.open(&url) {
+                    log::warn!("the browser could not be started");
+                }
+            }
         }
     }
 

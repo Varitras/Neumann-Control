@@ -78,6 +78,7 @@ The app needs no installer. A release folder holds:
 | File | Content |
 |------|---------|
 | `neumann-control.exe` | The app |
+| `neumann-control-manual.html` | This manual, opened by **?** → **Manual** in the app |
 | `LICENSE` | The app's licence (MIT) |
 | `THIRD-PARTY-LICENSES.html` | The licences of the libraries and fonts built into it |
 | `SHA256SUMS` | Checksums of the files above |
@@ -335,6 +336,13 @@ recorded.
   default device or a chosen one): a fader in percent, mute and a peak meter per channel. It
   sets Windows' own volume, like the volume slider in the taskbar.
 
+### Help and updates
+
+**?** in the toolbar opens the **Manual** (the file next to the executable, in your browser) and
+**About Neumann Control**: version, licence and a link to the project page. **Check for updates**
+there asks GitHub once for the newest release and, if it is newer, links to its page; the app
+does not download or install anything itself.
+
 ### Control mode
 
 The app shows the control mode (NETWORK or LOCAL), which the CONTROL switch on the back of the
@@ -372,6 +380,10 @@ Settings that only exist on some models (subwoofer outputs, logo brightness) app
 models.
 
 ## Files and privacy
+
+The app talks to the speakers on the local network. It goes to the internet only when you click
+**Check for updates**: then it asks `api.github.com` for the latest release of this project,
+with the app's name and version as its user agent.
 
 The app is portable and writes only next to the executable:
 
@@ -416,8 +428,12 @@ The executable is `target\release\neumann-control.exe`.
 `check.ps1` runs the quality gates: format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree
 and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with the
-executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
-`SHA256SUMS`.
+executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The manual is
+this README as one HTML file with its pictures embedded, made by `crates/manual`:
+
+```powershell
+cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
+```
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
 `.cargo/mutants.toml` (simulator and drawing code left out) and the `mutants` profile in
@@ -431,8 +447,9 @@ cargo mutants --workspace -j 4 --in-diff <patch>  # the lines a change touched
 
 More than four jobs did not make it faster on a 32-thread machine.
 
-The workspace has two crates: `crates/core` (the SSC client, discovery, the path catalog,
-settings and a speaker simulator for the tests) and `crates/app` (the window).
+The workspace has three crates: `crates/core` (the SSC client, discovery, the path catalog,
+settings and a speaker simulator for the tests), `crates/app` (the window) and `crates/manual`
+(the manual generator, not part of the app).
 
 ## Licence
 

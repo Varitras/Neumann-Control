@@ -1,0 +1,12 @@
+[package]
+name = "neumann-control-manual"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Run by the release build only: turns the README into the manual shipped next to the exe.
+[dependencies]
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

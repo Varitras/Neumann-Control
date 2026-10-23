@@ -4,6 +4,9 @@
 
 ### Added
 
+- **?** in the toolbar: the **Manual** (an HTML file of this README next to the executable) and
+  **About Neumann Control** with version, licence and **Check for updates**, which asks GitHub
+  for the newest release when clicked and links to it.
 - Compact rows of speakers have **EQ** and **Details** next to **Mute**; a right click on a
   button hides it, moves it, adds another switch or goes back to the default, per model.
 - Without a saved window size, the window is made as large as the desk needs and grows with it

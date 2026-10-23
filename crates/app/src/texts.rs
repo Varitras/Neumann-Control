@@ -141,6 +141,27 @@ pub const LED_LOCAL: Text = Text::new(
     "LOCAL: rear switch, writing locked",
 );
 pub const CLOSE: Text = Text::new("Schließen", "Close");
+pub const HELP: Text = Text::new("?", "?");
+pub const HELP_HINT: Text = Text::new("Hilfe", "Help");
+pub const MANUAL: Text = Text::new("Handbuch", "Manual");
+pub const ABOUT: Text = Text::new("Über Neumann Control", "About Neumann Control");
+pub const MANUAL_MISSING: Text = Text::new(
+    "Handbuch nicht gefunden (neben der Exe)",
+    "Manual not found (next to the exe)",
+);
+pub const LICENCE: Text = Text::new("MIT-Lizenz", "MIT licence");
+pub const PROJECT_PAGE: Text = Text::new("Projektseite auf GitHub", "Project page on GitHub");
+pub const CHECK_FOR_UPDATES: Text = Text::new("Nach Updates suchen", "Check for updates");
+pub const UP_TO_DATE: Text = Text::new("Diese Version ist aktuell.", "This version is up to date.");
+pub const NO_RELEASE: Text = Text::new(
+    "Noch kein Release veröffentlicht.",
+    "No release published yet.",
+);
+pub const UPDATE_CHECK_FAILED: Text = Text::new(
+    "GitHub war nicht erreichbar.",
+    "GitHub could not be reached.",
+);
+pub const OPEN_RELEASE_PAGE: Text = Text::new("Release-Seite öffnen", "Open the release page");
 pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
 pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
 pub const HIDE: Text = Text::new("Ausblenden", "Hide");
@@ -368,6 +389,17 @@ pub fn applies_to_every(model: &str) -> String {
     pick(
         format!("gilt für alle {model}"),
         format!("applies to every {model}"),
+    )
+}
+
+pub fn version(version: &str) -> String {
+    format!("Version {version}")
+}
+
+pub fn update_available(tag: &str) -> String {
+    pick(
+        format!("Neue Version {tag} verfügbar"),
+        format!("Version {tag} is available"),
     )
 }
 

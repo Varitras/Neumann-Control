@@ -185,6 +185,7 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
         texts::CUSTOMIZE_STRIPS.get(),
         texts::COMPACT.get(),
         texts::SETTINGS.get(),
+        texts::HELP.get(),
     ];
     let rects: Vec<egui::Rect> = toolbar
         .iter()

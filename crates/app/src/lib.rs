@@ -9,6 +9,7 @@ pub mod fader;
 pub mod file_dialog;
 pub mod gesture;
 pub mod groups;
+pub mod help;
 pub mod history;
 pub mod input_source;
 pub mod meter;

@@ -8,6 +8,7 @@ mod details;
 mod eq;
 mod glyphs;
 mod groups;
+mod help;
 mod history;
 mod speakers;
 mod strip_layout;
