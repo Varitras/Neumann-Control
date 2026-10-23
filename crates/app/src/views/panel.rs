@@ -2,8 +2,8 @@
 //! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
 use eframe::egui::{
-    self, Button, ComboBox, Context, Id, Key, Label, RichText, ScrollArea, Ui, ViewportBuilder,
-    ViewportClass, ViewportId,
+    self, Button, ComboBox, Context, Id, Key, Label, Pos2, Rect, RichText, ScrollArea, Ui, Vec2,
+    ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
@@ -25,6 +25,39 @@ const GROUP_CHOICE_ID: &str = "group_choice";
 const EDITING_ID: &str = "editing";
 const PANEL_WINDOW_SIZE: [f32; 2] = [600.0, 760.0];
 const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
+/// From the main window's top left, so the panel is seen to belong to it.
+const PANEL_OFFSET: Vec2 = Vec2::new(40.0, 40.0);
+/// Kept free below the panel for the taskbar.
+const SCREEN_MARGIN: f32 = 60.0;
+
+/// Where the panel window opens and how large: fixed when it opens, so it does not follow the
+/// main window afterwards.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PanelPlacement {
+    pub position: Option<Pos2>,
+    pub size: Vec2,
+}
+
+impl PanelPlacement {
+    /// At the main window's top left (`main`, screen points), only as tall as the screen
+    /// (`monitor`) leaves below that: a fixed height let the panel's foot reach below the
+    /// screen. Without them the system places the window.
+    pub fn new(main: Option<Rect>, monitor: Option<Vec2>) -> PanelPlacement {
+        let full = Vec2::from(PANEL_WINDOW_SIZE);
+        let position = main.map(|main| main.min + PANEL_OFFSET);
+        let room = match (position, monitor) {
+            // The monitor's top is taken as 0: true for the main screen and for screens beside it.
+            (Some(position), Some(monitor)) => monitor.y - position.y - SCREEN_MARGIN,
+            (None, Some(monitor)) => monitor.y - SCREEN_MARGIN,
+            (_, None) => full.y,
+        };
+        let height = room.clamp(PANEL_WINDOW_MIN_SIZE[1], full.y);
+        PanelPlacement {
+            position,
+            size: Vec2::new(full.x, height),
+        }
+    }
+}
 
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -49,19 +82,23 @@ pub struct GroupChoice<'a> {
     pub linked: &'a [Linkable],
 }
 
-/// The panel in its own window (`viewport`), one per speaker.
+/// The panel in its own window (`viewport`), one per speaker, opened at `placement`.
 pub fn show(
     context: &Context,
     viewport: ViewportId,
+    placement: PanelPlacement,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     groups: &GroupChoice,
     layout: Option<&StripLayout>,
 ) -> PanelResponse {
-    let builder = ViewportBuilder::default()
+    let mut builder = ViewportBuilder::default()
         .with_title(texts::panel_window_title(&speaker.display_name()))
-        .with_inner_size(PANEL_WINDOW_SIZE)
+        .with_inner_size(placement.size)
         .with_min_inner_size(PANEL_WINDOW_MIN_SIZE);
+    if let Some(position) = placement.position {
+        builder = builder.with_position(position);
+    }
     context.show_viewport_immediate(viewport, builder, |ui, class| {
         // Several panels can be open; their widgets must not share state.
         let mut response = ui
@@ -218,4 +255,45 @@ fn copy_buttons(ui: &mut Ui, groups: &GroupChoice) -> Option<Linkable> {
         }
     });
     copy
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{pos2, vec2};
+
+    const SCREEN: Vec2 = Vec2::new(1920.0, 1080.0);
+
+    fn main_at(x: f32, y: f32) -> Option<Rect> {
+        Some(Rect::from_min_size(pos2(x, y), vec2(1200.0, 700.0)))
+    }
+
+    #[test]
+    fn the_panel_opens_at_the_main_windows_top_left_in_full_height() {
+        let placement = PanelPlacement::new(main_at(100.0, 50.0), Some(SCREEN));
+        assert_eq!(placement.position, Some(pos2(100.0, 50.0) + PANEL_OFFSET));
+        assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
+    }
+
+    /// The panel's foot used to reach below the screen.
+    #[test]
+    fn a_low_main_window_gives_a_shorter_panel_that_ends_on_the_screen() {
+        let placement = PanelPlacement::new(main_at(100.0, 600.0), Some(SCREEN));
+        let top = placement.position.unwrap().y;
+        assert!(top + placement.size.y <= SCREEN.y - SCREEN_MARGIN + 0.001);
+        assert_eq!(placement.size.x, PANEL_WINDOW_SIZE[0]);
+    }
+
+    #[test]
+    fn a_tiny_screen_still_gets_the_least_panel() {
+        let placement = PanelPlacement::new(main_at(0.0, 0.0), Some(vec2(800.0, 200.0)));
+        assert_eq!(placement.size.y, PANEL_WINDOW_MIN_SIZE[1]);
+    }
+
+    #[test]
+    fn without_window_or_screen_the_system_places_it() {
+        let placement = PanelPlacement::new(None, None);
+        assert_eq!(placement.position, None);
+        assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
+    }
 }

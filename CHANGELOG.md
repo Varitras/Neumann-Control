@@ -73,7 +73,8 @@
   current input follows a switch of the interface right away.
 - The device panel opens in a window of its own, one per speaker, that can be moved anywhere
   (also outside the main window); a click beside it no longer closes it. **Details** under each
-  strip opens it, as does the speaker's name.
+  strip opens it, as does the speaker's name. It opens at the main window and no taller than the
+  screen leaves, so its foot stays visible.
 
 ### Fixed
 

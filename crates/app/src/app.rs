@@ -37,6 +37,7 @@ use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction};
+use crate::views::panel::PanelPlacement;
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
@@ -72,6 +73,8 @@ struct OpenPanel {
     viewport: ViewportId,
     /// Opened again while open: the window comes to the front.
     focus: bool,
+    /// Fixed in the first frame the panel is drawn.
+    placement: Option<PanelPlacement>,
 }
 
 /// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
@@ -500,6 +503,7 @@ impl NeumannApp {
             key,
             viewport,
             focus: false,
+            placement: None,
         });
     }
 
@@ -533,6 +537,12 @@ impl NeumannApp {
             return true;
         };
         let viewport = open.viewport;
+        let placement = *open.placement.get_or_insert_with(|| {
+            let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
+                (input.viewport().outer_rect, input.viewport().monitor_size)
+            });
+            PanelPlacement::new(main, monitor)
+        });
         if std::mem::take(&mut open.focus) {
             context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
         }
@@ -560,7 +570,15 @@ impl NeumannApp {
             .identity
             .is_some()
             .then(|| strip_layout::resolve(stored, &product, catalog));
-        let response = panel::show(context, viewport, state, catalog, &choice, layout.as_ref());
+        let response = panel::show(
+            context,
+            viewport,
+            placement,
+            state,
+            catalog,
+            &choice,
+            layout.as_ref(),
+        );
         if let Some(change) = &response.layout {
             self.change_layout(&product, change, catalog);
         }
