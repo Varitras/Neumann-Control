@@ -1,4 +1,4 @@
-//! The "?" menu: the manual next to the exe, and "Über" with its update check, both through a
+//! The "?" menu: the manual next to the exe, the wiki, and "Über" with its update check, both through a
 //! stand-in for the browser and GitHub.
 
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use crate::support::*;
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
-use neumann_control_app::help::{Release, MANUAL_FILE, REPOSITORY_URL};
+use neumann_control_app::help::{Release, MANUAL_FILE, REPOSITORY_URL, WIKI_URL};
 use neumann_control_app::texts;
 
 fn app_with(help: &FakeHelp) -> (tempfile::TempDir, Harness<'static, NeumannApp>) {
@@ -35,6 +35,14 @@ fn the_manual_opens_from_the_exes_folder() {
     choose_from_help(&mut harness, texts::MANUAL.get());
     let opened = help.opened.lock().unwrap().clone();
     assert_eq!(opened, vec![manual.to_string_lossy().into_owned()]);
+}
+
+#[test]
+fn the_wiki_opens_in_the_browser() {
+    let help = FakeHelp::default();
+    let (_directory, mut harness) = app_with(&help);
+    choose_from_help(&mut harness, texts::WIKI.get());
+    assert_eq!(*help.opened.lock().unwrap(), vec![WIKI_URL.to_owned()]);
 }
 
 #[test]

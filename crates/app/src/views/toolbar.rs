@@ -1,6 +1,6 @@
 //! The top bar: "Suchen", "+ Adresse", "+ Gruppe", the speaker count, a notice when something
 //! failed, and at the right the average response time, "Kompakt", "Verlauf", "Einstellungen" and
-//! "?" with the manual and "Über" (one small button: the narrowest window has no room for two). The
+//! "?" with the manual, the wiki and "Über" (one small button: the narrowest window has no room for two). The
 //! compact window is narrow, so there only the count, notice and the right side remain; adding
 //! speakers and groups is the desk's job.
 
@@ -33,6 +33,7 @@ pub enum ToolbarAction {
     ToggleCompact,
     ToggleEditing,
     Manual,
+    Wiki,
     About,
 }
 
@@ -106,6 +107,9 @@ fn right_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     let help = ui.menu_button(texts::HELP, |ui| {
         if ui.button(texts::MANUAL).clicked() {
             action = ToolbarAction::Manual;
+        }
+        if ui.button(texts::WIKI).clicked() {
+            action = ToolbarAction::Wiki;
         }
         if ui.button(texts::ABOUT).clicked() {
             action = ToolbarAction::About;

@@ -11,6 +11,8 @@ use serde_json::Value;
 pub const MANUAL_FILE: &str = "neumann-control-manual.html";
 pub const REPOSITORY_URL: &str = "https://github.com/Varitras/Neumann-Control";
 pub const RELEASES_URL: &str = "https://github.com/Varitras/Neumann-Control/releases";
+/// The SSC protocol reference and the speakers' measured behaviour.
+pub const WIKI_URL: &str = "https://github.com/Varitras/Neumann-Control/wiki";
 /// GitHub's API for the newest release that is not a draft or a prerelease.
 pub const API_HOST: &str = "api.github.com";
 pub const LATEST_RELEASE_PATH: &str = "/repos/Varitras/Neumann-Control/releases/latest";

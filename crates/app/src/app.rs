@@ -21,7 +21,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{delete_group, forget_member, member_id, rename_member, set_membership};
-use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE};
+use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
@@ -471,6 +471,7 @@ impl NeumannApp {
             ToolbarAction::ToggleCompact => self.toggle_compact(frame),
             ToolbarAction::ToggleEditing => self.editing = !self.editing,
             ToolbarAction::Manual => self.open_manual(),
+            ToolbarAction::Wiki => self.open_web(WIKI_URL),
             ToolbarAction::About => self.about = Some(UpdateView::NotAsked),
             ToolbarAction::None => {}
         }
@@ -716,11 +717,13 @@ impl NeumannApp {
                 let wake = Arc::clone(&self.wake);
                 self.update_check = Some(UpdateCheck::start(Arc::clone(&self.help), wake));
             }
-            AboutAction::Open(url) => {
-                if !self.help.open(&url) {
-                    log::warn!("the browser could not be started");
-                }
-            }
+            AboutAction::Open(url) => self.open_web(&url),
+        }
+    }
+
+    fn open_web(&self, url: &str) {
+        if !self.help.open(url) {
+            log::warn!("the browser could not be started");
         }
     }
 

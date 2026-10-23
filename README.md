@@ -338,10 +338,11 @@ recorded.
 
 ### Help and updates
 
-**?** in the toolbar opens the **Manual** (the file next to the executable, in your browser) and
-**About Neumann Control**: version, licence and a link to the project page. **Check for updates**
-there asks GitHub once for the newest release and, if it is newer, links to its page; the app
-does not download or install anything itself.
+**?** in the toolbar opens the **Manual** (the file next to the executable, in your browser), the
+[**Wiki**](https://github.com/Varitras/Neumann-Control/wiki) with the SSC protocol reference and
+the speakers' measured behaviour, and **About Neumann Control**: version, licence and a link to
+the project page. **Check for updates** there asks GitHub once for the newest release and, if it
+is newer, links to its page; the app does not download or install anything itself.
 
 ### Control mode
 
