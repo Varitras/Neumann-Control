@@ -454,7 +454,7 @@ cargo mutants --workspace -j 4                    # everything, about four hours
 cargo mutants --workspace -j 4 --in-diff <patch>  # the lines a change touched
 ```
 
-More than four jobs did not make it faster on a 32-thread machine.
+More than four jobs did not make it faster, even on a machine with many more cores.
 
 The workspace has three crates: `crates/core` (the SSC client, discovery, the path catalog,
 settings and a speaker simulator for the tests), `crates/app` (the window) and `crates/manual`
