@@ -7,6 +7,7 @@ use crate::support::*;
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::rediscovery::UNREACHABLE_GRACE_SECONDS;
 use neumann_control_app::texts;
 use neumann_control_core::address::{parse_address, AddressError, SSC_PORT};
 use neumann_control_core::discovery::Found;
@@ -29,6 +30,14 @@ fn announced(simulator: &Simulator, name: &str, product: &str, serial: &str) -> 
 
 fn kh750_found(simulator: &Simulator) -> Found {
     announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
+}
+
+/// The unreachable status shows a few frames after the outage began, and the scan answers a few
+/// frames after it started.
+const GRACE_MARGIN_SECONDS: f64 = 2.0;
+
+fn app_time(harness: &Harness<'static, NeumannApp>) -> f64 {
+    harness.ctx.input(|input| input.time)
 }
 
 fn kh120_found(simulator: &Simulator) -> Found {
@@ -388,11 +397,48 @@ fn a_speaker_that_stays_unreachable_is_looked_for_again() {
     wait_for_level(&mut harness, 100.0);
     first.stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    let since = app_time(&harness);
     let moved = Simulator::start(SimModel::Kh120Ii);
     *shared.lock().unwrap() = Ok(vec![kh120_found(&moved)]);
-    // The last level stays shown while unreachable; the saved address and the status tell.
-    wait_until(&mut harness, "the new address", |_| saved_at(&path, &moved));
+    // Not looked for during the grace, and right after it.
+    while app_time(&harness) < since + UNREACHABLE_GRACE_SECONDS - GRACE_MARGIN_SECONDS {
+        harness.step();
+        assert!(!saved_at(&path, &moved), "looked for during the grace");
+    }
+    while !saved_at(&path, &moved) {
+        harness.step();
+        std::thread::sleep(POLL_PAUSE);
+        assert!(
+            app_time(&harness) < since + UNREACHABLE_GRACE_SECONDS + GRACE_MARGIN_SECONDS,
+            "not looked for after the grace"
+        );
+    }
     wait_until(&mut harness, "the reconnect", |harness| {
         harness.query_by_label(texts::UNREACHABLE.get()).is_none()
     });
+}
+
+/// A speaker that connects later gets its key from its serial; an open panel of another speaker
+/// stays with that one.
+#[test]
+fn an_open_panel_stays_when_another_speaker_learns_its_serial() {
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let reserved = Simulator::start(SimModel::Kh750);
+    let late_address = reserved.address();
+    let late_entry = manual_for(&reserved);
+    reserved.stop();
+    let directory = tempfile::tempdir().unwrap();
+    let mut entry = manual_for(&first);
+    entry.serial = Some(SIMULATED_SERIAL.to_owned());
+    let path = settings_file(directory.path(), vec![entry, late_entry]);
+    let mut harness = harness(path, Vec::new());
+    wait_for_label(&mut harness, KH120_DEVICE_NAME);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    let _late = Simulator::start_on(SimModel::Kh750, late_address).unwrap();
+    wait_for_label(&mut harness, KH750_DEVICE_NAME);
+    harness.run_steps(2);
+    // The strip and the panel each name the speaker the panel belongs to.
+    let named = |name: &str| harness.query_all_by_label(name).count();
+    assert_eq!(named(KH120_DEVICE_NAME), 2, "the panel left its speaker");
+    assert_eq!(named(KH750_DEVICE_NAME), 1);
 }
