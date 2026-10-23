@@ -171,6 +171,16 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     assert!(harness.query_by_label(LOGO_LABEL).is_none());
 }
 
+/// The history shows the temperature; a model without one (KH 120 II) gets no history section.
+#[test]
+fn the_history_is_shown_only_for_a_model_with_a_temperature() {
+    let title = texts::trends_title(neumann_control_app::trend::TREND_WINDOW_SECONDS);
+    let (_monitor, _directory, monitor_panel) = speaker_with_panel(SimModel::Kh120Ii);
+    assert!(monitor_panel.query_by_label_contains(&title).is_none());
+    let (_subwoofer, _directory, subwoofer_panel) = speaker_with_panel(SimModel::Kh750);
+    assert!(subwoofer_panel.query_by_label_contains(&title).is_some());
+}
+
 #[test]
 fn number_field_sends_once_per_gesture() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
@@ -559,20 +569,31 @@ fn the_panel_shows_the_temperature_trend_of_a_kh750() {
     simulator.set_value("device/temperature", json!(313));
     wait_until(&mut harness, "the trend at 40 °C", |harness| {
         harness
-            .query_by_label(&texts::temperature_trend("40 °C"))
+            .query_all_by_label_contains(&texts::temperature_trend("40 °C"))
+            .next()
             .is_some()
     });
     harness.get_by_label(texts::WARNING_TREND.get());
 }
 
+/// The temperature line carries its lowest, highest and current value in °C.
 #[test]
-fn a_kh120_has_only_the_warning_trend() {
-    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_label(texts::WARNING_TREND.get());
-    let temperature = texts::temperature_trend("");
-    assert!(harness
-        .query_by_label_contains(temperature.trim_end())
-        .is_none());
+fn the_temperature_line_names_its_range() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh750);
+    // Below the simulator's 37 °C, so it is the lowest of the session.
+    simulator.set_value("device/temperature", json!(300));
+    wait_until(&mut harness, "27 °C", |harness| {
+        harness
+            .query_all_by_label_contains(&texts::temperature_trend("27 °C"))
+            .next()
+            .is_some()
+    });
+    simulator.set_value("device/temperature", json!(316));
+    let range = texts::trend_range("27 °C", "43 °C");
+    let line = format!("{} ({range})", texts::temperature_trend("43 °C"));
+    wait_until(&mut harness, "the range at the line", |harness| {
+        harness.query_all_by_label_contains(&line).next().is_some()
+    });
 }
 
 #[test]

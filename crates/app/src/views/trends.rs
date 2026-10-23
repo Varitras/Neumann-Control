@@ -2,7 +2,7 @@
 //! as a bar, over the last two hours; hovering shows how long ago and what was read.
 
 use eframe::egui::{
-    self, pos2, vec2, Color32, Rect, RichText, Role, Sense, Stroke, Ui, WidgetInfo,
+    self, pos2, vec2, Align2, Color32, FontId, Rect, RichText, Role, Sense, Stroke, Ui, WidgetInfo,
 };
 use neumann_control_core::catalog::Conversion;
 
@@ -18,6 +18,9 @@ const LINE_WIDTH: f32 = 1.5;
 const LINE_MARGIN: f32 = 6.0;
 /// A temperature that stayed the same still gets a band of this many degrees to sit in.
 const MIN_SPAN_DEGREES: f64 = 2.0;
+const MARK_FONT_SIZE: f32 = 9.0;
+/// Keeps the values at the line off the frame.
+const MARK_INSET: f32 = 3.0;
 pub struct Trends<'a> {
     /// Seconds of the UI clock, the right edge.
     pub now: f64,
@@ -113,17 +116,11 @@ fn temperature_line(
     let middle = shown((low + high) / 2.0);
     // Kelvin to Celsius only shifts the scale, so the span is the same in either unit.
     let half_span = ((high - low) / 2.0).max(MIN_SPAN_DEGREES / 2.0);
-    let current = trend
-        .value_at(now)
-        .map(|kelvin| converted(conversion, *kelvin));
-    ui.horizontal(|ui| {
-        ui.label(temperature.label);
-        if high > low {
-            let range =
-                texts::trend_range(&converted(conversion, low), &converted(conversion, high));
-            ui.weak(range);
-        }
-    });
+    let current_kelvin = trend.value_at(now).copied();
+    let current = current_kelvin.map(|kelvin| converted(conversion, kelvin));
+    let range = (high > low)
+        .then(|| texts::trend_range(&converted(conversion, low), &converted(conversion, high)));
+    ui.label(temperature.label);
     let width = ui.available_width();
     let (rect, response) = ui.allocate_exact_size(vec2(width, LINE_HEIGHT), Sense::hover());
     let painter = ui.painter_at(rect);
@@ -154,7 +151,29 @@ fn temperature_line(
         painter.line_segment([left, right], stroke);
         previous = Some(right);
     }
-    let label = texts::temperature_trend(current.as_deref().unwrap_or_default());
+    // The values at the line: highest top left, lowest bottom left, the current one at its end.
+    let font = FontId::proportional(MARK_FONT_SIZE);
+    let inside = rect.shrink(MARK_INSET);
+    if high > low {
+        let marks = [
+            (inside.left_top(), Align2::LEFT_TOP, high),
+            (inside.left_bottom(), Align2::LEFT_BOTTOM, low),
+        ];
+        for (position, align, kelvin) in marks {
+            let text = converted(conversion, kelvin);
+            painter.text(position, align, text, font.clone(), tokens.text_dim);
+        }
+    }
+    if let (Some(kelvin), Some(text)) = (current_kelvin, &current) {
+        // Above the line's end, but never above the frame when the line runs along its top.
+        let lowest_top = inside.top() + MARK_FONT_SIZE + MARK_INSET;
+        let end = pos2(inside.right(), y(shown(kelvin)).max(lowest_top));
+        painter.text(end, Align2::RIGHT_BOTTOM, text, font, tokens.text);
+    }
+    let mut label = texts::temperature_trend(current.as_deref().unwrap_or_default());
+    if let Some(range) = &range {
+        label = format!("{label} ({range})");
+    }
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
     if let Some(pointer) = response.hover_pos() {
         let time = axis.time(pointer.x);

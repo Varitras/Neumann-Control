@@ -141,8 +141,12 @@ fn contents(
             let copy_to_group = copy_buttons(ui, groups);
             let details = details::show(ui, speaker, catalog, layout);
             ui.separator();
-            trends::show(ui, &trends_of(ui, speaker, catalog));
-            ui.separator();
+            // Without a temperature only the warnings would be left, which the LEDs show.
+            let trends = trends_of(ui, speaker, catalog);
+            if trends.temperature.is_some() {
+                trends::show(ui, &trends);
+                ui.separator();
+            }
             let (save_preset, load_preset) = ui
                 .horizontal(|ui| {
                     let save = ui.button(texts::SAVE_PRESET).clicked();

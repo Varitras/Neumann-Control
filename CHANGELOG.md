@@ -50,6 +50,8 @@
 
 ### Changed
 
+- The temperature trend shows its highest, lowest and current value in °C at the line; models
+  without a temperature (KH 120 II) show no trend section.
 - The lowest level the meters show is chosen from a list in 10 dB steps (−120 to −30 dB) instead
   of −120, −90 or −60 dB; a saved choice stays.
 - The device panel lists its settings by topic, the outputs first and together, and in each topic

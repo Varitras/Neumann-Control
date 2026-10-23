@@ -195,8 +195,9 @@ offered, the name unchecked). **Load preset…** shows what a preset would chang
 writes it as one history entry; settings this model may not write are listed as skipped.
 
 **Trend (2 h)** below the settings shows what the app read in this session, at most the last two
-hours: the temperature as a line (KH 750) with its lowest and highest value, and the warnings as a
-bar, red while a warning was active. Hover over them for the value and how long ago it was read.
+hours, on models with a temperature (KH 750): the temperature as a line, with its highest and
+lowest value at the left and the current one at its end in °C, and the warnings as a bar, red
+while a warning was active. Hover over them for the value and how long ago it was read.
 Gaps mark the times the speaker could not be read.
 
 To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
