@@ -620,6 +620,37 @@ fn desk_scrolls_when_narrow() {
     harness.get_by_role(Role::ScrollBar);
 }
 
+/// Scrolled to the foot of a strip in a small window, "Details" is not under the horizontal
+/// scroll bar (egui's bars float over the content by default).
+#[test]
+fn the_scroll_bar_does_not_cover_a_strips_foot() {
+    let (_simulators, _directory, mut harness) = desk_of(
+        &[SimModel::Kh120Ii, SimModel::Kh750],
+        std::collections::BTreeMap::new(),
+    );
+    harness.set_size(egui::vec2(300.0, 500.0));
+    harness.run_steps(2);
+    harness
+        .query_all_by_role_and_label(Role::Button, texts::DETAILS.get())
+        .next()
+        .expect("a details button")
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    let details = harness
+        .query_all_by_role_and_label(Role::Button, texts::DETAILS.get())
+        .next()
+        .unwrap()
+        .rect();
+    let bars: Vec<egui::Rect> = harness
+        .query_all_by_role(Role::ScrollBar)
+        .map(|node| node.rect())
+        .collect();
+    assert!(!bars.is_empty());
+    for bar in bars {
+        assert!(!bar.intersects(details), "{bar:?} covers {details:?}");
+    }
+}
+
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());

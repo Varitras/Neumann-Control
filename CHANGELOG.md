@@ -78,6 +78,8 @@
 
 ### Fixed
 
+- Scroll bars lay over the desk and covered the foot of a strip (**Details**); they now have room
+  of their own.
 - In edit mode a right-drag moved the element along; only the left button drags now, and the ×
   beside each element is gone (right-click → **Hide** hides it).
 - A speaker not reached since the start showed no meters, and their caption lay over the scale;

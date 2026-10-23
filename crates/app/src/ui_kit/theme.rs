@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use eframe::egui::style::{Selection, WidgetVisuals};
+use eframe::egui::style::{ScrollStyle, Selection, WidgetVisuals};
 use eframe::egui::{
     vec2, Color32, Context, CornerRadius, FontId, Stroke, Style, TextStyle, Theme, ThemePreference,
     Visuals,
@@ -152,6 +152,9 @@ fn style(theme: Theme) -> Style {
     style.spacing.item_spacing = vec2(8.0, 6.0);
     style.spacing.button_padding = vec2(10.0, 4.0);
     style.spacing.interact_size = vec2(24.0, 24.0);
+    // egui's bars float over the content and covered a strip's foot ("Details"); solid bars
+    // take their own room.
+    style.spacing.scroll = ScrollStyle::solid();
     style
 }
 
