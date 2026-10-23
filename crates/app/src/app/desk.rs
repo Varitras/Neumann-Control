@@ -13,6 +13,7 @@ use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
 use super::{NeumannApp, DESK_SCROLL_ID};
+use crate::compact_layout::{self, CompactChange};
 use crate::fader::output_level_range;
 use crate::groups::{
     insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of, shared_level,
@@ -43,6 +44,8 @@ pub(super) enum DeskAction {
     System(SystemStripResponse),
     /// A change of one model's strip layout.
     Layout(String, LayoutChange),
+    /// A change of one model's compact buttons.
+    CompactLayout(String, CompactChange),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -230,6 +233,9 @@ impl NeumannApp {
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(product, change) => self.change_layout(&product, &change, catalog),
+            DeskAction::CompactLayout(product, change) => {
+                self.change_compact_layout(&product, &change, catalog);
+            }
         }
     }
 
@@ -245,6 +251,22 @@ impl NeumannApp {
         match strip_layout::apply(&layout, change) {
             Some(stored) => {
                 layouts.insert(product.to_owned(), stored);
+            }
+            None => {
+                layouts.remove(product);
+            }
+        }
+        self.save_settings();
+    }
+
+    /// Like `change_layout` for the compact buttons of `product`.
+    fn change_compact_layout(&mut self, product: &str, change: &CompactChange, catalog: &Catalog) {
+        let layouts = &mut self.settings.desk.compact_layouts;
+        let stored = layouts.get(product).map(Vec::as_slice);
+        let buttons = compact_layout::resolve(stored, product, catalog);
+        match compact_layout::apply(&buttons, change) {
+            Some(changed) => {
+                layouts.insert(product.to_owned(), changed);
             }
             None => {
                 layouts.remove(product);

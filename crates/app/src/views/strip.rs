@@ -564,7 +564,7 @@ fn button_row(
 
 /// The name from the panel, but some keep a short one of the strip's: identify to fit beside
 /// mute, and the KH 750's three mutes, which the panel tells apart by their headings only.
-fn button_text(entry: &Entry) -> &str {
+pub(super) fn button_text(entry: &Entry) -> &str {
     let short = [
         (paths::IDENTIFY, texts::IDENTIFY),
         (paths::MUTE_OUTPUT_A, texts::MUTE_OUTPUT_A),

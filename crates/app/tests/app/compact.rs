@@ -1,19 +1,60 @@
 //! The compact mode: switching there and back, one row per ungrouped speaker and per group,
-//! and rows writing like the strips do.
+//! rows writing like the strips do, and each model's buttons chosen by right click.
 
 use crate::support::*;
 use eframe::egui::{self, accesskit::Role, Key, Modifiers};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::paths;
 use neumann_control_app::texts;
-use neumann_control_core::settings::{self, SETTINGS_FILE};
+use neumann_control_core::catalog::Catalog;
+use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
 use neumann_control_core::simulator::SimModel;
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 fn press_compact_shortcut(harness: &mut Harness<'static, NeumannApp>) {
     harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
     harness.run_steps(2);
+}
+
+const MONITOR: &str = "KH 120 II";
+const SUBWOOFER: &str = "KH 750";
+
+fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
+    harness
+        .get_by_role_and_label(Role::Button, label)
+        .click_secondary();
+    harness.run_steps(2);
+}
+
+fn choose(harness: &mut Harness<'static, NeumannApp>, item: &str) {
+    harness.get_by_label(item).click();
+    harness.run_steps(3);
+}
+
+fn stored_buttons(directory: &tempfile::TempDir, model: &str) -> Option<Vec<CompactButton>> {
+    let settings = settings::load(&directory.path().join(SETTINGS_FILE));
+    settings.desk.compact_layouts.get(model).cloned()
+}
+
+fn switch(text: &str) -> CompactButton {
+    CompactButton::Switch(paths::path(text))
+}
+
+/// As the add menu offers a switch: under its name in the device panel.
+fn panel_label(text: &str) -> &'static str {
+    paths::catalog_entry(Catalog::embedded(), &paths::path(text))
+        .unwrap()
+        .label(texts::language())
+}
+
+fn left_of(harness: &Harness<'static, NeumannApp>, label: &str) -> f32 {
+    harness
+        .get_by_role_and_label(Role::Button, label)
+        .rect()
+        .left()
 }
 
 fn drag_level(harness: &mut Harness<'static, NeumannApp>, label: &str, by: f32) {
@@ -187,4 +228,107 @@ fn a_group_row_says_why_a_members_write_was_refused() {
     wait_until(&mut harness, "the LOCAL message", |harness| {
         harness.query_all_by_label_contains(&message).count() == 2
     });
+}
+
+/// The default buttons after mute; the EQ window, drawn inside the test window, would lie over
+/// the row, so each is opened by a test of its own.
+#[test]
+fn a_compact_row_opens_the_eq() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    press_compact_shortcut(&mut harness);
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
+}
+
+#[test]
+fn a_compact_row_opens_the_details() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    press_compact_shortcut(&mut harness);
+    harness
+        .get_by_role_and_label(Role::Button, texts::DETAILS.get())
+        .click();
+    wait_until(&mut harness, "the device panel", |harness| {
+        harness.query_by_label(texts::ALL_VALUES.get()).is_some()
+    });
+}
+
+#[test]
+fn a_compact_button_is_hidden_and_another_added_by_right_click() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    press_compact_shortcut(&mut harness);
+    right_click_button(&mut harness, texts::MUTE.get());
+    let menus = harness.query_all_by_label(texts::ADD_BUTTON.get()).count();
+    assert_eq!(menus, 1, "the button's menu only, not also the row's");
+    choose(&mut harness, texts::HIDE.get());
+    assert!(harness
+        .query_by_role_and_label(Role::Button, texts::MUTE.get())
+        .is_none());
+    let hidden = vec![CompactButton::Eq, CompactButton::Details];
+    assert_eq!(stored_buttons(&directory, MONITOR), Some(hidden));
+    right_click_button(&mut harness, texts::EQ.get());
+    choose(&mut harness, texts::ADD_BUTTON.get());
+    choose(&mut harness, panel_label(paths::IDENTIFY));
+    harness.get_by_role_and_label(Role::Button, texts::IDENTIFY.get());
+    let stored = stored_buttons(&directory, MONITOR).unwrap();
+    assert_eq!(stored.last(), Some(&switch(paths::IDENTIFY)));
+}
+
+#[test]
+fn a_compact_button_moves_right_and_the_default_comes_back() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    press_compact_shortcut(&mut harness);
+    right_click_button(&mut harness, texts::MUTE.get());
+    choose(&mut harness, texts::MOVE_RIGHT.get());
+    assert!(left_of(&harness, texts::EQ.get()) < left_of(&harness, texts::MUTE.get()));
+    right_click_button(&mut harness, texts::MUTE.get());
+    choose(&mut harness, texts::DEFAULT_LAYOUT.get());
+    assert!(left_of(&harness, texts::MUTE.get()) < left_of(&harness, texts::EQ.get()));
+    assert_eq!(stored_buttons(&directory, MONITOR), None);
+}
+
+/// With no button left the rest of the row still offers adding one.
+#[test]
+fn a_row_without_buttons_still_offers_adding() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    press_compact_shortcut(&mut harness);
+    for button in [texts::MUTE, texts::EQ, texts::DETAILS] {
+        right_click_button(&mut harness, button.get());
+        choose(&mut harness, texts::HIDE.get());
+    }
+    harness.get_by_label(KH120_DEVICE_NAME).click_secondary();
+    harness.run_steps(2);
+    choose(&mut harness, texts::ADD_BUTTON.get());
+    choose(&mut harness, texts::DETAILS.get());
+    harness.get_by_role_and_label(Role::Button, texts::DETAILS.get());
+}
+
+#[test]
+fn compact_buttons_are_chosen_per_model() {
+    let models = [SimModel::Kh120Ii, SimModel::Kh750];
+    let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
+    press_compact_shortcut(&mut harness);
+    let row_of = |harness: &Harness<'static, NeumannApp>, name: &str| {
+        harness.get_by_label(name).rect().center().y
+    };
+    let monitor_row = row_of(&harness, KH120_DEVICE_NAME);
+    let monitor_eq = harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+        .find(|node| (node.rect().center().y - monitor_row).abs() < 10.0)
+        .expect("the monitor's EQ button");
+    monitor_eq.click_secondary();
+    harness.run_steps(2);
+    choose(&mut harness, texts::HIDE.get());
+    let left: Vec<f32> = harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+        .map(|node| node.rect().center().y)
+        .collect();
+    let subwoofer_row = row_of(&harness, KH750_DEVICE_NAME);
+    assert_eq!(left.len(), 1, "{left:?}");
+    assert!((left[0] - subwoofer_row).abs() < 10.0, "{left:?}");
+    assert!(stored_buttons(&directory, MONITOR).is_some());
+    assert_eq!(stored_buttons(&directory, SUBWOOFER), None);
 }

@@ -1,5 +1,6 @@
 pub mod all_values;
 pub mod app;
+pub mod compact_layout;
 pub mod display;
 pub mod eq;
 pub mod eq_file;

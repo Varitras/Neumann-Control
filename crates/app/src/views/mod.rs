@@ -1,6 +1,7 @@
 pub mod add_address;
 pub mod all_values;
 pub mod compact;
+mod compact_menu;
 mod details;
 mod details_fields;
 pub mod eq_graph;

@@ -1,5 +1,6 @@
 //! The compact mode's rows: LEDs (or the group's colour), name, a lying level fader with its
-//! value, the loudest input as a small meter, and mute. One row per ungrouped speaker and per
+//! value, the loudest input as a small meter, then buttons: on a speaker's row the ones chosen
+//! for its model, on a group's and the master's mute. One row per ungrouped speaker and per
 //! group, the master at the bottom. The rows only report gestures, as the strips do.
 
 use std::ops::RangeInclusive;
@@ -9,21 +10,23 @@ use eframe::egui::{
     WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::settings::{DeskSettings, GroupSettings};
+use neumann_control_core::settings::{CompactButton, DeskSettings, GroupSettings};
 use neumann_control_core::speaker::Command;
+use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use super::compact_menu;
 use super::fader::{self, Orientation, Scale};
 use super::group_strip::{mute_button, shared_readout, GroupStripResponse, MasterResponse};
 use super::meters;
 use super::strip::{self, UNREACHABLE_OPACITY};
+use crate::compact_layout::CompactChange;
 use crate::fader::output_level_range;
 use crate::groups::SharedLevel;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
-use crate::writes::Switch;
 
 const ROW_MARGIN: i8 = 4;
 const ROW_RADIUS: u8 = 4;
@@ -41,8 +44,11 @@ const MESSAGE_MARK: &str = "!";
 pub struct SpeakerRowResponse {
     /// The writes the user asked for that the write policy allowed.
     pub commands: Vec<Command>,
-    /// The name was clicked: the speaker's panel opens.
+    /// The name or Details was clicked: the speaker's panel opens.
     pub open_panel: bool,
+    pub open_eq: bool,
+    /// A change of the model's compact buttons.
+    pub layout: Option<CompactChange>,
 }
 
 pub fn speaker(
@@ -50,6 +56,7 @@ pub fn speaker(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     desk: &DeskSettings,
+    buttons: &[CompactButton],
 ) -> SpeakerRowResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
@@ -60,6 +67,13 @@ pub fn speaker(
         .unwrap_or_default();
     let now = ui.input(|input| input.time);
     let loudest = speaker.loudest_input(now);
+    // Before the model is known there is nothing to offer that it surely has.
+    let offers = speaker
+        .identity
+        .is_some()
+        .then(|| compact_menu::offers(buttons, speaker.product(), catalog));
+    let mut open_eq = false;
+    let mut layout = None;
     let open_panel = row(ui, tokens.border, |ui| {
         if speaker.status == Status::Unreachable {
             ui.multiply_opacity(UNREACHABLE_OPACITY);
@@ -79,25 +93,55 @@ pub fn speaker(
         cell(ui, READOUT_WIDTH, |ui| readout_label(ui, readout));
         let floor = desk.meter_floor.db();
         meters::bar(ui, loudest, floor, texts::INPUT_METERS.get(), &tokens);
-        let mute = texts::MUTE.get();
-        strip::toggle(
-            ui,
-            speaker,
-            catalog,
-            &mut commands,
-            Switch::Mute.path(),
-            mute,
-            true,
-        );
+        let mut open_details = false;
+        let mut rects = Vec::new();
+        for button in buttons {
+            let response = match button {
+                CompactButton::Switch(path) => {
+                    let text = switch_text(path, catalog);
+                    let path = path.clone();
+                    strip::toggle(ui, speaker, catalog, &mut commands, path, &text, true)
+                }
+                CompactButton::Eq => {
+                    let eq = ui.button(texts::EQ);
+                    open_eq |= eq.clicked();
+                    eq
+                }
+                CompactButton::Details => {
+                    let details = ui.button(texts::DETAILS);
+                    open_details |= details.clicked();
+                    details
+                }
+            };
+            if let Some(offers) = &offers {
+                let change = compact_menu::button_menu(ui, response.rect, button, offers);
+                layout = change.or(layout.take());
+            }
+            rects.push(response.rect);
+        }
         if let Some(message) = &speaker.message {
             message_mark(ui, &texts::describe_message(message), &tokens);
         }
-        open_panel
+        if let Some(offers) = &offers {
+            let change = compact_menu::row_menu(ui, ui.min_rect(), &rects, offers);
+            layout = change.or(layout.take());
+        }
+        open_panel || open_details
     });
     SpeakerRowResponse {
         commands,
         open_panel,
+        open_eq,
+        layout,
     }
+}
+
+/// Short as on the strip, so the row stays one line.
+fn switch_text(path: &SscPath, catalog: &Catalog) -> String {
+    paths::catalog_entry(catalog, path).map_or_else(
+        || path.to_string(),
+        |entry| strip::button_text(entry).to_owned(),
+    )
 }
 
 /// What a group or master row shows: the level of the loudest connected member, whether all are

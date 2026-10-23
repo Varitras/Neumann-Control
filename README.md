@@ -230,9 +230,15 @@ cancels.
 
 **Compact** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
 ungrouped speaker and per group, each with LEDs (a group: its colour), the name, a lying level
-fader with its value, the loudest input as a small meter and **Mute**, and a master row at the
-bottom. A group row moves its members like the group strip. A **!** stands for a speaker's message
-(on a group or the master row, a member's), which shows on hover.
+fader with its value and the loudest input as a small meter, and a master row at the bottom. A
+speaker's row then has **Mute**, **EQ** and **Details** (the device panel); a group or the master
+row has **Mute**. A group row moves its members like the group strip. A **!** stands for a
+speaker's message (on a group or the master row, a member's), which shows on hover.
+
+Right-click a button of a speaker's row to hide it, move it left or right, add another (a switch
+such as **Ident.**, **Mute A**/**Mute B** or auto standby, or EQ and Details again) or go back to
+**Default**; right-click elsewhere in the row to add one when none is left. The buttons are chosen
+per model, like the strips.
 
 The compact window keeps its own size and position and scrolls sideways when it is narrower than
 its rows. Scanning and adding speakers or groups stay on the desk.
@@ -371,7 +377,7 @@ The app is portable and writes only next to the executable:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, and the presets |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, each model's strip layout and compact buttons, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 

@@ -197,6 +197,13 @@ pub struct DeskSettings {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub strip_layouts: BTreeMap<String, StoredStripLayout>,
+    /// The buttons of a model's compact rows, per reported product name; without an entry the
+    /// default ones.
+    #[serde(
+        deserialize_with = "readable_compact_layouts",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub compact_layouts: BTreeMap<String, Vec<CompactButton>>,
 }
 
 /// One element a channel strip shows besides its fixed part: a catalog path, or the EQ button.
@@ -229,6 +236,39 @@ impl<'de> Deserialize<'de> for StripElement {
     }
 }
 
+/// One button of a compact row after its fixed part: a switch's catalog path, EQ or Details.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompactButton {
+    Switch(SscPath),
+    Eq,
+    Details,
+}
+
+const DETAILS_BUTTON: &str = "details";
+
+impl Serialize for CompactButton {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            CompactButton::Switch(path) => path.serialize(serializer),
+            CompactButton::Eq => serializer.serialize_str(EQ_ELEMENT),
+            CompactButton::Details => serializer.serialize_str(DETAILS_BUTTON),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for CompactButton {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<CompactButton, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        match text.as_str() {
+            EQ_ELEMENT => Ok(CompactButton::Eq),
+            DETAILS_BUTTON => Ok(CompactButton::Details),
+            _ => SscPath::parse(&text)
+                .map(CompactButton::Switch)
+                .map_err(serde::de::Error::custom),
+        }
+    }
+}
+
 /// A model's strip elements above and below the fader, in order, as stored.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct StoredStripLayout {
@@ -250,6 +290,7 @@ impl Default for DeskSettings {
             crossovers: CrossoverGuard::Protected,
             delay_unit: DelayUnit::Milliseconds,
             strip_layouts: BTreeMap::new(),
+            compact_layouts: BTreeMap::new(),
         }
     }
 }
@@ -428,19 +469,46 @@ fn readable_layouts<'de, D>(
 where
     D: Deserializer<'de>,
 {
+    readable_map(deserializer, "strip layouts")
+}
+
+/// Like `readable_layouts`; within a model's list an unreadable button is left out alone.
+fn readable_compact_layouts<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<String, Vec<CompactButton>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // A model whose entry is not a list is left out, so it gets the default buttons.
+    let lists: BTreeMap<String, Vec<serde_json::Value>> =
+        readable_map(deserializer, "compact layouts")?;
+    lists
+        .into_iter()
+        .map(|(model, list)| {
+            let buttons = readable_items(serde_json::Value::Array(list));
+            Ok((model, buttons.map_err(serde::de::Error::custom)?))
+        })
+        .collect()
+}
+
+fn readable_map<'de, D, T>(deserializer: D, what: &str) -> Result<BTreeMap<String, T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
     let serde_json::Value::Object(entries) = serde_json::Value::deserialize(deserializer)? else {
-        log::warn!("the strip layouts are not a map; left out");
+        log::warn!("the {what} are not a map; left out");
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
         return Ok(BTreeMap::new());
     };
     let total = entries.len();
-    let readable: BTreeMap<String, StoredStripLayout> = entries
+    let readable: BTreeMap<String, T> = entries
         .into_iter()
-        .filter_map(|(model, layout)| Some((model, StoredStripLayout::deserialize(layout).ok()?)))
+        .filter_map(|(model, value)| Some((model, T::deserialize(value).ok()?)))
         .collect();
     let left_out = total - readable.len();
     if left_out > 0 {
-        log::warn!("{left_out} strip layouts are not understood; left out");
+        log::warn!("{left_out} {what} are not understood; left out");
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + left_out));
     }
     Ok(readable)

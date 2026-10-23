@@ -106,8 +106,15 @@ pub fn row_menu(
 }
 
 fn menu(ui: &Ui, id: Id, rect: Rect, contents: impl FnOnce(&mut Ui)) {
-    let right_clicked =
-        ui.input(|input| input.pointer.secondary_clicked()) && ui.rect_contains_pointer(rect);
+    popup(ui, id, right_clicked(ui, rect), contents);
+}
+
+pub(super) fn right_clicked(ui: &Ui, rect: Rect) -> bool {
+    ui.input(|input| input.pointer.secondary_clicked()) && ui.rect_contains_pointer(rect)
+}
+
+/// A context menu at the pointer, opened when `open`.
+pub(super) fn popup(ui: &Ui, id: Id, open: bool, contents: impl FnOnce(&mut Ui)) {
     Popup::new(
         id,
         ui.ctx().clone(),
@@ -115,7 +122,7 @@ fn menu(ui: &Ui, id: Id, rect: Rect, contents: impl FnOnce(&mut Ui)) {
         ui.layer_id(),
     )
     .kind(PopupKind::Menu)
-    .open_memory(right_clicked.then_some(SetOpenCommand::Bool(true)))
+    .open_memory(open.then_some(SetOpenCommand::Bool(true)))
     .show(contents);
 }
 

@@ -235,7 +235,7 @@ fn usable_by_default(element: &StripElement, product: &str, catalog: &Catalog) -
 }
 
 /// One value a strip can show: no text field, no band list, no list of numbers, no meter.
-fn fits_a_strip(entry: &Entry) -> bool {
+pub(crate) fn fits_a_strip(entry: &Entry) -> bool {
     let one_value = !entry.bands && entry.element_labels(Language::German).is_empty();
     let kind = matches!(
         entry.kind,

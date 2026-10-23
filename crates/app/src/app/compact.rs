@@ -6,6 +6,7 @@ use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, levels, members_of, DeskAction};
 use super::{NeumannApp, COMPACT_SCROLL_ID};
+use crate::compact_layout;
 use crate::fader::output_level_range;
 use crate::groups::{compact_rows, layout, reference_level, shared_level, CompactRow};
 use crate::texts;
@@ -37,14 +38,24 @@ impl NeumannApp {
                         CompactRow::Speaker(index) => {
                             let speaker = &mut self.speakers[index];
                             let key = speaker.state.key.clone();
+                            let product = speaker.state.product().to_owned();
+                            let stored = desk.compact_layouts.get(&product).map(Vec::as_slice);
+                            let buttons = compact_layout::resolve(stored, &product, catalog);
+                            let state = &mut speaker.state;
                             let response = ui
                                 .push_id(&key, |ui| {
-                                    compact::speaker(ui, &mut speaker.state, catalog, &desk)
+                                    compact::speaker(ui, state, catalog, &desk, &buttons)
                                 })
                                 .inner;
                             actions.push(DeskAction::Commands(index, response.commands));
+                            if response.open_eq {
+                                actions.push(DeskAction::OpenEq(key.clone()));
+                            }
                             if response.open_panel {
                                 actions.push(DeskAction::OpenPanel(key));
+                            }
+                            if let Some(change) = response.layout {
+                                actions.push(DeskAction::CompactLayout(product, change));
                             }
                         }
                         CompactRow::Group(group) => {

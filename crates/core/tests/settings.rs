@@ -1,8 +1,8 @@
 use neumann_control_core::settings::{
-    load, save, BandCurves, CrossoverGuard, DelayUnit, DeskSettings, EqPreset, GroupSettings,
-    Language, LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
-    StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry,
-    SETTINGS_FILE,
+    load, save, BandCurves, CompactButton, CrossoverGuard, DelayUnit, DeskSettings, EqPreset,
+    GroupSettings, Language, LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings,
+    SettingsPreset, StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice,
+    WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -495,4 +495,31 @@ fn an_unreadable_strip_element_is_left_out_and_keeps_a_copy() {
     assert_eq!(layouts["KH 120 II"].above, vec![element("audio/out/delay")]);
     let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
     assert_eq!(fs::read_to_string(copy).unwrap(), text);
+}
+
+#[test]
+fn compact_layouts_round_trip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut settings = Settings::default();
+    let switch = CompactButton::Switch(SscPath::parse("device/identification/visual").unwrap());
+    let buttons = vec![CompactButton::Details, switch, CompactButton::Eq];
+    settings
+        .desk
+        .compact_layouts
+        .insert("KH 750".to_owned(), buttons);
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path), settings);
+}
+
+#[test]
+fn an_unreadable_compact_button_is_left_out_alone() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text =
+        r#"{"desk": {"compact_layouts": {"KH 750": ["audio//out", "details"], "KH 80": 3}}}"#;
+    fs::write(&path, text).unwrap();
+    let layouts = load(&path).desk.compact_layouts;
+    assert_eq!(layouts["KH 750"], vec![CompactButton::Details]);
+    assert!(!layouts.contains_key("KH 80"));
 }

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Compact rows of speakers have **EQ** and **Details** next to **Mute**; a right click on a
+  button hides it, moves it, adds another switch or goes back to the default, per model.
 - Without a saved window size, the window is made as large as the desk needs and grows with it
   until you size it yourself.
 - **Show master strip** in **Settings** hides the master strip and its compact row.
