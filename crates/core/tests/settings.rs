@@ -426,6 +426,15 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
     assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }
 
+/// A file from before the setting shows the master, as the app did then.
+#[test]
+fn an_older_file_shows_the_master() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"desk": {"show_response_times": false}}"#).unwrap();
+    assert!(load(&path).desk.show_master);
+}
+
 /// The lowest level a meter shows, in 10 dB steps from -120 to -30 dB.
 #[test]
 fn the_meter_floors_go_in_10_db_steps() {

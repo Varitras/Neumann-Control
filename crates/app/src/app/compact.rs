@@ -61,9 +61,11 @@ impl NeumannApp {
                         }
                     }
                 }
-                let everyone: Vec<usize> = (0..self.speakers.len()).collect();
-                let shown = self.shared_row(&everyone, floor, now);
-                actions.push(DeskAction::Master(compact::master(ui, shown)));
+                if self.settings.desk.show_master {
+                    let everyone: Vec<usize> = (0..self.speakers.len()).collect();
+                    let shown = self.shared_row(&everyone, floor, now);
+                    actions.push(DeskAction::Master(compact::master(ui, shown)));
+                }
             });
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);

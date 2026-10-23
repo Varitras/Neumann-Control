@@ -316,6 +316,7 @@ recorded.
 - whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
   in that time (343 m/s, at 20 °C); the speakers still get samples,
 - whether response times are shown,
+- whether the master strip (and its row in the compact mode) is shown,
 - whether the EQ crossovers are protected (on by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),

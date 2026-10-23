@@ -180,6 +180,9 @@ pub struct DeskSettings {
     pub meter_floor: MeterFloor,
     #[serde(deserialize_with = "or_default")]
     pub show_response_times: bool,
+    /// The master strip at the end of the desk and the master row in the compact mode.
+    #[serde(deserialize_with = "or_default")]
+    pub show_master: bool,
     #[serde(deserialize_with = "or_default")]
     pub language: LanguageChoice,
     #[serde(deserialize_with = "or_default")]
@@ -241,6 +244,7 @@ impl Default for DeskSettings {
             theme: ThemeChoice::System,
             meter_floor: MeterFloor::Minus120,
             show_response_times: true,
+            show_master: true,
             language: LanguageChoice::System,
             compact: false,
             crossovers: CrossoverGuard::Protected,

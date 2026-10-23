@@ -93,6 +93,7 @@ fn contents(
         ui.radio_value(unit, DelayUnit::Meters, texts::DELAY_IN_METERS);
     });
     ui.checkbox(&mut desk.show_response_times, texts::SHOW_RESPONSE_TIMES);
+    ui.checkbox(&mut desk.show_master, texts::SHOW_MASTER);
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
     if ui
         .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)

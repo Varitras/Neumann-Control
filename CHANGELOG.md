@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Show master strip** in **Settings** hides the master strip and its compact row.
 - While an element is dragged in edit mode, its strip shows it where it would land and the
   other elements make room.
 - **Details** on each group strip opens the group's dialog (rename, delete), as its name does.

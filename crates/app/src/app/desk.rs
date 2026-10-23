@@ -138,12 +138,15 @@ impl NeumannApp {
                             }
                         }
                     }
-                    let everyone: Vec<usize> = (0..self.speakers.len()).collect();
-                    let states = self.states(&everyone);
-                    let level = shared_level(&levels(&states), &range);
-                    let muted = all_muted(&states);
-                    let response = group_strip::master(ui, level.as_ref(), muted, range.clone());
-                    actions.push(DeskAction::Master(response));
+                    if desk.show_master {
+                        let everyone: Vec<usize> = (0..self.speakers.len()).collect();
+                        let states = self.states(&everyone);
+                        let level = shared_level(&levels(&states), &range);
+                        let muted = all_muted(&states);
+                        let response =
+                            group_strip::master(ui, level.as_ref(), muted, range.clone());
+                        actions.push(DeskAction::Master(response));
+                    }
                     if let Some(view) = &system {
                         let strip = SystemStrip {
                             name: &view.name,

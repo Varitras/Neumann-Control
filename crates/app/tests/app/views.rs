@@ -721,6 +721,27 @@ fn a_meter_floor_between_the_old_steps_is_chosen_and_saved() {
     assert_eq!(saved.desk.meter_floor.db(), -70.0);
 }
 
+/// "Show master" off hides the master strip on the desk and its row in the compact mode.
+#[test]
+fn the_master_can_be_hidden() {
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let master = texts::MASTER_LEVEL.get();
+    assert!(harness.query_by_label(master).is_some());
+    open_settings(&mut harness);
+    scroll_to_and_click(&mut harness, texts::SHOW_MASTER.get());
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::CLOSE.get());
+    harness.run_steps(2);
+    assert!(harness.query_by_label(master).is_none());
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
+    harness.run_steps(3);
+    assert!(harness.query_by_label(master).is_none(), "compact mode");
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    assert!(!neumann_control_core::settings::load(&path).desk.show_master);
+}
+
 #[test]
 fn english_applies_at_once_and_is_saved() {
     let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
