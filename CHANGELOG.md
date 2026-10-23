@@ -4,6 +4,8 @@
 
 ### Added
 
+- Without a saved window size, the window is made as large as the desk needs and grows with it
+  until you size it yourself.
 - **Show master strip** in **Settings** hides the master strip and its compact row.
 - While an element is dragged in edit mode, its strip shows it where it would land and the
   other elements make room.

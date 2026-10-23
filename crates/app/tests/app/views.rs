@@ -651,6 +651,32 @@ fn the_scroll_bar_does_not_cover_a_strips_foot() {
     }
 }
 
+/// Without a saved window the window is made as large as the desk needs: here one strip and the
+/// master, far less than the first 900 points, with the strip's foot in the window. (kittest
+/// carries out the window's size commands itself.)
+#[test]
+fn a_first_window_fits_the_desk() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    let first_start = neumann_control_core::settings::Settings {
+        manual: vec![manual_for(&simulator)],
+        ..Default::default()
+    };
+    neumann_control_core::settings::save(&first_start, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_for_label(&mut harness, texts::DETAILS.get());
+    harness.run_steps(5);
+    let window = harness.ctx.content_rect();
+    assert!(window.width() < 900.0, "{window:?}");
+    let details = harness
+        .get_by_role_and_label(Role::Button, texts::DETAILS.get())
+        .rect();
+    assert!(window.contains_rect(details), "{details:?} in {window:?}");
+}
+
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());

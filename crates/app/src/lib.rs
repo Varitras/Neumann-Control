@@ -27,5 +27,6 @@ pub mod texts;
 pub mod trend;
 pub mod ui_kit;
 pub mod views;
+pub mod window_fit;
 pub mod window_placement;
 pub mod writes;

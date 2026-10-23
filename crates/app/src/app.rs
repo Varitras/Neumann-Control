@@ -43,6 +43,7 @@ use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, panel, wheel};
+use crate::window_fit::WindowFit;
 
 mod compact;
 mod desk;
@@ -107,6 +108,8 @@ pub struct NeumannApp {
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
     editing: bool,
     window: Option<WindowGeometry>,
+    /// Without a saved desk window, the window is sized to the desk until the user sizes it.
+    window_fit: Option<WindowFit>,
     history: history::HistoryState,
     eq_windows: Vec<eq::EqWindow>,
     preset_dialog: Option<preset_dialogs::PresetDialog>,
@@ -156,6 +159,8 @@ impl NeumannApp {
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
+            window_fit: (settings.window.is_none() && !settings.desk.compact)
+                .then(WindowFit::default),
             settings_path,
             settings,
             spawner,

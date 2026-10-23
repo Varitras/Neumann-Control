@@ -4,7 +4,9 @@
 
 use std::collections::HashMap;
 
-use eframe::egui::{Align, Context, DragAndDrop, Id, Layout, ScrollArea, Ui};
+use eframe::egui::{
+    Align, Context, DragAndDrop, Id, Layout, Rect, ScrollArea, Ui, Vec2, ViewportCommand,
+};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::speaker::Command;
@@ -50,6 +52,25 @@ pub(super) struct GroupDraft {
 }
 
 impl NeumannApp {
+    /// While the first window is fitted: as large as the desk's content with the margin it has
+    /// on the left and top also on the right and bottom.
+    fn fit_window(&mut self, context: &Context, desk: Rect, content: Vec2) {
+        let Some(fit) = &mut self.window_fit else {
+            return;
+        };
+        let margin = desk.min.to_vec2();
+        let wanted = margin + content + Vec2::splat(margin.x);
+        let (current, screen) = context.input(|input| {
+            let viewport = input.viewport();
+            let current = viewport.inner_rect.map(|inner| inner.size());
+            (current, viewport.monitor_size)
+        });
+        let current = current.unwrap_or_else(|| context.content_rect().size());
+        if let Some(size) = fit.next(current, wanted, screen) {
+            context.send_viewport_cmd(ViewportCommand::InnerSize(size));
+        }
+    }
+
     pub(super) fn show_desk(&mut self, ui: &mut Ui) {
         if self.speakers.is_empty() {
             ui.weak(texts::NO_SPEAKERS);
@@ -71,7 +92,7 @@ impl NeumannApp {
         let now = ui.input(|input| input.time);
         let system = self.read_system_volume(now);
         let mut actions = Vec::new();
-        ScrollArea::both()
+        let scroll = ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -159,6 +180,7 @@ impl NeumannApp {
                     }
                 });
             });
+        self.fit_window(ui.ctx(), scroll.inner_rect, scroll.content_size);
         ui.ctx()
             .data_mut(|data| data.insert_temp(Id::unique(STRIP_CENTERS_ID), centers));
         let dropped = dragged.is_some() && ui.input(|input| input.pointer.any_released());

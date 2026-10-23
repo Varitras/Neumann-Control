@@ -21,7 +21,7 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
     self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
-    StoredStripLayout, StripElement, SETTINGS_FILE,
+    StoredStripLayout, StripElement, WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
@@ -105,10 +105,20 @@ pub fn knob_strip_layouts() -> BTreeMap<String, StoredStripLayout> {
         .collect()
 }
 
+/// A window the user sized before, as every start after the first has: the window keeps the
+/// test's size instead of being fitted to the desk (`a_first_window_fits_the_desk` has none).
+pub const SAVED_WINDOW: WindowGeometry = WindowGeometry {
+    x: 0.0,
+    y: 0.0,
+    width: WINDOW_SIZE[0],
+    height: WINDOW_SIZE[1],
+};
+
 pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
     let path = directory.join(SETTINGS_FILE);
     let settings = Settings {
         manual,
+        window: Some(SAVED_WINDOW),
         desk: DeskSettings {
             strip_layouts: knob_strip_layouts(),
             ..DeskSettings::default()
@@ -448,6 +458,7 @@ pub fn grouped(
     second.serial = Some("SIM0007500".to_owned());
     let settings = Settings {
         manual: vec![first, second],
+        window: Some(SAVED_WINDOW),
         groups: vec![GroupSettings {
             name: GROUP_NAME.to_owned(),
             color: 0,
@@ -570,6 +581,7 @@ pub fn desk_prepared(
     let path = directory.path().join(SETTINGS_FILE);
     let settings = Settings {
         manual: simulators.iter().map(manual_for).collect(),
+        window: Some(SAVED_WINDOW),
         desk: DeskSettings {
             strip_layouts,
             ..DeskSettings::default()
