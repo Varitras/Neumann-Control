@@ -56,6 +56,8 @@
   also auto standby and the logo brightness, on the KH 750 the mutes of outputs A and B and the
   temperature. The delay and standby time knobs moved to the device panel (they can be put back
   on the strip). A strip you customized stays as it is.
+- The input interface and the current input are read every 2 seconds instead of every 30, so the
+  current input follows a switch of the interface right away.
 
 ### Fixed
 

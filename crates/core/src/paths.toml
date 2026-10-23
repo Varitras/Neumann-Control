@@ -321,7 +321,7 @@ label = "Eingangs-Interface"
 label_en = "Input interface"
 group = "input"
 kind = "select"
-poll = "slow"
+poll = "fast"
 class = "all"
 options = ["ANALOG ONLY", "DIGITAL ONLY", "DIGITAL DISCARDS ANALOG"]
 writable_on = ["KH 120 II", "KH 750"]
@@ -332,7 +332,7 @@ label = "Aktueller Eingang"
 label_en = "Current input"
 group = "input"
 kind = "display"
-poll = "slow"
+poll = "fast"
 class = "all"
 
 [[entry]]

@@ -1,4 +1,6 @@
-use neumann_control_core::catalog::{Catalog, CatalogError, Conversion, Entry, Kind, ValueError};
+use neumann_control_core::catalog::{
+    Catalog, CatalogError, Conversion, Entry, Kind, Poll, ValueError,
+};
 use neumann_control_core::settings::Language;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
@@ -53,6 +55,14 @@ fn writable_models_have_the_path() {
             );
         }
     }
+}
+
+/// The current input stands on the strip beside the interface choice; read as often as the
+/// choice, it follows a switch within seconds instead of half a minute.
+#[test]
+fn the_current_input_is_read_as_often_as_the_interface() {
+    assert_eq!(entry("audio/in/interface").poll, Poll::Fast);
+    assert_eq!(entry("audio/in/current_input").poll, Poll::Fast);
 }
 
 #[test]
