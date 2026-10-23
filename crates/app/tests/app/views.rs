@@ -308,6 +308,29 @@ fn panel_closes_when_its_speaker_goes_away() {
     });
 }
 
+/// Never reached since the start, a speaker has no readings: its strip still shows two empty
+/// input meters, so their caption stays below them instead of on the scale.
+#[test]
+fn a_speaker_never_reached_keeps_its_meters_and_caption_apart() {
+    let reserved = Simulator::start(SimModel::Kh120Ii);
+    let entry = manual_for(&reserved);
+    reserved.stop();
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![entry]);
+    let mut harness = harness(path, Vec::new());
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    let meters: Vec<egui::Rect> = harness
+        .query_all_by_role(Role::ProgressIndicator)
+        .map(|node| node.rect())
+        .collect();
+    assert_eq!(meters.len(), 2, "input A and B");
+    let caption = harness.get_by_label(texts::METER_INPUT_SHORT.get()).rect();
+    assert!(
+        caption.top() >= meters[0].bottom(),
+        "{caption:?} {meters:?}"
+    );
+}
+
 #[test]
 fn unreachable_strip_is_disabled() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);

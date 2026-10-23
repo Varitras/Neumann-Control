@@ -68,6 +68,8 @@
 
 ### Fixed
 
+- A speaker not reached since the start showed no meters, and their caption lay over the scale;
+  it now shows two empty meters until the first reading.
 - Every write to the KH 120 II's 20-band EQ 3 was refused by the speaker ("code 413"): the
   request was one value too long for it.
 - The EQ graph drew bands near the top too wide (a 14 kHz peak by up to 1.3 dB): it now draws

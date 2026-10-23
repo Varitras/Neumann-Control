@@ -21,6 +21,7 @@ use crate::eq::has_eq;
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
 use crate::gesture::on_grid;
 use crate::input_source::input_source;
+use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
@@ -686,13 +687,21 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
     let played = source.map(|source| source.played).unwrap_or_default();
     let played: &[bool] = if source.is_some() { &played } else { &[] };
     let floor = desk.meter_floor.db();
+    // Before its first reading a speaker has no meters; empty ones keep the strip's shape.
+    let unread;
+    let input_levels: &[MeterState] = if speaker.input_meters.is_empty() {
+        unread = vec![MeterState::default(); texts::INPUT_CHANNELS.len()];
+        &unread
+    } else {
+        &speaker.input_meters
+    };
     let input = MeterGroup {
         with_scale: true,
         caption: caption.get(),
         meters: Meters {
             name: texts::INPUT_METERS.get(),
             channels: texts::INPUT_CHANNELS,
-            levels: &speaker.input_meters,
+            levels: input_levels,
             clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
             played,
         },
