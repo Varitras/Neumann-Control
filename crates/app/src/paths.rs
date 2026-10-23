@@ -24,6 +24,11 @@ pub const STANDBY_ENABLED: &str = "device/standby/enabled";
 pub const INPUT_INTERFACE: &str = "audio/in/interface";
 pub const DELAY: &str = "audio/out/delay";
 pub const STANDBY_TIME: &str = "device/standby/auto_standby_time";
+pub const STANDBY_COUNTDOWN: &str = "device/standby/countdown";
+pub const CURRENT_INPUT: &str = "audio/in/current_input";
+pub const LOGO_BRIGHTNESS: &str = "ui/logo/brightness";
+pub const MUTE_OUTPUT_A: &str = "audio/out1/mute";
+pub const MUTE_OUTPUT_B: &str = "audio/out2/mute";
 
 pub fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("constant path is valid")

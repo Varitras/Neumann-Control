@@ -51,6 +51,11 @@
   address or interface index.
 - Falling meters are drawn 20 times a second instead of at the monitor's rate, which kept the
   graphics card busy while the window was idle.
+- A strip now shows by default what is used while working: the input interface, the current
+  input and the standby countdown above the fader; mute, identify and EQ below, on the KH 120 II
+  also auto standby and the logo brightness, on the KH 750 the mutes of outputs A and B and the
+  temperature. The delay and standby time knobs moved to the device panel (they can be put back
+  on the strip). A strip you customized stays as it is.
 
 ### Fixed
 

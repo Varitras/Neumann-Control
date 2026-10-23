@@ -563,12 +563,18 @@ fn button_row(
     wishes.open_eq |= open_eq;
 }
 
-/// The name from the panel, but identify keeps the strip's short one to fit beside mute.
+/// The name from the panel, but some keep a short one of the strip's: identify to fit beside
+/// mute, and the KH 750's three mutes, which the panel tells apart by their headings only.
 fn button_text(entry: &Entry) -> &str {
-    if entry.path == paths::path(paths::IDENTIFY) {
-        return texts::IDENTIFY.get();
-    }
-    entry.label(texts::language())
+    let short = [
+        (paths::IDENTIFY, texts::IDENTIFY),
+        (paths::MUTE_OUTPUT_A, texts::MUTE_OUTPUT_A),
+        (paths::MUTE_OUTPUT_B, texts::MUTE_OUTPUT_B),
+    ];
+    short
+        .into_iter()
+        .find(|(path, _)| entry.path == paths::path(path))
+        .map_or_else(|| entry.label(texts::language()), |(_, text)| text.get())
 }
 
 fn select(

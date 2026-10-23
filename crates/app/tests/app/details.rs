@@ -152,7 +152,15 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    assert_eq!(role_of(&harness, STANDBY_LABEL), Role::Label);
+    // The panel row is text; the strip's auto standby button is there but cannot be pressed.
+    let standby: Vec<_> = harness.query_all_by_label(STANDBY_LABEL).collect();
+    assert!(standby
+        .iter()
+        .any(|node| node.accesskit_node().role() == Role::Label));
+    assert!(standby
+        .iter()
+        .filter(|node| node.accesskit_node().role() == Role::Button)
+        .all(|node| node.accesskit_node().is_disabled()));
     assert!(harness.query_by_label(LOGO_LABEL).is_none());
 }
 

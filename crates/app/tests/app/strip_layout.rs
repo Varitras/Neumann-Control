@@ -51,12 +51,25 @@ fn label(text: &str) -> &'static str {
 }
 
 #[test]
-fn without_a_layout_the_strip_is_as_before() {
+fn without_a_layout_the_strip_shows_the_working_values() {
     let (_simulators, _directory, harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
-    for knob in [paths::DELAY, paths::STANDBY_TIME] {
+    let shown = [
+        paths::INPUT_INTERFACE,
+        paths::CURRENT_INPUT,
+        paths::STANDBY_COUNTDOWN,
+        paths::LOGO_BRIGHTNESS,
+        paths::STANDBY_ENABLED,
+    ];
+    for path in shown {
         assert!(
-            harness.query_all_by_label(label(knob)).next().is_some(),
-            "{knob}"
+            harness.query_all_by_label(label(path)).next().is_some(),
+            "{path}"
+        );
+    }
+    for set_once in [paths::DELAY, paths::STANDBY_TIME] {
+        assert!(
+            harness.query_all_by_label(label(set_once)).next().is_none(),
+            "{set_once}"
         );
     }
     for button in [texts::MUTE.get(), texts::IDENTIFY.get(), texts::EQ.get()] {
@@ -314,7 +327,7 @@ fn editing_hides_and_adds() {
 
 #[test]
 fn editing_sends_nothing() {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     harness
         .get_by_role_and_label(Role::Button, texts::MUTE.get())
@@ -344,7 +357,7 @@ fn editing_sends_nothing() {
 
 #[test]
 fn dragging_moves_across_the_fader() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     let from = center(&harness, Role::Slider, label(paths::DELAY));
     let to = center(&harness, Role::Button, texts::MUTE.get());
@@ -458,7 +471,8 @@ fn the_button_row_keeps_its_size_and_its_words() {
 
 #[test]
 fn in_edit_mode_no_hide_mark_covers_a_knob() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     let knobs = [paths::DELAY, paths::STANDBY_TIME];
     for own in knobs {

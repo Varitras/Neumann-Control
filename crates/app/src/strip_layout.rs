@@ -36,22 +36,39 @@ pub enum LayoutChange {
     Reset,
 }
 
-const DEFAULT_ABOVE: [&str; 2] = [paths::DELAY, paths::STANDBY_TIME];
-const DEFAULT_BELOW: [&str; 2] = [paths::MUTE, paths::IDENTIFY];
+/// What is looked at or switched while working; set-up values (delay, standby time, phase) stay
+/// in the panel. Above the fader only what every model has, so the faders of a mixed desk stand
+/// level; each model gets the ones it has of the rest.
+const DEFAULT_ABOVE: [&str; 3] = [
+    paths::INPUT_INTERFACE,
+    paths::CURRENT_INPUT,
+    paths::STANDBY_COUNTDOWN,
+];
+const DEFAULT_BUTTONS: [&str; 5] = [
+    paths::MUTE,
+    paths::MUTE_OUTPUT_A,
+    paths::MUTE_OUTPUT_B,
+    paths::IDENTIFY,
+    paths::STANDBY_ENABLED,
+];
+/// After the buttons and EQ: the model's own values.
+const DEFAULT_MODEL_VALUES: [&str; 2] = [paths::TEMPERATURE, paths::LOGO_BRIGHTNESS];
 
-/// Today's strip: delay and standby time above the fader, mute, identify and EQ below.
+/// The working values above the fader; the buttons, EQ and the model's own values below.
 pub fn default_layout(product: &str, catalog: &Catalog) -> StoredStripLayout {
     let paths_of = |texts: &[&str]| -> Vec<StripElement> {
         texts
             .iter()
             .map(|text| StripElement::Path(paths::path(text)))
             .filter(|element| shows(element, product, catalog))
+            .filter(|element| usable_by_default(element, product, catalog))
             .collect()
     };
-    let mut below = paths_of(&DEFAULT_BELOW);
+    let mut below = paths_of(&DEFAULT_BUTTONS);
     if shows(&StripElement::Eq, product, catalog) {
         below.push(StripElement::Eq);
     }
+    below.extend(paths_of(&DEFAULT_MODEL_VALUES));
     StoredStripLayout {
         above: paths_of(&DEFAULT_ABOVE),
         below,
@@ -199,6 +216,24 @@ fn shows(element: &StripElement, product: &str, catalog: &Catalog) -> bool {
     }
 }
 
+/// A control a writable model cannot write (the KH 750's auto standby follows its switch)
+/// would sit on every strip greyed out. A model the app writes nothing on (not measured, or not
+/// yet connected) keeps them: their state still shows, and the strip keeps its shape when the
+/// model becomes known.
+fn usable_by_default(element: &StripElement, product: &str, catalog: &Catalog) -> bool {
+    let StripElement::Path(path) = element else {
+        return true;
+    };
+    let entries = catalog.entries_for(product);
+    let writes_anything = entries.iter().any(|entry| entry.is_writable(product));
+    entries
+        .iter()
+        .find(|entry| entry.path == *path)
+        .is_some_and(|entry| {
+            entry.kind == Kind::Display || entry.is_writable(product) || !writes_anything
+        })
+}
+
 /// One value a strip can show: no text field, no band list, no list of numbers, no meter.
 fn fits_a_strip(entry: &Entry) -> bool {
     let one_value = !entry.bands && entry.element_labels(Language::German).is_empty();
@@ -231,6 +266,16 @@ mod tests {
         resolve(None, MONITOR, Catalog::embedded())
     }
 
+    /// Delay and standby time above the fader, mute, identify and EQ below.
+    fn two_knobs() -> StripLayout {
+        let mut below = elements(&[paths::MUTE, paths::IDENTIFY]);
+        below.push(StripElement::Eq);
+        StripLayout {
+            above: elements(&[paths::DELAY, paths::STANDBY_TIME]),
+            below,
+        }
+    }
+
     fn stored(layout: StoredStripLayout) -> StripLayout {
         StripLayout {
             above: layout.above,
@@ -238,15 +283,45 @@ mod tests {
         }
     }
 
+    /// The same on every model, so the faders of a mixed desk stand level.
+    const WORKING_ABOVE: [&str; 3] = [
+        paths::INPUT_INTERFACE,
+        paths::CURRENT_INPUT,
+        paths::STANDBY_COUNTDOWN,
+    ];
+
     #[test]
-    fn the_default_is_todays_strip() {
+    fn the_monitor_default_shows_what_is_used_while_working() {
         let layout = monitor_default();
-        assert_eq!(layout.above, elements(&[paths::DELAY, paths::STANDBY_TIME]));
-        let mut below = elements(&[paths::MUTE, paths::IDENTIFY]);
+        assert_eq!(layout.above, elements(&WORKING_ABOVE));
+        let mut below = elements(&[paths::MUTE, paths::IDENTIFY, paths::STANDBY_ENABLED]);
         below.push(StripElement::Eq);
+        below.push(element(paths::LOGO_BRIGHTNESS));
         assert_eq!(layout.below, below);
-        let subwoofer = resolve(None, SUBWOOFER, Catalog::embedded());
-        assert!(subwoofer.below.contains(&StripElement::Eq));
+    }
+
+    /// The KH 750 cannot switch auto standby over the network (its switch does), so the default
+    /// leaves that button out; set-up values such as the delay stay in the panel.
+    #[test]
+    fn the_subwoofer_default_adds_its_outputs_and_its_temperature_below() {
+        let layout = resolve(None, SUBWOOFER, Catalog::embedded());
+        assert_eq!(layout.above, elements(&WORKING_ABOVE));
+        let mut below = elements(&[
+            paths::MUTE,
+            paths::MUTE_OUTPUT_A,
+            paths::MUTE_OUTPUT_B,
+            paths::IDENTIFY,
+        ]);
+        below.push(StripElement::Eq);
+        below.push(element(paths::TEMPERATURE));
+        assert_eq!(layout.below, below);
+    }
+
+    #[test]
+    fn a_model_without_writes_keeps_its_buttons_by_default() {
+        let unknown = resolve(None, "", Catalog::embedded());
+        assert!(unknown.below.contains(&element(paths::MUTE)));
+        assert!(unknown.below.contains(&element(paths::STANDBY_ENABLED)));
     }
 
     #[test]
@@ -293,7 +368,7 @@ mod tests {
 
     #[test]
     fn moving_crosses_the_fader_at_the_ends() {
-        let layout = monitor_default();
+        let layout = two_knobs();
         let standby = element(paths::STANDBY_TIME);
         let down = stored(apply(&layout, &LayoutChange::MoveDown(standby.clone())).unwrap());
         assert_eq!(down.above, elements(&[paths::DELAY]));

@@ -21,10 +21,11 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
     self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
-    StoredStripLayout, SETTINGS_FILE,
+    StoredStripLayout, StripElement, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
+use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 pub const SIMULATED_SERIAL: &str = "SIM0001234";
@@ -39,6 +40,12 @@ pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
 const PRODUCT_PATH: &str = "device/identity/product";
+const DELAY_PATH: &str = "audio/out/delay";
+const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
+const MUTE_PATH: &str = "audio/out/mute";
+const IDENTIFY_PATH: &str = "device/identification/visual";
+const KH120_PRODUCT: &str = "KH 120 II";
+const KH750_PRODUCT: &str = "KH 750";
 const SERIAL_PATH: &str = "device/identity/serial";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
@@ -83,10 +90,29 @@ pub fn manual_for(simulator: &Simulator) -> ManualSpeaker {
     }
 }
 
+/// The strip of the window tests: the delay and standby time knobs their gestures turn, mute,
+/// identify and EQ. The default strip (working values, no knobs on the KH 750) is tested on its
+/// own with `desk_of`.
+pub fn knob_strip_layouts() -> BTreeMap<String, StoredStripLayout> {
+    let path = |text: &str| StripElement::Path(SscPath::parse(text).unwrap());
+    let layout = StoredStripLayout {
+        above: vec![path(DELAY_PATH), path(STANDBY_TIME_PATH)],
+        below: vec![path(MUTE_PATH), path(IDENTIFY_PATH), StripElement::Eq],
+    };
+    [KH120_PRODUCT, KH750_PRODUCT]
+        .into_iter()
+        .map(|product| (product.to_owned(), layout.clone()))
+        .collect()
+}
+
 pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
     let path = directory.join(SETTINGS_FILE);
     let settings = Settings {
         manual,
+        desk: DeskSettings {
+            strip_layouts: knob_strip_layouts(),
+            ..DeskSettings::default()
+        },
         ..Settings::default()
     };
     settings::save(&settings, &path).unwrap();

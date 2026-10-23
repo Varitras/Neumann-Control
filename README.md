@@ -36,8 +36,9 @@ panel of one KH 750 open. The interface is shown in German.*
 
 - **Find speakers** on the local network (mDNS) and choose which to add, or add one by its IPv6
   address. Added speakers are remembered.
-- **A desk of channel strips**: status LEDs, delay and standby knobs, a level fader, input
-  meters (on the KH 750 also its output meters), mute and identify.
+- **A desk of channel strips**: status LEDs, the input and the standby countdown, a level fader,
+  input meters (on the KH 750 also its output meters), mute and identify; what a strip shows can
+  be changed per model.
 - **A device panel** per speaker with every setting the catalog knows for its model.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
@@ -118,13 +119,17 @@ Each speaker has a channel strip:
 
 - its name (click it to open the device panel) and a grip to drag the strip elsewhere,
 - four LEDs: connection, clip, device warning, and LOCAL (the rear CONTROL switch locks writing),
-- by default knobs for **Delay** (shown in ms) and **Standby time**,
+- by default the **Input interface** (a choice), the **Current input** and the standby
+  **Countdown**; set-up values such as the delay and the standby time are in the device panel,
 - the output level fader (0–120 dB SPL in 0.5 dB steps) with its value below,
 - input meters for channels A and B with clip lamps; the KH 750 also shows its output meters A, B
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
-  speaker's EQ window once the speaker has reported its model.
+  speaker's EQ window once the speaker has reported its model; on the KH 120 II also
+  **Auto standby** and a knob for the **Logo brightness**, on the KH 750 **Mute A** and **Mute B**
+  for its outputs A and B and its **Temperature**. Above the fader every model shows the same, so
+  the faders of a mixed desk stand level.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
 speaker of that model at once:

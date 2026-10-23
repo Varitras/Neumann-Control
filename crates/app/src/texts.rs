@@ -128,6 +128,9 @@ pub const NO_SPEAKERS: Text = Text::new(
 
 pub const MUTE: Text = Text::new("Stumm", "Mute");
 pub const IDENTIFY: Text = Text::new("Ident.", "Ident.");
+/// The KH 750's outputs A and B on a strip, beside its own mute.
+pub const MUTE_OUTPUT_A: Text = Text::new("Stumm A", "Mute A");
+pub const MUTE_OUTPUT_B: Text = Text::new("Stumm B", "Mute B");
 pub const LEVEL: Text = Text::new("Pegel", "Level");
 pub const CLIP: Text = Text::new("Übersteuert", "Clipping");
 pub const LED_CONNECTION: Text = Text::new("Verbindung", "Connection");
