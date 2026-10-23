@@ -12,10 +12,9 @@ strips on a desk, with level faders, meters, groups and a master.
 > This is an independent project. It is not affiliated with or endorsed by Neumann or
 > Sennheiser.
 
-![The desk: four speakers, a group strip, and the device panel of a KH 750](docs/images/desk.png)
+![The desk: two KH 120 II and two KH 750 with their meters, and the master strip](docs/images/desk.png)
 
-*The desk with four speakers (two KH 120 II, two KH 750), the group strip "Front", and the device
-panel of one KH 750 open. The interface is shown in German.*
+*The desk with four speakers (two KH 120 II, two KH 750) and the master strip.*
 
 ## Contents
 
@@ -184,6 +183,8 @@ before what is only shown. Settings the model may write get a
 control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
 number. Escape, **Close** or the window's close button closes it.
 
+![The device panel of a KH 750: its outputs on the left, standby, device and rear panel on the right](docs/images/panel.png)
+
 Each output also has **Input mix**, one field per input (Input A, Input B, −100 to 0 dB): how
 much of each input that output plays. By default the KH 750 plays input A on output A, input B
 on output B and both on its own woofer. **Mute persist** is the speaker's own setting of that
@@ -251,6 +252,8 @@ be moved to another screen). On the KH 750 choose the output first (Subwoofer fo
 woofer, Output A and Output B for its two output sockets); then each EQ of that output has a
 tab: "EQ 2", "EQ 3", and on the KH 750 the crossovers of input A and input B ("Crossover A",
 "Crossover B").
+
+![The EQ window of a KH 750: the curves of EQ 2, EQ 3 and the crossovers with their sum, and the band table](docs/images/eq.png)
 
 - The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
   10 Hz to 24 kHz. The curves are computed from the settings, not measured, as the speakers'
