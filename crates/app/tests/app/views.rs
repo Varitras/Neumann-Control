@@ -378,7 +378,7 @@ fn all_values_window(
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker(model);
     open_panel(&mut harness, device_name(model));
-    harness.get_by_label(texts::ALL_VALUES.get()).click();
+    scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     wait_until(&mut harness, "the loaded table", |harness| {
         harness
             .query_by_label(texts::ALL_VALUES_PATH_COLUMN.get())

@@ -104,27 +104,24 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
 fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    // Short enough that the panel scrolls (its delay knob stays below the window), tall enough
-    // that the logo knob is in view; `open_panel` makes the window tall.
-    harness.set_size(egui::vec2(1200.0, 480.0));
-    harness.run_steps(2);
-    let label = texts::knob_label("Logo-Helligkeit");
+    // The panel scrolls: a wheel the standby time knob did not take would bring the standby
+    // level knob below it under the pointer.
+    let label = texts::knob_label("Standby-Zeit");
     let center = slider_center(&harness, &label);
     harness.hover_at(center);
     for _ in 0..8 {
         wheel(&mut harness, -1.0);
         harness.step();
     }
-    wait_until(&mut harness, "the logo write", |_| {
-        !sets(&simulator, "/ui/logo/brightness").is_empty()
+    wait_until(&mut harness, "the standby time write", |_| {
+        !sets(&simulator, "/device/standby/auto_standby_time").is_empty()
     });
     harness.run_steps(5);
     barrier(&simulator);
-    assert!(
-        delay_sets(&simulator).is_empty(),
-        "{:?}",
-        delay_sets(&simulator)
-    );
+    for other in ["/device/standby/level", "/ui/logo/brightness"] {
+        assert!(sets(&simulator, other).is_empty(), "{other}");
+    }
+    assert!(delay_sets(&simulator).is_empty());
 }
 
 #[test]

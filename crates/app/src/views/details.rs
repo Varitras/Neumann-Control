@@ -1,5 +1,5 @@
-//! The device panel's settings: every catalog entry for the speaker's model, in the catalog's
-//! group order. Entries the model may write get a control (numbers also a knob), the rest a
+//! The device panel's settings: every catalog entry for the speaker's model, by topic (the
+//! outputs first and together). Entries the model may write get a control (numbers also a knob), the rest a
 //! greyed value; what the strip or the panel header shows and what the speaker does not have
 //! are left out.
 
@@ -18,6 +18,19 @@ use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
 const COLUMNS: usize = 2;
+/// The panel's topics in the order they are listed.
+const GROUP_ORDER: [Group; 9] = [
+    Group::Output,
+    Group::Output1,
+    Group::Output2,
+    Group::Input,
+    Group::Standby,
+    Group::Device,
+    Group::RearPanel,
+    Group::Metering,
+    Group::Eq,
+];
+const OUTPUTS: [Group; 3] = [Group::Output, Group::Output1, Group::Output2];
 const GROUP_GAP: f32 = 8.0;
 
 /// Drawn by the strip's fixed part (level, meters) or the panel header (model, firmware,
@@ -103,14 +116,19 @@ fn rows(
 
 type Groups<'a> = Vec<(Group, Vec<&'a Entry>)>;
 
-/// Groups in catalog order, the first ones left until about half the rows are placed.
+/// The first groups left until about half the rows are placed; the outputs stay together in
+/// the column they start in.
 fn split_in_columns(groups: Groups<'_>) -> (Groups<'_>, Groups<'_>) {
     let total: usize = groups.iter().map(|(_, entries)| entries.len()).sum();
     let mut placed = 0;
     let mut left = Vec::new();
     let mut right = Vec::new();
     for (group, entries) in groups {
-        let fits_left = right.is_empty() && 2 * placed < total;
+        let continues_outputs = OUTPUTS.contains(&group)
+            && left
+                .last()
+                .is_some_and(|(previous, _): &(Group, _)| OUTPUTS.contains(previous));
+        let fits_left = right.is_empty() && (2 * placed < total || continues_outputs);
         placed += entries.len();
         if fits_left {
             left.push((group, entries));
@@ -123,8 +141,24 @@ fn split_in_columns(groups: Groups<'_>) -> (Groups<'_>, Groups<'_>) {
 
 /// The entries to show, grouped in the order the catalog first names each group.
 fn groups<'a>(entries: Vec<&'a Entry>, speaker: &SpeakerState) -> Groups<'a> {
+    let shown = entries.into_iter().filter(|entry| is_shown(entry, speaker));
+    arranged(grouped(shown.collect()), speaker.product())
+}
+
+/// In topic order, and in each group what can be set before what is only shown; otherwise the
+/// catalog's order.
+fn arranged<'a>(mut groups: Groups<'a>, product: &str) -> Groups<'a> {
+    let place = |group: &Group| GROUP_ORDER.iter().position(|known| known == group);
+    groups.sort_by_key(|(group, _)| place(group));
+    for (_, entries) in &mut groups {
+        entries.sort_by_key(|entry| !entry.is_writable(product));
+    }
+    groups
+}
+
+fn grouped(entries: Vec<&Entry>) -> Groups<'_> {
     let mut groups: Groups = Vec::new();
-    for entry in entries.into_iter().filter(|entry| is_shown(entry, speaker)) {
+    for entry in entries {
         match groups.iter_mut().find(|(group, _)| *group == entry.group) {
             Some((_, members)) => members.push(entry),
             None => groups.push((entry.group, vec![entry])),
@@ -223,5 +257,76 @@ fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec
         .clicked()
     {
         commands.push(speaker.read_all_values());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::SpeakerKey;
+    use neumann_control_core::speaker::Identity;
+
+    const SUBWOOFER: &str = "KH 750";
+    const MONITOR: &str = "KH 120 II";
+
+    /// What the panel of a connected speaker of `product` lists, in its order.
+    fn arranged_for(product: &str) -> Groups<'static> {
+        let address = "[fe80::1%7]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        speaker.identity = Some(Identity {
+            product: product.to_owned(),
+            version: "1_0_0".to_owned(),
+            serial: "SIM1".to_owned(),
+            name: String::new(),
+        });
+        groups(Catalog::embedded().entries_for(product), &speaker)
+    }
+
+    fn titles(groups: &Groups) -> Vec<Group> {
+        groups.iter().map(|(group, _)| *group).collect()
+    }
+
+    #[test]
+    fn groups_follow_the_topics_with_the_outputs_first() {
+        assert_eq!(
+            titles(&arranged_for(SUBWOOFER))[..7],
+            [
+                Group::Output,
+                Group::Output1,
+                Group::Output2,
+                Group::Input,
+                Group::Standby,
+                Group::Device,
+                Group::RearPanel,
+            ]
+        );
+    }
+
+    /// Output A and B used to land in different columns.
+    #[test]
+    fn the_outputs_stay_together_in_one_column() {
+        for product in [SUBWOOFER, MONITOR] {
+            let (left, right) = split_in_columns(arranged_for(product));
+            let outputs = [Group::Output, Group::Output1, Group::Output2];
+            assert!(
+                titles(&right).iter().all(|group| !outputs.contains(group)),
+                "{product}: {:?} | {:?}",
+                titles(&left),
+                titles(&right)
+            );
+        }
+    }
+
+    #[test]
+    fn in_a_group_the_settings_come_before_what_is_only_shown() {
+        for (group, entries) in arranged_for(SUBWOOFER) {
+            let shown_only: Vec<bool> = entries
+                .iter()
+                .map(|entry| !entry.is_writable(SUBWOOFER))
+                .collect();
+            let mut sorted = shown_only.clone();
+            sorted.sort();
+            assert_eq!(shown_only, sorted, "{group:?}");
+        }
     }
 }

@@ -171,7 +171,9 @@ time of the connected ones.
 Click a speaker's name or **Details** under its strip. The panel opens in a window of its own,
 one per speaker, which you can move anywhere, also beside the main window or onto another screen;
 opening it again brings it to the front. It lists every setting the catalog knows for that model
-(output, input, standby, device, rear panel) in two columns. Settings the model may write get a
+by topic in two columns: the outputs first and together (on the KH 750 its own,
+then A and B), then input, standby, device and rear panel; in each topic what can be set comes
+before what is only shown. Settings the model may write get a
 control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
 number. Escape, **Close** or the window's close button closes it.
 

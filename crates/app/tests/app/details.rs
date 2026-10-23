@@ -42,6 +42,13 @@ fn sets_to(simulator: &Simulator, pointer: &str) -> Vec<Value> {
         .collect()
 }
 
+/// The name field sits in "Device", below the outputs, input and standby: scrolled to first.
+fn click_name_field(harness: &mut Harness<'static, NeumannApp>) {
+    harness.get_by_role(Role::TextInput).scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    harness.get_by_role(Role::TextInput).click();
+}
+
 fn role_of(harness: &Harness<'static, NeumannApp>, label: &str) -> Role {
     harness.get_by_label(label).accesskit_node().role()
 }
@@ -87,7 +94,7 @@ fn temperature_is_shown_in_celsius() {
 #[test]
 fn name_field_shows_refusal() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_role(Role::TextInput).click();
+    click_name_field(&mut harness);
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("Küche");
@@ -323,7 +330,7 @@ fn escape_during_number_edit_sends_nothing() {
 #[test]
 fn an_abandoned_name_draft_follows_the_device_again() {
     let (_simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_role(Role::TextInput).click();
+    click_name_field(&mut harness);
     harness.run_steps(1);
     harness.get_by_role(Role::TextInput).type_text("draft");
     harness.run_steps(1);
@@ -341,7 +348,7 @@ fn an_abandoned_name_draft_follows_the_device_again() {
 #[test]
 fn a_name_typed_then_tabbed_to_apply_is_sent() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_role(Role::TextInput).click();
+    click_name_field(&mut harness);
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("Studio");
@@ -359,7 +366,7 @@ fn a_name_typed_then_tabbed_to_apply_is_sent() {
 #[test]
 fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
     let (_simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_role(Role::TextInput).click();
+    click_name_field(&mut harness);
     harness.run_steps(1);
     harness.get_by_role(Role::TextInput).type_text("draft");
     harness.run_steps(1);
@@ -427,7 +434,7 @@ fn kh120ii_strip_has_no_output_meters() {
 #[test]
 fn all_values_button_reads_the_whole_tree() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_label(texts::ALL_VALUES.get()).click();
+    scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     wait_until(&mut harness, "the schema walk", |_| {
         simulator
             .requests()
@@ -641,7 +648,7 @@ fn kh750_shows_its_auto_standby_switch() {
 #[test]
 fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
     let (_simulator, directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
-    harness.get_by_label(texts::FULL_SCAN.get()).click();
+    scroll_to_and_click(&mut harness, texts::FULL_SCAN.get());
     let written = |directory: &std::path::Path| -> Vec<std::path::PathBuf> {
         std::fs::read_dir(directory)
             .unwrap()

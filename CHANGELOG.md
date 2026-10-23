@@ -48,6 +48,8 @@
 
 ### Changed
 
+- The device panel lists its settings by topic, the outputs first and together, and in each topic
+  what can be set before what is only shown.
 - On the KH 750 the outputs are named after what they drive: Subwoofer (its own woofer), Output A
   and Output B (its two output sockets), formerly Output 1 and Output 2.
 - The language follows the Windows display language unless one is chosen in the settings.
