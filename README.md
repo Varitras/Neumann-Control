@@ -310,7 +310,7 @@ recorded.
 - the theme: like Windows, light or dark,
 - the language: like Windows, German or English. It changes at once. German shows a decimal comma; typed values
   take a comma or a point.
-- the lowest level the meters show: −120, −90 or −60 dB,
+- the lowest level the meters show: −120 to −30 dB in 10 dB steps,
 - whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
   in that time (343 m/s, at 20 °C); the speakers still get samples,
 - whether response times are shown,

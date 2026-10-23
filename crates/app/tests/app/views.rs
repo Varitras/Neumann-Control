@@ -672,6 +672,24 @@ fn the_delay_unit_switches_to_meters_and_is_saved() {
     );
 }
 
+/// The meter range in 10 dB steps, from a list.
+#[test]
+fn a_meter_floor_between_the_old_steps_is_chosen_and_saved() {
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_settings(&mut harness);
+    harness
+        .get_by_role_and_label(Role::ComboBox, texts::METER_RANGE.get())
+        .click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, &texts::meter_floor(-70.0));
+    harness.run_steps(2);
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    let saved = neumann_control_core::settings::load(&path);
+    assert_eq!(saved.desk.meter_floor.db(), -70.0);
+}
+
 #[test]
 fn english_applies_at_once_and_is_saved() {
     let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);

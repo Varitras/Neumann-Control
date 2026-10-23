@@ -15,6 +15,7 @@ use crate::ui_kit::eq_palette::{band_color, curve_color, hex, BAND_COLOR_COUNT};
 
 const MODAL_ID: &str = "settings_dialog";
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
+const METER_FLOOR_ID: &str = "meter_floor";
 const BAND_GRID_ID: &str = "band_colors";
 const BAND_COLUMNS: usize = 10;
 /// Taller than this, the dialog scrolls.
@@ -72,11 +73,18 @@ fn contents(
         ui.radio_value(language, LanguageChoice::German, texts::LANGUAGE_GERMAN);
         ui.radio_value(language, LanguageChoice::English, texts::LANGUAGE_ENGLISH);
     });
-    ui.label(texts::METER_RANGE);
     ui.horizontal(|ui| {
-        for floor in MeterFloor::ALL {
-            ui.radio_value(&mut desk.meter_floor, floor, texts::meter_floor(floor.db()));
-        }
+        let label = ui.label(texts::METER_RANGE);
+        ComboBox::from_id_salt(METER_FLOOR_ID)
+            .selected_text(texts::meter_floor(desk.meter_floor.db()))
+            .show_ui(ui, |ui| {
+                for floor in MeterFloor::ALL {
+                    let text = texts::meter_floor(floor.db());
+                    ui.selectable_value(&mut desk.meter_floor, floor, text);
+                }
+            })
+            .response
+            .labelled_by(label.id);
     });
     ui.label(texts::DELAY_SHOWN_IN);
     ui.horizontal(|ui| {

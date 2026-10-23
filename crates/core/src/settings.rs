@@ -310,27 +310,49 @@ impl DelayUnit {
     pub const ALL: [DelayUnit; 2] = [DelayUnit::Milliseconds, DelayUnit::Meters];
 }
 
-/// The lowest level a meter shows; quiet room volume reads about -90 dB on the inputs.
+/// The lowest level a meter shows, in 10 dB steps; quiet room volume reads about -90 dB on the
+/// inputs. The names stay as files have them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum MeterFloor {
     #[default]
     Minus120,
+    Minus110,
+    Minus100,
     Minus90,
+    Minus80,
+    Minus70,
     Minus60,
+    Minus50,
+    Minus40,
+    Minus30,
 }
 
 impl MeterFloor {
-    pub const ALL: [MeterFloor; 3] = [
+    pub const ALL: [MeterFloor; 10] = [
         MeterFloor::Minus120,
+        MeterFloor::Minus110,
+        MeterFloor::Minus100,
         MeterFloor::Minus90,
+        MeterFloor::Minus80,
+        MeterFloor::Minus70,
         MeterFloor::Minus60,
+        MeterFloor::Minus50,
+        MeterFloor::Minus40,
+        MeterFloor::Minus30,
     ];
 
     pub const fn db(self) -> f64 {
         match self {
             MeterFloor::Minus120 => -120.0,
+            MeterFloor::Minus110 => -110.0,
+            MeterFloor::Minus100 => -100.0,
             MeterFloor::Minus90 => -90.0,
+            MeterFloor::Minus80 => -80.0,
+            MeterFloor::Minus70 => -70.0,
             MeterFloor::Minus60 => -60.0,
+            MeterFloor::Minus50 => -50.0,
+            MeterFloor::Minus40 => -40.0,
+            MeterFloor::Minus30 => -30.0,
         }
     }
 }

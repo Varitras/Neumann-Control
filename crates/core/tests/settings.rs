@@ -426,10 +426,21 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
     assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }
 
+/// The lowest level a meter shows, in 10 dB steps from -120 to -30 dB.
 #[test]
-fn the_meter_floors_are_below_zero_db() {
-    let floors = MeterFloor::ALL.map(MeterFloor::db);
-    assert_eq!(floors, [-120.0, -90.0, -60.0]);
+fn the_meter_floors_go_in_10_db_steps() {
+    let floors: Vec<f64> = MeterFloor::ALL.iter().map(|floor| floor.db()).collect();
+    let steps: Vec<f64> = (3..=12).rev().map(|tens| -10.0 * f64::from(tens)).collect();
+    assert_eq!(floors, steps);
+}
+
+/// Files written with the three floors before keep them.
+#[test]
+fn earlier_meter_floors_still_load() {
+    for (name, db) in [("Minus120", -120.0), ("Minus90", -90.0), ("Minus60", -60.0)] {
+        let floor: MeterFloor = serde_json::from_str(&format!("\"{name}\"")).unwrap();
+        assert_eq!(floor.db(), db);
+    }
 }
 
 fn element(text: &str) -> StripElement {
