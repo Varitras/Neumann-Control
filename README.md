@@ -141,8 +141,9 @@ speaker of that model at once:
   up or down (past the fader too). Right-click a row in the device panel to put it on the strip
   (**Add to strip**) or take it off.
 - The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**
-  adds an element, dragging one with the left button moves it (also across the fader),
-  right-click hides it, and **Default** brings back the strip above. The controls write nothing
+  adds an element, dragging one with the left button moves it (also across the fader; while you
+  drag, the strip already shows it where it would land, faded, and the others make room; it
+  goes to strips of the same model only), right-click hides it, and **Default** brings back the strip above. The controls write nothing
   while you edit; the pen again (**Done**) ends it.
 - Any number, switch, choice or read-only value of the device panel can go on a strip; the
   device name and lists such as the input mix stay in the panel.

@@ -4,6 +4,8 @@
 
 ### Added
 
+- While an element is dragged in edit mode, its strip shows it where it would land and the
+  other elements make room.
 - **Details** on each group strip opens the group's dialog (rename, delete), as its name does.
 - A speaker that is off keeps the name and model it last reported, instead of its masked
   address; removing the speaker forgets them.

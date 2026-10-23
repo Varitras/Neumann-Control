@@ -355,6 +355,75 @@ fn editing_sends_nothing() {
     assert!(any_set(&simulators[0]), "the check itself sees a set");
 }
 
+/// While a knob is dragged over the buttons, the strip already shows it there: the knob row
+/// above the fader closes and the buttons below make room. Nothing is stored before letting go.
+#[test]
+fn a_drag_shows_where_the_element_lands_before_letting_go() {
+    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+    start_editing(&mut harness);
+    let mute_before = center(&harness, Role::Button, texts::MUTE.get());
+    let from = center(&harness, Role::Slider, label(paths::DELAY));
+    harness.drag_at(from);
+    for frame in 1..=DRAG_FRAMES {
+        let progress = frame as f32 / DRAG_FRAMES as f32;
+        harness.hover_at(from + (mute_before - from) * progress);
+        harness.step();
+    }
+    harness.run_steps(2);
+    let delay = center(&harness, Role::Slider, label(paths::DELAY));
+    // The landing is drawn from where the strip drew its elements the frame before; it must
+    // settle, not flicker between two places.
+    for _ in 0..4 {
+        harness.step();
+        assert_eq!(center(&harness, Role::Slider, label(paths::DELAY)), delay);
+    }
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
+        .rect();
+    assert!(
+        delay.y > fader.bottom(),
+        "the delay knob is shown below the fader"
+    );
+    let mute_now = center(&harness, Role::Button, texts::MUTE.get());
+    assert_ne!(mute_now, mute_before, "mute made room");
+    assert_eq!(
+        stored_layout(&directory, MONITOR),
+        knob_strip_layouts().remove(MONITOR),
+        "nothing stored while dragging"
+    );
+    harness.drop_at(mute_before);
+    harness.run_steps(3);
+    let stored = stored_layout(&directory, MONITOR).expect("a stored layout");
+    assert_eq!(stored.below.first(), Some(&element(paths::DELAY)));
+}
+
+/// Layouts are per model: a knob of a KH 120 II let go on a KH 750 strip lands nowhere.
+#[test]
+fn a_drag_onto_another_models_strip_changes_nothing() {
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimModel::Kh120Ii, SimModel::Kh750], knob_strip_layouts());
+    start_editing(&mut harness);
+    let delays: Vec<egui::Pos2> = harness
+        .query_all_by_role_and_label(Role::Slider, label(paths::DELAY))
+        .map(|node| node.rect().center())
+        .collect();
+    let (from, other_strip) = (delays[0], delays[1]);
+    let other_mutes: Vec<egui::Pos2> = harness
+        .query_all_by_role_and_label(Role::Button, texts::MUTE.get())
+        .map(|node| node.rect().center())
+        .collect();
+    drag(&mut harness, from, other_mutes[1]);
+    assert!(other_strip.x > from.x, "the KH 750 strip is the second one");
+    let layouts = knob_strip_layouts();
+    for model in [MONITOR, SUBWOOFER] {
+        assert_eq!(
+            stored_layout(&directory, model),
+            layouts.get(model).cloned(),
+            "{model}"
+        );
+    }
+}
+
 #[test]
 fn dragging_moves_across_the_fader() {
     let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());

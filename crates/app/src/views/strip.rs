@@ -16,6 +16,7 @@ use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::layout_menu::{self, Offer};
 use super::meters::{self, Meters};
+use super::strip_drop::{self, Dragged, Geometry, Slot};
 use crate::display::shown_value;
 use crate::eq::has_eq;
 use crate::fader::{output_level_range, WHEEL_STEP_DB};
@@ -25,7 +26,7 @@ use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 use crate::status_leds::{status_leds, ConnectionLed};
-use crate::strip_layout::{Area, LayoutChange, StripLayout};
+use crate::strip_layout::{self, Area, LayoutChange, StripLayout};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
@@ -49,8 +50,9 @@ const CAPTION_HEIGHT: f32 = 16.0;
 const LEVEL_ENTRY_ID: &str = "level_entry";
 const KNOBS_PER_ROW: usize = 2;
 const DRAG_ID: &str = "strip_element_drag";
-const DROP_ID: &str = "strip_element_drop";
-const DROP_ZONE_HEIGHT: f32 = 8.0;
+const GEOMETRY_ID: &str = "strip_geometry";
+/// How much of the card colour lies over the dragged element at its landing place.
+const LANDING_COVER: f32 = 0.6;
 
 pub struct StripResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -72,40 +74,18 @@ struct Arrange<'a> {
     area: Area,
     stored: &'a [StripElement],
     catalog: &'a Catalog,
+    /// The model the layout belongs to; a drag carries it to strips of the same model only.
+    product: &'a str,
+    /// The dragged element at its landing place, drawn faded.
+    landing: Option<&'a StripElement>,
 }
 
-impl Arrange<'_> {
-    /// Where `dropped` goes when let go on `target`: just before it, counted in the stored list
-    /// without `dropped`, so an element the speaker lacks keeps its place.
-    fn before(&self, dropped: &StripElement, target: &StripElement) -> LayoutChange {
-        let others: Vec<&StripElement> = self
-            .stored
-            .iter()
-            .filter(|element| *element != dropped)
-            .collect();
-        let index = others
-            .iter()
-            .position(|element| *element == target)
-            .unwrap_or(others.len());
-        LayoutChange::MoveTo(dropped.clone(), self.area, index)
-    }
-
-    /// Where `dropped` goes when let go after the last element of the area.
-    fn at_end(&self, dropped: &StripElement) -> LayoutChange {
-        let others = self
-            .stored
-            .iter()
-            .filter(|element| *element != dropped)
-            .count();
-        LayoutChange::MoveTo(dropped.clone(), self.area, others)
-    }
-}
-
-/// What the strip's areas asked for besides writes.
+/// What the strip's areas asked for besides writes, and where its elements were drawn.
 #[derive(Default)]
 struct Wishes {
     open_eq: bool,
     layout: Option<LayoutChange>,
+    slots: Vec<Slot>,
 }
 
 /// What the strip shows besides its fixed part, and whether it is being edited.
@@ -127,6 +107,33 @@ pub fn show(
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let mut wishes = Wishes::default();
+    // While an element of this model is dragged over the strip, it is drawn where it would land.
+    let geometry_id = ui.scope_id().with(GEOMETRY_ID);
+    let dragged = editing
+        .then(|| DragAndDrop::payload::<Dragged>(ui.ctx()))
+        .flatten()
+        .filter(|dragged| dragged.product == speaker.product());
+    let pointer = ui.ctx().pointer_latest_pos();
+    let previous = ui.data(|data| data.get_temp::<Geometry>(geometry_id));
+    let landing = match (&dragged, pointer, &previous) {
+        (Some(dragged), Some(pointer), Some(previous)) if previous.strip.contains(pointer) => Some(
+            strip_drop::landing(previous, layout, &dragged.element, pointer),
+        ),
+        _ => None,
+    };
+    let preview = landing
+        .as_ref()
+        .and_then(|change| strip_layout::apply(layout, change))
+        .map(|stored| StripLayout {
+            above: stored.above,
+            below: stored.below,
+        });
+    let shown = preview.as_ref().unwrap_or(layout);
+    let landed = preview
+        .as_ref()
+        .and(dragged.as_deref())
+        .map(|dragged| &dragged.element);
+    let product = speaker.product().to_owned();
     // Only a speaker that reported its model can change that model's layout.
     let offers = speaker
         .identity
@@ -138,11 +145,14 @@ pub fn show(
         editing,
         area,
         stored: match area {
-            Area::Above => &layout.above,
-            Area::Below => &layout.below,
+            Area::Above => &shown.above,
+            Area::Below => &shown.below,
         },
         catalog,
+        product: &product,
+        landing: landed,
     };
+    let mut fader = Rect::NOTHING;
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let frame = egui::Frame::new()
         .fill(tokens.card)
@@ -175,9 +185,12 @@ pub fn show(
                     &mut wishes,
                 );
                 // While editing the fader is as still as the other controls.
-                ui.add_enabled_ui(!editing, |ui| {
-                    level(ui, speaker, catalog, desk, &mut commands, &tokens);
-                });
+                fader = ui
+                    .add_enabled_ui(!editing, |ui| {
+                        level(ui, speaker, catalog, desk, &mut commands, &tokens);
+                    })
+                    .response
+                    .rect;
                 if desk.show_response_times {
                     response_time(ui, speaker);
                 }
@@ -197,6 +210,18 @@ pub fn show(
             })
             .inner
         });
+    if landing.is_some() && ui.input(|input| input.pointer.primary_released()) {
+        wishes.layout = landing;
+        DragAndDrop::clear_payload(ui.ctx());
+    }
+    if editing {
+        let geometry = Geometry {
+            slots: wishes.slots,
+            fader,
+            strip: frame.response.rect,
+        };
+        ui.data_mut(|data| data.insert_temp(geometry_id, geometry));
+    }
     StripResponse {
         commands,
         open_panel: frame.inner,
@@ -311,13 +336,10 @@ fn elements(
             }
         }
     }
-    if arrange.editing && arrange.offers.is_some() {
-        drop_zone(ui, arrange, wishes);
-    }
 }
 
 /// Draws one element with its context menu (which also hides it). While editing it is a still
-/// control, dragged as a whole with the primary button, and what is let go on it lands before it.
+/// control, dragged as a whole with the primary button.
 fn element_cell(
     ui: &mut Ui,
     element: StripElement,
@@ -331,9 +353,13 @@ fn element_cell(
     };
     let rect = match arrange.editing {
         false => ui.scope(draw).response.rect,
-        true => editable_cell(ui, &element, draw),
+        true => {
+            let rect = ui.scope(|ui| ui.add_enabled_ui(false, draw)).response.rect;
+            arrange_while_editing(ui, rect, &element, arrange, wishes);
+            rect
+        }
     };
-    arrange_at(ui, rect, element, offers, arrange, wishes);
+    element_menu(ui, rect, &element, offers, wishes);
 }
 
 /// Like `element_cell` for a button in a wrapped row. It gets no child area of its own: one would
@@ -351,69 +377,61 @@ fn inline_cell(
         return;
     };
     if arrange.editing {
-        drag_handle(ui, response.rect, &element);
+        arrange_while_editing(ui, response.rect, &element, arrange, wishes);
     }
-    arrange_at(ui, response.rect, element, offers, arrange, wishes);
+    element_menu(ui, response.rect, &element, offers, wishes);
 }
 
-/// The context menu of an element drawn at `rect` and, while editing, the drop target on it.
-fn arrange_at(
+fn element_menu(
     ui: &mut Ui,
     rect: Rect,
-    element: StripElement,
+    element: &StripElement,
     offers: &[Offer],
+    wishes: &mut Wishes,
+) {
+    if let Some(change) = layout_menu::element_menu(ui, rect, element, offers) {
+        wishes.layout = Some(change);
+    }
+}
+
+/// While editing: notes where the element is (for the next frame's landing), fades it when it
+/// is the dragged one shown at its landing place, and lets it be dragged.
+fn arrange_while_editing(
+    ui: &mut Ui,
+    rect: Rect,
+    element: &StripElement,
     arrange: &Arrange,
     wishes: &mut Wishes,
 ) {
-    if let Some(change) = layout_menu::element_menu(ui, rect, &element, offers) {
-        wishes.layout = Some(change);
+    wishes.slots.push(Slot {
+        area: arrange.area,
+        element: element.clone(),
+        rect,
+    });
+    if arrange.landing == Some(element) {
+        let cover = Tokens::current(ui.ctx()).card.gamma_multiply(LANDING_COVER);
+        ui.painter()
+            .rect_filled(rect, CornerRadius::same(STRIP_RADIUS), cover);
     }
-    if !arrange.editing {
-        return;
-    }
-    let drop_id = ui
-        .scope_id()
-        .with((DROP_ID, layout_menu::menu_key(&element)));
-    let target = ui.interact(rect, drop_id, Sense::hover());
-    if let Some(dropped) = target.dnd_release_payload::<StripElement>() {
-        if *dropped != element {
-            wishes.layout = Some(arrange.before(&dropped, &element));
-        }
-    }
-}
-
-fn editable_cell(ui: &mut Ui, element: &StripElement, draw: impl FnOnce(&mut Ui)) -> Rect {
-    let rect = ui.scope(|ui| ui.add_enabled_ui(false, draw)).response.rect;
-    drag_handle(ui, rect, element);
-    rect
+    drag_handle(ui, rect, element, arrange.product);
 }
 
 /// Lies over a still element while editing. Only the primary button drags: the secondary one
 /// opens the element's menu, and egui would start a drag for it as well.
-fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement) {
+fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, product: &str) {
     let drag_id = ui
         .scope_id()
         .with((DRAG_ID, layout_menu::menu_key(element)));
     let handle = ui.interact(rect, drag_id, Sense::drag());
     if handle.drag_started_by(PointerButton::Primary) {
-        DragAndDrop::set_payload(ui.ctx(), element.clone());
+        let dragged = Dragged {
+            product: product.to_owned(),
+            element: element.clone(),
+        };
+        DragAndDrop::set_payload(ui.ctx(), dragged);
     }
     if handle.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
-    }
-}
-
-/// A thin target after the last element of an area, so an empty area can take one too.
-fn drop_zone(ui: &mut Ui, arrange: &Arrange, wishes: &mut Wishes) {
-    let size = vec2(ui.available_width(), DROP_ZONE_HEIGHT);
-    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
-    if response.dnd_hover_payload::<StripElement>().is_some() {
-        let tokens = Tokens::current(ui.ctx());
-        let radius = CornerRadius::same(STRIP_RADIUS);
-        ui.painter().rect_filled(rect, radius, tokens.border);
-    }
-    if let Some(dropped) = response.dnd_release_payload::<StripElement>() {
-        wishes.layout = Some(arrange.at_end(&dropped));
     }
 }
 
