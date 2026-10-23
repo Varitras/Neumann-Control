@@ -389,10 +389,17 @@ and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`) with
 executable, `LICENSE`, `THIRD-PARTY-LICENSES.html` and
 `SHA256SUMS`.
 
-Mutation testing uses `cargo-mutants` with the settings in `.cargo/mutants.toml` (simulator
-and drawing code left out): `cargo mutants -p neumann-control-core` for the core, and
-`cargo mutants --workspace --in-diff <patch>` for the lines a change touched. A full run over
-the app takes hours.
+Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
+`.cargo/mutants.toml` (simulator and drawing code left out) and the `mutants` profile in
+`.config/nextest.toml`, which ends a run at the first failing test:
+
+```powershell
+$env:NEXTEST_PROFILE = 'mutants'
+cargo mutants --workspace -j 4                    # everything, about four hours
+cargo mutants --workspace -j 4 --in-diff <patch>  # the lines a change touched
+```
+
+More than four jobs did not make it faster on a 32-thread machine.
 
 The workspace has two crates: `crates/core` (the SSC client, discovery, the path catalog,
 settings and a speaker simulator for the tests) and `crates/app` (the window).

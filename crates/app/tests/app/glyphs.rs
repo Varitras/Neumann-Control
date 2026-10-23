@@ -12,7 +12,7 @@ const SIMULATED_SERIAL: &str = "SIM0001234";
 
 /// Every string literal in texts.rs, so a new text is covered without being listed here.
 fn literals_of_texts_module() -> Vec<String> {
-    let source = include_str!("../src/texts.rs");
+    let source = include_str!("../../src/texts.rs");
     let mut literals = Vec::new();
     let mut rest = source;
     while let Some(start) = rest.find('"') {

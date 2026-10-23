@@ -1,0 +1,4 @@
+# A mutation run only needs to know whether some test fails: the first failure ends the run and
+# stops the tests still running (`NEXTEST_PROFILE=mutants`, see README "Mutation testing").
+[profile.mutants]
+fail-fast = { max-fail = 1, terminate = "immediate" }

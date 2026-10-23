@@ -1,8 +1,7 @@
 //! Groups on the desk: group fader, group and master mute, linked settings, the group dialog
 //! and choosing a group in the device panel.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
@@ -13,7 +12,6 @@ use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{self, GroupSettings, Linkable, Settings, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
-use support::*;
 
 #[test]
 fn group_fader_moves_every_member_by_the_same_amount() {

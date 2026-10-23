@@ -1,7 +1,6 @@
 //! The device panel: settings per model, displays and number gestures.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::{Harness, Node};
@@ -12,7 +11,6 @@ use neumann_control_core::catalog::ValueError;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
-use support::*;
 
 const STANDBY_LABEL: &str = "Auto-Standby";
 const DELAY_LABEL: &str = "Verzögerung";

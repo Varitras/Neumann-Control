@@ -1,8 +1,7 @@
 //! The EQ window: one per speaker, a graph of every container and a table of the chosen one.
 //! A band edit writes that band only, at the end of the gesture, and lands in the history.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
@@ -14,7 +13,6 @@ use neumann_control_core::catalog::ValueError;
 use neumann_control_core::settings::CrossoverGuard;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
-use support::*;
 
 const GAIN_LABEL: &str = "Pegel";
 const BOOST_LABEL: &str = "Anhebung";

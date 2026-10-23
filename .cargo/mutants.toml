@@ -7,7 +7,8 @@ exclude_globs = [
     "crates/app/src/ui_kit/**",
     "crates/app/src/main.rs",
 ]
-# The core's integration tests need the simulator.
-features = ["neumann-control-core/test-support"]
+# nextest runs the tests of all test binaries at once and stops at the first failure; the
+# tests themselves are short, run one binary after another they were most of a mutant's time.
+test_tool = "nextest"
 # Kittests wait on real sockets; a slow mutant is not a caught one.
 timeout_multiplier = 3.0

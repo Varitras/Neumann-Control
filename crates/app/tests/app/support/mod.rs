@@ -1,8 +1,6 @@
 //! Shared by the window tests: the app with real speaker workers talking to the simulator.
 //! Threads deliver the events, so tests step frames until a condition holds (bounded by a
 //! deadline) instead of `run()`.
-// Each test binary uses its own subset of these helpers.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -53,9 +51,20 @@ pub struct SimulatorSpawner {
     pub scan_result: SharedScan,
 }
 
+/// The real polling pauses (values every 2 s, reconnect after 10 s) made tests wait for them;
+/// shorter ones keep the order of events and save minutes over the suite.
+pub fn test_timing() -> Timing {
+    Timing {
+        fast: Duration::from_millis(200),
+        slow: Duration::from_millis(1000),
+        reconnect: Duration::from_millis(500),
+        ..Timing::default()
+    }
+}
+
 impl SpeakerSpawner for SimulatorSpawner {
     fn spawn(&self, target: Target, wake: Arc<dyn Fn() + Send + Sync>) -> (SpeakerHandle, Events) {
-        speaker::spawn(target, Timing::default(), wake)
+        speaker::spawn(target, test_timing(), wake)
     }
 
     fn scan(&self) -> Receiver<ScanResult> {

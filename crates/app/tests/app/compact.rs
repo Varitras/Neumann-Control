@@ -1,8 +1,7 @@
 //! The compact mode: switching there and back, one row per ungrouped speaker and per group,
 //! and rows writing like the strips do.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role, Key, Modifiers};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
@@ -11,7 +10,6 @@ use neumann_control_app::texts;
 use neumann_control_core::settings::{self, SETTINGS_FILE};
 use neumann_control_core::simulator::SimModel;
 use serde_json::Value;
-use support::*;
 
 fn press_compact_shortcut(harness: &mut Harness<'static, NeumannApp>) {
     harness.key_press_modifiers(Modifiers::COMMAND, Key::K);

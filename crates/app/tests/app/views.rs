@@ -1,7 +1,6 @@
 //! The speaker strip in the real window: values, fader, buttons, unreachable state.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
@@ -17,7 +16,6 @@ use neumann_control_core::settings::{self, Language, LanguageChoice};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::Event;
 use serde_json::Value;
-use support::*;
 
 /// The strip's knobs carry the device panel's names (paths.toml).
 const DELAY_KNOB: &str = "Verzögerung";

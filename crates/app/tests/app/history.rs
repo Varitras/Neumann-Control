@@ -1,8 +1,7 @@
 //! Every write lands in the session's history as one entry per user action, and each entry can
 //! be taken back: the values before are written again, through the same rules as any write.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
@@ -11,7 +10,6 @@ use neumann_control_app::history::{is_open, Entry};
 use neumann_control_app::texts;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
-use support::*;
 
 const LEVEL_PATH: &str = "audio/out/level";
 /// Long enough that the speaker's confirmation of a write is still out when the test acts.

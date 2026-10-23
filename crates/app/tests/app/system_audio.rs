@@ -1,8 +1,7 @@
 //! The Windows volume strip, with a fake standing in for Windows' playback devices: shown only
 //! when chosen, it reads name, volume, mute and peaks and hands mute and fader moves to Windows.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
@@ -11,7 +10,6 @@ use neumann_control_app::system_audio::{AudioDevice, AudioState};
 use neumann_control_app::texts;
 use neumann_control_core::settings::{self, SystemAudioSettings};
 use neumann_control_core::simulator::{SimModel, Simulator};
-use support::*;
 
 const DEVICE_NAME: &str = "Studio monitors";
 const DEVICE_ID: &str = "{0.0.0.00000000}.{fake}";

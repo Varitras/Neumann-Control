@@ -1,11 +1,10 @@
 //! A model's strip shows what its stored layout lists; the layout is changed from the strip's and
 //! the panel's context menu and in the desk's edit mode.
 
-mod support;
-
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
@@ -19,7 +18,6 @@ use neumann_control_core::settings::{self, StoredStripLayout, StripElement};
 use neumann_control_core::simulator::SimModel;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
-use support::*;
 
 const MONITOR: &str = "KH 120 II";
 const SUBWOOFER: &str = "KH 750";

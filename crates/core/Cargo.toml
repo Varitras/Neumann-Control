@@ -29,4 +29,7 @@ name = "speaker"
 required-features = ["test-support"]
 
 [dev-dependencies]
+# The tests switch on the simulator themselves, so a test run needs no --features (and the
+# mutation runs, which build without it, do not rebuild for the test phase).
+neumann-control-core = { path = ".", features = ["test-support"] }
 tempfile = "3"

@@ -1,10 +1,9 @@
 //! Which speakers the window shows: addresses, speakers chosen from a scan, each once.
 
-mod support;
-
 use std::path::Path;
 use std::time::Duration;
 
+use crate::support::*;
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
@@ -14,7 +13,6 @@ use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimModel, Simulator};
-use support::*;
 
 const KH750_NAME: &str = "Sub";
 const KH750_SERIAL: &str = "SIM0007500";
@@ -341,7 +339,7 @@ fn remove_needs_confirmation_and_forgets_speaker() {
     harness.get_by_label(&texts::speaker_count(0));
     assert!(settings::load(&path).manual.is_empty());
     drop(harness);
-    let mut restarted = support::harness(path, Vec::new());
+    let mut restarted = crate::support::harness(path, Vec::new());
     restarted.run_steps(2);
     restarted.get_by_label(&texts::speaker_count(0));
 }

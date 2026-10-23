@@ -2,8 +2,7 @@
 //! chose, never a value rounded or clamped behind the user's back. These tests hold that line
 //! for each kind of control: strip fader, group fader, typed entry and panel knob.
 
-mod support;
-
+use crate::support::*;
 use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
@@ -13,7 +12,6 @@ use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
-use support::*;
 
 /// The strip's delay knob carries the device panel's name.
 const DELAY_KNOB: &str = "Verzögerung";
