@@ -1,7 +1,8 @@
 //! Which speakers the window shows: addresses, speakers chosen from a scan, each once.
 
+use std::collections::BTreeMap;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::support::*;
 use egui_kittest::kittest::{NodeT, Queryable};
@@ -13,7 +14,7 @@ use neumann_control_core::address::{parse_address, AddressError, SSC_PORT};
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 
 const KH750_NAME: &str = "Sub";
 const KH750_SERIAL: &str = "SIM0007500";
@@ -31,6 +32,14 @@ fn announced(simulator: &Simulator, name: &str, product: &str, serial: &str) -> 
 fn kh750_found(simulator: &Simulator) -> Found {
     announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
 }
+
+const SCROLL_FRAMES: usize = 4;
+/// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
+const SILENCE_SETTLE: Duration = Duration::from_millis(300);
+/// Far below the 3 s a joined worker could take, far above two frames.
+const STALL_LIMIT: Duration = Duration::from_secs(1);
+/// Below the client's 3 s reply timeout, so the speaker stays connecting instead of failing.
+const SLOW_CONNECT_REPLY: Duration = Duration::from_millis(1500);
 
 /// The unreachable status shows a few frames after the outage began, and the scan answers a few
 /// frames after it started.
@@ -441,4 +450,78 @@ fn an_open_panel_stays_when_another_speaker_learns_its_serial() {
     let named = |name: &str| harness.query_all_by_label(name).count();
     assert_eq!(named(KH120_DEVICE_NAME), 2, "the panel left its speaker");
     assert_eq!(named(KH750_DEVICE_NAME), 1);
+}
+
+/// Asks to remove the speaker named `name` and confirms.
+fn remove_named(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    open_panel(harness, name);
+    ask_in_open_panel(harness);
+    confirm_remove(harness);
+}
+
+/// The KH 750's panel is taller than the test window; "Remove" sits at its foot.
+fn ask_in_open_panel(harness: &mut Harness<'static, NeumannApp>) {
+    harness.get_by_label(texts::REMOVE.get()).scroll_to_me();
+    // Scrolling is animated.
+    harness.run_steps(SCROLL_FRAMES);
+    harness.get_by_label(texts::REMOVE.get()).click();
+    wait_for_label(harness, texts::REMOVE_TITLE.get());
+}
+
+fn confirm_remove(harness: &mut Harness<'static, NeumannApp>) {
+    harness
+        .query_all_by_label(texts::REMOVE.get())
+        .last()
+        .expect("the dialog's button")
+        .click();
+    harness.run_steps(2);
+}
+
+#[test]
+fn removing_the_second_speaker_keeps_the_first() {
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimModel::Kh120Ii, SimModel::Kh750], BTreeMap::new());
+    remove_named(&mut harness, KH750_DEVICE_NAME);
+    harness.get_by_label(&texts::speaker_count(1));
+    harness.get_by_label(KH120_DEVICE_NAME);
+    assert!(harness.query_by_label(KH750_DEVICE_NAME).is_none());
+}
+
+/// The confirmation stays open while the speaker connects and its key becomes its serial; the
+/// speaker is removed all the same.
+#[test]
+fn a_speaker_that_connects_while_asked_about_is_removed() {
+    let simulator = Simulator::start(SimModel::Kh750);
+    // Slow replies keep it connecting (no model, no serial yet) while the question is asked.
+    simulator.set_reply_delay(SLOW_CONNECT_REPLY);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut harness = harness(path, Vec::new());
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    harness.run_steps(2);
+    harness
+        .get_by_label(&mask_host(&simulator.address()))
+        .click();
+    wait_for_label(&mut harness, texts::REMOVE.get());
+    ask_in_open_panel(&mut harness);
+    simulator.set_reply_delay(REPLY_DELAY);
+    wait_for_label(&mut harness, KH750_DEVICE_NAME);
+    confirm_remove(&mut harness);
+    harness.get_by_label(&texts::speaker_count(0));
+}
+
+/// A worker can wait up to the client's 3 s reply timeout before it sees the stop; removing its
+/// speaker must not make the window wait with it.
+#[test]
+fn removing_a_speaker_that_does_not_answer_does_not_stall_the_window() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    ask_to_remove(&mut harness);
+    simulator.inject(Fault::Silence);
+    // The next meter poll is sent and stays unanswered.
+    std::thread::sleep(SILENCE_SETTLE);
+    let started = Instant::now();
+    confirm_remove(&mut harness);
+    let took = started.elapsed();
+    harness.get_by_label(&texts::speaker_count(0));
+    assert!(took < STALL_LIMIT, "the window waited {took:?}");
 }

@@ -222,6 +222,14 @@ pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<
     }
 }
 
+/// Deletes the group at `index`; an index from a dialog opened before the groups changed may
+/// point past the end, and then nothing is deleted.
+pub fn delete_group(groups: &mut Vec<GroupSettings>, index: usize) {
+    if index < groups.len() {
+        groups.remove(index);
+    }
+}
+
 /// Where a dragged strip would land: the number of other strips of its section whose centre
 /// is left of the pointer, so past the last one is a slot of its own.
 pub fn insertion_slot(centers: &[f32], pointer_x: f32) -> usize {
@@ -320,6 +328,20 @@ pub fn shifted_levels<K: Clone>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_group_is_deleted_by_its_index() {
+        let mut groups = vec![group("A", &[]), group("B", &[])];
+        delete_group(&mut groups, 0);
+        assert_eq!(groups, vec![group("B", &[])]);
+    }
+
+    #[test]
+    fn an_index_past_the_end_deletes_nothing() {
+        let mut groups = vec![group("A", &[])];
+        delete_group(&mut groups, 1);
+        assert_eq!(groups, vec![group("A", &[])]);
+    }
 
     fn group(name: &str, members: &[&str]) -> GroupSettings {
         GroupSettings {

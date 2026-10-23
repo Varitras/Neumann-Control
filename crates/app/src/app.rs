@@ -16,7 +16,7 @@ use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, Wi
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
 use crate::file_dialog::{FileDialog, NativeFileDialog};
-use crate::groups::{forget_member, member_id, rename_member, set_membership};
+use crate::groups::{delete_group, forget_member, member_id, rename_member, set_membership};
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
@@ -580,10 +580,7 @@ impl NeumannApp {
                 self.save_settings();
             }
             GroupDialogAction::Delete => {
-                let index = draft.index;
-                if index < self.settings.groups.len() {
-                    self.settings.groups.remove(index);
-                }
+                delete_group(&mut self.settings.groups, draft.index);
                 self.group_draft = None;
                 self.save_settings();
             }
