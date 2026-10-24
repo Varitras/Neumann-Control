@@ -797,12 +797,12 @@ impl NeumannApp {
     }
 }
 
-/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
 /// The local time for the history and the scan report; UTC when the offset cannot be told.
 fn local_now() -> time::OffsetDateTime {
     time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
+/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
 fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }

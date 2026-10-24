@@ -142,8 +142,8 @@ impl Walk {
         Ok(())
     }
 
-    /// A device error on a container below the root is that container's line in the report;
-    /// a lost connection, or a refused root, ends the walk.
+    /// A refusal or an unusable answer for a container below the root is that container's
+    /// line in the report; a lost connection, or a failed root, ends the walk.
     fn refused_container(
         &mut self,
         container: Option<SscPath>,

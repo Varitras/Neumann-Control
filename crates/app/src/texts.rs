@@ -730,7 +730,6 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
     }
 }
 
-/// The value before in a history line; "?" when the speaker had not reported it.
 /// One change of a history entry.
 pub fn history_change(speaker: &str, setting: &str, before: &str, after: &str) -> String {
     format!("{speaker} · {setting}: {before} → {after}")
@@ -1091,8 +1090,6 @@ fn export_note(note: &ExportNote) -> String {
 mod tests {
     use super::*;
 
-    /// The span is a difference of clock readings, never exactly 3600: whole hours are told
-    /// by the minutes it shows.
     /// Scale, floor setting and the number under the meter show one and the same minus.
     #[test]
     fn meter_numbers_share_the_minus_sign() {
@@ -1102,6 +1099,8 @@ mod tests {
         assert_eq!(meter_readout(Some(-18)), "−18");
     }
 
+    /// The span is a difference of clock readings, never exactly 3600: whole hours are told
+    /// by the minutes it shows.
     #[test]
     fn a_trend_of_an_hour_starts_at_one_hour() {
         assert_eq!(trend_start(3600.4), "−1 h");
@@ -1129,9 +1128,6 @@ mod tests {
         assert_eq!(plain(one_decimal(-0.06)), "-0.1");
         assert_eq!(number(-2.5).replace(',', "."), "-2.5");
     }
-
-    #[test]
-    fn an_unknown_value_before_reads_as_a_question_mark() {}
 
     #[test]
     fn a_text_follows_the_language_of_its_thread() {

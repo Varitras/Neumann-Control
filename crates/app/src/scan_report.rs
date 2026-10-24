@@ -51,8 +51,9 @@ pub fn file_stem(model: &str, firmware: &str, compact_time: &str) -> String {
     )
 }
 
-/// The leaves with every identifying value replaced: the listed paths, the network subtree, any
-/// text that looks like a MAC or IPv6 address, and `known` (the speaker's serial and name)
+/// The leaves with every identifying value replaced: the identifier paths (`paths::is_identifier`
+/// and the device name), any text that looks like a MAC, IPv4 or IPv6 address, and `known` (the
+/// speaker's serial and name)
 /// wherever another leaf repeats them; a short name only where it stands as a word.
 pub fn redacted(reports: &[LeafReport], known: &[&str]) -> Vec<LeafReport> {
     let known: Vec<&str> = known

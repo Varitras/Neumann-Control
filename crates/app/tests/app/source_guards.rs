@@ -29,7 +29,8 @@ fn rust_files(directory: &Path, found: &mut Vec<PathBuf>) {
     }
 }
 
-/// The closure's body after `opener` at `start`, up to its closing parenthesis.
+/// The body of the closure whose call starts at `start` in `text`, up to its closing
+/// parenthesis.
 fn closure_body(text: &str, start: usize) -> &str {
     let open = start + text[start..].find('(').unwrap() + 1;
     let mut depth = 1;

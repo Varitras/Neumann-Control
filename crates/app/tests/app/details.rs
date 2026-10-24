@@ -5,6 +5,7 @@ use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::{Harness, Node};
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
@@ -77,6 +78,17 @@ fn temperature_is_shown_in_celsius() {
     wait_until(&mut harness, "40 °C", |harness| {
         harness.query_by_label("40 °C").is_some()
     });
+}
+
+/// The JSON pointers into the simulator's requests are the paths they name.
+#[test]
+fn the_test_pointers_are_their_paths() {
+    let pointer = |path: &str| format!("/{path}");
+    assert_eq!(MUTE_POINTER, pointer(paths::MUTE));
+    assert_eq!(NAME_POINTER, pointer(paths::DEVICE_NAME));
+    assert_eq!(DELAY_POINTER, pointer(paths::DELAY));
+    assert_eq!(STANDBY_TIME_POINTER, pointer(paths::STANDBY_TIME));
+    assert_eq!(LEVEL_POINTER, pointer(paths::OUTPUT_LEVEL));
 }
 
 #[test]

@@ -437,7 +437,6 @@ impl NeumannApp {
     }
 }
 
-/// The value before through the write policy; a level as a level, so the fader holds it.
 /// Each speaker once, however many of the entry's changes it left out.
 fn skip(skipped: &mut Vec<String>, name: String) {
     if !skipped.contains(&name) {
@@ -445,6 +444,7 @@ fn skip(skipped: &mut Vec<String>, name: String) {
     }
 }
 
+/// The value before through the write policy; a level as a level, so the fader holds it.
 fn send_before(
     speaker: &mut SpeakerState,
     change: &Change,

@@ -113,7 +113,7 @@ fn free_stem(directory: &Path, stem: &str) -> String {
     (FIRST_SUFFIX..)
         .map(|number| format!("{stem}-{number}"))
         .find(|candidate| !taken(candidate))
-        .unwrap_or_default()
+        .expect("an unbounded range always has a free number")
 }
 
 #[cfg(test)]

@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_txt_serial_the_instance_name_stays_unchanged() {
+    fn without_a_txt_serial_a_short_digit_run_stays_in_the_name() {
         assert_eq!(
             announced_name("Desk left-SIM0001234._ssc._tcp.local.", None),
             "Desk left-SIM0001234"

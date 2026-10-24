@@ -279,8 +279,8 @@ impl NeumannApp {
         self.save_settings();
     }
 
-    /// A group or master fader let go after moving by `moved` dB: every connected member moves by
-    /// that much from its own current level, within its own range; a mute switch sets mute on all
+    /// A group or master fader let go after moving by `moved` dB: every member that may write its
+    /// level moves by that much from its own current level, within its own range; a mute switch sets mute on all
     /// of them.
     fn apply_shared(
         &mut self,

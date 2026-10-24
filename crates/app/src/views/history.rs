@@ -1,5 +1,5 @@
 //! The history window behind the toolbar's "Verlauf": the writes of this session, newest on top,
-//! each with "Zurück"; and the question before taking back values that changed since.
+//! each with "Rückgängig"; and the question before taking back values that changed since.
 
 use eframe::egui::{Button, Id, Key, KeyboardShortcut, Modal, Modifiers, RichText, ScrollArea, Ui};
 
@@ -17,7 +17,7 @@ pub struct HistoryRow {
     pub text: String,
     /// Every change of an entry with several, shown on hover.
     pub details: Vec<String>,
-    /// Whether "Zurück" can take something back; otherwise `reason` says why not.
+    /// Whether "Rückgängig" can take something back; otherwise `reason` says why not.
     pub open: bool,
     pub reason: Option<String>,
 }
@@ -83,7 +83,7 @@ fn contents(
     action
 }
 
-/// Returns the entry when its "Zurück" was clicked.
+/// Returns the entry when its "Rückgängig" was clicked.
 fn row_line(ui: &mut Ui, row: &HistoryRow) -> Option<u64> {
     ui.horizontal(|ui| {
         let button = ui.add_enabled(row.open, Button::new(texts::UNDO));

@@ -39,7 +39,7 @@ pub fn path(text: &str) -> SscPath {
 /// Whether the leaf at `path` identifies the speaker or the owner's network: the serial, the
 /// MAC addresses and everything below `device/network/`. Shown masked, left out of reports.
 pub fn is_identifier(path: &str) -> bool {
-    path == SERIAL || path == MAC_ADDRESSES || path.starts_with(NETWORK_PREFIX)
+    path == SERIAL || path.starts_with(NETWORK_PREFIX)
 }
 
 pub fn catalog_entry<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a Entry> {

@@ -49,7 +49,8 @@ const CAPTION_SIZE: f32 = 9.0;
 /// Room for the value line under the knob.
 const CELL_MIN_WIDTH: f32 = 52.0;
 pub const KNOB_DIAMETER: f32 = 34.0;
-/// Grid for entries without a catalog step: about this many steps over the range.
+/// Grid for entries without a catalog step: the power of ten at or below this share of the
+/// range, so 1000 to 10000 steps.
 const UNSTEPPED_DIVISIONS: f64 = 1000.0;
 const DECIMAL_BASE: f64 = 10.0;
 

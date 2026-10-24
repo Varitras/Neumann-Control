@@ -50,10 +50,12 @@ fn kh750_found(simulator: &Simulator) -> Found {
 
 /// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
 const SILENCE_SETTLE: Duration = Duration::from_millis(300);
-/// Far below the reply timeout a joined worker could wait for, far above two frames.
-const STALL_LIMIT: Duration = RESPONSE_TIMEOUT.saturating_sub(Duration::from_secs(2));
+/// A third of the reply timeout a joined worker could wait for: far below it, far above two
+/// frames.
+const STALL_LIMIT: Duration = Duration::from_millis((RESPONSE_TIMEOUT.as_millis() / 3) as u64);
 /// Half the client's reply timeout, so the speaker stays connecting instead of failing.
-const SLOW_CONNECT_REPLY: Duration = RESPONSE_TIMEOUT.saturating_sub(Duration::from_millis(1500));
+const SLOW_CONNECT_REPLY: Duration =
+    Duration::from_millis((RESPONSE_TIMEOUT.as_millis() / 2) as u64);
 
 /// The unreachable status shows a few frames after the outage began, and the scan answers a few
 /// frames after it started.

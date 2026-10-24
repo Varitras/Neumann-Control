@@ -923,7 +923,7 @@ mod tests {
     /// A name that holds the serial is shown masked, as the announced one is.
     #[test]
     fn the_own_name_shows_its_serial_masked() {
-        let address: SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
+        let address = address(ADDRESS_TEXT);
         let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
         let identity = Identity {
             product: "KH 120 II".to_owned(),
