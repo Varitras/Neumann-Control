@@ -177,6 +177,15 @@ mod tests {
         assert_eq!(status_leds(&speaker).connection, ConnectionLed::Off);
     }
 
+    /// An input that clips lights the LED alone, without an output clipping.
+    #[test]
+    fn an_input_clip_lights_the_clip_led() {
+        let mut speaker = connected();
+        report(&mut speaker, paths::OUTPUT_CLIP, json!([false, false, false]));
+        report(&mut speaker, paths::INPUT_CLIP, json!([false, true]));
+        assert!(status_leds(&speaker).clip);
+    }
+
     #[test]
     fn average_ignores_unconnected_speakers() {
         let mut first = connected();
