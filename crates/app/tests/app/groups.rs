@@ -137,6 +137,40 @@ fn group_dialog_renames_and_deletes() {
     assert!(settings::load(&path).groups.is_empty());
 }
 
+/// An emptied name field is no name: the group keeps the one it had.
+#[test]
+fn a_group_name_cleared_on_close_stays_the_old_one() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    harness.get_by_label(GROUP_NAME).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_role(Role::TextInput).click();
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.key_press(egui::Key::Backspace);
+    harness.run_steps(1);
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(settings::load(&path).groups[0].name, GROUP_NAME);
+    harness.get_by_label(GROUP_NAME);
+}
+
+/// When the settings cannot be written (the folder went read only), the toolbar says so.
+#[test]
+fn a_failed_save_is_told_in_the_toolbar() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    let path = directory.path().join(SETTINGS_FILE);
+    // A folder where the file should be: the atomic rename onto it fails.
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    std::fs::write(path.join("keep"), "").unwrap();
+    harness.get_by_label(GROUP_NAME).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label_contains(texts::SETTINGS_NOT_SAVED.get());
+}
+
 #[test]
 fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
     let (simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
