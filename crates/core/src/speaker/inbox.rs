@@ -25,7 +25,8 @@ impl Inbox {
     }
 
     /// Looks without waiting, so long work between polls can end early; a closed channel
-    /// counts as `Stop`.
+    /// counts as `Stop`. Not while a command that came before the stop waits: the worker takes
+    /// it through `next` first, so a write sent just before closing still goes out.
     pub(super) fn stop_requested(&self) -> bool {
         while !self.stop_requested.get() {
             match self.receiver.try_recv() {
@@ -36,7 +37,7 @@ impl Inbox {
                 Err(TryRecvError::Empty) => return false,
             }
         }
-        true
+        self.pending.borrow().is_empty()
     }
 
     /// Commands that came before a `Stop` go first: a write sent just before a speaker is closed
@@ -72,8 +73,10 @@ mod tests {
         sender.send(set.clone()).unwrap();
         sender.send(Command::Stop).unwrap();
         let inbox = Inbox::new(receiver);
-        assert!(inbox.stop_requested());
+        // As the worker asks between two reads: not yet, the write goes first.
+        assert!(!inbox.stop_requested());
         assert_eq!(inbox.next(WAIT), Ok(set));
+        assert!(inbox.stop_requested());
         assert_eq!(inbox.next(WAIT), Ok(Command::Stop));
     }
 }
