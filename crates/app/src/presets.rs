@@ -39,9 +39,14 @@ pub fn presettable<'a>(catalog: &'a Catalog, speaker: &SpeakerState) -> Vec<&'a 
     catalog
         .entries_for(product)
         .into_iter()
-        .filter(|entry| entry.is_writable(product) && !entry.bands)
-        .filter(|entry| !NOT_PRESETTABLE.contains(&entry.path.to_string().as_str()))
+        .filter(|entry| is_presettable(entry, product))
         .collect()
+}
+
+/// Both for what a preset takes and what loading one writes: a stored preset may hold more.
+fn is_presettable(entry: &Entry, product: &str) -> bool {
+    let restorable = !NOT_PRESETTABLE.contains(&entry.path.to_string().as_str());
+    entry.is_writable(product) && !entry.bands && restorable
 }
 
 /// Checked when the save dialog opens: everything but the speaker's own name.
@@ -76,7 +81,7 @@ pub fn plan(preset: &SettingsPreset, speaker: &SpeakerState, catalog: &Catalog) 
                 .into_iter()
                 .find(|entry| entry.path == path)
         });
-        let Some(entry) = entry.filter(|entry| entry.is_writable(product) && !entry.bands) else {
+        let Some(entry) = entry.filter(|entry| is_presettable(entry, product)) else {
             plan.skipped.push(text.clone());
             continue;
         };
@@ -126,14 +131,22 @@ pub fn capture_eq(
     })
 }
 
-/// The places of the presets that fit a container of `bands` bands.
+/// The places of the presets that fit a container of `bands` bands: all six leaves, each that
+/// long, since the speaker refuses a shorter array after the other leaves were written.
 pub fn fitting(presets: &[EqPreset], bands: usize) -> Vec<usize> {
     presets
         .iter()
         .enumerate()
-        .filter(|(_, preset)| preset.bands == bands)
+        .filter(|(_, preset)| preset.bands == bands && is_whole(preset))
         .map(|(place, _)| place)
         .collect()
+}
+
+fn is_whole(preset: &EqPreset) -> bool {
+    Leaf::ALL.iter().all(|leaf| {
+        let array = preset.leaves.get(leaf.name()).and_then(Value::as_array);
+        array.is_some_and(|array| array.len() == preset.bands)
+    })
 }
 
 /// The leaves whose arrays differ from what the speaker reports, written whole.
@@ -150,7 +163,10 @@ pub fn eq_plan(
         let path = leaf.path(container);
         let held = values.get(&path).and_then(Value::as_array);
         let differing: Vec<usize> = (0..wanted.len())
-            .filter(|band| held.and_then(|held| held.get(*band)) != wanted.get(*band))
+            .filter(|band| {
+                let held = held.and_then(|held| held.get(*band));
+                !held.is_some_and(|held| same_value(held, &wanted[*band], None))
+            })
             .collect();
         if differing.is_empty() {
             continue;
@@ -243,15 +259,44 @@ mod tests {
             .is_empty());
     }
 
-    #[test]
-    fn only_presets_with_the_same_band_count_fit() {
-        let preset = |bands| EqPreset {
+    fn whole_preset(bands: usize) -> EqPreset {
+        let leaves = Leaf::ALL
+            .iter()
+            .map(|leaf| (leaf.name().to_owned(), json!(vec![1.0; bands])))
+            .collect();
+        EqPreset {
             name: format!("{bands}"),
             bands,
-            leaves: BTreeMap::new(),
-        };
-        let presets = [preset(10), preset(20), preset(10)];
+            leaves,
+        }
+    }
+
+    #[test]
+    fn only_presets_with_the_same_band_count_fit() {
+        let presets = [whole_preset(10), whole_preset(20), whole_preset(10)];
         assert_eq!(fitting(&presets, 10), vec![0, 2]);
+    }
+
+    /// A hand-edited or damaged settings file: a leaf missing or of another length would be
+    /// written only in part, so such a preset is not offered.
+    #[test]
+    fn an_eq_preset_with_a_missing_or_short_leaf_does_not_fit() {
+        let mut missing = whole_preset(2);
+        missing.leaves.remove(Leaf::Q.name());
+        let mut short = whole_preset(2);
+        short
+            .leaves
+            .insert(Leaf::Gain.name().to_owned(), json!([0.0]));
+        assert_eq!(fitting(&[missing, short, whole_preset(2)], 2), vec![2]);
+    }
+
+    /// The speaker may report `0` for a written `0.0`; that band has not changed.
+    #[test]
+    fn a_band_reported_as_a_whole_number_equals_the_same_decimal() {
+        let container = paths::path("audio/out/eq2");
+        let preset = capture_eq("Warm", &eq_values(json!([0.0, 3.0])), &container).unwrap();
+        let plan = eq_plan(&preset, &eq_values(json!([0, 3])), &container);
+        assert_eq!(plan, EqPlan::default());
     }
 
     #[test]
@@ -318,5 +363,20 @@ mod tests {
             }]
         );
         assert_eq!(plan.skipped, vec!["audio/out1/level", "no/such/path"]);
+    }
+
+    /// A settings file written by hand may hold identify; loading it must not flash the logo.
+    #[test]
+    fn identify_in_a_stored_preset_is_not_written() {
+        let catalog = Catalog::embedded();
+        let preset = SettingsPreset {
+            name: "Old".to_owned(),
+            product: "KH 120 II".to_owned(),
+            values: [(paths::IDENTIFY.to_owned(), json!(true))].into(),
+        };
+        let monitor = speaker("KH 120 II", &[(paths::IDENTIFY, json!(false))]);
+        let plan = plan(&preset, &monitor, catalog);
+        assert_eq!(plan.changes, Vec::new());
+        assert_eq!(plan.skipped, vec![paths::IDENTIFY]);
     }
 }
