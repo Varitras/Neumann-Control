@@ -42,7 +42,7 @@ use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
 use crate::views::about::{self, AboutAction, UpdateView};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
-use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView};
+use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView, MemberChoice};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
@@ -694,11 +694,35 @@ impl NeumannApp {
         response.close || response.remove
     }
 
+    /// Every speaker as the dialog of group `index` lists it, in desk order.
+    fn member_choices(&self, index: usize, ids: &[String]) -> Vec<MemberChoice> {
+        let groups = &self.settings.groups;
+        self.speakers
+            .iter()
+            .zip(ids)
+            .map(|(speaker, id)| {
+                let current = desk::group_of(groups, id);
+                MemberChoice {
+                    name: speaker.state.display_name(),
+                    elsewhere: current
+                        .filter(|group| *group != index)
+                        .map(|group| groups[group].name.clone()),
+                    checked: current == Some(index),
+                }
+            })
+            .collect()
+    }
+
     fn show_group_dialog(&mut self, ui: &mut Ui) {
+        let Some(index) = self.group_draft.as_ref().map(|draft| draft.index) else {
+            return;
+        };
+        let ids = self.member_ids();
+        let mut members = self.member_choices(index, &ids);
         let Some(draft) = &mut self.group_draft else {
             return;
         };
-        let Some(group) = self.settings.groups.get_mut(draft.index) else {
+        let Some(group) = self.settings.groups.get_mut(index) else {
             self.group_draft = None;
             return;
         };
@@ -706,9 +730,18 @@ impl NeumannApp {
             name: &mut draft.name,
             palette: theme::group_color(group.color),
             color: &mut group.color_choice,
+            members: &mut members,
             deleting: draft.deleting,
         };
-        match group_dialog::show(ui, view) {
+        let action = group_dialog::show(ui, view);
+        let groups = &mut self.settings.groups;
+        for (id, member) in ids.iter().zip(&members) {
+            let in_group = desk::group_of(groups, id) == Some(index);
+            if member.checked != in_group {
+                set_membership(groups, id, member.checked.then_some(index));
+            }
+        }
+        match action {
             GroupDialogAction::None => {}
             GroupDialogAction::Close => {
                 let (index, name) = (draft.index, draft.name.trim().to_owned());

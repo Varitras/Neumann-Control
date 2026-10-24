@@ -222,8 +222,10 @@ its own layouts and where its windows were are forgotten.
 
 ### Groups and master
 
-- **+ Group** creates a group; a speaker joins one in its device panel (**Group**). Members are
-  framed in the group's colour and followed by a group strip.
+- **+ Group** creates a group and opens its dialog, where you check the speakers it gets; a
+  speaker also joins one in its device panel (**Group**), and the dialog lists every speaker
+  again later. A speaker is in one group at most: checking one of another group moves it.
+  Members are framed in the group's colour and followed by a group strip.
 - The group fader moves every member by the same amount, each within its own range. With the
   loudest member at its maximum, the others still follow. **Mute** on the group strip mutes them
   all.

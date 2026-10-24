@@ -198,6 +198,7 @@ pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
 pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
+pub const GROUP_MEMBERS: Text = Text::new("Lautsprecher", "Speakers");
 pub const STRIP_COLOR: Text = Text::new("Farbe des Zugs", "Strip colour");
 pub const COLOR_DEFAULT: Text = Text::new("Standard", "Default");
 pub const COLOR_LIKE_GROUP: Text = Text::new("Wie die Gruppe", "As the group");
@@ -453,6 +454,11 @@ pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
         LoadOutcome::SetAside => Some(SETTINGS_SET_ASIDE),
         LoadOutcome::Untouchable => Some(SETTINGS_UNTOUCHABLE),
     }
+}
+
+/// Hover text of a speaker that checking would move out of `group`.
+pub fn in_other_group(group: &str) -> String {
+    pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))
 }
 
 /// Asked before a preset or a group is deleted.

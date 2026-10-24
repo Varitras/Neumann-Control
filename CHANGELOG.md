@@ -4,6 +4,7 @@
 
 ### Added
 
+- The group dialog lists the speakers to check: a new group gets its members right away.
 - An issue form for sending the **Full scan** of a model the app only reads.
 - **Same layout for every speaker of a model** in **Settings**: switched off, each speaker keeps
   its own strip and compact buttons, starting as its model's.

@@ -1,4 +1,5 @@
-//! Renaming, colouring or deleting a group, opened from its strip's name.
+//! Renaming, colouring, filling or deleting a group, opened from its strip's name and right
+//! after **+ Group**.
 
 use eframe::egui::{Color32, Id, Modal, TextEdit, Ui};
 use neumann_control_core::settings::ColorChoice;
@@ -19,11 +20,20 @@ pub enum GroupDialogAction {
     CancelDelete,
 }
 
-/// The group's name and colour as edited, the palette colour an own one starts from.
+/// A speaker the group could have, as its dialog lists it.
+pub struct MemberChoice {
+    pub name: String,
+    /// The other group it is in; checking it moves it from there.
+    pub elsewhere: Option<String>,
+    pub checked: bool,
+}
+
+/// The group's name, colour and members as edited, the palette colour an own one starts from.
 pub struct GroupDraftView<'a> {
     pub name: &'a mut String,
     pub color: &'a mut ColorChoice,
     pub palette: Color32,
+    pub members: &'a mut [MemberChoice],
     /// The delete is being confirmed. A group goes with its members' places and links.
     pub deleting: bool,
 }
@@ -41,12 +51,14 @@ fn contents(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
         name,
         color,
         palette,
+        members,
         deleting,
     } = draft;
     ui.heading(texts::GROUP_DIALOG_TITLE);
     let label = ui.label(texts::GROUP_NAME);
     ui.add(TextEdit::singleline(name)).labelled_by(label.id);
     color_choice::edit(ui, texts::COLOR_DEFAULT.get(), color, palette);
+    member_checks(ui, members);
     if deleting {
         ui.label(texts::delete_question(name.trim()));
         return ui
@@ -71,4 +83,17 @@ fn contents(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
         GroupDialogAction::None
     })
     .inner
+}
+
+fn member_checks(ui: &mut Ui, members: &mut [MemberChoice]) {
+    if members.is_empty() {
+        return;
+    }
+    ui.label(texts::GROUP_MEMBERS);
+    for member in members {
+        let response = ui.checkbox(&mut member.checked, &member.name);
+        if let Some(group) = &member.elsewhere {
+            response.on_hover_text(texts::in_other_group(group));
+        }
+    }
 }

@@ -560,7 +560,10 @@ fn a_new_group_takes_the_speakers_checked_in_its_dialog() {
     harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
-    assert_eq!(settings::load(&path).groups[0].members, vec![KH120_ID.to_owned()]);
+    assert_eq!(
+        settings::load(&path).groups[0].members,
+        vec![KH120_ID.to_owned()]
+    );
 }
 
 /// Checking a speaker of another group moves it: a speaker is in one group at most.
