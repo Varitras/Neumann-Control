@@ -192,7 +192,9 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
         }
         if lower == CHANNEL_COMMAND {
             channels += 1;
-            if channels > 1 {
+            // Filters before it are every channel's, the ones after this channel's only.
+            let after_filters = !imported.bands.is_empty();
+            if channels > 1 || after_filters {
                 return Err(ImportError::SeveralChannels);
             }
         }
