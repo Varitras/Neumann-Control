@@ -21,9 +21,6 @@ use serde_json::json;
 
 const MONITOR: &str = "KH 120 II";
 const SUBWOOFER: &str = "KH 750";
-const INTERFACE: &str = "audio/in/interface";
-const STANDBY_SWITCH: &str = "device/standby/enabled";
-const TEMPERATURE: &str = "device/temperature";
 
 fn element(text: &str) -> StripElement {
     StripElement::Path(SscPath::parse(text).unwrap())
@@ -89,7 +86,7 @@ fn a_stored_layout_shows_on_every_strip_of_its_model() {
 
 #[test]
 fn an_added_select_writes_through_the_policy() {
-    let stored = layouts(MONITOR, &[], &[INTERFACE]);
+    let stored = layouts(MONITOR, &[], &[paths::INPUT_INTERFACE]);
     let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], stored);
     harness.get_by_role(Role::ComboBox).click();
     harness.run_steps(2);
@@ -101,9 +98,9 @@ fn an_added_select_writes_through_the_policy() {
 
 #[test]
 fn a_switch_the_model_may_not_write_is_shown_disabled() {
-    let stored = layouts(SUBWOOFER, &[], &[STANDBY_SWITCH]);
+    let stored = layouts(SUBWOOFER, &[], &[paths::STANDBY_ENABLED]);
     let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh750], stored);
-    let button = harness.get_by_role_and_label(Role::Button, label(STANDBY_SWITCH));
+    let button = harness.get_by_role_and_label(Role::Button, label(paths::STANDBY_ENABLED));
     assert!(button.accesskit_node().is_disabled());
     button.click();
     harness.run_steps(3);
@@ -113,10 +110,12 @@ fn a_switch_the_model_may_not_write_is_shown_disabled() {
 
 #[test]
 fn a_display_shows_its_value() {
-    let stored = layouts(SUBWOOFER, &[TEMPERATURE], &[]);
+    let stored = layouts(SUBWOOFER, &[paths::TEMPERATURE], &[]);
     let (simulators, _directory, harness) = desk_of(&[SimModel::Kh750], stored);
-    let reported = simulators[0].value(TEMPERATURE).expect("a temperature");
-    let shown = shown_value(entry(TEMPERATURE), &reported);
+    let reported = simulators[0]
+        .value(paths::TEMPERATURE)
+        .expect("a temperature");
+    let shown = shown_value(entry(paths::TEMPERATURE), &reported);
     assert!(harness.query_by_label_contains(&shown).is_some(), "{shown}");
 }
 

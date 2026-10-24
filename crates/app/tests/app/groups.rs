@@ -46,7 +46,7 @@ fn linked_mute_reaches_the_other_member() {
         .unwrap()
         .click();
     wait_until(&mut harness, "both mute sets", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty() && !sets(&kh750, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty() && !sets(&kh750, MUTE_POINTER).is_empty()
     });
 }
 
@@ -59,12 +59,12 @@ fn unlinked_mute_stays_with_its_speaker() {
         .unwrap()
         .click();
     wait_until(&mut harness, "one mute set", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty() || !sets(&kh750, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty() || !sets(&kh750, MUTE_POINTER).is_empty()
     });
     harness.run_steps(5);
     barrier(&kh120);
     barrier(&kh750);
-    let total = sets(&kh120, "/audio/out/mute").len() + sets(&kh750, "/audio/out/mute").len();
+    let total = sets(&kh120, MUTE_POINTER).len() + sets(&kh750, MUTE_POINTER).len();
     assert_eq!(total, 1);
 }
 
@@ -73,14 +73,14 @@ fn group_and_master_mute_switch_all() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
     harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
     wait_until(&mut harness, "group mute", |_| {
-        sets(&kh120, "/audio/out/mute") == [Value::Bool(true)]
-            && sets(&kh750, "/audio/out/mute") == [Value::Bool(true)]
+        sets(&kh120, MUTE_POINTER) == [Value::Bool(true)]
+            && sets(&kh750, MUTE_POINTER) == [Value::Bool(true)]
     });
     // All muted now, so the master switches all back on.
     harness.get_by_label(texts::MUTE_ALL.get()).click();
     let unmuted = [Value::Bool(true), Value::Bool(false)];
     wait_until(&mut harness, "master unmute", |_| {
-        sets(&kh120, "/audio/out/mute") == unmuted && sets(&kh750, "/audio/out/mute") == unmuted
+        sets(&kh120, MUTE_POINTER) == unmuted && sets(&kh750, MUTE_POINTER) == unmuted
     });
 }
 
@@ -288,7 +288,7 @@ fn group_mute_leaves_an_unreachable_member_alone() {
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
     wait_until(&mut harness, "the reachable member's mute", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty()
     });
     harness.run_steps(2);
     harness.get_by_label(texts::UNREACHABLE.get());
@@ -432,14 +432,14 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click();
     wait_until(&mut harness, "the member's mute sent", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty()
     });
     let copy = texts::copy_to_group(linkable_label(Linkable::Mute));
     harness.get_by_label(&copy).click();
     harness.run_steps(5);
     barrier(&kh750);
     // The link already sent the change; the copy must not follow it with the old value.
-    let sent = sets(&kh750, "/audio/out/mute");
+    let sent = sets(&kh750, MUTE_POINTER);
     assert!(
         !sent.is_empty() && sent.iter().all(|mute| *mute == Value::Bool(true)),
         "{sent:?}"

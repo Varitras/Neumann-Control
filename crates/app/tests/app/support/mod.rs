@@ -15,6 +15,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
 use neumann_control_app::help::{Help, LookupError, Release};
+use neumann_control_app::paths;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
@@ -36,6 +37,12 @@ pub const SIMULATED_SERIAL: &str = "SIM0001234";
 pub const KH750_SERIAL: &str = "SIM0007500";
 pub const KH120_DEVICE_NAME: &str = "Simulated KH 120 II";
 pub const KH750_DEVICE_NAME: &str = "Simulated KH 750";
+/// `paths::MUTE` as a JSON pointer into the simulator's requests.
+pub const MUTE_POINTER: &str = "/audio/out/mute";
+/// The device panel's names (paths.toml), which the strips' knobs carry too.
+pub const DELAY_LABEL: &str = "Verzögerung";
+pub const STANDBY_TIME_LABEL: &str = "Standby-Zeit";
+pub const LOGO_LABEL: &str = "Logo-Helligkeit";
 pub const WAIT_LIMIT: Duration = Duration::from_secs(15);
 // Paces the polling loop only; every outcome is decided by the condition.
 pub const POLL_PAUSE: Duration = Duration::from_millis(10);
@@ -44,14 +51,8 @@ pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
-const PRODUCT_PATH: &str = "device/identity/product";
-const DELAY_PATH: &str = "audio/out/delay";
-const STANDBY_TIME_PATH: &str = "device/standby/auto_standby_time";
-const MUTE_PATH: &str = "audio/out/mute";
-const IDENTIFY_PATH: &str = "device/identification/visual";
 const KH120_PRODUCT: &str = "KH 120 II";
 const KH750_PRODUCT: &str = "KH 750";
-const SERIAL_PATH: &str = "device/identity/serial";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);
@@ -101,8 +102,8 @@ pub fn manual_for(simulator: &Simulator) -> ManualSpeaker {
 pub fn knob_strip_layouts() -> BTreeMap<String, StoredStripLayout> {
     let path = |text: &str| StripElement::Path(SscPath::parse(text).unwrap());
     let layout = StoredStripLayout {
-        above: vec![path(DELAY_PATH), path(STANDBY_TIME_PATH)],
-        below: vec![path(MUTE_PATH), path(IDENTIFY_PATH), StripElement::Eq],
+        above: vec![path(paths::DELAY), path(paths::STANDBY_TIME)],
+        below: vec![path(paths::MUTE), path(paths::IDENTIFY), StripElement::Eq],
     };
     [KH120_PRODUCT, KH750_PRODUCT]
         .into_iter()
@@ -435,7 +436,7 @@ pub fn connected_speaker_with(
 /// last path means all those values are in the channel; one more frame applies them.
 pub fn wait_for_initial_read(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
     let product = simulator
-        .value(PRODUCT_PATH)
+        .value(paths::PRODUCT)
         .and_then(|product| product.as_str().map(str::to_owned))
         .expect("the simulator reports a product");
     let entries = Catalog::embedded().entries_for(&product);
@@ -636,7 +637,7 @@ pub fn desk_prepared(
         .map(|(index, model)| {
             let simulator = Simulator::start(*model);
             simulator.set_reply_delay(REPLY_DELAY);
-            simulator.set_value(SERIAL_PATH, Value::from(format!("SIM000000{index}")));
+            simulator.set_value(paths::SERIAL, Value::from(format!("SIM000000{index}")));
             simulator
         })
         .collect();

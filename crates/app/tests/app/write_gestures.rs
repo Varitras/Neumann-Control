@@ -7,15 +7,11 @@ use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
-
-/// The strip's delay knob carries the device panel's name.
-const DELAY_KNOB: &str = "Verzögerung";
-
-const LEVEL_PATH: &str = "audio/out/level";
 
 fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
     harness.event(egui::Event::MouseWheel {
@@ -48,7 +44,7 @@ fn levels(simulator: &neumann_control_core::simulator::Simulator) -> Vec<Value> 
 #[test]
 fn a_click_on_a_fader_without_moving_writes_nothing() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value(LEVEL_PATH, json!(90.3));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.3));
     wait_for_level(&mut harness, 90.3);
     let center = slider_center(&harness, texts::LEVEL.get());
     click_at(&mut harness, center);
@@ -64,8 +60,8 @@ fn a_click_on_a_fader_without_moving_writes_nothing() {
 fn a_click_on_a_group_fader_without_moving_writes_nothing() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
     // The KH 120 II is the loudest member, so its off-grid level is the group's reference.
-    kh750.set_value(LEVEL_PATH, json!(80.0));
-    kh120.set_value(LEVEL_PATH, json!(90.3));
+    kh750.set_value(paths::OUTPUT_LEVEL, json!(80.0));
+    kh120.set_value(paths::OUTPUT_LEVEL, json!(90.3));
     wait_for_level(&mut harness, 80.0);
     wait_until(&mut harness, "the off-grid level", |harness| {
         harness.query_by_label(&readout(90.3)).is_some()
@@ -127,7 +123,7 @@ fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
 #[test]
 fn a_group_move_is_relative_to_where_the_drag_started() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
-    kh750.set_value(LEVEL_PATH, json!(90.0));
+    kh750.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     let start = slider_center(&harness, &texts::group_level(GROUP_NAME));
     // A short move down (about 3 dB), smaller than the change of the loudest member below.
@@ -137,7 +133,7 @@ fn a_group_move_is_relative_to_where_the_drag_started() {
         harness.step();
     }
     // The loudest member changes while the group fader is held.
-    kh120.set_value(LEVEL_PATH, json!(80.0));
+    kh120.set_value(paths::OUTPUT_LEVEL, json!(80.0));
     wait_for_level(&mut harness, 80.0);
     harness.drop_at(start + egui::vec2(0.0, 5.0));
     wait_until(&mut harness, "both level sets", |_| {
@@ -155,8 +151,8 @@ fn a_group_move_is_relative_to_where_the_drag_started() {
 #[test]
 fn a_group_raises_its_quieter_members_when_the_loudest_is_at_its_limit() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
-    kh120.set_value(LEVEL_PATH, json!(120.0));
-    kh750.set_value(LEVEL_PATH, json!(90.0));
+    kh120.set_value(paths::OUTPUT_LEVEL, json!(120.0));
+    kh750.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 120.0);
     wait_for_level(&mut harness, 90.0);
     let start = slider_center(&harness, &texts::group_level(GROUP_NAME));
@@ -205,7 +201,7 @@ fn a_knob_on_an_out_of_range_value_turned_further_out_writes_nothing() {
     wait_until(&mut harness, "the reported delay", |harness| {
         harness.query_by_label_contains("125,00 ms").is_some()
     });
-    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     harness.drop_at(end);
     harness.run_steps(5);
     barrier(&simulator);
@@ -219,7 +215,7 @@ fn a_knob_on_an_out_of_range_value_turned_further_out_writes_nothing() {
 #[test]
 fn a_fader_on_an_out_of_range_level_pushed_further_out_writes_nothing() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value(LEVEL_PATH, json!(125.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(125.0));
     wait_for_level(&mut harness, 125.0);
     let start = slider_center(&harness, texts::LEVEL.get());
     harness.drag_at(start);
@@ -240,7 +236,7 @@ fn a_fader_on_an_out_of_range_level_pushed_further_out_writes_nothing() {
 #[test]
 fn a_typed_delay_outside_the_range_is_refused_on_the_strip_knob() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    let position = slider_center(&harness, DELAY_KNOB);
+    let position = slider_center(&harness, DELAY_LABEL);
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("5000");
@@ -276,7 +272,7 @@ fn a_typed_level_just_outside_the_range_is_refused_too() {
 #[test]
 fn the_wheel_during_a_knob_drag_writes_nothing_of_its_own() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     wheel(&mut harness, 3.0);
     harness.run_steps(40);
     harness.drop_at(end);

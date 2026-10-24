@@ -7,12 +7,12 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::history::{is_open, Entry};
+use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_core::settings::SettingsPreset;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
 
-const LEVEL_PATH: &str = "audio/out/level";
 /// Long enough that the speaker's confirmation of a write is still out when the test acts.
 const UNCONFIRMED_WRITE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
@@ -42,7 +42,7 @@ fn take_back(harness: &mut Harness<'static, NeumannApp>, id: u64) {
 #[test]
 fn a_fader_drag_is_one_history_entry() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value(LEVEL_PATH, json!(90.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
     wait_until(&mut harness, "the level write", |_| {
@@ -52,7 +52,7 @@ fn a_fader_drag_is_one_history_entry() {
     assert_eq!(entries.len(), 1, "{entries:?}");
     let change = &entries[0].changes[0];
     assert_eq!(entries[0].changes.len(), 1);
-    assert_eq!(change.path.to_string(), LEVEL_PATH);
+    assert_eq!(change.path.to_string(), paths::OUTPUT_LEVEL);
     assert_eq!(change.before.as_ref().and_then(Value::as_f64), Some(90.0));
     assert_eq!(change.after.as_f64(), Some(level_sets(&simulator)[0]));
 }
@@ -62,7 +62,7 @@ fn a_group_mute_is_one_entry_with_every_sent_member() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
     harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
     wait_until(&mut harness, "group mute", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty() && !sets(&kh750, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty() && !sets(&kh750, MUTE_POINTER).is_empty()
     });
     let entries = entries(&harness);
     assert_eq!(entries.len(), 1, "{entries:?}");
@@ -76,7 +76,7 @@ fn a_group_mute_leaves_an_unreachable_member_out_of_the_entry() {
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
     wait_until(&mut harness, "the reachable member's mute", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty()
     });
     let entries = entries(&harness);
     assert_eq!(entries.len(), 1);
@@ -99,12 +99,12 @@ fn taking_back_writes_the_value_before() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true)]
+        sets(&simulator, MUTE_POINTER) == [json!(true)]
     });
     let id = entries(&harness)[0].id;
     take_back(&mut harness, id);
     wait_until(&mut harness, "unmute", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true), json!(false)]
+        sets(&simulator, MUTE_POINTER) == [json!(true), json!(false)]
     });
     let entries = entries(&harness);
     assert_eq!(entries.len(), 2);
@@ -119,13 +119,13 @@ fn a_refused_take_back_leaves_the_entry_open() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true)]
+        sets(&simulator, MUTE_POINTER) == [json!(true)]
     });
     let id = entries(&harness)[0].id;
     simulator.set_value("ui/control_mode", json!("LOCAL"));
     take_back(&mut harness, id);
     wait_until(&mut harness, "the unmute sent", |_| {
-        sets(&simulator, "/audio/out/mute").len() == 2
+        sets(&simulator, MUTE_POINTER).len() == 2
     });
     // Later polls answered means the refusal of the unmute reached the window too.
     barrier(&simulator);
@@ -142,7 +142,7 @@ fn a_speaker_left_out_of_a_take_back_is_named_once() {
         name: "Evening".to_owned(),
         product: "KH 120 II".to_owned(),
         values: [
-            (LEVEL_PATH.to_owned(), json!(90.0)),
+            (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
             ("audio/out/delay".to_owned(), json!(10)),
         ]
         .into(),
@@ -178,32 +178,32 @@ fn a_take_back_is_itself_an_entry_that_can_be_taken_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
-        !sets(&simulator, "/audio/out/mute").is_empty()
+        !sets(&simulator, MUTE_POINTER).is_empty()
     });
     let first = entries(&harness)[0].id;
     take_back(&mut harness, first);
     wait_until(&mut harness, "unmute", |_| {
-        sets(&simulator, "/audio/out/mute").len() == 2
+        sets(&simulator, MUTE_POINTER).len() == 2
     });
     let newest = harness.state().history().newest_open();
     assert_eq!(newest, Some(entries(&harness)[0].id));
     take_back(&mut harness, newest.unwrap());
     wait_until(&mut harness, "mute again", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true), json!(false), json!(true)]
+        sets(&simulator, MUTE_POINTER) == [json!(true), json!(false), json!(true)]
     });
 }
 
 #[test]
 fn a_changed_value_asks_before_taking_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value(LEVEL_PATH, json!(90.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
     wait_until(&mut harness, "the level write", |_| {
         !level_sets(&simulator).is_empty()
     });
     // Someone else turns the speaker meanwhile.
-    simulator.set_value(LEVEL_PATH, json!(70.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
     wait_for_level(&mut harness, 70.0);
     let id = entries(&harness)[0].id;
     take_back(&mut harness, id);
@@ -226,14 +226,14 @@ fn an_unreachable_speaker_stays_open() {
     let (kh120, kh750, _directory, mut harness) = grouped(Vec::new());
     harness.get_by_label(&texts::group_mute(GROUP_NAME)).click();
     wait_until(&mut harness, "group mute", |_| {
-        !sets(&kh120, "/audio/out/mute").is_empty() && !sets(&kh750, "/audio/out/mute").is_empty()
+        !sets(&kh120, MUTE_POINTER).is_empty() && !sets(&kh750, MUTE_POINTER).is_empty()
     });
     kh750.stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     let id = entries(&harness)[0].id;
     take_back(&mut harness, id);
     wait_until(&mut harness, "the reachable member unmuted", |_| {
-        sets(&kh120, "/audio/out/mute").len() == 2
+        sets(&kh120, MUTE_POINTER).len() == 2
     });
     let original = harness.state().history().entry(id).unwrap().clone();
     let open: Vec<bool> = original.changes.iter().map(is_open).collect();
@@ -266,7 +266,7 @@ fn click_mute(
 ) {
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(harness, "mute", |_| {
-        sets(simulator, "/audio/out/mute").len() == count
+        sets(simulator, MUTE_POINTER).len() == count
     });
     harness.run_steps(2);
 }
@@ -291,7 +291,7 @@ fn the_history_lists_the_newest_write_first() {
         .unwrap()
         .click();
     wait_until(&mut harness, "the newest taken back", |_| {
-        sets(&simulator, "/audio/out/mute").len() == 3
+        sets(&simulator, MUTE_POINTER).len() == 3
     });
 }
 
@@ -312,7 +312,7 @@ fn ctrl_z_takes_back_the_newest_write() {
     click_mute(&mut harness, &simulator, 1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "unmute", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true), json!(false)]
+        sets(&simulator, MUTE_POINTER) == [json!(true), json!(false)]
     });
 }
 
@@ -322,7 +322,7 @@ fn a_take_back_before_the_speaker_confirmed_the_write_does_not_ask() {
     simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
-        sets(&simulator, "/audio/out/mute") == [json!(true)]
+        sets(&simulator, MUTE_POINTER) == [json!(true)]
     });
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     harness.run_steps(3);
@@ -345,7 +345,7 @@ fn ctrl_z_in_a_text_field_does_not_take_back() {
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     harness.run_steps(5);
     barrier(&simulator);
-    assert_eq!(sets(&simulator, "/audio/out/mute").len(), 1);
+    assert_eq!(sets(&simulator, MUTE_POINTER).len(), 1);
 }
 
 /// Ctrl+Z with the history closed: what could not be taken back is still told, in the history
@@ -365,13 +365,13 @@ fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
 #[test]
 fn ctrl_z_on_a_changed_value_asks_and_reverts_on_confirm() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value(LEVEL_PATH, json!(90.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
     wait_until(&mut harness, "the level write", |_| {
         !level_sets(&simulator).is_empty()
     });
-    simulator.set_value(LEVEL_PATH, json!(70.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
     wait_for_level(&mut harness, 70.0);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_for_label(&mut harness, texts::REVERT.get());

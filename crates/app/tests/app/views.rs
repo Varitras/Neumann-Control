@@ -17,10 +17,6 @@ use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::Event;
 use serde_json::Value;
 
-/// The strip's knobs carry the device panel's names (paths.toml).
-const DELAY_KNOB: &str = "Verzögerung";
-const STANDBY_KNOB: &str = "Standby-Zeit";
-
 #[test]
 fn strip_shows_name_and_level_and_panel_the_masked_serial() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
@@ -368,8 +364,6 @@ fn out_of_range_level_is_not_written_back() {
 
 const KH120II_LEAF_COUNT: usize = 50;
 const STANDBY_LEAF_COUNT: usize = 4;
-const SPEAKER_NAME: &str = "Simulated KH 120 II";
-const STANDBY_ENABLED_PATH: &str = "device/standby/enabled";
 /// A refusal text as the worker produces it from a lost connection, address included.
 const RAW_FAILURE: &str = "connection error: could not read from fe80::2a36:38ff:fe12:3456%7";
 
@@ -402,7 +396,7 @@ fn filter_all_values(harness: &mut Harness<'static, NeumannApp>, text: &str) {
 #[test]
 fn all_values_closes_on_escape() {
     let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
-    let title = texts::all_values_title(SPEAKER_NAME);
+    let title = texts::all_values_title(KH120_DEVICE_NAME);
     harness.get_by_label(&title);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
@@ -412,7 +406,7 @@ fn all_values_closes_on_escape() {
 #[test]
 fn all_values_lists_50_leaves_for_kh120ii() {
     let (_simulator, _directory, harness) = all_values_window(SimModel::Kh120Ii);
-    harness.get_by_label(&texts::all_values_title(SPEAKER_NAME));
+    harness.get_by_label(&texts::all_values_title(KH120_DEVICE_NAME));
     harness.get_by_label(&texts::all_values_count(
         KH120II_LEAF_COUNT,
         KH120II_LEAF_COUNT,
@@ -427,14 +421,14 @@ fn filter_narrows_rows() {
         STANDBY_LEAF_COUNT,
         KH120II_LEAF_COUNT,
     ));
-    harness.get_by_label(STANDBY_ENABLED_PATH);
+    harness.get_by_label(paths::STANDBY_ENABLED);
     assert!(harness.query_by_label("audio/out/level").is_none());
 }
 
 #[test]
 fn known_column_marks_catalog_paths() {
     let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
-    filter_all_values(&mut harness, STANDBY_ENABLED_PATH);
+    filter_all_values(&mut harness, paths::STANDBY_ENABLED);
     harness.get_by_label(texts::ALL_VALUES_KNOWN.get());
     filter_all_values(&mut harness, "restore");
     harness.get_by_label("device/restore");
@@ -497,7 +491,7 @@ fn strip_content_stacks_top_down() {
         .map(|node| node.rect())
         .collect();
     let delays: Vec<_> = harness
-        .query_all_by_role_and_label(Role::Slider, DELAY_KNOB)
+        .query_all_by_role_and_label(Role::Slider, DELAY_LABEL)
         .map(|node| node.rect())
         .collect();
     assert_eq!(mutes.len(), 2);
@@ -531,8 +525,8 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
     ] {
         harness.get_by_label(label.get());
     }
-    harness.get_by_role_and_label(Role::Slider, DELAY_KNOB);
-    harness.get_by_role_and_label(Role::Slider, STANDBY_KNOB);
+    harness.get_by_role_and_label(Role::Slider, DELAY_LABEL);
+    harness.get_by_role_and_label(Role::Slider, STANDBY_TIME_LABEL);
     harness.get_by_label(texts::MUTE.get());
     harness.get_by_label(texts::IDENTIFY.get());
     harness.get_by_label(&readout(100.0));
@@ -541,16 +535,16 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
 #[test]
 fn kh750_standby_knob_can_be_turned() {
     let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
-    let standby = harness.get_by_role_and_label(Role::Slider, STANDBY_KNOB);
+    let standby = harness.get_by_role_and_label(Role::Slider, STANDBY_TIME_LABEL);
     assert!(!standby.accesskit_node().is_disabled());
-    let delay = harness.get_by_role_and_label(Role::Slider, DELAY_KNOB);
+    let delay = harness.get_by_role_and_label(Role::Slider, DELAY_LABEL);
     assert!(!delay.accesskit_node().is_disabled());
 }
 
 #[test]
 fn knob_drag_writes_once_on_release() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     barrier(&simulator);
     assert!(
         delay_sets(&simulator).is_empty(),
@@ -570,7 +564,7 @@ fn knob_drag_writes_once_on_release() {
 #[test]
 fn escape_during_knob_drag_sends_nothing() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     harness.key_press(egui::Key::Escape);
     harness.step();
     harness.drop_at(end);
@@ -583,7 +577,7 @@ fn escape_during_knob_drag_sends_nothing() {
 fn knob_wheel_writes_after_idle() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let center = harness
-        .get_by_role_and_label(Role::Slider, DELAY_KNOB)
+        .get_by_role_and_label(Role::Slider, DELAY_LABEL)
         .rect()
         .center();
     harness.hover_at(center);
@@ -830,7 +824,7 @@ fn knob_value_is_shown_beside_it_while_dragging() {
             .collect::<Vec<_>>()
     };
     assert_eq!(shown(&harness).len(), 1);
-    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     // Under the knob and beside it, each on one line.
     let labels = shown(&harness);
     assert_eq!(labels.len(), 2);
@@ -909,7 +903,7 @@ fn double_click_on_the_level_readout_enters_a_value() {
 fn double_click_on_the_delay_knob_takes_milliseconds() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let position = harness
-        .get_by_role_and_label(Role::Slider, DELAY_KNOB)
+        .get_by_role_and_label(Role::Slider, DELAY_LABEL)
         .rect()
         .center();
     double_click_at(&mut harness, position);
@@ -1055,7 +1049,7 @@ fn input_source_caption_stays_on_one_line() {
 fn the_strip_knob_captions_stay_apart() {
     let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);
     let caption = |label: &str| harness.get_by_role_and_label(Role::Label, label).rect();
-    let (delay, standby) = (caption(DELAY_KNOB), caption(STANDBY_KNOB));
+    let (delay, standby) = (caption(DELAY_LABEL), caption(STANDBY_TIME_LABEL));
     assert!(!delay.intersects(standby), "{delay:?} {standby:?}");
     // One line each: a name too long for its column is cut, never broken inside a word.
     let small = egui::TextStyle::Small.resolve(&harness.ctx.global_style());
