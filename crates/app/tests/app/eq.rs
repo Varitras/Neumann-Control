@@ -1033,3 +1033,31 @@ fn a_table_field_dragged_away_and_back_writes_nothing() {
     let written = sets(&simulator, BOOST_POINTER);
     assert!(written.is_empty(), "{written:?}");
 }
+
+/// Leaving a table field by clicking another EQ's tab writes the value to the EQ it was typed in.
+#[test]
+fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, BOOST_LABEL)
+        .nth(1)
+        .expect("band 2's boost")
+        .click();
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, BOOST_LABEL)
+        .nth(1)
+        .unwrap()
+        .type_text("3");
+    harness.run_steps(1);
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(3);
+    wait_until(&mut harness, "a boost write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+            || !sets(&simulator, "/audio/out/eq3/boost").is_empty()
+    });
+    barrier(&simulator);
+    assert!(sets(&simulator, "/audio/out/eq3/boost").is_empty());
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+}

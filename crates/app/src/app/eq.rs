@@ -26,6 +26,22 @@ const EQ_VIEWPORT_ID: &str = "eq_window";
 const EQ_GRAPH_ID: &str = "eq_graph";
 const EQ_TABLE_ID: &str = "eq_table";
 
+/// The output and container a window shows, by place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Drawn {
+    output: usize,
+    container: usize,
+}
+
+impl EqWindow {
+    fn drawn(&self) -> Drawn {
+        Drawn {
+            output: self.output,
+            container: self.container,
+        }
+    }
+}
+
 /// An open EQ window and what is chosen in it.
 pub(super) struct EqWindow {
     key: SpeakerKey,
@@ -102,13 +118,16 @@ impl NeumannApp {
         let now = context.input(|input| input.time);
         let mut closed = Vec::new();
         for window in 0..self.eq_windows.len() {
+            // A gesture belongs to the EQ it was drawn for, even when the same frame switched
+            // to another one (a field left by clicking another tab).
+            let drawn = self.eq_windows[window].drawn();
             let actions = self.show_eq_window(context, window);
             for action in actions {
                 if action == EqAction::Close {
                     closed.push(window);
                     continue;
                 }
-                self.apply_eq_action(window, action, now);
+                self.apply_eq_action(window, action, drawn, now);
             }
         }
         for window in closed.into_iter().rev() {
@@ -231,7 +250,7 @@ impl NeumannApp {
             .unwrap_or_default();
         let band_colors: Vec<Color32> = points.iter().map(|point| point.color).collect();
         let graph = Graph {
-            id: id.with(EQ_GRAPH_ID).with(chosen),
+            id: id.with(EQ_GRAPH_ID).with((window.output, chosen)),
             frequencies: &frequencies,
             curves: &curves,
             sum: &sum,
@@ -245,7 +264,7 @@ impl NeumannApp {
             q_range: limits.q.clone(),
         };
         let table = rows.as_ref().map(|rows| Table {
-            id: id.with(EQ_TABLE_ID).with(chosen),
+            id: id.with(EQ_TABLE_ID).with((window.output, chosen)),
             rows,
             limits: &limits,
             headers: &headers,
@@ -403,7 +422,7 @@ impl NeumannApp {
             .find(|state| state.key == *key)
     }
 
-    fn apply_eq_action(&mut self, index: usize, action: EqAction, now: f64) {
+    fn apply_eq_action(&mut self, index: usize, action: EqAction, drawn: Drawn, now: f64) {
         let window = &mut self.eq_windows[index];
         match action {
             EqAction::Close => {}
@@ -473,28 +492,33 @@ impl NeumannApp {
                 let writes = [(Leaf::Frequency, frequency), (Leaf::Boost, boost)];
                 for (leaf, value) in writes {
                     if let Some(value) = value {
-                        self.write_band(index, band, leaf, Value::from(value), now);
+                        self.write_band(index, drawn, band, leaf, Value::from(value), now);
                     }
                 }
             }
             EqAction::Graph(GraphAction::Q { band, q }) => {
-                self.write_band(index, band, Leaf::Q, Value::from(q), now);
+                self.write_band(index, drawn, band, Leaf::Q, Value::from(q), now);
             }
             EqAction::Table(TableAction::Write { band, leaf, value }) => {
-                self.write_band(index, band, leaf, value, now);
+                self.write_band(index, drawn, band, leaf, value, now);
             }
         }
     }
 
     /// The chosen container's path and its band count, once the speaker reported it.
     pub(super) fn chosen_container(&self, index: usize) -> Option<(SscPath, usize)> {
+        self.container_at(index, self.eq_windows[index].drawn())
+    }
+
+    /// The path and band count of the container at `place`, once the speaker reported it.
+    fn container_at(&self, index: usize, place: Drawn) -> Option<(SscPath, usize)> {
         let catalog = Catalog::embedded();
         let window = &self.eq_windows[index];
         let speaker = self.speaker_of(&window.key)?;
         let outputs = outputs_of(catalog, speaker.product());
         let container = outputs
-            .get(window.output)
-            .and_then(|(_, containers)| containers.get(window.container))?;
+            .get(place.output)
+            .and_then(|(_, containers)| containers.get(place.container))?;
         let length = speaker
             .values
             .get(&Leaf::Gain.path(&container.path))
@@ -610,7 +634,12 @@ impl NeumannApp {
 
     /// The chosen container's `leaf` and its band count, once the speaker reported it.
     fn chosen_leaf(&self, index: usize, leaf: Leaf) -> Option<(SscPath, usize)> {
-        let (container, _) = self.chosen_container(index)?;
+        self.leaf_at(index, self.eq_windows[index].drawn(), leaf)
+    }
+
+    /// `leaf` of the container at `place` and its band count, once the speaker reported it.
+    fn leaf_at(&self, index: usize, place: Drawn, leaf: Leaf) -> Option<(SscPath, usize)> {
+        let (container, _) = self.container_at(index, place)?;
         let speaker = self.eq_speaker(index)?;
         let path = leaf.path(&container);
         let length = speaker
@@ -621,13 +650,25 @@ impl NeumannApp {
         Some((path, length))
     }
 
-    /// One leaf of one band, `null` elsewhere; a refusal is shown in the window.
-    fn write_band(&mut self, index: usize, band: usize, leaf: Leaf, value: Value, now: f64) {
-        let Some((path, length)) = self.chosen_leaf(index, leaf) else {
+    /// One leaf of one band of the container at `place`, `null` elsewhere; a refusal is shown in
+    /// the window.
+    fn write_band(
+        &mut self,
+        index: usize,
+        place: Drawn,
+        band: usize,
+        leaf: Leaf,
+        value: Value,
+        now: f64,
+    ) {
+        let Some((path, length)) = self.leaf_at(index, place, leaf) else {
+            return;
+        };
+        let Some(value) = one_band(length, band, value) else {
             return;
         };
         let refusal = self
-            .send_eq_write(index, &path, one_band(length, band, value), now)
+            .send_eq_write(index, &path, value, now)
             .err()
             .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason));
         self.eq_windows[index].refusal = refusal;

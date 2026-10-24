@@ -168,10 +168,11 @@ impl ResetKind {
 }
 
 /// The value that writes `value` to `band` only (measured: `null` leaves a band as it is).
-pub fn one_band(length: usize, band: usize, value: Value) -> Value {
+/// `None` for a band the container does not have (the speaker reported fewer bands).
+pub fn one_band(length: usize, band: usize, value: Value) -> Option<Value> {
     let mut array = vec![Value::Null; length];
-    array[band] = value;
-    Value::Array(array)
+    *array.get_mut(band)? = value;
+    Some(Value::Array(array))
 }
 
 #[cfg(test)]
@@ -256,7 +257,8 @@ mod tests {
 
     #[test]
     fn one_band_is_null_elsewhere() {
-        assert_eq!(one_band(3, 1, json!(2.5)), json!([null, 2.5, null]));
+        assert_eq!(one_band(3, 1, json!(2.5)), Some(json!([null, 2.5, null])));
+        assert_eq!(one_band(3, 3, json!(2.5)), None);
     }
 
     #[test]
