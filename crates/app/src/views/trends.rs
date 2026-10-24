@@ -177,10 +177,7 @@ fn temperature_line(
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
     if let Some(pointer) = response.hover_pos() {
         let time = axis.time(pointer.x);
-        let text = trend.value_at(time).map_or_else(
-            || texts::NOT_READ.get().to_owned(),
-            |kelvin| converted(conversion, *kelvin),
-        );
+        let text = reading_text(trend, time, |kelvin| converted(conversion, *kelvin));
         response.on_hover_text(texts::trend_hover(minutes_ago(now, time), &text));
     }
 }
@@ -209,15 +206,48 @@ fn warning_bar(ui: &mut Ui, trend: &Trend<Vec<String>>, start: f64, now: f64, to
     response.widget_info(|| WidgetInfo::labeled(Role::Label, true, texts::WARNING_TREND.get()));
     if let Some(pointer) = response.hover_pos() {
         let time = axis.time(pointer.x);
-        let text = match trend.value_at(time) {
-            Some(active) if active.is_empty() => texts::NO_WARNING.get().to_owned(),
-            Some(active) => active.join(", "),
-            None => texts::NOT_READ.get().to_owned(),
-        };
+        let text = reading_text(trend, time, |active| match active.is_empty() {
+            true => texts::NO_WARNING.get().to_owned(),
+            false => active.join(", "),
+        });
         response.on_hover_text(texts::trend_hover(minutes_ago(now, time), &text));
     }
 }
 
 fn minutes_ago(now: f64, time: f64) -> u64 {
     whole_minutes(now - time)
+}
+
+/// The hover text at `time`: the value, "not reachable" where the speaker did not answer, or
+/// "not recorded yet" before the first reading (the axis spans a minute at least).
+fn reading_text<T: PartialEq>(
+    trend: &Trend<T>,
+    time: f64,
+    shown: impl FnOnce(&T) -> String,
+) -> String {
+    let recorded = trend.first_time().is_some_and(|first| first <= time);
+    if !recorded {
+        return texts::NOT_RECORDED_YET.get().to_owned();
+    }
+    trend
+        .value_at(time)
+        .map_or_else(|| texts::NOT_READ.get().to_owned(), shown)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The axis reaches back a minute even when the first reading is newer: before it, nothing
+    /// was recorded, which is not an unreachable speaker.
+    #[test]
+    fn before_the_first_point_nothing_was_recorded_yet() {
+        let mut trend = Trend::default();
+        trend.record(30.0, Some(310.0));
+        trend.record(40.0, None);
+        let text = |time| reading_text(&trend, time, |kelvin: &f64| kelvin.to_string());
+        assert_eq!(text(10.0), texts::NOT_RECORDED_YET.get());
+        assert_eq!(text(35.0), "310");
+        assert_eq!(text(45.0), texts::NOT_READ.get());
+    }
 }

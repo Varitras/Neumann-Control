@@ -288,6 +288,8 @@ pub const TREND_NOW: Text = Text::new("jetzt", "now");
 pub const WARNING_TREND: Text = Text::new("Warnungsverlauf", "Warning trend");
 pub const NO_WARNING: Text = Text::new("keine Warnung", "no warning");
 pub const NOT_READ: Text = Text::new("nicht erreichbar", "not reachable");
+/// A trend's time before its first reading.
+pub const NOT_RECORDED_YET: Text = Text::new("noch nicht aufgezeichnet", "not recorded yet");
 /// A speaker of a history entry that has been removed since.
 pub const REMOVED_SPEAKER: Text = Text::new("entfernter Lautsprecher", "removed speaker");
 pub const CONTROL_HINT: Text = Text::new(
