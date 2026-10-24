@@ -181,8 +181,9 @@ time of the connected ones.
 ### Device panel
 
 Click a speaker's name or **Details** under its strip. The panel opens in a window of its own,
-one per speaker, at the top left of the main window and no taller than the screen leaves below
-it, which you can move anywhere, also beside the main window or onto another screen;
+one per speaker, where the last panel was left (the first time at the top left of the main
+window and no taller than the screen leaves below it; a further open panel a little offset),
+which you can move anywhere, also beside the main window or onto another screen;
 opening it again brings it to the front. It lists every setting the catalog knows for that model
 by topic in two columns: the outputs first and together (on the KH 750 its own,
 then A and B), then input, standby, device and rear panel; in each topic what can be set comes
