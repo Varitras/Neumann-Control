@@ -1135,3 +1135,23 @@ fn a_monitor_has_one_sum() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
     harness.get_by_label(texts::EQ_SUM.get());
 }
+
+/// "EQ 2 Band 2" is on every output of a KH 750: the history names the output too.
+#[test]
+fn the_history_names_the_output_of_a_kh750_eq_change() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        simulator.requests().iter().any(|request| {
+            request
+                .pointer("/audio/out/eq2/boost")
+                .is_some_and(|value| !value.is_null())
+        })
+    });
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label_contains(texts::EQ_OUTPUT_SUBWOOFER.get());
+}

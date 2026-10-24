@@ -877,3 +877,27 @@ fn escape_on_an_open_list_keeps_the_panel() {
     harness.run_steps(2);
     harness.get_by_label(texts::ALL_VALUES.get());
 }
+
+/// The history shows a delay as the panel does, not in the speaker's samples.
+#[test]
+fn the_history_shows_a_delay_in_its_shown_unit() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    type_number(&mut harness, DELAY_LABEL, "10");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the delay write", |_| {
+        !sets_to(&simulator, DELAY_PATH).is_empty()
+    });
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    harness.run_steps(3);
+    let line = harness
+        .query_all_by_label_contains(" → ")
+        .find_map(|node| {
+            let node = node.accesskit_node();
+            let text = node.label().or(node.value())?;
+            text.contains(DELAY_LABEL).then_some(text)
+        })
+        .expect("the delay's history line");
+    assert!(line.ends_with("10,00 ms"), "{line}");
+}

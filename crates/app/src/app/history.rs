@@ -6,7 +6,8 @@ use eframe::egui::Ui;
 use super::NeumannApp;
 use serde_json::Value;
 
-use crate::eq::container_of;
+use crate::display::{conversion_of, converted};
+use crate::eq::{container_of, output_key};
 use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
@@ -15,7 +16,7 @@ use crate::views::history::{
     self as history_view, HistoryAction, HistoryRow, QuestionAction, UNDO_SHORTCUT,
 };
 use crate::writes::Intent;
-use neumann_control_core::catalog::Catalog;
+use neumann_control_core::catalog::{Catalog, Conversion};
 use neumann_control_core::speaker::Command;
 
 /// What the last take-back could not write, for the history window.
@@ -44,6 +45,8 @@ struct Described {
     speaker: String,
     setting: String,
     unit: Option<String>,
+    /// The panel's conversion of the setting (a delay in ms or m), so the line reads the same.
+    conversion: Option<Conversion>,
     /// For an EQ band write: the band it touched; its values are that band's entries.
     band: Option<usize>,
     /// An EQ write of every band (a reset to flat).
@@ -64,6 +67,17 @@ impl Described {
             return first;
         }
         Some(value)
+    }
+
+    /// `value` as the panel shows it.
+    fn text(&self, value: &Value) -> String {
+        let Some(shown) = self.shown(value) else {
+            return texts::UNKNOWN_VALUE.to_owned();
+        };
+        match (self.conversion, shown.as_f64()) {
+            (Some(conversion), Some(number)) => converted(conversion, number),
+            _ => texts::history_value(shown, self.unit.as_deref()),
+        }
     }
 }
 
@@ -182,14 +196,11 @@ impl NeumannApp {
 
     fn change_line(&self, change: &Change) -> String {
         let described = self.describe(change);
-        let unit = described.unit.as_deref();
-        let before = change
-            .before
-            .as_ref()
-            .and_then(|before| described.shown(before));
-        let before = texts::history_before(before, unit);
-        let after = described.shown(&change.after).unwrap_or(&change.after);
-        let after = texts::history_value(after, unit);
+        let before = change.before.as_ref().map_or_else(
+            || texts::UNKNOWN_VALUE.to_owned(),
+            |before| described.text(before),
+        );
+        let after = described.text(&change.after);
         texts::history_change(&described.speaker, &described.setting, &before, &after)
     }
 
@@ -204,14 +215,11 @@ impl NeumannApp {
                 continue;
             };
             let described = self.describe(change);
-            let unit = described.unit.as_deref();
-            let now = described.shown(now).unwrap_or(now);
-            let written = described.shown(&change.after).unwrap_or(&change.after);
             lines.push(texts::changed_now(
                 &described.speaker,
                 &described.setting,
-                &texts::history_value(now, unit),
-                &texts::history_value(written, unit),
+                &described.text(now),
+                &described.text(&change.after),
             ));
         }
         lines
@@ -226,14 +234,15 @@ impl NeumannApp {
     }
 
     fn describe(&self, change: &Change) -> Described {
-        let speaker = self
+        let state = self
             .speakers
             .iter()
             .find(|speaker| speaker.state.key == change.speaker)
-            .map_or_else(
-                || texts::REMOVED_SPEAKER.get().to_owned(),
-                |speaker| speaker.state.display_name(),
-            );
+            .map(|speaker| &speaker.state);
+        let speaker = state.map_or_else(
+            || texts::REMOVED_SPEAKER.get().to_owned(),
+            SpeakerState::display_name,
+        );
         let catalog = Catalog::embedded();
         let entry = paths::catalog_entry(catalog, &change.path);
         let language = texts::language();
@@ -250,13 +259,21 @@ impl NeumannApp {
             })
             .unwrap_or_default();
         let container = container_of(catalog, &change.path);
-        let (setting, band, all_bands) = match (container, given.as_slice()) {
+        let product = state.map_or("", SpeakerState::product);
+        let container_name = container.map(|container| {
+            let name = container.label(language);
+            match several_outputs(catalog, product) {
+                true => texts::eq_on_output(texts::eq_output(&output_key(container)), name),
+                false => name.to_owned(),
+            }
+        });
+        let (setting, band, all_bands) = match (container_name, given.as_slice()) {
             (Some(container), [band]) => {
-                let setting = texts::eq_change_setting(container.label(language), band + 1, &label);
+                let setting = texts::eq_change_setting(&container, band + 1, &label);
                 (setting, Some(*band), false)
             }
             (Some(container), [_, _, ..]) => {
-                let setting = texts::eq_all_bands_setting(container.label(language), &label);
+                let setting = texts::eq_all_bands_setting(&container, &label);
                 (setting, None, true)
             }
             _ => (label, None, false),
@@ -265,6 +282,7 @@ impl NeumannApp {
             speaker,
             setting,
             unit: entry.and_then(|entry| entry.unit.clone()),
+            conversion: entry.and_then(conversion_of),
             band,
             all_bands,
         }
@@ -401,4 +419,15 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
+}
+
+/// Whether `product` has EQs on more than one output (the KH 750's subwoofer, A and B).
+fn several_outputs(catalog: &Catalog, product: &str) -> bool {
+    let mut keys: Vec<String> = catalog
+        .eq_containers(product)
+        .into_iter()
+        .map(output_key)
+        .collect();
+    keys.dedup();
+    keys.len() > 1
 }

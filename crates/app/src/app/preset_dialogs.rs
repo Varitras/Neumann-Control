@@ -15,9 +15,6 @@ use crate::texts;
 use crate::views::preset_dialog::{self, LoadAction, LoadView, SaveAction, SaveRow};
 use crate::writes::Intent;
 
-/// Shown for a value the speaker has not reported.
-const UNKNOWN_VALUE: &str = "?";
-
 pub(super) enum PresetDialog {
     Save {
         key: SpeakerKey,
@@ -99,7 +96,7 @@ impl NeumannApp {
             .map(|entry| SaveRow {
                 label: entry.label(texts::language()).to_owned(),
                 value: speaker.values.get(&entry.path).map_or_else(
-                    || UNKNOWN_VALUE.to_owned(),
+                    || texts::UNKNOWN_VALUE.to_owned(),
                     |value| shown_value(entry, value),
                 ),
                 chosen: chosen.contains(&entry.path),
@@ -164,7 +161,7 @@ impl NeumannApp {
             let entry = paths::catalog_entry(catalog, path);
             match (entry, value) {
                 (Some(entry), Some(value)) => shown_value(entry, value),
-                _ => UNKNOWN_VALUE.to_owned(),
+                _ => texts::UNKNOWN_VALUE.to_owned(),
             }
         };
         let changes: Vec<String> = loading

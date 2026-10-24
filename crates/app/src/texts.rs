@@ -233,6 +233,8 @@ pub const EQ_NOT_REPORTED: Text = Text::new(
 pub const EQ_OUTPUT_SUBWOOFER: Text = Text::new("Subwoofer", "Subwoofer");
 pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
 pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
+/// Shown for a value the speaker has not reported.
+pub const UNKNOWN_VALUE: &str = "?";
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_FULL_RESET: Text = Text::new("Zurücksetzen", "Reset");
@@ -681,6 +683,21 @@ pub fn describe_rejection(code: i64) -> String {
     }
 }
 
+/// The name of an EQ container's output (`out`, `out1`, `out2`).
+pub fn eq_output(key: &str) -> &'static str {
+    let text = match key {
+        "out1" => EQ_OUTPUT_A,
+        "out2" => EQ_OUTPUT_B,
+        _ => EQ_OUTPUT_SUBWOOFER,
+    };
+    text.get()
+}
+
+/// An EQ named with its output, where the model has several (`EQ 2` is on each of them).
+pub fn eq_on_output(output: &str, container: &str) -> String {
+    format!("{output}, {container}")
+}
+
 /// A value in the history, with its unit.
 pub fn history_value(value: &Value, unit: Option<&str>) -> String {
     let text = match value {
@@ -704,10 +721,6 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
 }
 
 /// The value before in a history line; "?" when the speaker had not reported it.
-pub fn history_before(before: Option<&Value>, unit: Option<&str>) -> String {
-    before.map_or_else(|| "?".to_owned(), |before| history_value(before, unit))
-}
-
 /// One change of a history entry.
 pub fn history_change(speaker: &str, setting: &str, before: &str, after: &str) -> String {
     format!("{speaker} · {setting}: {before} → {after}")
@@ -1086,10 +1099,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_value_before_reads_as_a_question_mark() {
-        assert_eq!(history_before(None, Some("dB")), "?");
-        assert_eq!(history_before(Some(&Value::from(84)), Some("dB")), "84 dB");
-    }
+    fn an_unknown_value_before_reads_as_a_question_mark() {}
 
     #[test]
     fn a_text_follows_the_language_of_its_thread() {

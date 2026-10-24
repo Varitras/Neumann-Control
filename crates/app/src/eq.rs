@@ -175,6 +175,16 @@ pub fn one_band(length: usize, band: usize, value: Value) -> Option<Value> {
     Some(Value::Array(array))
 }
 
+/// The output a container belongs to: `out`, `out1` or `out2`.
+pub fn output_key(container: &EqContainer) -> String {
+    container
+        .path
+        .segments()
+        .get(1)
+        .cloned()
+        .unwrap_or_default()
+}
+
 /// One output's response for each input that has containers of its own (the KH 750's
 /// crossovers): the containers every input passes plus that input's. The crossovers lie side by
 /// side, one per input, so adding them all would describe a signal no input takes. Without

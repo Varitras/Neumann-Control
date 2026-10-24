@@ -8,7 +8,9 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, container_of, has_eq, input_sums, one_band, Band, Leaf, ResetKind};
+use crate::eq::{
+    bands_of, container_of, has_eq, input_sums, one_band, output_key, Band, Leaf, ResetKind,
+};
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
@@ -777,16 +779,6 @@ fn is_eq_entry_of(entry: &Entry, key: &SpeakerKey, catalog: &Catalog) -> bool {
         .all(|change| change.speaker == *key && container_of(catalog, &change.path).is_some())
 }
 
-/// The output a container belongs to: `out`, `out1` or `out2`.
-fn output_key(container: &EqContainer) -> String {
-    container
-        .path
-        .segments()
-        .get(1)
-        .cloned()
-        .unwrap_or_default()
-}
-
 fn has_output(catalog: &Catalog, product: &str, key: &str) -> bool {
     catalog
         .eq_containers(product)
@@ -826,22 +818,13 @@ fn output_sums(
 fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a EqContainer>)> {
     let mut outputs: Vec<(String, Vec<&EqContainer>)> = Vec::new();
     for container in catalog.eq_containers(product) {
-        let name = output_name(&output_key(container));
+        let name = texts::eq_output(&output_key(container)).to_owned();
         match outputs.iter_mut().find(|(known, _)| *known == name) {
             Some((_, containers)) => containers.push(container),
             None => outputs.push((name, vec![container])),
         }
     }
     outputs
-}
-
-fn output_name(output: &str) -> String {
-    let text = match output {
-        "out1" => texts::EQ_OUTPUT_A,
-        "out2" => texts::EQ_OUTPUT_B,
-        _ => texts::EQ_OUTPUT_SUBWOOFER,
-    };
-    text.get().to_owned()
 }
 
 /// The catalog's limits for the container's leaves; without a container, nothing is allowed.
