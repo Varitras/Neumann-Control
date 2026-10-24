@@ -55,11 +55,12 @@ them. This README uses the English names.
 
 ## Status
 
-Version 0.1.0, alpha. The protocol layer, the polling and the interface are covered by automated
-tests against a built-in speaker simulator for the KH 120 II and the KH 750. On real KH 120 II and
-KH 750 speakers the app was checked for scanning, reading, metering and writing level, mute,
-identify and standby time. Groups, the compact mode and the English interface are so far covered
-by the simulator tests only.
+Alpha, below version 1.0 (**?** > **About Neumann Control** shows which one). The protocol
+layer, the polling and the interface are covered by automated tests against a built-in speaker
+simulator for the KH 120 II and the KH 750. On real KH 120 II and KH 750 speakers the app was
+checked for scanning, reading, metering and writing level, mute, identify and standby time.
+Groups, the compact mode and the English interface are so far covered by the simulator tests
+only.
 
 ## Requirements
 

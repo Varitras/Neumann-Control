@@ -1,13 +1,16 @@
 <#
 .SYNOPSIS
-    Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\. The
-    version is the one in the workspace Cargo.toml; OutputRoot defaults to release\ in the
-    repository. A release folder that already holds files is refused unless -Force is given.
+    Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\. Each
+    build raises the patch of the workspace version (0.1.0 -> 0.1.1) once the gate has passed
+    and commits that alone; -KeepVersion builds the version as it is (a rebuild). OutputRoot
+    defaults to release\ in the repository. A release folder that already holds files is refused
+    unless -Force is given.
 #>
 [CmdletBinding()]
 param(
     [string] $OutputRoot = 'release',
-    [switch] $Force
+    [switch] $Force,
+    [switch] $KeepVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,10 +62,26 @@ function Get-WorkspaceVersion {
     $match.Groups[2].Value
 }
 
+# Only the patch moves: the version stays below 1.0 until a release says otherwise.
+function Get-NextPatch {
+    param([string] $Version)
+    if ($Version -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw "version $Version is not major.minor.patch" }
+    "$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)"
+}
+
+function Set-WorkspaceVersion {
+    param([string] $Version)
+    $path = (Resolve-Path 'Cargo.toml').Path
+    $text = [System.IO.File]::ReadAllText($path)
+    $changed = $workspaceVersionLine.Replace($text, "`${1}$Version`${3}", 1)
+    [System.IO.File]::WriteAllText($path, $changed, (New-Object System.Text.UTF8Encoding $false))
+}
+
 Assert-Tool 'cargo-about' 'Install with: cargo install cargo-about --locked'
 Assert-CleanTree
 
 $version = Get-WorkspaceVersion
+if (-not $KeepVersion) { $version = Get-NextPatch $version }
 
 # Checked before the gate: a rerun must not silently replace an exe already built.
 # Absolute: .NET file calls resolve relative paths against the process directory, not Set-Location.
@@ -82,6 +101,18 @@ if ($holdsEarlierBuild -and -not $Force) {
 }
 
 Invoke-Step 'Quality gates' { & (Join-Path $PSScriptRoot 'check.ps1') }
+
+if (-not $KeepVersion) {
+    Invoke-Step "Raise the version to $version" {
+        Set-WorkspaceVersion $version
+        # The lock file names the workspace crates' versions too; --locked below needs it current.
+        cargo update --workspace --offline
+        if ($LASTEXITCODE -ne 0) { return }
+        git add Cargo.toml Cargo.lock
+        if ($LASTEXITCODE -ne 0) { return }
+        git commit -q -m "Bump version to $version"
+    }
+}
 
 Invoke-Step 'Build release binary' { cargo build --release --locked -p neumann-control-app }
 
