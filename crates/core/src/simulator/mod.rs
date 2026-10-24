@@ -275,6 +275,11 @@ impl Simulator {
     pub fn remove_value(&self, path: &str) {
         self.shared.state().device.remove_value(path);
     }
+
+    /// From now on `osc/schema` of the container `path` is refused with a device error.
+    pub fn refuse_schema(&self, path: &str) {
+        self.shared.state().device.refuse_schema(path);
+    }
 }
 
 impl Drop for Simulator {

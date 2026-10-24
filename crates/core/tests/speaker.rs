@@ -567,6 +567,26 @@ fn another_serial_after_a_reconnect_is_a_mismatch() {
     );
 }
 
+/// A container whose schema the speaker refuses is one refused line among the rest, as a
+/// refused leaf is; the walk does not end on it.
+#[test]
+fn a_refused_container_schema_stays_in_its_own_report() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.refuse_schema("device/network");
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+
+    let reports = read_all(&mut client, &|| false).expect("the walk goes on");
+
+    let refused = reports
+        .iter()
+        .find(|leaf| leaf.path == path("device/network"))
+        .expect("the container reported");
+    assert!(refused.value.is_err(), "{refused:?}");
+    assert!(reports
+        .iter()
+        .any(|leaf| leaf.path == path("audio/out/level")));
+}
+
 #[test]
 fn read_all_lists_every_leaf() {
     let simulator = Simulator::start(SimModel::Kh120Ii);

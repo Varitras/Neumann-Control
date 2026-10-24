@@ -44,7 +44,7 @@ impl From<SscError> for WalkError {
 }
 
 /// Every leaf breadth-first from the root with its value and limits. A device error on one
-/// leaf stays in that leaf's report. `should_stop` is asked before every request, so a caller
+/// leaf, or on the schema of one container below the root, stays in that node's report. `should_stop` is asked before every request, so a caller
 /// waiting to shut down waits for one request at most.
 pub fn read_all(
     client: &mut Client,
@@ -113,7 +113,11 @@ impl Walk {
         if should_stop() {
             return Err(WalkError::Stopped);
         }
-        for (name, kind) in client.schema(container.as_ref())? {
+        let nodes = match client.schema(container.as_ref()) {
+            Ok(nodes) => nodes,
+            Err(error) => return self.refused_container(container, error),
+        };
+        for (name, kind) in nodes {
             if container.is_none() && name == PROTOCOL_CONTAINER {
                 continue;
             }
@@ -135,6 +139,24 @@ impl Walk {
                 NodeKind::Container => self.containers.push_back(Some(path)),
             }
         }
+        Ok(())
+    }
+
+    /// A device error on a container below the root is that container's line in the report;
+    /// a lost connection, or a refused root, ends the walk.
+    fn refused_container(
+        &mut self,
+        container: Option<SscPath>,
+        error: SscError,
+    ) -> Result<(), WalkError> {
+        let Some(path) = container.filter(|_| !error.is_connection_lost()) else {
+            return Err(error.into());
+        };
+        self.reports.push(LeafReport {
+            path,
+            value: Err(error.to_string()),
+            limits: None,
+        });
         Ok(())
     }
 }
