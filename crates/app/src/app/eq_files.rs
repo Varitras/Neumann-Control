@@ -173,3 +173,34 @@ fn safe_file_name(name: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file far larger than any filter list is refused before it is read.
+    #[test]
+    fn a_file_over_the_limit_is_refused() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("huge.txt");
+        let size = usize::try_from(MAX_FILE_BYTES).unwrap() + 1;
+        fs::write(&path, vec![b'#'; size]).unwrap();
+        assert_eq!(
+            read_text(&path, "huge.txt"),
+            Err(texts::EQ_FILE_TOO_LARGE.get().to_owned())
+        );
+    }
+
+    /// An editor's code page ("Höhen" in Latin-1) costs that character, not the file.
+    #[test]
+    fn a_file_in_another_code_page_is_still_read() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("latin.txt");
+        let mut bytes = b"# H".to_vec();
+        bytes.push(0xF6);
+        bytes.extend_from_slice(b"hen\nFilter 1: ON PK Fc 100 Hz Gain -3 dB Q 1\n");
+        fs::write(&path, bytes).unwrap();
+        let text = read_text(&path, "latin.txt").unwrap();
+        assert!(text.contains("Filter 1: ON PK Fc 100 Hz"), "{text}");
+    }
+}
