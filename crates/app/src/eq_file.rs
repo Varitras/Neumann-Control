@@ -790,6 +790,38 @@ Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
         );
     }
 
+    /// First-order filters, inversion and a shelf too steep for its height have no APO line:
+    /// each is a comment and a note, and the bands around them are exported.
+    #[test]
+    fn what_apo_cannot_hold_is_named_not_exported() {
+        let bands = vec![
+            band("LO6DB", 0.0, 80.0, 0.7),
+            band("INVERSION", 0.0, 100.0, 0.7),
+            band("LOSHELF", 24.0, 80.0, 4.0),
+            band("PARAMETRIC", -3.0, 1000.0, 1.0),
+        ];
+        let export = export(&bands, "EQ 2");
+        let lines: Vec<&str> = export.text.lines().collect();
+        assert_eq!(
+            lines[1..],
+            [
+                "# Filter 1: LO6DB not exported",
+                "# Filter 2: INVERSION not exported",
+                "# Filter 3: LOSHELF not exported",
+                "Filter 4: ON PK Fc 1000 Hz Gain -3 dB Q 1",
+            ]
+        );
+        let kinds: Vec<(usize, &str)> = export
+            .notes
+            .iter()
+            .map(|note| match note {
+                ExportNote::NotExportable { band, kind } => (*band, kind.as_str()),
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        assert_eq!(kinds, [(1, "LO6DB"), (2, "INVERSION"), (3, "LOSHELF")]);
+    }
+
     #[test]
     fn an_exported_container_reads_back_as_the_same_bands() {
         let mut off = band("PARAMETRIC", 0.0, 100.0, 0.7);
