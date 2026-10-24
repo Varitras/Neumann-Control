@@ -184,7 +184,7 @@ by topic in two columns: the outputs first and together (on the KH 750 its own,
 then A and B), then input, standby, device and rear panel; in each topic what can be set comes
 before what is only shown. Settings the model may write get a
 control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
-number. Escape, **Close** or the window's close button closes it.
+number. Escape or the window's close button closes it.
 
 ![The device panel of a KH 750: its outputs on the left, standby, device and rear panel on the right](docs/images/panel.png)
 
@@ -226,8 +226,8 @@ longer remembered, and it also leaves its group and its place in the order.
   change on one member goes to the others whose model may write it. Members that are not
   connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
-- Click the group's name or **Details** at the foot of the group strip to rename or delete it;
-  deleting asks first.
+- Click the group's name or **Details** at the foot of the group strip to rename or delete it,
+  or right-click the group strip for **Delete group…**; deleting asks first.
 - The master strip at the end moves and mutes all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the

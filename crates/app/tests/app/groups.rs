@@ -137,6 +137,22 @@ fn group_dialog_renames_and_deletes() {
     assert!(settings::load(&path).groups.is_empty());
 }
 
+/// A right click on the group strip offers to delete it; the delete is asked once more.
+#[test]
+fn a_right_click_on_the_group_strip_deletes_the_group() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    harness.get_by_label(GROUP_NAME).click_secondary();
+    harness.run_steps(2);
+    harness.get_by_label(texts::DELETE_GROUP_MENU.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(&texts::delete_question(GROUP_NAME));
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(settings::load(&path).groups.len(), 1);
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness.run_steps(2);
+    assert!(settings::load(&path).groups.is_empty());
+}
+
 /// An emptied name field is no name: the group keeps the one it had.
 #[test]
 fn a_group_name_cleared_on_close_stays_the_old_one() {

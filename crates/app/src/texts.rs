@@ -199,6 +199,8 @@ pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
+/// In the group strip's context menu; the dialog asks before it deletes.
+pub const DELETE_GROUP_MENU: Text = Text::new("Gruppe löschen…", "Delete group…");
 pub const NEW_GROUP_NAME: Text = Text::new("Gruppe", "Group");
 pub const GROUP: Text = Text::new("Gruppe", "Group");
 pub const NO_GROUP: Text = Text::new("keine", "none");

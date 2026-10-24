@@ -3,15 +3,19 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{self, Button, Color32, CornerRadius, RichText, Role, Stroke, Ui, WidgetInfo};
+use eframe::egui::{
+    self, Button, Color32, CornerRadius, Rect, RichText, Role, Stroke, Ui, WidgetInfo,
+};
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
 use super::fader::{self, Orientation};
+use super::layout_menu::{popup, right_clicked};
 use super::strip::{BORDER_WIDTH, STRIP_MARGIN, STRIP_RADIUS};
 use crate::groups::{linkable_label, SharedLevel, LINKABLE};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
+const GROUP_MENU_ID: &str = "group_strip_menu";
 const STRIP_WIDTH: f32 = 96.0;
 
 #[derive(Default)]
@@ -22,6 +26,8 @@ pub struct GroupStripResponse {
     pub mute: Option<bool>,
     pub toggled_link: Option<Linkable>,
     pub open_settings: bool,
+    /// From the strip's context menu: the group dialog asks before deleting.
+    pub delete: bool,
 }
 
 /// `level` follows the loudest connected member, `muted` says whether all of them are muted.
@@ -34,7 +40,7 @@ pub fn group(
     range: RangeInclusive<f64>,
 ) -> GroupStripResponse {
     let mut response = GroupStripResponse::default();
-    frame(ui, color, |ui| {
+    let rect = frame(ui, color, |ui| {
         let name = RichText::new(&group.name).strong().color(color);
         response.open_settings = ui.add(Button::new(name).frame(false).truncate()).clicked();
         ui.add(egui::Label::new(
@@ -61,6 +67,10 @@ pub fn group(
         let label = texts::group_details(&group.name);
         details.widget_info(|| WidgetInfo::labeled(Role::Button, true, &label));
         response.open_settings |= details.clicked();
+    });
+    let menu = ui.scope_id().with((GROUP_MENU_ID, &group.name));
+    popup(ui, menu, right_clicked(ui, rect), |ui| {
+        response.delete = ui.button(texts::DELETE_GROUP_MENU).clicked();
     });
     response
 }
@@ -96,7 +106,8 @@ pub(super) fn shared_readout(level: Option<&SharedLevel>) -> String {
         .unwrap_or_default()
 }
 
-pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) {
+/// Draws a strip's frame around `contents`; returns where it lies.
+pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) -> Rect {
     let tokens = Tokens::current(ui.ctx());
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     egui::Frame::new()
@@ -109,7 +120,9 @@ pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui))
                 ui.set_width(inner_width);
                 contents(ui);
             });
-        });
+        })
+        .response
+        .rect
 }
 
 /// Shows whether all are muted; a click asks for the opposite for all.

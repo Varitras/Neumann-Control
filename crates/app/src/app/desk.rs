@@ -223,12 +223,12 @@ impl NeumannApp {
                     toggle_link(&mut self.settings.groups[group], linkable);
                     self.save_settings();
                 }
-                if response.open_settings {
+                if response.open_settings || response.delete {
                     let name = self.settings.groups[group].name.clone();
                     self.group_draft = Some(GroupDraft {
                         index: group,
                         name,
-                        deleting: false,
+                        deleting: response.delete,
                     });
                 }
             }
