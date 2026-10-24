@@ -202,7 +202,9 @@ and any network address are left out. It is meant for collecting what other mode
 
 **Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
 offered, the name unchecked). **Load preset…** shows what a preset would change on this speaker and
-writes it as one history entry; settings this model may not write are listed as skipped.
+writes it as one history entry; settings this model may not write are listed as skipped. A preset
+belongs to its model: saving under a name this model already has replaces that preset, and the
+dialog says so (**Replace**). **Delete** in the load dialog asks before the preset goes.
 
 **Trend (2 h)** below the settings shows what the app read in this session, at most the last two
 hours, on models with a temperature (KH 750): the temperature as a line, with its highest and
@@ -224,7 +226,8 @@ longer remembered, and it also leaves its group and its place in the order.
   change on one member goes to the others whose model may write it. Members that are not
   connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
-- Click the group's name or **Details** at the foot of the group strip to rename or delete it.
+- Click the group's name or **Details** at the foot of the group strip to rename or delete it;
+  deleting asks first.
 - The master strip at the end moves and mutes all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the
@@ -289,7 +292,8 @@ input B ("Crossover A", "Crossover B").
 - **Save as EQ preset…** keeps all bands of the chosen EQ under a name; **Load EQ preset…** offers
   the presets with the same number of bands, shows which bands change and writes them as one
   history entry. Writing several settings of a band one after another can pass a short level
-  jump.
+  jump. A name already used by a preset of the same band count is replaced after the dialog says
+  so; deleting asks first.
 - **Import…** reads the filter lines of an Equalizer APO `config.txt` or of a filter file Room EQ
   Wizard exported for its "Generic" equaliser (`Filter 1: ON PK Fc 100 Hz Gain -3.0 dB Q 1.41`).
   A filter with a number goes to that band, one without to the next band; bands the file does not

@@ -73,9 +73,11 @@ enum EqPresetDialog {
     Save {
         name: String,
     },
-    /// `selected` is a place among the presets that fit the container.
+    /// `selected` is a place among the presets that fit the container; `deleting` while its
+    /// deletion is being confirmed.
     Load {
         selected: Option<usize>,
+        deleting: bool,
     },
 }
 
@@ -312,6 +314,7 @@ impl NeumannApp {
             (
                 Some(EqPresetDialog::Load {
                     selected: Some(place),
+                    ..
                 }),
                 Some(shown),
             ) => fitting_presets
@@ -327,13 +330,26 @@ impl NeumannApp {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
+        let deleting_name = match &window.preset {
+            Some(EqPresetDialog::Load {
+                selected: Some(place),
+                deleting: true,
+            }) => fitting_presets
+                .get(*place)
+                .map(|place| self.settings.eq_presets[*place].name.as_str()),
+            _ => None,
+        };
         let preset_dialog = match &window.preset {
-            Some(EqPresetDialog::Save { name }) => Some(PresetDialogView::Save { name }),
-            Some(EqPresetDialog::Load { selected }) => Some(PresetDialogView::Load {
+            Some(EqPresetDialog::Save { name }) => Some(PresetDialogView::Save {
+                name,
+                replacing: eq_preset_taken(&self.settings.eq_presets, name, band_count),
+            }),
+            Some(EqPresetDialog::Load { selected, .. }) => Some(PresetDialogView::Load {
                 names: &preset_names,
                 selected: *selected,
                 changes: &preset_changes,
                 crossover: reshapable.is_some_and(|shown| shown.container.crossover),
+                deleting: deleting_name,
             }),
             None => None,
         };
@@ -452,7 +468,12 @@ impl NeumannApp {
                     name: String::new(),
                 });
             }
-            EqAction::PresetLoad => window.preset = Some(EqPresetDialog::Load { selected: None }),
+            EqAction::PresetLoad => {
+                window.preset = Some(EqPresetDialog::Load {
+                    selected: None,
+                    deleting: false,
+                });
+            }
             EqAction::PresetName(typed) => {
                 if let Some(EqPresetDialog::Save { name }) = &mut window.preset {
                     *name = typed;
@@ -461,12 +482,19 @@ impl NeumannApp {
             EqAction::PresetSelect(place) => {
                 window.preset = Some(EqPresetDialog::Load {
                     selected: Some(place),
+                    deleting: false,
                 });
             }
             EqAction::PresetClose => window.preset = None,
             EqAction::PresetConfirmSave => self.save_eq_preset(index),
             EqAction::PresetWrite => self.write_eq_preset(index, now),
-            EqAction::PresetDelete => self.delete_eq_preset(index),
+            EqAction::PresetDelete | EqAction::PresetCancelDelete => {
+                let asking = action == EqAction::PresetDelete;
+                if let Some(EqPresetDialog::Load { deleting, .. }) = &mut window.preset {
+                    *deleting = asking;
+                }
+            }
+            EqAction::PresetConfirmDelete => self.delete_eq_preset(index),
             EqAction::Import => self.import_eq_file(index),
             EqAction::ImportWrite => self.write_eq_import(index, now),
             EqAction::ImportCancel => window.import = None,
@@ -538,8 +566,10 @@ impl NeumannApp {
             capture_eq(&name, &speaker.values, &container)
         });
         if let Some(preset) = preset {
+            // A preset of another band count is another preset, though named alike: the load
+            // dialog of this EQ does not even show it.
             let presets = &mut self.settings.eq_presets;
-            presets.retain(|known| known.name != preset.name);
+            presets.retain(|known| known.name != preset.name || known.bands != preset.bands);
             presets.push(preset);
             self.save_settings();
         }
@@ -550,6 +580,7 @@ impl NeumannApp {
     fn selected_eq_preset(&self, index: usize) -> Option<usize> {
         let Some(EqPresetDialog::Load {
             selected: Some(place),
+            ..
         }) = &self.eq_windows[index].preset
         else {
             return None;
@@ -614,7 +645,10 @@ impl NeumannApp {
             self.settings.eq_presets.remove(place);
             self.save_settings();
         }
-        self.eq_windows[index].preset = Some(EqPresetDialog::Load { selected: None });
+        self.eq_windows[index].preset = Some(EqPresetDialog::Load {
+            selected: None,
+            deleting: false,
+        });
     }
 
     /// Every band of the chosen container at once, in this frame, so the history files it as
@@ -811,6 +845,14 @@ fn headers_of(catalog: &Catalog, container: Option<&SscPath>) -> [String; 6] {
                 |entry| entry.label(texts::language()).to_owned(),
             )
     })
+}
+
+/// Whether saving `name` for a container of `bands` bands would replace a preset.
+fn eq_preset_taken(presets: &[EqPreset], name: &str, bands: usize) -> bool {
+    let name = name.trim();
+    presets
+        .iter()
+        .any(|preset| preset.name == name && preset.bands == bands)
 }
 
 #[cfg(test)]

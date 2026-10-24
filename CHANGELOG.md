@@ -61,6 +61,7 @@
 
 ### Changed
 
+- Deleting a group, a settings preset or an EQ preset asks first.
 - **All values** opens in a window of its own like the EQ and the device panel; Escape closes it.
 - The temperature trend shows its highest, lowest and current value in °C at the line; models
   without a temperature (KH 120 II) show no trend section.

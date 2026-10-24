@@ -129,6 +129,11 @@ fn group_dialog_renames_and_deletes() {
     wait_for_label(&mut harness, texts::DELETE_GROUP.get());
     harness.get_by_label(texts::DELETE_GROUP.get()).click();
     harness.run_steps(2);
+    // A group, its members and its links go at once: the dialog asks first.
+    harness.get_by_label(&texts::delete_question("Hinten"));
+    assert_eq!(settings::load(&path).groups.len(), 1);
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness.run_steps(2);
     assert!(settings::load(&path).groups.is_empty());
 }
 
@@ -304,6 +309,8 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
     wait_for_label(&mut harness, texts::DELETE_GROUP.get());
     harness.get_by_label(texts::DELETE_GROUP.get()).click();
     harness.run_steps(2);
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness.run_steps(2);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
     wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
     harness.get_by_label(texts::CLOSE.get()).click();
@@ -437,4 +444,34 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
         !sent.is_empty() && sent.iter().all(|mute| *mute == Value::Bool(true)),
         "{sent:?}"
     );
+}
+
+/// Presets are listed with their model: one of the same name for another model is its own.
+#[test]
+fn a_settings_preset_of_another_model_keeps_its_name() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    for name in [KH120_DEVICE_NAME, KH750_DEVICE_NAME] {
+        open_panel(&mut harness, name);
+        scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+        harness.run_steps(3);
+        let field = || texts::PRESET_NAME.get();
+        harness
+            .get_by_role_and_label(Role::TextInput, field())
+            .click();
+        harness.run_steps(1);
+        harness
+            .get_by_role_and_label(Role::TextInput, field())
+            .type_text("Studio");
+        harness.run_steps(1);
+        harness.get_by_label(texts::SAVE.get()).click();
+        harness.run_steps(3);
+        harness.key_press(egui::Key::Escape);
+        harness.run_steps(2);
+    }
+    let presets = settings::load(&directory.path().join(SETTINGS_FILE)).presets;
+    let models: Vec<&str> = presets
+        .iter()
+        .map(|preset| preset.product.as_str())
+        .collect();
+    assert_eq!(models, vec!["KH 120 II", "KH 750"]);
 }

@@ -27,6 +27,8 @@ pub(super) enum PresetDialog {
     Load {
         key: SpeakerKey,
         selected: Option<usize>,
+        /// While the selected preset's deletion is being confirmed.
+        deleting: bool,
     },
 }
 
@@ -56,6 +58,7 @@ impl NeumannApp {
         self.preset_dialog = Some(PresetDialog::Load {
             key,
             selected: None,
+            deleting: false,
         });
     }
 
@@ -66,8 +69,12 @@ impl NeumannApp {
             Some(PresetDialog::Save { key, name, chosen }) => {
                 self.preset_dialog = self.show_save(ui, key, name, chosen);
             }
-            Some(PresetDialog::Load { key, selected }) => {
-                self.preset_dialog = self.show_load(ui, key, selected, now);
+            Some(PresetDialog::Load {
+                key,
+                selected,
+                deleting,
+            }) => {
+                self.preset_dialog = self.show_load(ui, key, selected, deleting, now);
             }
         }
     }
@@ -98,7 +105,14 @@ impl NeumannApp {
                 chosen: chosen.contains(&entry.path),
             })
             .collect();
-        match preset_dialog::save(ui, texts::SAVE_PRESET_TITLE.get(), &rows, &mut name) {
+        let product = speaker.product().to_owned();
+        let replacing = self
+            .settings
+            .presets
+            .iter()
+            .any(|preset| preset.name == name.trim() && preset.product == product);
+        let title = texts::SAVE_PRESET_TITLE.get();
+        match preset_dialog::save(ui, title, &rows, &mut name, replacing) {
             SaveAction::None => {}
             SaveAction::Toggle(place, on) => {
                 let path = entries[place].path.clone();
@@ -109,8 +123,10 @@ impl NeumannApp {
             }
             SaveAction::Save => {
                 let preset = capture(name.trim(), speaker, &chosen);
+                // Listed with their model: one of the same name for another model is another.
                 let presets = &mut self.settings.presets;
-                presets.retain(|known| known.name != preset.name);
+                presets
+                    .retain(|known| known.name != preset.name || known.product != preset.product);
                 presets.push(preset);
                 self.save_settings();
                 return None;
@@ -125,6 +141,7 @@ impl NeumannApp {
         ui: &mut Ui,
         key: SpeakerKey,
         mut selected: Option<usize>,
+        mut deleting: bool,
         now: f64,
     ) -> Option<PresetDialog> {
         let catalog = Catalog::embedded();
@@ -170,10 +187,17 @@ impl NeumannApp {
             changes: &changes,
             skipped: &loading.skipped,
             warning: None,
+            deleting: selected
+                .filter(|_| deleting)
+                .and_then(|place| self.settings.presets.get(place))
+                .map(|preset| preset.name.as_str()),
         };
         match preset_dialog::load(ui, &view) {
             LoadAction::None => {}
-            LoadAction::Select(place) => selected = Some(place),
+            LoadAction::Select(place) => {
+                selected = Some(place);
+                deleting = false;
+            }
             LoadAction::Write => {
                 let speaker = &mut self.speakers[index];
                 for change in loading.changes {
@@ -184,7 +208,10 @@ impl NeumannApp {
                 }
                 return None;
             }
-            LoadAction::Delete => {
+            LoadAction::Delete => deleting = true,
+            LoadAction::CancelDelete => deleting = false,
+            LoadAction::ConfirmDelete => {
+                deleting = false;
                 if let Some(place) = selected.take() {
                     self.settings.presets.remove(place);
                     self.save_settings();
@@ -192,6 +219,10 @@ impl NeumannApp {
             }
             LoadAction::Close => return None,
         }
-        Some(PresetDialog::Load { key, selected })
+        Some(PresetDialog::Load {
+            key,
+            selected,
+            deleting,
+        })
     }
 }

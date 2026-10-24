@@ -652,7 +652,7 @@ impl NeumannApp {
         let Some(draft) = &mut self.group_draft else {
             return;
         };
-        match group_dialog::show(ui, &mut draft.name) {
+        match group_dialog::show(ui, &mut draft.name, draft.deleting) {
             GroupDialogAction::None => {}
             GroupDialogAction::Close => {
                 let (index, name) = (draft.index, draft.name.trim().to_owned());
@@ -667,7 +667,9 @@ impl NeumannApp {
                 self.group_draft = None;
                 self.save_settings();
             }
-            GroupDialogAction::Delete => {
+            GroupDialogAction::Delete => draft.deleting = true,
+            GroupDialogAction::CancelDelete => draft.deleting = false,
+            GroupDialogAction::ConfirmDelete => {
                 delete_group(&mut self.settings.groups, draft.index);
                 self.group_draft = None;
                 self.save_settings();

@@ -530,6 +530,13 @@ fn another_speakers_curve_can_be_compared() {
 }
 
 fn save_eq_preset(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    type_eq_preset_name(harness, name);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+}
+
+/// Opens the save dialog and types `name`, leaving the dialog open.
+fn type_eq_preset_name(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_PRESET_SAVE.get())
         .click();
@@ -543,8 +550,6 @@ fn save_eq_preset(harness: &mut Harness<'static, NeumannApp>, name: &str) {
         .get_by_role_and_label(Role::TextInput, field())
         .type_text(name);
     harness.run_steps(1);
-    harness.get_by_label(texts::SAVE.get()).click();
-    harness.run_steps(3);
 }
 
 #[test]
@@ -1060,4 +1065,58 @@ fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
     barrier(&simulator);
     assert!(sets(&simulator, "/audio/out/eq3/boost").is_empty());
     assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+}
+
+fn saved_eq_presets(directory: &tempfile::TempDir) -> Vec<(String, usize)> {
+    neumann_control_core::settings::load(&directory.path().join("settings.json"))
+        .eq_presets
+        .iter()
+        .map(|preset| (preset.name.clone(), preset.bands))
+        .collect()
+}
+
+/// A preset of another band count is not offered in this EQ's load dialog, so saving one of
+/// the same name here must not silently replace it.
+#[test]
+fn an_eq_preset_of_another_band_count_keeps_its_name() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Warm");
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(2);
+    save_eq_preset(&mut harness, "Warm");
+    assert_eq!(saved_eq_presets(&directory).len(), 2);
+}
+
+#[test]
+fn saving_an_eq_preset_under_a_taken_name_says_it_replaces() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Warm");
+    type_eq_preset_name(&mut harness, "Warm");
+    // The typed name reaches the window's state after the frame that drew it.
+    harness.run_steps(1);
+    harness.get_by_label(texts::PRESET_REPLACES.get());
+    harness.get_by_label(texts::REPLACE_PRESET.get()).click();
+    harness.run_steps(3);
+    assert_eq!(saved_eq_presets(&directory), vec![("Warm".to_owned(), 10)]);
+}
+
+#[test]
+fn deleting_an_eq_preset_asks_first() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Warm");
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Warm", 10))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::DELETE_PRESET.get()).click();
+    harness.run_steps(3);
+    harness.get_by_label(&texts::delete_question("Warm"));
+    assert_eq!(saved_eq_presets(&directory).len(), 1);
+    harness.get_by_label(texts::DELETE_PRESET.get()).click();
+    harness.run_steps(3);
+    assert!(saved_eq_presets(&directory).is_empty());
 }

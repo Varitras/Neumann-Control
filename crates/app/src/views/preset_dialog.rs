@@ -24,8 +24,15 @@ pub enum SaveAction {
     Cancel,
 }
 
-/// `rows` empty: the preset holds a fixed set (an EQ), only its name is asked.
-pub fn save(ui: &mut Ui, title: &str, rows: &[SaveRow], name: &mut String) -> SaveAction {
+/// `rows` empty: the preset holds a fixed set (an EQ), only its name is asked. `replacing`: a
+/// preset of that name already exists for the same model or band count, and saving replaces it.
+pub fn save(
+    ui: &mut Ui,
+    title: &str,
+    rows: &[SaveRow],
+    name: &mut String,
+    replacing: bool,
+) -> SaveAction {
     let modal = Modal::new(Id::unique(SAVE_ID)).show(ui.ctx(), |ui| {
         ui.heading(title);
         let label = ui.label(texts::PRESET_NAME);
@@ -44,8 +51,15 @@ pub fn save(ui: &mut Ui, title: &str, rows: &[SaveRow], name: &mut String) -> Sa
             });
         let something = rows.is_empty() || rows.iter().any(|row| row.chosen);
         let savable = !name.trim().is_empty() && something;
+        if replacing {
+            ui.colored_label(ui.visuals().warn_fg_color, texts::PRESET_REPLACES);
+        }
+        let save = match replacing {
+            true => texts::REPLACE_PRESET,
+            false => texts::SAVE,
+        };
         ui.horizontal(|ui| {
-            if ui.add_enabled(savable, Button::new(texts::SAVE)).clicked() {
+            if ui.add_enabled(savable, Button::new(save)).clicked() {
                 action = SaveAction::Save;
             }
             if ui.button(texts::CANCEL).clicked() {
@@ -70,6 +84,8 @@ pub struct LoadView<'a> {
     pub skipped: &'a [String],
     /// A caution above the buttons (a crossover would lose its split).
     pub warning: Option<&'a str>,
+    /// The selected preset's name while its deletion is being confirmed.
+    pub deleting: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,7 +93,10 @@ pub enum LoadAction {
     None,
     Select(usize),
     Write,
+    /// Asks before deleting.
     Delete,
+    ConfirmDelete,
+    CancelDelete,
     Close,
 }
 
@@ -114,6 +133,19 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
         }
         if let Some(warning) = view.warning {
             ui.colored_label(ui.visuals().warn_fg_color, warning);
+        }
+        // A deleted preset is gone for good: the delete is asked once more.
+        if let Some(name) = view.deleting {
+            ui.label(texts::delete_question(name));
+            ui.horizontal(|ui| {
+                if ui.button(texts::DELETE_PRESET).clicked() {
+                    action = LoadAction::ConfirmDelete;
+                }
+                if ui.button(texts::CANCEL).clicked() {
+                    action = LoadAction::CancelDelete;
+                }
+            });
+            return action;
         }
         ui.horizontal(|ui| {
             let writable = view.selected.is_some() && !view.changes.is_empty();

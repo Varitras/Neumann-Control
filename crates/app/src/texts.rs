@@ -338,6 +338,11 @@ pub const PRESET_NAME: Text = Text::new("Name des Presets", "Preset name");
 pub const SAVE: Text = Text::new("Speichern", "Save");
 pub const WRITE_PRESET: Text = Text::new("Schreiben", "Write");
 pub const DELETE_PRESET: Text = Text::new("Löschen", "Delete");
+pub const REPLACE_PRESET: Text = Text::new("Ersetzen", "Replace");
+pub const PRESET_REPLACES: Text = Text::new(
+    "Ein Preset dieses Namens wird ersetzt.",
+    "A preset of this name is replaced.",
+);
 pub const NO_PRESETS: Text = Text::new("Noch keine Presets.", "No presets yet.");
 pub const PRESET_UNCHANGED: Text = Text::new(
     "Der Lautsprecher hat schon die Werte des Presets.",
@@ -424,6 +429,11 @@ pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
         LoadOutcome::SetAside => Some(SETTINGS_SET_ASIDE),
         LoadOutcome::Untouchable => Some(SETTINGS_UNTOUCHABLE),
     }
+}
+
+/// Asked before a preset or a group is deleted.
+pub fn delete_question(name: &str) -> String {
+    pick(format!("„{name}“ löschen?"), format!("Delete \"{name}\"?"))
 }
 
 pub fn speaker_count(count: usize) -> String {

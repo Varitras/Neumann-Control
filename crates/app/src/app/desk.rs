@@ -52,6 +52,8 @@ pub(super) enum DeskAction {
 pub(super) struct GroupDraft {
     pub index: usize,
     pub name: String,
+    /// While the delete is being confirmed.
+    pub deleting: bool,
 }
 
 impl NeumannApp {
@@ -222,7 +224,11 @@ impl NeumannApp {
                 }
                 if response.open_settings {
                     let name = self.settings.groups[group].name.clone();
-                    self.group_draft = Some(GroupDraft { index: group, name });
+                    self.group_draft = Some(GroupDraft {
+                        index: group,
+                        name,
+                        deleting: false,
+                    });
                 }
             }
             DeskAction::Master(response) => {
@@ -414,7 +420,11 @@ impl NeumannApp {
         self.settings.groups.push(group);
         self.save_settings();
         let index = self.settings.groups.len() - 1;
-        self.group_draft = Some(GroupDraft { index, name });
+        self.group_draft = Some(GroupDraft {
+            index,
+            name,
+            deleting: false,
+        });
     }
 
     pub(super) fn states(&self, indexes: &[usize]) -> Vec<&SpeakerState> {

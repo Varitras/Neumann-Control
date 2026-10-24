@@ -69,6 +69,8 @@ pub struct ImportView<'a> {
 pub enum PresetDialogView<'a> {
     Save {
         name: &'a str,
+        /// A preset of that name and band count exists and would be replaced.
+        replacing: bool,
     },
     Load {
         /// The presets that fit the container.
@@ -78,6 +80,8 @@ pub enum PresetDialogView<'a> {
         changes: &'a [String],
         /// The container is a crossover (protection off): loading warns.
         crossover: bool,
+        /// The selected preset's name while its deletion is being confirmed.
+        deleting: Option<&'a str>,
     },
 }
 
@@ -112,6 +116,8 @@ pub enum EqAction {
     PresetSelect(usize),
     PresetWrite,
     PresetDelete,
+    PresetConfirmDelete,
+    PresetCancelDelete,
     PresetClose,
     Import,
     ImportWrite,
@@ -235,10 +241,10 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
 
 fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
     match dialog {
-        PresetDialogView::Save { name } => {
+        PresetDialogView::Save { name, replacing } => {
             let mut typed = (*name).to_owned();
             let title = texts::EQ_PRESET_SAVE_TITLE.get();
-            let action = preset_dialog::save(ui, title, &[], &mut typed);
+            let action = preset_dialog::save(ui, title, &[], &mut typed, *replacing);
             if typed != *name {
                 return Some(EqAction::PresetName(typed));
             }
@@ -253,6 +259,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
             selected,
             changes,
             crossover,
+            deleting,
         } => {
             let view = LoadView {
                 title: texts::EQ_PRESET_LOAD_TITLE.get(),
@@ -261,12 +268,15 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
                 changes,
                 skipped: &[],
                 warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
+                deleting: *deleting,
             };
             match preset_dialog::load(ui, &view) {
                 LoadAction::None => None,
                 LoadAction::Select(place) => Some(EqAction::PresetSelect(place)),
                 LoadAction::Write => Some(EqAction::PresetWrite),
                 LoadAction::Delete => Some(EqAction::PresetDelete),
+                LoadAction::ConfirmDelete => Some(EqAction::PresetConfirmDelete),
+                LoadAction::CancelDelete => Some(EqAction::PresetCancelDelete),
                 LoadAction::Close => Some(EqAction::PresetClose),
             }
         }

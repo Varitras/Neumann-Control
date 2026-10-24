@@ -795,3 +795,39 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
         vec![json!(true), json!(false)]
     );
 }
+
+#[test]
+fn deleting_a_settings_preset_asks_first() {
+    let (_simulator, directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    let field = || texts::PRESET_NAME.get();
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .type_text("Evening");
+    harness.run_steps(1);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    let presets =
+        || neumann_control_core::settings::load(&directory.path().join("settings.json")).presets;
+    if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
+        open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+    }
+    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::DELETE_PRESET.get()).click();
+    harness.run_steps(3);
+    harness.get_by_label(&texts::delete_question("Evening"));
+    assert_eq!(presets().len(), 1);
+    harness.get_by_label(texts::DELETE_PRESET.get()).click();
+    harness.run_steps(3);
+    assert!(presets().is_empty());
+}
