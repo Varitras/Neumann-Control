@@ -72,11 +72,13 @@ fn any_true(value: &Value) -> bool {
     }
 }
 
-/// The warnings `warnings` reports, without `NO_WARNING`; `None` for a value of another form.
+/// The warnings `warnings` reports, without `NO_WARNING`: a text or a list of texts, entries of
+/// another form passed over; `None` for a value that is neither. The LED and the trend both
+/// read it through here.
 pub fn active_warnings(value: &Value) -> Option<Vec<String>> {
     let texts: Vec<&str> = match value {
         Value::String(text) => vec![text.as_str()],
-        Value::Array(items) => items.iter().map(Value::as_str).collect::<Option<_>>()?,
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
         _ => return None,
     };
     let active = texts.into_iter().filter(|text| *text != NO_WARNING);
@@ -84,11 +86,7 @@ pub fn active_warnings(value: &Value) -> Option<Vec<String>> {
 }
 
 fn holds_a_warning(value: &Value) -> bool {
-    match value {
-        Value::String(text) => text != NO_WARNING,
-        Value::Array(items) => items.iter().any(holds_a_warning),
-        _ => false,
-    }
+    active_warnings(value).is_some_and(|active| !active.is_empty())
 }
 
 #[cfg(test)]
@@ -136,6 +134,20 @@ mod tests {
     fn report(speaker: &mut SpeakerState, path: &str, value: Value) {
         let path = SscPath::parse(path).unwrap();
         speaker.apply(Event::Value { path, value }, 0.0);
+    }
+
+    /// The warning LED and the warning trend read one value the same way, also an odd one.
+    #[test]
+    fn the_led_and_the_trend_agree_on_warnings() {
+        let odd = json!(["OVERTEMP", 3]);
+        assert_eq!(active_warnings(&odd), Some(vec!["OVERTEMP".to_owned()]));
+        assert!(holds_a_warning(&odd));
+        let calm = json!([NO_WARNING]);
+        assert_eq!(active_warnings(&calm), Some(Vec::new()));
+        assert!(!holds_a_warning(&calm));
+        assert_eq!(active_warnings(&json!("OVERTEMP")), Some(vec!["OVERTEMP".to_owned()]));
+        assert_eq!(active_warnings(&json!(7)), None);
+        assert!(!holds_a_warning(&json!(7)));
     }
 
     #[test]
