@@ -84,12 +84,20 @@ fn entries_without_serial_are_kept_by_address() {
     );
 }
 
+/// A PC with two adapters on the speakers' segment hears each speaker on both, in no fixed
+/// order. The same one must win every scan, or the remembered entry and its connection would
+/// change with each scan.
 #[test]
-fn a_later_link_local_address_replaces_an_earlier_one() {
-    let merged = merge_found(vec![
-        found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 7),
-        found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 15),
-    ]);
-    assert_eq!(merged.len(), 1);
-    assert_eq!(merged[0].address.scope_id(), 15);
+fn of_two_link_local_scopes_the_lowest_wins_in_any_order() {
+    for scopes in [[7, 15], [15, 7]] {
+        let merged = merge_found(vec![
+            found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, scopes[0]),
+            found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, scopes[1]),
+        ]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].address.scope_id(), 7, "{scopes:?}");
+        let addresses = scopes.map(|scope| (address(SIMULATED_LINK_LOCAL), scope));
+        let picked = pick_address(&addresses, PORT).unwrap();
+        assert_eq!(picked.scope_id(), 7, "{scopes:?}");
+    }
 }

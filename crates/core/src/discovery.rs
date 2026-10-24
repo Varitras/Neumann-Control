@@ -28,12 +28,14 @@ pub struct Found {
     pub address: SocketAddrV6,
 }
 
-/// Link-local with a scope wins; a link-local address without a scope cannot be connected to on
-/// Windows and is skipped; a global address is the fallback.
+/// Link-local with a scope wins, the lowest scope of several (two adapters on the speakers'
+/// segment hear it on both, in no fixed order); a link-local address without a scope cannot be
+/// connected to on Windows and is skipped; a global address is the fallback.
 pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAddrV6> {
     let scoped_link_local = addresses
         .iter()
-        .find(|(address, scope)| is_link_local(address) && *scope != NO_SCOPE);
+        .filter(|(address, scope)| is_link_local(address) && *scope != NO_SCOPE)
+        .min_by_key(|(address, scope)| (*scope, *address));
     let global = addresses
         .iter()
         .find(|(address, _)| !is_link_local(address));
@@ -42,8 +44,9 @@ pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAd
         .map(|(address, scope)| SocketAddrV6::new(*address, port, 0, *scope))
 }
 
-/// One entry per serial (a later link-local address replaces an earlier one, a later global
-/// address never replaces a link-local one); entries without serial are deduplicated by address.
+/// One entry per serial (of two link-local addresses the lower scope stays, whichever came
+/// first; a global address never replaces a link-local one); entries without serial are
+/// deduplicated by address.
 pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
     let mut merged: Vec<Found> = Vec::new();
     for candidate in found {
@@ -54,13 +57,19 @@ pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
             merged.push(candidate);
             continue;
         };
-        let keeps_link_local =
-            is_link_local(entry.address.ip()) && !is_link_local(candidate.address.ip());
-        if !keeps_link_local {
+        if replaces(&candidate.address, &entry.address) {
             *entry = candidate;
         }
     }
     merged
+}
+
+fn replaces(candidate: &SocketAddrV6, held: &SocketAddrV6) -> bool {
+    match (is_link_local(held.ip()), is_link_local(candidate.ip())) {
+        (true, true) => (candidate.scope_id(), candidate.ip()) < (held.scope_id(), held.ip()),
+        (true, false) => false,
+        (false, _) => true,
+    }
 }
 
 fn same_speaker(left: &Found, right: &Found) -> bool {
