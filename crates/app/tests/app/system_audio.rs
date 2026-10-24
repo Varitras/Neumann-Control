@@ -41,6 +41,15 @@ fn desk_with(
     shown: bool,
     audio: FakeAudio,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    desk_on(shown, None, audio)
+}
+
+/// Like `desk_with`, with `device` chosen in the settings.
+fn desk_on(
+    shown: bool,
+    device: Option<&str>,
+    audio: FakeAudio,
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     simulator.set_reply_delay(REPLY_DELAY);
     let directory = tempfile::tempdir().unwrap();
@@ -48,7 +57,7 @@ fn desk_with(
     let mut stored = settings::load(&path);
     stored.system_audio = SystemAudioSettings {
         shown,
-        device: None,
+        device: device.map(str::to_owned),
     };
     settings::save(&stored, &path).unwrap();
     let mut harness = harness_with_audio(path, audio);
@@ -105,7 +114,44 @@ fn a_fader_move_sets_the_windows_volume() {
     harness.run_steps(3);
     let sets = audio.0.lock().unwrap().volume_sets.clone();
     assert_eq!(sets.len(), 1, "{sets:?}");
-    assert!(sets[0] > 0.5, "{sets:?}");
+    // Windows takes a scalar: up from 50 %, never past 1.
+    assert!(sets[0] > 0.5 && sets[0] <= 1.0, "{sets:?}");
+}
+
+/// Dragged past the top, the volume ends at 100 %: Windows' scalar 1.
+#[test]
+fn a_fader_past_the_top_sets_full_volume() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_with(true, audio.clone());
+    harness.run_steps(2);
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::SYSTEM_VOLUME.get())
+        .rect();
+    let from = fader.center();
+    harness.drag_at(from);
+    for frame in 1..=5 {
+        harness.hover_at(from + egui::vec2(0.0, -200.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(from + egui::vec2(0.0, -1000.0));
+    harness.run_steps(3);
+    assert_eq!(audio.0.lock().unwrap().volume_sets, vec![1.0]);
+}
+
+/// With a device chosen, its volume and mute change, not Windows' default device.
+#[test]
+fn mute_goes_to_the_chosen_device() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_on(true, Some(DEVICE_ID), audio.clone());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::SYSTEM_MUTE.get())
+        .click();
+    harness.run_steps(2);
+    assert_eq!(
+        audio.0.lock().unwrap().set_on,
+        vec![Some(DEVICE_ID.to_owned())]
+    );
 }
 
 #[test]

@@ -562,10 +562,11 @@ fn a_write_never_reaches_a_speaker_of_another_serial() {
     let serial = path("device/identity/serial");
     let reads = count_requests(&simulator, &serial);
     wait_for_requests(&simulator, &serial, reads + 2, EVENT_DEADLINE);
-    let written = simulator
-        .requests()
-        .iter()
-        .any(|request| request.pointer("/audio/out/mute").is_some_and(|value| !value.is_null()));
+    let written = simulator.requests().iter().any(|request| {
+        request
+            .pointer("/audio/out/mute")
+            .is_some_and(|value| !value.is_null())
+    });
     assert!(!written, "a write reached the other speaker");
     assert_eq!(simulator.value("audio/out/mute"), Some(json!(false)));
 }

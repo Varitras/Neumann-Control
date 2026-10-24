@@ -266,6 +266,8 @@ pub struct FakeAudioState {
     pub mute_sets: Vec<bool>,
     /// The device each read asked for.
     pub asked: Vec<Option<String>>,
+    /// The device each volume or mute change went to.
+    pub set_on: Vec<Option<String>>,
 }
 
 #[derive(Clone, Default)]
@@ -282,17 +284,19 @@ impl SystemAudio for FakeAudio {
         held.state.clone()
     }
 
-    fn set_volume(&mut self, _device: Option<&str>, volume: f32) {
+    fn set_volume(&mut self, device: Option<&str>, volume: f32) {
         let mut held = self.0.lock().unwrap();
         held.volume_sets.push(volume);
+        held.set_on.push(device.map(str::to_owned));
         if let Some(state) = &mut held.state {
             state.volume = volume;
         }
     }
 
-    fn set_mute(&mut self, _device: Option<&str>, mute: bool) {
+    fn set_mute(&mut self, device: Option<&str>, mute: bool) {
         let mut held = self.0.lock().unwrap();
         held.mute_sets.push(mute);
+        held.set_on.push(device.map(str::to_owned));
         if let Some(state) = &mut held.state {
             state.mute = mute;
         }

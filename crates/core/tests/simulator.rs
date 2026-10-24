@@ -213,9 +213,15 @@ fn valid_set_is_stored_and_echoed() {
     assert_eq!(reply, json!({"audio":{"out":{"level":90.0}}}));
     assert_eq!(simulator.value("audio/out/level"), Some(json!(90.0)));
     let wrong_list_length = client.ask(&json!({"audio":{"out":{"eq2":{"enabled":[true]}}}}));
-    assert_eq!(device_error(&wrong_list_length).unwrap().code, DeviceError::NOT_ACCEPTABLE);
+    assert_eq!(
+        device_error(&wrong_list_length).unwrap().code,
+        DeviceError::NOT_ACCEPTABLE
+    );
     let wrong_type = client.ask(&json!({"audio":{"out":{"mute":"x"}}}));
-    assert_eq!(device_error(&wrong_type).unwrap().code, DeviceError::NOT_ACCEPTABLE);
+    assert_eq!(
+        device_error(&wrong_type).unwrap().code,
+        DeviceError::NOT_ACCEPTABLE
+    );
     assert_eq!(simulator.value("audio/out/mute"), Some(json!(false)));
 }
 
@@ -488,7 +494,10 @@ fn a_null_entry_keeps_the_band() {
 fn a_short_array_is_not_acceptable() {
     let simulator = start_kh120();
     let reply = Client::connect(&simulator).ask(&json!({"audio":{"out":{"eq2":{"gain":[2.0]}}}}));
-    assert_eq!(device_error(&reply).unwrap().code, DeviceError::NOT_ACCEPTABLE);
+    assert_eq!(
+        device_error(&reply).unwrap().code,
+        DeviceError::NOT_ACCEPTABLE
+    );
 }
 
 /// Measured on a KH 120 II (2026-10-20): a request of more than 29 JSON tokens (every object,
