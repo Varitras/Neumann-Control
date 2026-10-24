@@ -215,6 +215,8 @@ pub const NO_HISTORY: Text = Text::new(
 );
 /// Takes a write back, in the history and the EQ window alike.
 pub const UNDO: Text = Text::new("Rückgängig", "Undo");
+/// A history entry the speaker refused or never got.
+pub const NOT_WRITTEN: Text = Text::new("Nicht geschrieben", "Not written");
 pub const TAKEN_BACK: Text = Text::new("Zurückgenommen", "Undone");
 pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",

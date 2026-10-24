@@ -190,10 +190,11 @@ impl NeumannApp {
         };
         let open = entry.changes.iter().any(is_open);
         let all_taken_back = entry.changes.iter().all(|change| change.taken_back);
-        let reason = if all_taken_back {
-            texts::TAKEN_BACK.get()
-        } else {
-            texts::BEFORE_UNKNOWN.get()
+        let all_refused = entry.changes.iter().all(|change| change.refused);
+        let reason = match (all_taken_back, all_refused) {
+            (true, _) => texts::TAKEN_BACK.get(),
+            (false, true) => texts::NOT_WRITTEN.get(),
+            (false, false) => texts::BEFORE_UNKNOWN.get(),
         };
         HistoryRow {
             id: entry.id,
@@ -326,7 +327,7 @@ impl NeumannApp {
     /// Last in the frame: runs a requested take-back, then files everything this frame wrote,
     /// the take-back's own writes included, as one entry.
     pub(super) fn finish_history_frame(&mut self, now: f64) {
-        self.settle_take_backs();
+        self.settle_refused_writes();
         let mut takes_back = None;
         if let Some((id, confirmed)) = self.history.request.take() {
             takes_back = self.take_back(id, confirmed, now);
@@ -340,12 +341,14 @@ impl NeumannApp {
                     .state
                     .written
                     .drain(..)
-                    .map(move |(path, before, after)| Change {
+                    .map(move |written| Change {
                         speaker: key.clone(),
-                        path,
-                        before,
-                        after,
+                        path: written.path,
+                        before: written.before,
+                        after: written.after,
                         taken_back: false,
+                        write: Some(written.write),
+                        refused: false,
                     })
                     .collect::<Vec<_>>()
             })
@@ -353,12 +356,15 @@ impl NeumannApp {
         self.history.history.push(clock_now(), changes, takes_back);
     }
 
-    /// Opens again the changes whose take-back the speaker refused; forgets the ones answered
-    /// or never to be answered.
-    fn settle_take_backs(&mut self) {
+    /// Closes the changes the speaker refused or never got, and opens again the ones their
+    /// take-back was; forgets the take-backs answered.
+    fn settle_refused_writes(&mut self) {
         for speaker in &mut self.speakers {
             let refused = std::mem::take(&mut speaker.state.refused_writes);
             let key = &speaker.state.key;
+            for write in &refused {
+                self.history.history.mark_refused(key, *write);
+            }
             let awaited = self.history.awaited.iter();
             for awaited in awaited.filter(|awaited| awaited.speaker == *key) {
                 if refused.contains(&awaited.write) {

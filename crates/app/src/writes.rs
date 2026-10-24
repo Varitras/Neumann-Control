@@ -413,7 +413,10 @@ mod tests {
         // The speaker has not reported 90 yet: the next write started from 90, not 80.
         speaker.request(Intent::Level(95.0), Catalog::embedded(), 0.1);
         let path = paths::path(paths::OUTPUT_LEVEL);
-        let written = std::mem::take(&mut speaker.written);
+        let written: Vec<(SscPath, Option<Value>, Value)> = std::mem::take(&mut speaker.written)
+            .into_iter()
+            .map(|written| (written.path, written.before, written.after))
+            .collect();
         assert_eq!(
             written,
             vec![
@@ -430,7 +433,7 @@ mod tests {
             speaker.apply(answer, 0.5);
         }
         speaker.request(Intent::Level(85.0), Catalog::embedded(), 1.0);
-        assert_eq!(speaker.written[0].1, Some(Value::from(93.0)));
+        assert_eq!(speaker.written[0].before, Some(Value::from(93.0)));
     }
 
     #[test]
@@ -501,7 +504,7 @@ mod tests {
         let befores: Vec<Option<Value>> = speaker
             .written
             .iter()
-            .map(|change| change.1.clone())
+            .map(|written| written.before.clone())
             .collect();
         assert_eq!(
             befores,

@@ -888,6 +888,8 @@ mod tests {
                 before: Some(json!(0.0)),
                 after: json!(1.0),
                 taken_back: false,
+                write: None,
+                refused: false,
             })
             .collect();
         Entry {

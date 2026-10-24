@@ -28,6 +28,10 @@ pub struct Change {
     pub before: Option<Value>,
     pub after: Value,
     pub taken_back: bool,
+    /// The speaker's number for the write, to follow its answer.
+    pub write: Option<u64>,
+    /// The speaker refused the write, or never got it: there is nothing to take back.
+    pub refused: bool,
 }
 
 /// Everything one user action wrote: a gesture, a group move, a linked write.
@@ -119,6 +123,16 @@ impl History {
         }
     }
 
+    /// The change that `write` to `speaker` made did not happen.
+    pub fn mark_refused(&mut self, speaker: &SpeakerKey, write: u64) {
+        let changes = self.entries.iter_mut().flat_map(|entry| &mut entry.changes);
+        for change in changes {
+            if change.speaker == *speaker && change.write == Some(write) {
+                change.refused = true;
+            }
+        }
+    }
+
     fn change_mut(&mut self, id: u64, change: usize) -> Option<&mut Change> {
         let entry = self.entries.iter_mut().find(|entry| entry.id == id)?;
         entry.changes.get_mut(change)
@@ -133,7 +147,7 @@ pub fn changed_since(change: &Change, latest: Option<&Value>, step: Option<f64>)
 }
 
 pub fn is_open(change: &Change) -> bool {
-    !change.taken_back && change.before.is_some()
+    !change.taken_back && !change.refused && change.before.is_some()
 }
 
 /// Whether a reported value still is the written one: numbers within half a catalog step (the
@@ -221,6 +235,8 @@ mod tests {
             before,
             after,
             taken_back: false,
+            write: None,
+            refused: false,
         }
     }
 

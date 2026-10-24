@@ -134,6 +134,7 @@ fn a_refused_take_back_leaves_the_entry_open() {
     assert!(is_open(&original.changes[0]), "{original:?}");
     // The refused take-back did not happen either: Ctrl+Z goes to the original again.
     assert_eq!(harness.state().history().newest_open(), Some(id));
+    assert!(entries(&harness)[0].changes[0].refused);
 }
 
 /// A loaded preset is one entry with a change per setting; its unreachable speaker is named

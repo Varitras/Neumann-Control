@@ -122,20 +122,30 @@ pub struct SpeakerState {
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
     pub response_time: Option<Duration>,
-    /// What this frame sent: path, value before, value written. The app takes it into the
-    /// history at the end of the frame.
-    pub written: Vec<(SscPath, Option<Value>, Value)>,
+    /// What this frame sent. The app takes it into the history at the end of the frame.
+    pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
     /// The number the next sent write gets.
     next_write: u64,
-    /// The numbers of writes the speaker refused or that failed since the app last took them.
+    /// The numbers of writes the speaker refused, that failed, or that will never be answered
+    /// (the connection went away), since the app last took them.
     pub refused_writes: Vec<u64>,
     /// `device/temperature` as reported (kelvin), for the device panel's trend.
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
     pub warnings: Trend<Vec<String>>,
     pub full_scan: FullScanState,
+}
+
+/// One write sent this frame, as the history files it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Written {
+    pub path: SscPath,
+    pub before: Option<Value>,
+    pub after: Value,
+    /// Its number, to follow the speaker's answer.
+    pub write: u64,
 }
 
 /// The newest value sent to one path and the numbers of its `Set`s still unanswered, oldest
@@ -251,9 +261,15 @@ impl SpeakerState {
             .remove(path)
             .map(|pending| pending.unanswered)
             .unwrap_or_default();
-        unanswered.push_back(self.next_write);
+        let write = self.next_write;
+        unanswered.push_back(write);
         self.next_write += 1;
-        self.written.push((path.clone(), before, value.clone()));
+        self.written.push(Written {
+            path: path.clone(),
+            before,
+            after: value.clone(),
+            write,
+        });
         let pending = Pending {
             value: merged,
             unanswered,
@@ -302,6 +318,13 @@ impl SpeakerState {
         answered
     }
 
+    /// No answer is coming for what is pending: those writes count as failed.
+    fn drop_pending(&mut self) {
+        let pending = std::mem::take(&mut self.pending);
+        let numbers = pending.into_values().flat_map(|pending| pending.unanswered);
+        self.refused_writes.extend(numbers);
+    }
+
     fn take_reported(&mut self, path: SscPath, value: Value, now: f64) {
         self.absent.remove(&path);
         self.feed_meters(&path, &value, now);
@@ -313,7 +336,7 @@ impl SpeakerState {
     /// the worker was replaced for a moved speaker): sent writes no longer hold their paths, and
     /// a running read or scan can be asked again.
     pub fn forget_outstanding(&mut self) {
-        self.pending.clear();
+        self.drop_pending();
         if self.all_values == AllValuesState::Loading {
             self.all_values = AllValuesState::Idle;
         }
@@ -380,7 +403,7 @@ impl SpeakerState {
                 self.status = Status::Unreachable;
                 self.unreachable_since.get_or_insert(now);
                 self.response_time = None;
-                self.pending.clear();
+                self.drop_pending();
                 let message = Message::SerialMismatch(mask_serial(&found));
                 self.set_message(Some(message), MessageSource::Connection);
                 self.temperature.record(now, None);
