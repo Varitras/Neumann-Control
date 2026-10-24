@@ -457,13 +457,26 @@ struct EqLeaf {
     options: &'static [&'static str],
 }
 
+/// The names of the six leaves every EQ container has.
+pub mod eq_leaf {
+    pub const ENABLED: &str = "enabled";
+    pub const GAIN: &str = "gain";
+    pub const BOOST: &str = "boost";
+    pub const FREQUENCY: &str = "frequency";
+    pub const Q: &str = "q";
+    pub const TYPE: &str = "type";
+}
+
+/// The range the devices accept for an EQ band's `frequency`.
+pub const EQ_FREQUENCY_MIN_HZ: f64 = 10.0;
+pub const EQ_FREQUENCY_MAX_HZ: f64 = 24000.0;
 const EQ_GAIN_MIN_DB: f64 = -99.0;
 const EQ_GAIN_MAX_DB: f64 = 24.0;
 
 /// The leaves with their limits (osc/limits, the same on both models, 2026-10-19).
 const EQ_LEAVES: [EqLeaf; 6] = [
     EqLeaf {
-        name: "enabled",
+        name: eq_leaf::ENABLED,
         label: "Ein",
         label_en: "On",
         kind: Kind::Switch,
@@ -473,7 +486,7 @@ const EQ_LEAVES: [EqLeaf; 6] = [
         options: &[],
     },
     EqLeaf {
-        name: "gain",
+        name: eq_leaf::GAIN,
         label: "Pegel",
         label_en: "Level",
         kind: Kind::Number,
@@ -483,7 +496,7 @@ const EQ_LEAVES: [EqLeaf; 6] = [
         options: &[],
     },
     EqLeaf {
-        name: "boost",
+        name: eq_leaf::BOOST,
         label: "Anhebung",
         label_en: "Boost",
         kind: Kind::Number,
@@ -493,17 +506,17 @@ const EQ_LEAVES: [EqLeaf; 6] = [
         options: &[],
     },
     EqLeaf {
-        name: "frequency",
+        name: eq_leaf::FREQUENCY,
         label: "Frequenz",
         label_en: "Frequency",
         kind: Kind::Number,
-        min: Some(10.0),
-        max: Some(24000.0),
+        min: Some(EQ_FREQUENCY_MIN_HZ),
+        max: Some(EQ_FREQUENCY_MAX_HZ),
         unit: Some("Hz"),
         options: &[],
     },
     EqLeaf {
-        name: "q",
+        name: eq_leaf::Q,
         label: "Güte (Q)",
         label_en: "Q",
         kind: Kind::Number,
@@ -513,7 +526,7 @@ const EQ_LEAVES: [EqLeaf; 6] = [
         options: &[],
     },
     EqLeaf {
-        name: "type",
+        name: eq_leaf::TYPE,
         label: "Typ",
         label_en: "Type",
         kind: Kind::Select,
@@ -525,18 +538,32 @@ const EQ_LEAVES: [EqLeaf; 6] = [
 ];
 
 /// The filter types the devices list in osc/limits for `type`.
+pub mod eq_type {
+    pub const PARAMETRIC: &str = "PARAMETRIC";
+    pub const LOSHELF: &str = "LOSHELF";
+    pub const HISHELF: &str = "HISHELF";
+    pub const LOWPASS: &str = "LOWPASS";
+    pub const HIGHPASS: &str = "HIGHPASS";
+    pub const BANDPASS: &str = "BANDPASS";
+    pub const NOTCH: &str = "NOTCH";
+    pub const ALLPASS: &str = "ALLPASS";
+    pub const HI6DB: &str = "HI6DB";
+    pub const LO6DB: &str = "LO6DB";
+    pub const INVERSION: &str = "INVERSION";
+}
+
 pub const EQ_TYPES: [&str; 11] = [
-    "PARAMETRIC",
-    "LOSHELF",
-    "HISHELF",
-    "LOWPASS",
-    "HIGHPASS",
-    "BANDPASS",
-    "NOTCH",
-    "ALLPASS",
-    "HI6DB",
-    "LO6DB",
-    "INVERSION",
+    eq_type::PARAMETRIC,
+    eq_type::LOSHELF,
+    eq_type::HISHELF,
+    eq_type::LOWPASS,
+    eq_type::HIGHPASS,
+    eq_type::BANDPASS,
+    eq_type::NOTCH,
+    eq_type::ALLPASS,
+    eq_type::HI6DB,
+    eq_type::LO6DB,
+    eq_type::INVERSION,
 ];
 
 #[derive(Debug)]

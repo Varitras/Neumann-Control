@@ -675,7 +675,13 @@ fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
         .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
         .click();
     harness.run_steps(2);
-    harness.get_by_label_contains(&texts::eq_full_reset_question("EQ 2"));
+    // The values the README promises for a reset.
+    harness.get_by_label_contains(&texts::eq_full_reset_question(
+        "EQ 2",
+        "PARAMETRIC",
+        100.0,
+        0.7,
+    ));
     barrier(&simulator);
     assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
     harness

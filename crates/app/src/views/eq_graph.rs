@@ -11,11 +11,11 @@ use eframe::egui::{
 
 use super::wheel::notches_for;
 use crate::eq::{snapped_frequency, GAIN_GRID_DB, Q_STEP};
-use crate::eq_response::{FREQUENCY_MAX, FREQUENCY_MIN};
 use crate::gesture::{on_grid, GestureState};
 use crate::texts;
 use crate::ui_kit::eq_palette::ink_on;
 use crate::ui_kit::theme::Tokens;
+use neumann_control_core::catalog::{EQ_FREQUENCY_MAX_HZ, EQ_FREQUENCY_MIN_HZ};
 use neumann_control_core::settings::BandCurves;
 
 const GRAPH_HEIGHT: f32 = 300.0;
@@ -112,8 +112,12 @@ struct Axes {
 
 impl Axes {
     fn x(&self, frequency: f64) -> f32 {
-        let (low, high) = (FREQUENCY_MIN.ln(), FREQUENCY_MAX.ln());
-        let share = (frequency.clamp(FREQUENCY_MIN, FREQUENCY_MAX).ln() - low) / (high - low);
+        let (low, high) = (EQ_FREQUENCY_MIN_HZ.ln(), EQ_FREQUENCY_MAX_HZ.ln());
+        let share = (frequency
+            .clamp(EQ_FREQUENCY_MIN_HZ, EQ_FREQUENCY_MAX_HZ)
+            .ln()
+            - low)
+            / (high - low);
         self.rect.left() + share as f32 * self.rect.width()
     }
 
@@ -123,7 +127,7 @@ impl Axes {
     }
 
     fn frequency(&self, x: f32) -> f64 {
-        let (low, high) = (FREQUENCY_MIN.ln(), FREQUENCY_MAX.ln());
+        let (low, high) = (EQ_FREQUENCY_MIN_HZ.ln(), EQ_FREQUENCY_MAX_HZ.ln());
         let share = f64::from(((x - self.rect.left()) / self.rect.width()).clamp(0.0, 1.0));
         (low + share * (high - low)).exp()
     }

@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use neumann_control_core::catalog::{Catalog, EqContainer};
+use neumann_control_core::catalog::{eq_leaf, eq_type, Catalog, EqContainer};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -32,12 +32,12 @@ impl Leaf {
 
     pub fn name(self) -> &'static str {
         match self {
-            Leaf::Enabled => "enabled",
-            Leaf::Gain => "gain",
-            Leaf::Boost => "boost",
-            Leaf::Frequency => "frequency",
-            Leaf::Q => "q",
-            Leaf::Type => "type",
+            Leaf::Enabled => eq_leaf::ENABLED,
+            Leaf::Gain => eq_leaf::GAIN,
+            Leaf::Boost => eq_leaf::BOOST,
+            Leaf::Frequency => eq_leaf::FREQUENCY,
+            Leaf::Q => eq_leaf::Q,
+            Leaf::Type => eq_leaf::TYPE,
         }
     }
 
@@ -130,9 +130,9 @@ pub fn has_eq(catalog: &Catalog, speaker: &SpeakerState) -> bool {
 
 /// What a full reset sets every band to: what the tested speakers report for bands nobody
 /// touched, not a measured factory state.
-const RESET_TYPE: &str = "PARAMETRIC";
-const RESET_FREQUENCY_HZ: f64 = 100.0;
-const RESET_Q: f64 = 0.7;
+pub const RESET_TYPE: &str = eq_type::PARAMETRIC;
+pub const RESET_FREQUENCY_HZ: f64 = 100.0;
+pub const RESET_Q: f64 = 0.7;
 
 /// Setting every band of a container back at once.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

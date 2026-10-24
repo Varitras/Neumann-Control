@@ -6,11 +6,10 @@
 
 use std::f64::consts::TAU;
 
+use neumann_control_core::catalog::{eq_type, EQ_FREQUENCY_MAX_HZ, EQ_FREQUENCY_MIN_HZ};
+
 use crate::eq::Band;
 
-/// The graph's frequency axis: the range the devices accept for `frequency`.
-pub const FREQUENCY_MIN: f64 = 10.0;
-pub const FREQUENCY_MAX: f64 = 24000.0;
 pub const GRAPH_POINTS: usize = 400;
 
 /// The rate the speakers run their EQ at (measured on the KH 120 II; assumed for the KH 750,
@@ -60,21 +59,21 @@ fn biquad(band: &Band) -> Option<Biquad> {
     let first_order = [1.0 + first_order_k, first_order_k - 1.0, 0.0];
     let filter = |b: [f64; 3], a: [f64; 3]| Some(Biquad { b, a });
     match band.kind.as_str() {
-        "PARAMETRIC" => filter(
+        eq_type::PARAMETRIC => filter(
             [1.0 + alpha * a, -2.0 * cos, 1.0 - alpha * a],
             [1.0 + alpha / a, -2.0 * cos, 1.0 - alpha / a],
         ),
-        "LOSHELF" | "HISHELF" => shelf(band, a, cos, sin),
-        "LOWPASS" => filter([(1.0 - cos) / 2.0, 1.0 - cos, (1.0 - cos) / 2.0], resonant),
-        "HIGHPASS" => filter(
+        eq_type::LOSHELF | eq_type::HISHELF => shelf(band, a, cos, sin),
+        eq_type::LOWPASS => filter([(1.0 - cos) / 2.0, 1.0 - cos, (1.0 - cos) / 2.0], resonant),
+        eq_type::HIGHPASS => filter(
             [(1.0 + cos) / 2.0, -(1.0 + cos), (1.0 + cos) / 2.0],
             resonant,
         ),
         // Measured: the centre is 20·log10(Q) dB, the constant-skirt form.
-        "BANDPASS" => filter([sin / 2.0, 0.0, -sin / 2.0], resonant),
-        "NOTCH" => filter([1.0, -2.0 * cos, 1.0], resonant),
-        "LO6DB" => filter([first_order_k, first_order_k, 0.0], first_order),
-        "HI6DB" => filter([1.0, -1.0, 0.0], first_order),
+        eq_type::BANDPASS => filter([sin / 2.0, 0.0, -sin / 2.0], resonant),
+        eq_type::NOTCH => filter([1.0, -2.0 * cos, 1.0], resonant),
+        eq_type::LO6DB => filter([first_order_k, first_order_k, 0.0], first_order),
+        eq_type::HI6DB => filter([1.0, -1.0, 0.0], first_order),
         // ALLPASS and INVERSION change the phase only; an unknown type is drawn flat.
         _ => None,
     }
@@ -101,7 +100,7 @@ fn shelf(band: &Band, a: f64, cos: f64, sin: f64) -> Option<Biquad> {
     let lift = a.sqrt() * sin / q;
     let (plus, minus) = (a + 1.0, a - 1.0);
     let filter = match band.kind.as_str() {
-        "LOSHELF" => Biquad {
+        eq_type::LOSHELF => Biquad {
             b: [
                 a * (plus - minus * cos + lift),
                 2.0 * a * (minus - plus * cos),
@@ -151,7 +150,7 @@ pub fn band_curves(bands: &[Band], frequencies: &[f64]) -> Vec<Option<Vec<f64>>>
 
 /// `GRAPH_POINTS` frequencies spaced evenly on a log scale from the lowest to the highest.
 pub fn graph_frequencies() -> Vec<f64> {
-    let (low, high) = (FREQUENCY_MIN.ln(), FREQUENCY_MAX.ln());
+    let (low, high) = (EQ_FREQUENCY_MIN_HZ.ln(), EQ_FREQUENCY_MAX_HZ.ln());
     let last = (GRAPH_POINTS - 1) as f64;
     (0..GRAPH_POINTS)
         .map(|point| (low + (high - low) * point as f64 / last).exp())
@@ -314,9 +313,9 @@ mod tests {
 
     #[test]
     fn a_band_at_half_the_rate_is_drawn_flat() {
-        let top = band("PARAMETRIC", 6.0, FREQUENCY_MAX, 1.0);
+        let top = band("PARAMETRIC", 6.0, EQ_FREQUENCY_MAX_HZ, 1.0);
         close(band_db(&top, 20000.0), 0.0);
-        assert!(band_db(&top, FREQUENCY_MAX).is_finite());
+        assert!(band_db(&top, EQ_FREQUENCY_MAX_HZ).is_finite());
     }
 
     #[test]
@@ -392,7 +391,7 @@ mod tests {
         close(curve_db(&bands, &[1000.0])[0], 9.0);
         let frequencies = graph_frequencies();
         assert_eq!(frequencies.len(), GRAPH_POINTS);
-        close(frequencies[0], FREQUENCY_MIN);
-        close(*frequencies.last().unwrap(), FREQUENCY_MAX);
+        close(frequencies[0], EQ_FREQUENCY_MIN_HZ);
+        close(*frequencies.last().unwrap(), EQ_FREQUENCY_MAX_HZ);
     }
 }

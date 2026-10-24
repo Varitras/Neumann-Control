@@ -922,13 +922,14 @@ pub fn compared_curve(speaker: &str) -> String {
 }
 
 /// Asked before a full reset, in the EQ window.
-pub fn eq_full_reset_question(container: &str) -> String {
+pub fn eq_full_reset_question(container: &str, kind: &str, frequency: f64, q: f64) -> String {
+    let (frequency, q) = (number(frequency), number(q));
     pick(
         format!(
-            "Alle Bänder von {container} zurücksetzen? Aus, PARAMETRIC, 100 Hz, Q 0,7, Pegel und Anhebung 0 dB."
+            "Alle Bänder von {container} zurücksetzen? Aus, {kind}, {frequency} Hz, Q {q}, Pegel und Anhebung 0 dB."
         ),
         format!(
-            "Reset every band of {container}? Off, PARAMETRIC, 100 Hz, Q 0.7, level and boost 0 dB."
+            "Reset every band of {container}? Off, {kind}, {frequency} Hz, Q {q}, level and boost 0 dB."
         ),
     )
 }

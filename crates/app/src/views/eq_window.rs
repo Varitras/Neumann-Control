@@ -12,7 +12,7 @@ use super::escape_closes;
 use super::history::UNDO_SHORTCUT;
 use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
 use super::wheel;
-use crate::eq::ResetKind;
+use crate::eq::{self, ResetKind};
 use crate::texts;
 
 /// Keys the window's own memory (Escape).
@@ -404,7 +404,12 @@ fn reset_question(ui: &mut Ui, reset: &ResetOffer, kind: ResetKind) -> Option<Eq
     let (question, confirm) = match kind {
         ResetKind::Flat => (texts::eq_reset_question(&reset.container), texts::EQ_RESET),
         ResetKind::Full => (
-            texts::eq_full_reset_question(&reset.container),
+            texts::eq_full_reset_question(
+                &reset.container,
+                eq::RESET_TYPE,
+                eq::RESET_FREQUENCY_HZ,
+                eq::RESET_Q,
+            ),
             texts::EQ_FULL_RESET,
         ),
     };

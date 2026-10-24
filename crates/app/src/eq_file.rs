@@ -8,6 +8,7 @@ use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::f64::consts::FRAC_1_SQRT_2;
 
+use neumann_control_core::catalog::eq_type;
 use neumann_control_core::settings::EqPreset;
 use serde_json::Value;
 
@@ -123,16 +124,16 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
     let upper = name.to_ascii_uppercase();
     let shaped = |kind, gain, q| Ok(Some(FileType { kind, gain, q }));
     match upper.as_str() {
-        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped("PARAMETRIC", true, QRule::Required),
-        "LP" | "LPQ" | "LP Q" => shaped("LOWPASS", false, QRule::Required),
-        "HP" | "HPQ" | "HP Q" => shaped("HIGHPASS", false, QRule::Required),
-        "LP1" => shaped("LO6DB", false, QRule::Unused),
-        "HP1" => shaped("HI6DB", false, QRule::Unused),
-        "BP" => shaped("BANDPASS", false, QRule::Required),
-        "NO" => shaped("NOTCH", false, QRule::Required),
-        "AP" => shaped("ALLPASS", false, QRule::Required),
-        "LS" | "LSC" | "LS Q" => shaped("LOSHELF", true, QRule::Shelf),
-        "HS" | "HSC" | "HS Q" => shaped("HISHELF", true, QRule::Shelf),
+        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Required),
+        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Required),
+        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Required),
+        "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
+        "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
+        "BP" => shaped(eq_type::BANDPASS, false, QRule::Required),
+        "NO" => shaped(eq_type::NOTCH, false, QRule::Required),
+        "AP" => shaped(eq_type::ALLPASS, false, QRule::Required),
+        "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
+        "HS" | "HSC" | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
         "NONE" => Ok(None),
         _ => Err(LineProblem::UnknownType(name.to_owned())),
     }
@@ -417,14 +418,14 @@ pub struct Export {
 /// converted); `None` for a type APO has no line for, or a shelf beyond the cookbook form.
 fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
     match band.kind.as_str() {
-        "PARAMETRIC" => Some(("PK", true, band.q)),
-        "LOWPASS" => Some(("LPQ", false, band.q)),
-        "HIGHPASS" => Some(("HPQ", false, band.q)),
-        "BANDPASS" => Some(("BP", false, band.q)),
-        "NOTCH" => Some(("NO", false, band.q)),
-        "ALLPASS" => Some(("AP", false, band.q)),
-        "LOSHELF" => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
-        "HISHELF" => Some(("HSC", true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::PARAMETRIC => Some(("PK", true, band.q)),
+        eq_type::LOWPASS => Some(("LPQ", false, band.q)),
+        eq_type::HIGHPASS => Some(("HPQ", false, band.q)),
+        eq_type::BANDPASS => Some(("BP", false, band.q)),
+        eq_type::NOTCH => Some(("NO", false, band.q)),
+        eq_type::ALLPASS => Some(("AP", false, band.q)),
+        eq_type::LOSHELF => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::HISHELF => Some(("HSC", true, shelf_q_of_slope(band.q, band.boost)?)),
         _ => None,
     }
 }
