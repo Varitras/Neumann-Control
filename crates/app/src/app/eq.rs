@@ -7,6 +7,7 @@ use neumann_control_core::settings::{CrossoverGuard, EqPreset};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use super::window_places::WindowKind;
 use super::NeumannApp;
 use crate::eq::{
     bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, Band, Leaf,
@@ -402,8 +403,10 @@ impl NeumannApp {
             asking: window.asking_reset,
             crossover: shown.container.crossover,
         });
+        let place = self.saved_place(context, WindowKind::Eq, &window.key);
         let view = EqView {
             viewport: ViewportId::from_hash_of(id),
+            place,
             title: texts::eq_window_title(&speaker.display_name()),
             outputs: &output_names,
             output,
@@ -425,6 +428,8 @@ impl NeumannApp {
             file_report: &window.file_report,
         };
         let actions = eq_window::show(context, &view);
+        let (viewport, key) = (view.viewport, self.eq_windows[index].key.clone());
+        self.remember_place(context, viewport, WindowKind::Eq, &key);
         self.eq_windows[index].candidates = candidate_keys;
         actions
     }

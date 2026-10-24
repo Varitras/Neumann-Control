@@ -20,7 +20,8 @@ pub fn first_window_size(compact: bool) -> [f32; 2] {
     }
 }
 
-fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
+/// The monitors there are now, in physical pixels.
+pub fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
     window
         .available_monitors()
         .map(|monitor| {

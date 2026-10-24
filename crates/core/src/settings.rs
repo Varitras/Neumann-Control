@@ -36,6 +36,13 @@ pub struct Settings {
     pub window: Option<WindowGeometry>,
     #[serde(deserialize_with = "or_default")]
     pub compact_window: Option<WindowGeometry>,
+    /// The windows of their own (device panel, EQ, all values) as the user left them, by kind
+    /// and speaker, in screen pixels like `window`.
+    #[serde(
+        deserialize_with = "or_default",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub windows: BTreeMap<String, WindowGeometry>,
     #[serde(deserialize_with = "or_default")]
     pub desk: DeskSettings,
     #[serde(deserialize_with = "readable_items")]

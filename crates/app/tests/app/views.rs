@@ -454,7 +454,7 @@ fn failure_is_shown() {
     speaker.apply(Event::AllValuesFailed(RAW_FAILURE.to_owned()), 0.0);
     let catalog = Catalog::embedded();
     let harness = Harness::new_ui(|ui| {
-        all_values::show(ui.ctx(), &mut speaker, catalog);
+        all_values::show(ui.ctx(), &mut speaker, catalog, None);
     });
     harness.get_by_label(texts::ALL_VALUES_FAILED.get());
     assert!(harness.query_by_label_contains("fe12:3456").is_none());

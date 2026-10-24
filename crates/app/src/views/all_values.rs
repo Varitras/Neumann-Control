@@ -8,10 +8,11 @@ use eframe::egui::{
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
-use super::escape_closes;
+use super::{escape_closes, WindowPlace};
 use crate::all_values::{rows, Row};
-use crate::state::{AllValuesState, SpeakerState};
+use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
 use crate::texts;
+use eframe::egui::Vec2;
 
 const WINDOW_ID: &str = "all_values";
 const DEFAULT_WINDOW_SIZE: [f32; 2] = [920.0, 480.0];
@@ -24,11 +25,20 @@ const FILTER_WIDTH: f32 = 220.0;
 /// Draws the window while the speaker's state is not idle and closes it (back to idle) when
 /// the user does: its close button, or Escape outside the filter. Returns the commands the user
 /// asked for.
-pub fn show(context: &Context, speaker: &mut SpeakerState, catalog: &Catalog) -> Vec<Command> {
-    let viewport = ViewportId::from_hash_of(Id::unique((WINDOW_ID, speaker.key.clone())));
-    let builder = ViewportBuilder::default()
+pub fn show(
+    context: &Context,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    place: Option<WindowPlace>,
+) -> Vec<Command> {
+    let viewport = viewport_of(&speaker.key);
+    let size = place.map_or(Vec2::from(DEFAULT_WINDOW_SIZE), |place| place.size);
+    let mut builder = ViewportBuilder::default()
         .with_title(texts::all_values_title(&speaker.display_name()))
-        .with_inner_size(DEFAULT_WINDOW_SIZE);
+        .with_inner_size(size);
+    if let Some(position) = place.and_then(|place| place.position) {
+        builder = builder.with_position(position);
+    }
     let mut commands = Vec::new();
     let close = context.show_viewport_immediate(viewport, builder, |ui, class| {
         ui.push_id(viewport, |ui| match class {
@@ -130,4 +140,9 @@ fn cell(ui: &mut Ui, width: f32, text: &str) {
     let height = ui.spacing().interact_size.y;
     ui.add_sized([width, height], Label::new(text).truncate())
         .on_hover_text(text);
+}
+
+/// The window's viewport for a speaker, to read where the user left it.
+pub fn viewport_of(key: &SpeakerKey) -> ViewportId {
+    ViewportId::from_hash_of(Id::unique((WINDOW_ID, key.clone())))
 }

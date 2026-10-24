@@ -2,7 +2,7 @@
 //! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
 use eframe::egui::{
-    self, Button, ComboBox, Context, Id, Label, Pos2, Rect, RichText, ScrollArea, Ui, Vec2,
+    self, Button, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2,
     ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
@@ -14,6 +14,7 @@ use super::details;
 use super::escape_closes;
 use super::trends::{self, TemperatureTrend, Trends};
 use super::wheel;
+use super::WindowPlace;
 use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
@@ -31,32 +32,23 @@ const PANEL_OFFSET: Vec2 = Vec2::new(40.0, 40.0);
 /// Kept free below the panel for the taskbar.
 const SCREEN_MARGIN: f32 = 60.0;
 
-/// Where the panel window opens and how large: fixed when it opens, so it does not follow the
-/// main window afterwards.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PanelPlacement {
-    pub position: Option<Pos2>,
-    pub size: Vec2,
-}
-
-impl PanelPlacement {
-    /// At the main window's top left (`main`, screen points), only as tall as the screen
-    /// (`monitor`) leaves below that: a fixed height let the panel's foot reach below the
-    /// screen. Without them the system places the window.
-    pub fn new(main: Option<Rect>, monitor: Option<Vec2>) -> PanelPlacement {
-        let full = Vec2::from(PANEL_WINDOW_SIZE);
-        let position = main.map(|main| main.min + PANEL_OFFSET);
-        let room = match (position, monitor) {
-            // The monitor's top is taken as 0: true for the main screen and for screens beside it.
-            (Some(position), Some(monitor)) => monitor.y - position.y - SCREEN_MARGIN,
-            (None, Some(monitor)) => monitor.y - SCREEN_MARGIN,
-            (_, None) => full.y,
-        };
-        let height = room.clamp(PANEL_WINDOW_MIN_SIZE[1], full.y);
-        PanelPlacement {
-            position,
-            size: Vec2::new(full.x, height),
-        }
+/// Where a panel first opens, when it has no place of its own yet: at the main window's top
+/// left (`main`, screen points), only as tall as the screen (`monitor`) leaves below that: a
+/// fixed height let the panel's foot reach below the screen. Without them the system places the
+/// window. Fixed when it opens, so it does not follow the main window afterwards.
+pub fn first_place(main: Option<Rect>, monitor: Option<Vec2>) -> WindowPlace {
+    let full = Vec2::from(PANEL_WINDOW_SIZE);
+    let position = main.map(|main| main.min + PANEL_OFFSET);
+    let room = match (position, monitor) {
+        // The monitor's top is taken as 0: true for the main screen and for screens beside it.
+        (Some(position), Some(monitor)) => monitor.y - position.y - SCREEN_MARGIN,
+        (None, Some(monitor)) => monitor.y - SCREEN_MARGIN,
+        (_, None) => full.y,
+    };
+    let height = room.clamp(PANEL_WINDOW_MIN_SIZE[1], full.y);
+    WindowPlace {
+        position,
+        size: Vec2::new(full.x, height),
     }
 }
 
@@ -87,7 +79,7 @@ pub struct GroupChoice<'a> {
 pub fn show(
     context: &Context,
     viewport: ViewportId,
-    placement: PanelPlacement,
+    placement: WindowPlace,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     groups: &GroupChoice,
@@ -270,7 +262,7 @@ mod tests {
 
     #[test]
     fn the_panel_opens_at_the_main_windows_top_left_in_full_height() {
-        let placement = PanelPlacement::new(main_at(100.0, 50.0), Some(SCREEN));
+        let placement = first_place(main_at(100.0, 50.0), Some(SCREEN));
         assert_eq!(placement.position, Some(pos2(100.0, 50.0) + PANEL_OFFSET));
         assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
     }
@@ -278,7 +270,7 @@ mod tests {
     /// The panel's foot used to reach below the screen.
     #[test]
     fn a_low_main_window_gives_a_shorter_panel_that_ends_on_the_screen() {
-        let placement = PanelPlacement::new(main_at(100.0, 600.0), Some(SCREEN));
+        let placement = first_place(main_at(100.0, 600.0), Some(SCREEN));
         let top = placement.position.unwrap().y;
         assert!(top + placement.size.y <= SCREEN.y - SCREEN_MARGIN + 0.001);
         assert_eq!(placement.size.x, PANEL_WINDOW_SIZE[0]);
@@ -286,13 +278,13 @@ mod tests {
 
     #[test]
     fn a_tiny_screen_still_gets_the_least_panel() {
-        let placement = PanelPlacement::new(main_at(0.0, 0.0), Some(vec2(800.0, 200.0)));
+        let placement = first_place(main_at(0.0, 0.0), Some(vec2(800.0, 200.0)));
         assert_eq!(placement.size.y, PANEL_WINDOW_MIN_SIZE[1]);
     }
 
     #[test]
     fn without_window_or_screen_the_system_places_it() {
-        let placement = PanelPlacement::new(None, None);
+        let placement = first_place(None, None);
         assert_eq!(placement.position, None);
         assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
     }

@@ -42,13 +42,14 @@ use crate::ui_kit::{fonts, theme};
 use crate::views::about::{self, AboutAction, UpdateView};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction};
-use crate::views::panel::PanelPlacement;
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
+use crate::views::WindowPlace;
 use crate::views::{all_values, panel, wheel};
 use crate::window_fit::WindowFit;
+use crate::window_placement::{monitor_areas, MonitorArea};
 
 mod compact;
 mod desk;
@@ -58,6 +59,9 @@ mod full_scan;
 mod history;
 mod preset_dialogs;
 mod system_volume;
+mod window_places;
+
+use window_places::WindowKind;
 
 pub use history::TakeBackNotice;
 
@@ -80,7 +84,7 @@ struct OpenPanel {
     /// Opened again while open: the window comes to the front.
     focus: bool,
     /// Fixed in the first frame the panel is drawn.
-    placement: Option<PanelPlacement>,
+    placement: Option<WindowPlace>,
 }
 
 /// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
@@ -129,6 +133,8 @@ pub struct NeumannApp {
     update_check: Option<UpdateCheck>,
     /// The Windows strip's meters, one per channel of the device.
     system_meters: Vec<MeterState>,
+    /// The monitors there are now, so a window of its own opens on one of them.
+    monitors: Vec<MonitorArea>,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -201,6 +207,7 @@ impl NeumannApp {
             about: None,
             update_check: None,
             system_meters: Vec::new(),
+            monitors: Vec::new(),
             audio_devices: Vec::new(),
             system_language,
         };
@@ -520,13 +527,18 @@ impl NeumannApp {
 
     fn show_all_values(&mut self, context: &Context) {
         let catalog = Catalog::embedded();
-        for speaker in &mut self.speakers {
-            if speaker.state.all_values == AllValuesState::Idle {
+        for index in 0..self.speakers.len() {
+            if self.speakers[index].state.all_values == AllValuesState::Idle {
                 continue;
             }
-            for command in all_values::show(context, &mut speaker.state, catalog) {
+            let key = self.speakers[index].state.key.clone();
+            let place = self.saved_place(context, WindowKind::AllValues, &key);
+            let speaker = &mut self.speakers[index];
+            for command in all_values::show(context, &mut speaker.state, catalog, place) {
                 speaker.handle.send(command);
             }
+            let viewport = all_values::viewport_of(&key);
+            self.remember_place(context, viewport, WindowKind::AllValues, &key);
         }
     }
 
@@ -575,12 +587,19 @@ impl NeumannApp {
             return true;
         };
         let viewport = open.viewport;
-        let placement = *open.placement.get_or_insert_with(|| {
-            let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
-                (input.viewport().outer_rect, input.viewport().monitor_size)
+        let key = open.key.clone();
+        if open.placement.is_none() {
+            let saved = self.saved_place(context, WindowKind::Panel, &key);
+            let place = saved.unwrap_or_else(|| {
+                let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
+                    (input.viewport().outer_rect, input.viewport().monitor_size)
+                });
+                panel::first_place(main, monitor)
             });
-            PanelPlacement::new(main, monitor)
-        });
+            self.panels[panel].placement = Some(place);
+        }
+        let open = &mut self.panels[panel];
+        let placement = open.placement.expect("placed above");
         if std::mem::take(&mut open.focus) {
             context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
         }
@@ -617,6 +636,7 @@ impl NeumannApp {
             &choice,
             layout.as_ref(),
         );
+        self.remember_place(context, viewport, WindowKind::Panel, &key);
         if let Some(change) = &response.layout {
             self.change_layout(&product, change, catalog);
         }
@@ -842,6 +862,9 @@ impl eframe::App for NeumannApp {
         display::set_delay_unit(self.settings.desk.delay_unit);
         wheel::track_burst(ui.ctx());
         self.keep_system_meters_moving(ui.ctx());
+        if let Some(window) = frame.winit_window() {
+            self.monitors = monitor_areas(window);
+        }
         self.show(ui, frame);
     }
 

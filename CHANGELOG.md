@@ -4,6 +4,8 @@
 
 ### Added
 
+- The device panel, the EQ window and **All values** open where and as large as they were
+  left, per speaker, also after a restart.
 - The toolbar says when the settings file was set aside or only partly understood at the start.
 - Starting the app again in the same folder brings the running window to the front instead of
   opening a second app, which would overwrite the first one's settings.

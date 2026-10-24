@@ -12,8 +12,10 @@ use super::escape_closes;
 use super::history::UNDO_SHORTCUT;
 use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
 use super::wheel;
+use super::WindowPlace;
 use crate::eq::{self, ResetKind};
 use crate::texts;
+use eframe::egui::Vec2;
 
 /// Keys the window's own memory (Escape).
 const EQ_WINDOW_ID: &str = "eq_window";
@@ -28,6 +30,8 @@ const IMPORT_LIST_HEIGHT: f32 = 240.0;
 
 pub struct EqView<'a> {
     pub viewport: ViewportId,
+    /// Where the window was left; `None` opens it at its default size.
+    pub place: Option<WindowPlace>,
     pub title: String,
     /// The outputs to choose from; one output needs no choice.
     pub outputs: &'a [String],
@@ -136,10 +140,16 @@ pub enum EqAction {
 }
 
 pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
-    let builder = ViewportBuilder::default()
+    let size = view
+        .place
+        .map_or(Vec2::from(EQ_WINDOW_SIZE), |place| place.size);
+    let mut builder = ViewportBuilder::default()
         .with_title(&view.title)
-        .with_inner_size(EQ_WINDOW_SIZE)
+        .with_inner_size(size)
         .with_min_inner_size(EQ_WINDOW_MIN_SIZE);
+    if let Some(position) = view.place.and_then(|place| place.position) {
+        builder = builder.with_position(position);
+    }
     context.show_viewport_immediate(view.viewport, builder, |ui, class| {
         wheel::track_burst(ui.ctx());
         let mut actions = match class {

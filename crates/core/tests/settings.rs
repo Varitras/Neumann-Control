@@ -32,6 +32,25 @@ fn sample() -> Settings {
     }
 }
 
+/// The windows of their own keep their places across a restart, by kind and speaker.
+#[test]
+fn window_places_survive_a_save() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut settings = Settings::default();
+    let place = WindowGeometry {
+        x: 10.0,
+        y: 20.0,
+        width: 640.0,
+        height: 480.0,
+    };
+    settings
+        .windows
+        .insert("eq serial:SIM0001234".to_owned(), place);
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path).windows["eq serial:SIM0001234"], place);
+}
+
 #[test]
 fn missing_file_gives_default() {
     let directory = tempfile::tempdir().unwrap();

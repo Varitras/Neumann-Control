@@ -47,3 +47,10 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
     ui.data_mut(|data| data.insert_temp(busy_id, busy));
     !was_busy && !busy && ui.input(|input| input.key_pressed(Key::Escape))
 }
+
+/// Where a window of its own opens, and how large; without a position the system places it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowPlace {
+    pub position: Option<eframe::egui::Pos2>,
+    pub size: eframe::egui::Vec2,
+}

@@ -407,7 +407,7 @@ place you choose:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, each model's strip layout and compact buttons, and the presets |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode and for each speaker's device panel, EQ and **All values** window, the choices from **Settings**, each model's strip layout and compact buttons, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
