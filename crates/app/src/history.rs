@@ -174,11 +174,14 @@ pub fn merged(base: Option<&Value>, written: &Value) -> Value {
 }
 
 /// The part of `before` that `after` overwrites, in the same `null` form, so taking a band
-/// write back touches that band only.
+/// write back touches that band only; all of `before` when the places do not line up.
 pub fn matching(before: &Value, after: &Value) -> Value {
     let (Some(held), Some(given)) = (before.as_array(), after.as_array()) else {
         return before.clone();
     };
+    if held.len() != given.len() {
+        return before.clone();
+    }
     let entries = held.iter().zip(given).map(|(held, given)| {
         if given.is_null() {
             Value::Null
@@ -312,6 +315,16 @@ mod tests {
             json!([null, 2.0, null])
         );
         assert_eq!(matching(&json!(80.0), &json!(84.0)), json!(80.0));
+    }
+
+    /// The speaker reported another band count than the app wrote: the places do not line up,
+    /// so the take-back writes back everything the speaker held, as `merged` keeps the write.
+    #[test]
+    fn arrays_of_another_length_are_taken_whole() {
+        let before = json!([1.0, 2.0]);
+        let after = json!([null, 5.0, null]);
+        assert_eq!(matching(&before, &after), before);
+        assert_eq!(merged(Some(&before), &after), after);
     }
 
     #[test]
