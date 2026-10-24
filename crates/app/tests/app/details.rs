@@ -758,6 +758,52 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
 
+/// A stored preset can hold a value this speaker refuses (another model's range, a file edited
+/// by hand). Loading it then writes nothing, not the part before the refused value.
+#[test]
+fn a_settings_preset_with_a_refused_value_writes_nothing() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut stored = neumann_control_core::settings::load(&path);
+    stored
+        .presets
+        .push(neumann_control_core::settings::SettingsPreset {
+            name: "Far".to_owned(),
+            product: "KH 120 II".to_owned(),
+            values: [
+                ("audio/out/level".to_owned(), json!(90.0)),
+                ("audio/out/delay".to_owned(), json!(99_999)),
+            ]
+            .into(),
+        });
+    neumann_control_core::settings::save(&stored, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_for_level(&mut harness, 100.0);
+    wait_for_initial_read(&mut harness, &simulator);
+    open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry("Far", "KH 120 II"))
+        .click();
+    harness.run_steps(6);
+    let range = Refusal::OutOfRange {
+        min: 0.0,
+        max: 120.0,
+        unit: "ms".to_owned(),
+    };
+    harness.get_by_label(&texts::setting_refusal(
+        DELAY_LABEL,
+        &texts::describe_refusal(&range),
+    ));
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    assert!(sets_to(&simulator, LEVEL_POINTER).is_empty());
+    assert!(sets_to(&simulator, DELAY_PATH).is_empty());
+}
+
 /// What is in the field when it is left counts, not a number typed on the way there: a field
 /// emptied or made unreadable writes nothing.
 #[test]

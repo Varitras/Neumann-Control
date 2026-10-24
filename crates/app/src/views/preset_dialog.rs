@@ -84,6 +84,8 @@ pub struct LoadView<'a> {
     pub skipped: &'a [String],
     /// A caution above the buttons (a crossover would lose its split).
     pub warning: Option<&'a str>,
+    /// Why the speaker would refuse one of the changes; nothing is written then.
+    pub refusal: Option<&'a str>,
     /// The selected preset's name while its deletion is being confirmed.
     pub deleting: Option<&'a str>,
 }
@@ -134,6 +136,9 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
         if let Some(warning) = view.warning {
             ui.colored_label(ui.visuals().warn_fg_color, warning);
         }
+        if let Some(refusal) = view.refusal {
+            ui.colored_label(ui.visuals().error_fg_color, refusal);
+        }
         // A deleted preset is gone for good: the delete is asked once more.
         if let Some(name) = view.deleting {
             ui.label(texts::delete_question(name));
@@ -148,7 +153,8 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
             return action;
         }
         ui.horizontal(|ui| {
-            let writable = view.selected.is_some() && !view.changes.is_empty();
+            let writable =
+                view.selected.is_some() && !view.changes.is_empty() && view.refusal.is_none();
             if ui
                 .add_enabled(writable, Button::new(texts::WRITE_PRESET))
                 .clicked()

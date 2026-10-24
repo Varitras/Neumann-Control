@@ -643,7 +643,7 @@ impl NeumannApp {
         }
         for (path, value) in writes {
             if let Err((label, reason)) = self.send_eq_write(index, &path, value, now) {
-                self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
+                self.eq_windows[index].refusal = Some(texts::setting_refusal(&label, &reason));
                 return;
             }
         }
@@ -656,7 +656,7 @@ impl NeumannApp {
         writes.iter().find_map(|(path, value)| {
             let refusal = writes::check(speaker, catalog, path, value).err()?;
             let label = leaf_label(catalog, path);
-            Some(texts::eq_leaf_refusal(
+            Some(texts::setting_refusal(
                 &label,
                 &texts::describe_refusal(&refusal),
             ))
@@ -683,7 +683,7 @@ impl NeumannApp {
             };
             let value = kind.value(*leaf, length);
             if let Err((label, reason)) = self.send_eq_write(index, &path, value, now) {
-                self.eq_windows[index].refusal = Some(texts::eq_leaf_refusal(&label, &reason));
+                self.eq_windows[index].refusal = Some(texts::setting_refusal(&label, &reason));
                 return;
             }
         }

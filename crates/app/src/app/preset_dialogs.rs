@@ -13,7 +13,7 @@ use crate::presets::{capture, chosen_by_default, plan, presettable};
 use crate::state::SpeakerKey;
 use crate::texts;
 use crate::views::preset_dialog::{self, LoadAction, LoadView, SaveAction, SaveRow};
-use crate::writes::Intent;
+use crate::writes::{self, Intent};
 
 pub(super) enum PresetDialog {
     Save {
@@ -177,6 +177,19 @@ impl NeumannApp {
                 texts::preset_change(&label, &current, &preset)
             })
             .collect();
+        // All or nothing, as for EQ presets: a refused value would otherwise leave the preset
+        // half written, its message wiped by the next write.
+        let refusal = loading.changes.iter().find_map(|change| {
+            let refusal = writes::check(speaker, catalog, &change.path, &change.preset).err()?;
+            let label = paths::catalog_entry(catalog, &change.path).map_or_else(
+                || change.path.to_string(),
+                |entry| entry.label(texts::language()).to_owned(),
+            );
+            Some(texts::setting_refusal(
+                &label,
+                &texts::describe_refusal(&refusal),
+            ))
+        });
         let view = LoadView {
             title: texts::LOAD_PRESET_TITLE.get(),
             presets: &names,
@@ -184,6 +197,7 @@ impl NeumannApp {
             changes: &changes,
             skipped: &loading.skipped,
             warning: None,
+            refusal: refusal.as_deref(),
             deleting: selected
                 .filter(|_| deleting)
                 .and_then(|place| self.settings.presets.get(place))

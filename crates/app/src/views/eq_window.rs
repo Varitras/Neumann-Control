@@ -276,6 +276,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
                 changes,
                 skipped: &[],
                 warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
+                refusal: None,
                 deleting: *deleting,
             };
             match preset_dialog::load(ui, &view) {

@@ -928,8 +928,8 @@ pub fn eq_reset_question(container: &str) -> String {
     )
 }
 
-/// A refused write of a whole leaf (a reset), under the EQ graph.
-pub fn eq_leaf_refusal(leaf: &str, reason: &str) -> String {
+/// A refused write of one setting or EQ leaf, with the setting named.
+pub fn setting_refusal(leaf: &str, reason: &str) -> String {
     format!("{leaf}: {reason}")
 }
 
