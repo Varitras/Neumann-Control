@@ -247,8 +247,7 @@ impl NeumannApp {
         catalog: &Catalog,
     ) {
         let layouts = &mut self.settings.desk.strip_layouts;
-        let layout = strip_layout::resolve(layouts.get(product), product, catalog);
-        match strip_layout::apply(&layout, change) {
+        match strip_layout::changed(layouts.get(product), product, catalog, change) {
             Some(stored) => {
                 layouts.insert(product.to_owned(), stored);
             }
@@ -263,8 +262,7 @@ impl NeumannApp {
     fn change_compact_layout(&mut self, product: &str, change: &CompactChange, catalog: &Catalog) {
         let layouts = &mut self.settings.desk.compact_layouts;
         let stored = layouts.get(product).map(Vec::as_slice);
-        let buttons = compact_layout::resolve(stored, product, catalog);
-        match compact_layout::apply(&buttons, change) {
+        match compact_layout::changed(stored, product, catalog, change) {
             Some(changed) => {
                 layouts.insert(product.to_owned(), changed);
             }

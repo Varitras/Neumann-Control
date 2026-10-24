@@ -119,6 +119,30 @@ pub fn addable(layout: &StripLayout, product: &str, catalog: &Catalog) -> Vec<St
     addable
 }
 
+/// The stored layout of `product` after `change`. Elements this version does not show for the
+/// model (written by a newer one) are kept at the end of their area, so a change made here does
+/// not take them from that version. `None` drops the model's entry.
+pub fn changed(
+    stored: Option<&StoredStripLayout>,
+    product: &str,
+    catalog: &Catalog,
+    change: &LayoutChange,
+) -> Option<StoredStripLayout> {
+    let mut result = apply(&resolve(stored, product, catalog), change)?;
+    let unshown = |elements: &[StripElement]| -> Vec<StripElement> {
+        elements
+            .iter()
+            .filter(|element| !shows(element, product, catalog))
+            .cloned()
+            .collect()
+    };
+    if let Some(stored) = stored {
+        result.above.extend(unshown(&stored.above));
+        result.below.extend(unshown(&stored.below));
+    }
+    Some(result)
+}
+
 /// The layout to store after `change`; `None` drops the model's entry, so it shows the default.
 pub fn apply(layout: &StripLayout, change: &LayoutChange) -> Option<StoredStripLayout> {
     let mut changed = layout.clone();
@@ -399,6 +423,21 @@ mod tests {
             moved.above,
             elements(&[paths::DELAY, paths::STANDBY_TIME, PHASE_INVERSION])
         );
+    }
+
+    /// An element a newer version put on the strip is not shown here, but a change made here
+    /// keeps it for that version.
+    #[test]
+    fn a_change_keeps_elements_this_version_does_not_show() {
+        let future = element("audio/out/future_setting");
+        let stored = StoredStripLayout {
+            above: vec![element(paths::DELAY), future.clone()],
+            below: elements(&[paths::MUTE]),
+        };
+        let change = LayoutChange::Remove(element(paths::DELAY));
+        let kept = changed(Some(&stored), MONITOR, Catalog::embedded(), &change).unwrap();
+        assert_eq!(kept.above, vec![future]);
+        assert_eq!(kept.below, elements(&[paths::MUTE]));
     }
 
     #[test]

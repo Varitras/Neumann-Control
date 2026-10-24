@@ -60,6 +60,25 @@ pub fn addable(buttons: &[CompactButton], product: &str, catalog: &Catalog) -> V
         .collect()
 }
 
+/// The stored buttons of `product` after `change`. Buttons this version does not show for the
+/// model (written by a newer one) are kept at the end, so a change made here does not take them
+/// from that version. `None` drops the model's entry.
+pub fn changed(
+    stored: Option<&[CompactButton]>,
+    product: &str,
+    catalog: &Catalog,
+    change: &CompactChange,
+) -> Option<Vec<CompactButton>> {
+    let mut result = apply(&resolve(stored, product, catalog), change)?;
+    let unshown = stored
+        .unwrap_or_default()
+        .iter()
+        .filter(|button| !shows(button, product, catalog))
+        .cloned();
+    result.extend(unshown);
+    Some(result)
+}
+
 /// The buttons to store after `change`; `None` drops the model's entry, so it shows the default.
 pub fn apply(buttons: &[CompactButton], change: &CompactChange) -> Option<Vec<CompactButton>> {
     let mut changed = buttons.to_vec();
@@ -163,6 +182,15 @@ mod tests {
         let removed = apply(&added, &CompactChange::Remove(identify)).unwrap();
         assert_eq!(removed, mute_eq_details());
         assert_eq!(apply(&removed, &CompactChange::Reset), None);
+    }
+
+    #[test]
+    fn a_change_keeps_buttons_this_version_does_not_show() {
+        let future = switch("audio/out/future_switch");
+        let stored = [switch(paths::MUTE), future.clone(), CompactButton::Details];
+        let change = CompactChange::Remove(CompactButton::Details);
+        let kept = changed(Some(&stored), MONITOR, Catalog::embedded(), &change).unwrap();
+        assert_eq!(kept, vec![switch(paths::MUTE), future]);
     }
 
     #[test]
