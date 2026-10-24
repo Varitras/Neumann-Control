@@ -52,7 +52,7 @@ fn desk_with(
     };
     settings::save(&stored, &path).unwrap();
     let mut harness = harness_with_audio(path, audio);
-    harness.set_size(egui::vec2(1200.0, 900.0));
+    harness.set_size(TWO_STRIP_WINDOW.into());
     wait_for_level(&mut harness, 100.0);
     (simulator, directory, harness)
 }

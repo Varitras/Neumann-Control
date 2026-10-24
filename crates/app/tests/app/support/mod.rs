@@ -512,6 +512,27 @@ pub fn grouped(
     tempfile::TempDir,
     Harness<'static, NeumannApp>,
 ) {
+    let group = GroupSettings {
+        name: GROUP_NAME.to_owned(),
+        color: 0,
+        members: vec![KH120_ID.to_owned(), KH750_ID.to_owned()],
+        linked,
+    };
+    two_speakers(vec![group])
+}
+
+/// Wide enough for two speakers' strips and a group's side by side.
+pub const TWO_STRIP_WINDOW: [f32; 2] = [1200.0, 900.0];
+
+/// A KH 120 II and a KH 750, both read, in `groups`.
+pub fn two_speakers(
+    groups: Vec<GroupSettings>,
+) -> (
+    Simulator,
+    Simulator,
+    tempfile::TempDir,
+    Harness<'static, NeumannApp>,
+) {
     let kh120 = Simulator::start(SimModel::Kh120Ii);
     let kh750 = Simulator::start(SimModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
@@ -523,17 +544,12 @@ pub fn grouped(
     let settings = Settings {
         manual: vec![first, second],
         window: Some(SAVED_WINDOW),
-        groups: vec![GroupSettings {
-            name: GROUP_NAME.to_owned(),
-            color: 0,
-            members: vec![KH120_ID.to_owned(), KH750_ID.to_owned()],
-            linked,
-        }],
+        groups,
         ..Settings::default()
     };
     settings::save(&settings, &path).unwrap();
     let mut harness = harness(path, Vec::new());
-    harness.set_size(egui::vec2(1200.0, 900.0));
+    harness.set_size(TWO_STRIP_WINDOW.into());
     wait_until(&mut harness, "both strips connected", |harness| {
         harness.query_by_label(KH120_DEVICE_NAME).is_some()
             && harness.query_by_label(KH750_DEVICE_NAME).is_some()

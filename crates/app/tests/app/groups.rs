@@ -255,7 +255,7 @@ fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
     };
     settings::save(&settings, &path).unwrap();
     let mut harness = harness(path.clone(), Vec::new());
-    harness.set_size(egui::vec2(1200.0, 900.0));
+    harness.set_size(TWO_STRIP_WINDOW.into());
     wait_until(&mut harness, "both strips connected", |harness| {
         harness.query_all_by_label(&readout(100.0)).count() == 2
     });
@@ -382,24 +382,8 @@ fn copy_to_group_sends_the_members_value_to_the_others() {
 
 #[test]
 fn ungrouped_strips_can_be_reordered_too() {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
-    let directory = tempfile::tempdir().unwrap();
+    let (_kh120, _kh750, directory, mut harness) = two_speakers(Vec::new());
     let path = directory.path().join(SETTINGS_FILE);
-    let mut first = manual_for(&kh120);
-    first.serial = Some(SIMULATED_SERIAL.to_owned());
-    let mut second = manual_for(&kh750);
-    second.serial = Some(KH750_SERIAL.to_owned());
-    let settings = Settings {
-        manual: vec![first, second],
-        ..Settings::default()
-    };
-    settings::save(&settings, &path).unwrap();
-    let mut harness = harness(path.clone(), Vec::new());
-    harness.set_size(egui::vec2(1200.0, 900.0));
-    wait_until(&mut harness, "both strips connected", |harness| {
-        harness.query_all_by_label(&readout(100.0)).count() == 2
-    });
     let handles: Vec<egui::Rect> = harness
         .query_all_by_label(texts::MOVE_STRIP.get())
         .map(|node| node.rect())
