@@ -129,6 +129,23 @@
   one.
 - The MAC addresses in **All values** showed only `…"]`; each address is now masked on its own.
 - A speaker name announced with the serial in other letter case showed the serial unmasked.
+- A speaker added by its address alone took on another unit that answered at that address
+  later, with its name, group and place on the desk; it now reports the other serial instead.
+- When a scan found a speaker where another remembered one used to be, the moved speaker stayed
+  unreachable at its old address, the scan dialog listed it as already shown, and removing the
+  other one removed it too.
+- With two network adapters on the speakers' segment, every scan could switch a speaker to the
+  other adapter and reconnect it.
+- A slow speaker, or a KH 750 while **All values** was read, got its meters read but not its
+  other settings, which then showed old values.
+- **All values** ended without any value when the speaker refused to list one part of its
+  settings; that part now shows the refusal on its own line.
+- **Reload** in **All values** of an unreachable speaker replaced the table with a failure.
+- Knobs of settings without a fixed step, such as the KH 750's output levels in the device panel,
+  wrote values like 5.279999999999999 dB; they now move in tenths.
+- A wheel turn on the fader of a speaker that had just gone away replaced "not reachable" with
+  "Not connected".
+- A meter the speaker no longer reported kept showing its last level.
 
 ## [0.1.0] - 2026-10-18
 
