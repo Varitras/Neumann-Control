@@ -86,7 +86,9 @@ pub fn show(ui: &mut Ui, field: &NumberField) -> Option<f64> {
     if typed_this_frame {
         ui.data_mut(|data| data.insert_temp(typed_id, true));
     }
-    let changed_by_user = response.changed() && (response.dragged() || typed);
+    // Arrow keys and a screen reader step the value while the field has focus.
+    let changed_by_user =
+        response.changed() && (response.dragged() || response.has_focus() || typed);
     if changed_by_user {
         ui.data_mut(|data| data.insert_temp(pending_id, value));
     }
