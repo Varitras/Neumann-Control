@@ -29,6 +29,21 @@ fn announced(simulator: &Simulator, name: &str, product: &str, serial: &str) -> 
     }
 }
 
+/// A remembered speaker whose address another unit now answers at: the other one's
+/// announcement is not this speaker's name.
+#[test]
+fn another_serials_announcement_does_not_name_a_remembered_speaker() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let mut remembered = manual_for(&simulator);
+    remembered.serial = Some("OTHER".to_owned());
+    let path = settings_file(directory.path(), vec![remembered]);
+    let found = announced(&simulator, "Kitchen", "KH 120 II", SIMULATED_SERIAL);
+    let mut harness = harness(path, vec![found]);
+    harness.run_steps(20);
+    assert!(harness.query_by_label_contains("Kitchen").is_none());
+}
+
 fn kh750_found(simulator: &Simulator) -> Found {
     announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
 }
