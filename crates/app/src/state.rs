@@ -507,7 +507,7 @@ mod tests {
     const SERIAL: &str = "SIM0001234";
     const OTHER_SERIAL: &str = "SIM0007500";
     const ADDRESS_TEXT: &str = "fe80::2a36:38ff:fe12:3456%7";
-    const PORT: u16 = 45;
+    const PORT: u16 = neumann_control_core::address::SSC_PORT;
 
     fn address(text: &str) -> SocketAddrV6 {
         parse_address(text, PORT).unwrap()

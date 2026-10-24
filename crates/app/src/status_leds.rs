@@ -100,7 +100,7 @@ mod tests {
     use crate::state::SpeakerKey;
 
     const ADDRESS_TEXT: &str = "fe80::2a36:38ff:fe12:3456%7";
-    const PORT: u16 = 45;
+    const PORT: u16 = neumann_control_core::address::SSC_PORT;
 
     fn connected() -> SpeakerState {
         let address = parse_address(ADDRESS_TEXT, PORT).unwrap();

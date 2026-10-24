@@ -406,7 +406,7 @@ fn a_flat_full_array_is_a_valid_band_write() {
 }
 
 #[test]
-fn the_d2_settings_are_in_the_catalog() {
+fn mute_persist_and_the_input_mix_are_in_the_catalog() {
     for output in ["out", "out1", "out2"] {
         let product = if output == "out" { MONITOR } else { SUBWOOFER };
         let persist = entry(&format!("audio/{output}/mute_persist"));
@@ -511,6 +511,7 @@ fn the_step_grid_starts_at_the_minimum() {
     assert_eq!(step_check(&catalog, 0.5), Ok(()));
 }
 
+/// A `Display` that writes nothing would leave the user an empty message.
 #[test]
 fn every_error_has_a_text() {
     let errors = [

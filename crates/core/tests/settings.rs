@@ -45,7 +45,10 @@ fn round_trip_keeps_values() {
     let path = directory.path().join(SETTINGS_FILE);
     save(&sample(), &path).unwrap();
     assert_eq!(load(&path), sample());
-    assert!(!directory.path().join("settings.json.tmp").exists());
+    assert!(!directory
+        .path()
+        .join(format!("{SETTINGS_FILE}.tmp"))
+        .exists());
 }
 
 #[test]
@@ -65,7 +68,7 @@ fn malformed_file_is_moved_aside() {
     assert_eq!(load(&path), Settings::default());
     assert!(!path.exists());
     assert_eq!(
-        fs::read_to_string(directory.path().join("settings.json.bad")).unwrap(),
+        fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
         "{ not json"
     );
 }
@@ -74,26 +77,33 @@ fn malformed_file_is_moved_aside() {
 fn existing_bad_file_is_never_overwritten() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
-    fs::write(directory.path().join("settings.json.bad"), "first").unwrap();
+    fs::write(
+        directory.path().join(format!("{SETTINGS_FILE}.bad")),
+        "first",
+    )
+    .unwrap();
     fs::write(&path, "second").unwrap();
     assert_eq!(load(&path), Settings::default());
     assert_eq!(
-        fs::read_to_string(directory.path().join("settings.json.bad")).unwrap(),
+        fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
         "first"
     );
     assert_eq!(
-        fs::read_to_string(directory.path().join("settings.json.bad.1")).unwrap(),
+        fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad.1"))).unwrap(),
         "second"
     );
 }
 
 #[test]
-fn wrong_type_is_malformed() {
+fn a_wrong_type_falls_back_and_keeps_a_copy() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, r#"{"manual": "oops"}"#).unwrap();
     assert_eq!(load(&path), Settings::default());
-    assert!(directory.path().join("settings.json.bad").exists());
+    assert!(directory
+        .path()
+        .join(format!("{SETTINGS_FILE}.bad"))
+        .exists());
 }
 
 #[test]

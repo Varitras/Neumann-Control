@@ -44,7 +44,7 @@ fn bracketed_and_plain_forms_parse() {
     for input in ["fe80::1%12", "[fe80::1%12]", "  fe80::1%12  "] {
         let address = parse_address(input, SSC_PORT).unwrap();
         assert_eq!(address.scope_id(), 12);
-        assert_eq!(address.port(), 45);
+        assert_eq!(address.port(), SSC_PORT);
         assert_eq!(*address.ip(), "fe80::1".parse::<Ipv6Addr>().unwrap());
     }
 }
