@@ -14,10 +14,6 @@ use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
 const PERCENT_RANGE: RangeInclusive<f64> = 0.0..=100.0;
-/// A stereo device's two channels. Beyond two, the positions depend on the device's channel
-/// mask (7.1 puts the rear pair before the side pair, quad has no centre), which the app does
-/// not read: those channels are numbered instead of named wrong.
-const STEREO_NAMES: [&str; 2] = ["L", "R"];
 
 pub struct SystemStrip<'a> {
     pub name: &'a str,
@@ -25,6 +21,8 @@ pub struct SystemStrip<'a> {
     pub volume: Option<f64>,
     pub mute: Option<bool>,
     pub meters: &'a [MeterState],
+    /// One name per meter, from the device's speaker positions.
+    pub channels: &'a [String],
     pub floor: f64,
 }
 
@@ -59,8 +57,7 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
             );
             let (lowest, highest) = (*PERCENT_RANGE.start(), *PERCENT_RANGE.end());
             response.volume = moved.map(|moved| (volume + moved).clamp(lowest, highest));
-            let names = channel_names(strip.meters.len());
-            let channels: Vec<&str> = names.iter().map(String::as_str).collect();
+            let channels: Vec<&str> = strip.channels.iter().map(String::as_str).collect();
             let group = Meters {
                 name: texts::SYSTEM_METERS.get(),
                 channels: &channels,
@@ -76,23 +73,4 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
         response.mute = mute_button(ui, texts::SYSTEM_MUTE.get(), strip.mute);
     });
     response
-}
-
-fn channel_names(count: usize) -> Vec<String> {
-    if count == STEREO_NAMES.len() {
-        return STEREO_NAMES.iter().map(|name| (*name).to_owned()).collect();
-    }
-    (1..=count).map(|channel| channel.to_string()).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_stereo_channels_are_named() {
-        assert_eq!(channel_names(2), vec!["L", "R"]);
-        assert_eq!(channel_names(8)[4..], ["5", "6", "7", "8"]);
-        assert_eq!(channel_names(1), vec!["1"]);
-    }
 }

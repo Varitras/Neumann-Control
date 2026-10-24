@@ -33,6 +33,7 @@ fn playing() -> AudioState {
         volume: 0.5,
         mute: false,
         peaks: vec![0.5, 0.25],
+        channel_mask: None,
     }
 }
 

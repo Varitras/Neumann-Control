@@ -18,6 +18,9 @@ pub struct AudioState {
     pub mute: bool,
     /// Peak per channel, 0 to 1, since the previous reading.
     pub peaks: Vec<f32>,
+    /// Which speaker position each channel is, as Windows' mix format tells it; `None` for a
+    /// format without one.
+    pub channel_mask: Option<u32>,
 }
 
 pub trait SystemAudio {
@@ -26,6 +29,36 @@ pub trait SystemAudio {
     fn state(&mut self, device: Option<&str>) -> Option<AudioState>;
     fn set_volume(&mut self, device: Option<&str>, volume: f32);
     fn set_mute(&mut self, device: Option<&str>, mute: bool);
+}
+
+/// Windows' speaker positions in the order of their bits in a channel mask (`ksmedia.h`); the
+/// channels of a device come in this order.
+const SPEAKER_POSITIONS: [&str; 18] = [
+    "L", "R", "C", "LFE", "BL", "BR", "FLC", "FRC", "BC", "SL", "SR", "TC", "TFL", "TFC", "TFR",
+    "TBL", "TBC", "TBR",
+];
+/// Two channels without a mask can only be stereo.
+const STEREO: [&str; 2] = ["L", "R"];
+
+/// A name per channel from the mask's bits; a channel the mask does not name keeps its number.
+pub fn channel_names(mask: Option<u32>, count: usize) -> Vec<String> {
+    let named: Vec<&str> = match mask {
+        Some(mask) => SPEAKER_POSITIONS
+            .iter()
+            .enumerate()
+            .filter(|(bit, _)| mask & (1 << bit) != 0)
+            .map(|(_, name)| *name)
+            .collect(),
+        None if count == STEREO.len() => STEREO.to_vec(),
+        None => Vec::new(),
+    };
+    (0..count)
+        .map(|channel| {
+            named
+                .get(channel)
+                .map_or_else(|| (channel + 1).to_string(), |name| (*name).to_owned())
+        })
+        .collect()
 }
 
 /// A peak value (0 to 1) as dB for the meters; silence is the meters' floor.
@@ -45,7 +78,8 @@ mod core_audio {
     use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
     use windows::Win32::Media::Audio::Endpoints::{IAudioEndpointVolume, IAudioMeterInformation};
     use windows::Win32::Media::Audio::{
-        eConsole, eRender, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, DEVICE_STATE_ACTIVE,
+        eConsole, eRender, IAudioClient, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
+        DEVICE_STATE_ACTIVE, WAVEFORMATEXTENSIBLE,
     };
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
@@ -62,7 +96,13 @@ mod core_audio {
         name: String,
         volume: IAudioEndpointVolume,
         meter: IAudioMeterInformation,
+        channel_mask: Option<u32>,
     }
+
+    /// `WAVE_FORMAT_EXTENSIBLE`: the format carries a channel mask.
+    const WAVE_FORMAT_EXTENSIBLE: u16 = 0xFFFE;
+    /// The bytes an extensible format adds to `WAVEFORMATEX`, the mask among them.
+    const EXTENSIBLE_EXTRA_BYTES: u16 = 22;
 
     pub struct CoreAudio {
         enumerator: Option<IMMDeviceEnumerator>,
@@ -120,6 +160,7 @@ mod core_audio {
                     id,
                     volume,
                     meter,
+                    channel_mask: channel_mask(&device),
                 });
             }
             self.endpoint.as_ref()
@@ -139,6 +180,23 @@ mod core_audio {
             let text = id.to_string().ok();
             CoTaskMemFree(Some(id.0 as *const _));
             text
+        }
+    }
+
+    /// The mask of the shared mix format, which the meters' channels follow.
+    fn channel_mask(device: &IMMDevice) -> Option<u32> {
+        // SAFETY: the client is activated on a live device; GetMixFormat returns a format the
+        // caller frees with CoTaskMemFree, read only while it lives (fields by value, the
+        // structs are packed).
+        unsafe {
+            let client = device.Activate::<IAudioClient>(CLSCTX_ALL, None).ok()?;
+            let format = client.GetMixFormat().ok()?;
+            let tag = (*format).wFormatTag;
+            let extra = (*format).cbSize;
+            let extensible = tag == WAVE_FORMAT_EXTENSIBLE && extra >= EXTENSIBLE_EXTRA_BYTES;
+            let mask = extensible.then(|| (*format.cast::<WAVEFORMATEXTENSIBLE>()).dwChannelMask);
+            CoTaskMemFree(Some(format as *const _));
+            mask
         }
     }
 
@@ -194,6 +252,7 @@ mod core_audio {
                 volume,
                 mute,
                 peaks,
+                channel_mask: endpoint.channel_mask,
             })
         }
 
@@ -246,6 +305,24 @@ mod tests {
         assert_eq!(peak_db(1e-9, -60.0), -60.0);
     }
 
+    /// Asks this machine's default playback device (run by hand: `--run-ignored only`); its
+    /// mix format has a mask naming as many channels as it meters.
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "needs a sound device"]
+    fn the_default_device_names_its_channels() {
+        let state = CoreAudio::new()
+            .state(None)
+            .expect("a default playback device");
+        let names = channel_names(state.channel_mask, state.peaks.len());
+        eprintln!("mask {:?}: {names:?}", state.channel_mask);
+        assert!(state.channel_mask.is_some());
+        assert!(
+            names.iter().all(|name| name.parse::<usize>().is_err()),
+            "{names:?}"
+        );
+    }
+
     fn names(mask: Option<u32>, count: usize) -> Vec<String> {
         channel_names(mask, count)
     }
@@ -260,7 +337,10 @@ mod tests {
             ["L", "R", "C", "LFE", "BL", "BR", "SL", "SR"]
         );
         let surround_5_1 = 0x60F;
-        assert_eq!(names(Some(surround_5_1), 6), ["L", "R", "C", "LFE", "SL", "SR"]);
+        assert_eq!(
+            names(Some(surround_5_1), 6),
+            ["L", "R", "C", "LFE", "SL", "SR"]
+        );
         let quad = 0x33;
         assert_eq!(names(Some(quad), 4), ["L", "R", "BL", "BR"]);
     }

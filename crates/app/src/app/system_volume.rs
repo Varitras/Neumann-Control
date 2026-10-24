@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use super::NeumannApp;
-use crate::system_audio::peak_db;
+use crate::system_audio::{channel_names, peak_db};
 use crate::texts;
 use crate::views::system_strip::SystemStripResponse;
 
@@ -17,6 +17,8 @@ pub(super) struct SystemView {
     pub name: String,
     pub volume: Option<f64>,
     pub mute: Option<bool>,
+    /// One name per meter.
+    pub channels: Vec<String>,
 }
 
 impl NeumannApp {
@@ -33,6 +35,7 @@ impl NeumannApp {
                 name: texts::SYSTEM_AUDIO_NAME.get().to_owned(),
                 volume: None,
                 mute: None,
+                channels: Vec::new(),
             });
         };
         let floor = self.settings.desk.meter_floor.db();
@@ -42,6 +45,7 @@ impl NeumannApp {
             meter.update(peak_db(*peak, floor), now);
         }
         Some(SystemView {
+            channels: channel_names(state.channel_mask, state.peaks.len()),
             name: state.name,
             volume: Some(f64::from(state.volume) * PERCENT),
             mute: Some(state.mute),

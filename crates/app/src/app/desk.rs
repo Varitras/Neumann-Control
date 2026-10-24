@@ -179,6 +179,7 @@ impl NeumannApp {
                             volume: view.volume,
                             mute: view.mute,
                             meters: &self.system_meters,
+                            channels: &view.channels,
                             floor: desk.meter_floor.db(),
                         };
                         actions.push(DeskAction::System(system_strip::show(ui, &strip)));
