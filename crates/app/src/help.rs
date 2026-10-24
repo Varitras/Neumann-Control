@@ -79,13 +79,16 @@ pub fn verdict(current: &str, latest: Result<Option<Release>, LookupError>) -> U
     }
 }
 
-/// "v1.2.3" or "1.2.3", a suffix such as "-beta" ignored.
-fn version(text: &str) -> Option<[u64; 3]> {
-    let core = text.strip_prefix('v').unwrap_or(text);
-    let core = core.split(['-', '+']).next()?;
+/// "v1.2.3" or "1.2.3", and whether it is final: a pre-release ("-beta.1") comes before its
+/// final version. Two pre-releases of one version count as the same.
+fn version(text: &str) -> Option<([u64; 3], bool)> {
+    let text = text.strip_prefix('v').unwrap_or(text);
+    let text = text.split('+').next()?;
+    let core = text.split('-').next()?;
+    let is_final = core.len() == text.len();
     let mut parts = core.split('.').map(|part| part.parse::<u64>().ok());
     let version = [parts.next()??, parts.next()??, parts.next()??];
-    parts.next().is_none().then_some(version)
+    parts.next().is_none().then_some((version, is_final))
 }
 
 /// GitHub's answer for the latest release. A page outside this repository is replaced by the
@@ -328,6 +331,23 @@ mod tests {
         assert_eq!(
             verdict("0.1.0", Ok(Some(release("v1.0.0-beta")))),
             UpdateResult::Newer(release("v1.0.0-beta"))
+        );
+    }
+
+    /// The final release is newer than its own beta, as in SemVer; build metadata is no beta.
+    #[test]
+    fn a_running_beta_is_older_than_its_final_release() {
+        assert_eq!(
+            verdict("1.0.0-beta.1", Ok(Some(release("v1.0.0")))),
+            UpdateResult::Newer(release("v1.0.0"))
+        );
+        assert_eq!(
+            verdict("1.0.0", Ok(Some(release("v1.0.0-beta.1")))),
+            UpdateResult::Current
+        );
+        assert_eq!(
+            verdict("1.0.0+build.7", Ok(Some(release("v1.0.0")))),
+            UpdateResult::Current
         );
     }
 
