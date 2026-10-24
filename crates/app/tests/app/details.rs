@@ -673,10 +673,7 @@ fn the_input_mix_keeps_the_speakers_number_type() {
     wait_until(&mut harness, "the mix written", |_| {
         !sets(&simulator, INPUT_MIX_POINTER).is_empty()
     });
-    assert_eq!(
-        sets(&simulator, INPUT_MIX_POINTER),
-        vec![json!([0, -20])]
-    );
+    assert_eq!(sets(&simulator, INPUT_MIX_POINTER), vec![json!([0, -20])]);
 }
 
 #[test]

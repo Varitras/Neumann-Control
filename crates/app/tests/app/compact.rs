@@ -8,6 +8,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::paths;
 use neumann_control_app::texts;
+use neumann_control_app::window_placement::WINDOW_MIN_SIZE;
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
 use neumann_control_core::simulator::SimModel;
 use neumann_control_core::ssc::wire::DeviceError;
@@ -152,10 +153,10 @@ fn compact_columns_line_up_between_speaker_and_master_rows() {
 fn mute_stays_reachable_in_the_narrowest_compact_window() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
-    harness.set_size(egui::vec2(480.0, 360.0));
+    harness.set_size(WINDOW_MIN_SIZE.into());
     harness.run_steps(2);
     let mute = harness.get_by_label(texts::MUTE.get()).rect();
-    let fits = mute.right() <= 480.0;
+    let fits = mute.right() <= WINDOW_MIN_SIZE[0];
     let scrolls = harness
         .query_all_by_role(Role::ScrollBar)
         .any(|bar| bar.rect().width() > bar.rect().height());
@@ -165,7 +166,7 @@ fn mute_stays_reachable_in_the_narrowest_compact_window() {
 #[test]
 fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    harness.set_size(egui::vec2(480.0, 360.0));
+    harness.set_size(WINDOW_MIN_SIZE.into());
     // The widest toolbar: with the average response time, which comes after a measurement.
     wait_until(&mut harness, "the average response time", |harness| {
         harness.query_by_label_contains("Ø ").is_some()
@@ -185,7 +186,11 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
         .map(|label| harness.get_by_label(label).rect())
         .collect();
     for (index, rect) in rects.iter().enumerate() {
-        assert!(rect.right() <= 480.0, "{} at {rect:?}", toolbar[index]);
+        assert!(
+            rect.right() <= WINDOW_MIN_SIZE[0],
+            "{} at {rect:?}",
+            toolbar[index]
+        );
         for other in &rects[index + 1..] {
             assert!(!rect.intersects(*other), "{rect:?} and {other:?}");
         }
