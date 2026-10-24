@@ -22,8 +22,6 @@ use neumann_control_core::speaker::Command;
 /// What the last take-back could not write, for the history window.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TakeBackNotice {
-    pub entry: u64,
-    pub written: usize,
     /// The names of the speakers left out (gone, unreachable, or refused).
     pub skipped: Vec<String>,
 }
@@ -385,7 +383,6 @@ impl NeumannApp {
             self.history.question = Some(id);
             return None;
         }
-        let mut written = 0;
         let mut skipped = Vec::new();
         for (index, change) in entry.changes.iter().enumerate() {
             if !is_open(change) {
@@ -405,7 +402,6 @@ impl NeumannApp {
             };
             speaker.handle.send(command);
             self.history.history.mark_taken_back(id, index);
-            written += 1;
             if let Some(write) = speaker.state.newest_write() {
                 self.history.awaited.push(AwaitedTakeBack {
                     speaker: speaker.state.key.clone(),
@@ -419,11 +415,7 @@ impl NeumannApp {
         if !skipped.is_empty() {
             self.history.open = true;
         }
-        self.history.notice = (!skipped.is_empty()).then_some(TakeBackNotice {
-            entry: id,
-            written,
-            skipped,
-        });
+        self.history.notice = (!skipped.is_empty()).then_some(TakeBackNotice { skipped });
         Some(id)
     }
 
