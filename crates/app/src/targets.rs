@@ -12,21 +12,14 @@ use neumann_control_core::speaker::Identity;
 use crate::state::SpeakerKey;
 
 /// One target per remembered entry in settings order, keyed by the serial once it is known.
-/// A later entry with a key or address already listed is the same speaker and is skipped, as
-/// are entries whose address does not parse; both stay untouched in the settings.
+/// A later entry of a speaker already listed (`same_speaker`) is skipped, as are entries whose
+/// address does not parse; both stay untouched in the settings.
 pub fn targets(manual: &[ManualSpeaker]) -> Vec<(SpeakerKey, SocketAddrV6)> {
     let mut targets: Vec<(SpeakerKey, SocketAddrV6)> = Vec::new();
-    for speaker in manual {
-        let Ok(address) = parse_address(&speaker.address, speaker.port) else {
-            continue;
-        };
-        let key = match &speaker.serial {
-            Some(serial) => SpeakerKey::Serial(serial.clone()),
-            None => SpeakerKey::Address(address),
-        };
-        let listed = targets
-            .iter()
-            .any(|(existing, existing_address)| *existing == key || *existing_address == address);
+    for (key, address) in manual.iter().filter_map(target_of) {
+        let listed = targets.iter().any(|(existing, existing_address)| {
+            same_speaker(existing, *existing_address, &key, address)
+        });
         if !listed {
             targets.push((key, address));
         }
@@ -34,13 +27,39 @@ pub fn targets(manual: &[ManualSpeaker]) -> Vec<(SpeakerKey, SocketAddrV6)> {
     targets
 }
 
-/// Whether a scanned speaker is already shown: by serial when the scan reported one, by
-/// address otherwise.
+fn target_of(entry: &ManualSpeaker) -> Option<(SpeakerKey, SocketAddrV6)> {
+    let address = parse_address(&entry.address, entry.port).ok()?;
+    let key = match &entry.serial {
+        Some(serial) => SpeakerKey::Serial(serial.clone()),
+        None => SpeakerKey::Address(address),
+    };
+    Some((key, address))
+}
+
+/// The same key, or the same address while one of the two has no serial yet. Two serials at
+/// one address are two speakers: one moved there after the other left.
+pub fn same_speaker(
+    key: &SpeakerKey,
+    address: SocketAddrV6,
+    other_key: &SpeakerKey,
+    other_address: SocketAddrV6,
+) -> bool {
+    let by_address = [key, other_key]
+        .iter()
+        .any(|key| matches!(key, SpeakerKey::Address(_)));
+    key == other_key || (by_address && address == other_address)
+}
+
+/// Whether a scanned speaker is already shown (`same_speaker`): by serial, and by address where
+/// one of the two has none.
 pub fn is_shown(found: &Found, shown: &[(SpeakerKey, SocketAddrV6)]) -> bool {
-    shown.iter().any(|(key, address)| match &found.serial {
-        Some(serial) => *key == SpeakerKey::Serial(serial.clone()) || *address == found.address,
-        None => *address == found.address,
-    })
+    let found_key = match &found.serial {
+        Some(serial) => SpeakerKey::Serial(serial.clone()),
+        None => SpeakerKey::Address(found.address),
+    };
+    shown
+        .iter()
+        .any(|(key, address)| same_speaker(key, *address, &found_key, found.address))
 }
 
 /// The settings entry that brings a scanned speaker back at the next start without a scan.
@@ -82,17 +101,15 @@ pub fn follow_moves(manual: &mut Vec<ManualSpeaker>, found: &[Found]) -> bool {
     changed
 }
 
-/// Drops every remembered entry of a removed speaker: those with its serial and those at its
-/// address. True when an entry was removed.
+/// Drops every remembered entry of a removed speaker (`same_speaker`); another speaker's entry
+/// at its address stays. True when an entry was removed.
 pub fn forget(manual: &mut Vec<ManualSpeaker>, key: &SpeakerKey, address: SocketAddrV6) -> bool {
     let before = manual.len();
     manual.retain(|entry| {
-        let same_serial = match key {
-            SpeakerKey::Serial(serial) => entry.serial.as_ref() == Some(serial),
-            SpeakerKey::Address(_) => false,
-        };
-        let same_address = parse_address(&entry.address, entry.port) == Ok(address);
-        !(same_serial || same_address)
+        let target = target_of(entry);
+        !target.is_some_and(|(entry_key, entry_address)| {
+            same_speaker(&entry_key, entry_address, key, address)
+        })
     });
     manual.len() != before
 }
@@ -221,6 +238,39 @@ mod tests {
         ));
     }
 
+    /// A scan found S where T was remembered (T is off, the address went to S): both stay
+    /// targets, S at its new address and T where it was last, told apart by their serials.
+    #[test]
+    fn two_serials_at_one_address_are_two_targets() {
+        let mut entries = vec![
+            manual(ADDRESS_TEXT, Some(OTHER_SERIAL)),
+            manual(OTHER_ADDRESS_TEXT, Some(SERIAL)),
+        ];
+        assert!(follow_moves(
+            &mut entries,
+            &[found(ADDRESS_TEXT, Some(SERIAL))]
+        ));
+        let targets = targets(&entries);
+        assert!(targets.contains(&(SpeakerKey::Serial(SERIAL.to_owned()), address(ADDRESS_TEXT))));
+        assert!(targets.contains(&(
+            SpeakerKey::Serial(OTHER_SERIAL.to_owned()),
+            address(ADDRESS_TEXT)
+        )));
+    }
+
+    /// Removing T, which was remembered where S is now, leaves S remembered.
+    #[test]
+    fn forgetting_a_speaker_keeps_another_serial_at_its_address() {
+        let mut entries = vec![
+            manual(ADDRESS_TEXT, Some(OTHER_SERIAL)),
+            manual(ADDRESS_TEXT, Some(SERIAL)),
+            manual(ADDRESS_TEXT, None),
+        ];
+        let key = SpeakerKey::Serial(OTHER_SERIAL.to_owned());
+        assert!(forget(&mut entries, &key, address(ADDRESS_TEXT)));
+        assert_eq!(entries, vec![manual(ADDRESS_TEXT, Some(SERIAL))]);
+    }
+
     #[test]
     fn later_speakers_with_a_known_serial_are_duplicates() {
         let keys = [
@@ -277,6 +327,8 @@ mod tests {
             &shown
         ));
         assert!(!is_shown(&found(UNUSED_ADDRESS_TEXT, None), &shown));
+        // Another serial where a speaker with a serial is shown: that one moved away.
+        assert!(!is_shown(&found(ADDRESS_TEXT, Some(OTHER_SERIAL)), &shown));
     }
 
     #[test]
