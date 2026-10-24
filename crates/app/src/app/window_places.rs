@@ -7,7 +7,7 @@ use neumann_control_core::settings::WindowGeometry;
 use super::{window_geometry, NeumannApp};
 use crate::groups::member_id;
 use crate::state::SpeakerKey;
-use crate::views::WindowPlace;
+use crate::views::{Opening, WindowPlace};
 use crate::window_placement::{fit_into, WINDOW_MIN_SIZE};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,8 +45,25 @@ pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> Windo
 }
 
 impl NeumannApp {
+    /// How the `kind` window of `key` on `viewport` is drawn: left alone while open, else where
+    /// it was left (or at its default).
+    pub(super) fn opening(
+        &self,
+        context: &Context,
+        viewport: ViewportId,
+        kind: WindowKind,
+        key: &SpeakerKey,
+    ) -> Opening {
+        let open = context.input_for(viewport, |input| input.viewport().outer_rect.is_some());
+        if open {
+            return Opening::Open;
+        }
+        self.saved_place(context, kind, key)
+            .map_or(Opening::Default, Opening::At)
+    }
+
     /// Where the `kind` window of `key` was left, if it was.
-    pub(super) fn saved_place(
+    fn saved_place(
         &self,
         context: &Context,
         kind: WindowKind,
@@ -75,9 +92,9 @@ impl NeumannApp {
         kind: WindowKind,
         key: &SpeakerKey,
     ) {
-        let pixels_per_point = context.pixels_per_point();
+        // The window's own scale: on another monitor it may differ from the main window's.
         let geometry = context.input_for(viewport, |input| {
-            window_geometry(input.viewport(), pixels_per_point)
+            window_geometry(input.viewport(), input.pixels_per_point)
         });
         if let Some(geometry) = geometry {
             self.settings

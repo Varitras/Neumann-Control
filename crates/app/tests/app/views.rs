@@ -8,7 +8,7 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::paths;
 use neumann_control_app::state::{SpeakerKey, SpeakerState};
 use neumann_control_app::texts;
-use neumann_control_app::views::all_values;
+use neumann_control_app::views::{all_values, Opening};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
@@ -454,7 +454,7 @@ fn failure_is_shown() {
     speaker.apply(Event::AllValuesFailed(RAW_FAILURE.to_owned()), 0.0);
     let catalog = Catalog::embedded();
     let harness = Harness::new_ui(|ui| {
-        all_values::show(ui.ctx(), &mut speaker, catalog, None);
+        all_values::show(ui.ctx(), &mut speaker, catalog, Opening::Default);
     });
     harness.get_by_label(texts::ALL_VALUES_FAILED.get());
     assert!(harness.query_by_label_contains("fe12:3456").is_none());

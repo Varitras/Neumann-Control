@@ -8,7 +8,7 @@ use eframe::egui::{
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
-use super::{escape_closes, WindowPlace};
+use super::{escape_closes, placed, Opening};
 use crate::all_values::{rows, Row};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
 use crate::texts;
@@ -29,16 +29,12 @@ pub fn show(
     context: &Context,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
-    place: Option<WindowPlace>,
+    opening: Opening,
 ) -> Vec<Command> {
     let viewport = viewport_of(&speaker.key);
-    let size = place.map_or(Vec2::from(DEFAULT_WINDOW_SIZE), |place| place.size);
-    let mut builder = ViewportBuilder::default()
-        .with_title(texts::all_values_title(&speaker.display_name()))
-        .with_inner_size(size);
-    if let Some(position) = place.and_then(|place| place.position) {
-        builder = builder.with_position(position);
-    }
+    let builder =
+        ViewportBuilder::default().with_title(texts::all_values_title(&speaker.display_name()));
+    let builder = placed(builder, opening, Vec2::from(DEFAULT_WINDOW_SIZE));
     let mut commands = Vec::new();
     let close = context.show_viewport_immediate(viewport, builder, |ui, class| {
         ui.push_id(viewport, |ui| match class {

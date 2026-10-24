@@ -47,7 +47,7 @@ use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
-use crate::views::WindowPlace;
+use crate::views::Opening;
 use crate::views::{all_values, panel, wheel};
 use crate::window_fit::WindowFit;
 use crate::window_placement::{monitor_areas, MonitorArea};
@@ -86,8 +86,6 @@ struct OpenPanel {
     viewport: ViewportId,
     /// Opened again while open: the window comes to the front.
     focus: bool,
-    /// Fixed in the first frame the panel is drawn.
-    placement: Option<WindowPlace>,
 }
 
 /// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
@@ -534,12 +532,12 @@ impl NeumannApp {
                 continue;
             }
             let key = self.speakers[index].state.key.clone();
-            let place = self.saved_place(context, WindowKind::AllValues, &key);
+            let viewport = all_values::viewport_of(&key);
+            let opening = self.opening(context, viewport, WindowKind::AllValues, &key);
             let speaker = &mut self.speakers[index];
-            for command in all_values::show(context, &mut speaker.state, catalog, place) {
+            for command in all_values::show(context, &mut speaker.state, catalog, opening) {
                 speaker.handle.send(command);
             }
-            let viewport = all_values::viewport_of(&key);
             self.remember_place(context, viewport, WindowKind::AllValues, &key);
         }
     }
@@ -555,7 +553,6 @@ impl NeumannApp {
             key,
             viewport,
             focus: false,
-            placement: None,
         });
     }
 
@@ -590,18 +587,17 @@ impl NeumannApp {
         };
         let viewport = open.viewport;
         let key = open.key.clone();
-        if open.placement.is_none() {
-            let saved = self.saved_place(context, WindowKind::Panel, &key);
-            let place = saved.unwrap_or_else(|| {
+        let opening = match self.opening(context, viewport, WindowKind::Panel, &key) {
+            // Never left anywhere: at the main window, as tall as the screen allows.
+            Opening::Default => {
                 let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
                     (input.viewport().outer_rect, input.viewport().monitor_size)
                 });
-                panel::first_place(main, monitor)
-            });
-            self.panels[panel].placement = Some(place);
-        }
+                Opening::At(panel::first_place(main, monitor))
+            }
+            other => other,
+        };
         let open = &mut self.panels[panel];
-        let placement = open.placement.expect("placed above");
         if std::mem::take(&mut open.focus) {
             context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
         }
@@ -648,7 +644,7 @@ impl NeumannApp {
         let response = panel::show(
             context,
             viewport,
-            placement,
+            opening,
             state,
             catalog,
             &choice,

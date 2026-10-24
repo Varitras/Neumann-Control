@@ -30,7 +30,7 @@ pub mod toolbar;
 pub mod trends;
 pub mod wheel;
 
-use eframe::egui::{self, Id, Key, Ui};
+use eframe::egui::{self, Id, Key, Ui, ViewportBuilder};
 
 const BUSY_ID: &str = "escape_busy";
 
@@ -54,4 +54,69 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
 pub struct WindowPlace {
     pub position: Option<eframe::egui::Pos2>,
     pub size: eframe::egui::Vec2,
+}
+
+/// How a window of its own is drawn this frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Opening {
+    /// Not open yet: it opens at this place.
+    At(WindowPlace),
+    /// Not open yet and never left anywhere: the system places it at its default size.
+    Default,
+    /// Already open: it stays where and as large as the user has it.
+    Open,
+}
+
+/// `builder` for a window of `default_size` drawn as `opening` says. An open window gets
+/// neither position nor size: egui sends every difference from the last frame's builder to the
+/// window, which fought the user moving or sizing it.
+pub(crate) fn placed(
+    builder: ViewportBuilder,
+    opening: Opening,
+    default_size: eframe::egui::Vec2,
+) -> ViewportBuilder {
+    match opening {
+        Opening::At(place) => {
+            let sized = builder.with_inner_size(place.size);
+            match place.position {
+                Some(position) => sized.with_position(position),
+                None => sized,
+            }
+        }
+        Opening::Default => builder.with_inner_size(default_size),
+        Opening::Open => builder,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{pos2, vec2};
+
+    const DEFAULT_SIZE: eframe::egui::Vec2 = vec2(400.0, 300.0);
+
+    #[test]
+    fn an_open_window_is_neither_moved_nor_sized() {
+        let builder = placed(ViewportBuilder::default(), Opening::Open, DEFAULT_SIZE);
+        assert_eq!(builder.position, None);
+        assert_eq!(builder.inner_size, None);
+    }
+
+    #[test]
+    fn a_window_opens_where_it_was_left() {
+        let place = WindowPlace {
+            position: Some(pos2(10.0, 20.0)),
+            size: vec2(500.0, 200.0),
+        };
+        let builder = placed(ViewportBuilder::default(), Opening::At(place), DEFAULT_SIZE);
+        assert_eq!(builder.position, Some(pos2(10.0, 20.0)));
+        assert_eq!(builder.inner_size, Some(vec2(500.0, 200.0)));
+    }
+
+    #[test]
+    fn a_window_never_left_opens_at_its_default_size() {
+        let builder = placed(ViewportBuilder::default(), Opening::Default, DEFAULT_SIZE);
+        assert_eq!(builder.position, None);
+        assert_eq!(builder.inner_size, Some(DEFAULT_SIZE));
+    }
 }

@@ -403,10 +403,11 @@ impl NeumannApp {
             asking: window.asking_reset,
             crossover: shown.container.crossover,
         });
-        let place = self.saved_place(context, WindowKind::Eq, &window.key);
+        let viewport = ViewportId::from_hash_of(id);
+        let opening = self.opening(context, viewport, WindowKind::Eq, &window.key);
         let view = EqView {
-            viewport: ViewportId::from_hash_of(id),
-            place,
+            viewport,
+            opening,
             title: texts::eq_window_title(&speaker.display_name()),
             outputs: &output_names,
             output,

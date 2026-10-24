@@ -15,7 +15,7 @@ use super::details;
 use super::escape_closes;
 use super::trends::{self, TemperatureTrend, Trends};
 use super::wheel;
-use super::WindowPlace;
+use super::{placed, Opening, WindowPlace};
 use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
@@ -81,23 +81,20 @@ pub struct GroupChoice<'a> {
     pub start_color: Color32,
 }
 
-/// The panel in its own window (`viewport`), one per speaker, opened at `placement`.
+/// The panel in its own window (`viewport`), one per speaker, opened as `opening` says.
 pub fn show(
     context: &Context,
     viewport: ViewportId,
-    placement: WindowPlace,
+    opening: Opening,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     groups: &GroupChoice,
     layout: Option<&StripLayout>,
 ) -> PanelResponse {
-    let mut builder = ViewportBuilder::default()
+    let builder = ViewportBuilder::default()
         .with_title(texts::panel_window_title(&speaker.display_name()))
-        .with_inner_size(placement.size)
         .with_min_inner_size(PANEL_WINDOW_MIN_SIZE);
-    if let Some(position) = placement.position {
-        builder = builder.with_position(position);
-    }
+    let builder = placed(builder, opening, Vec2::from(PANEL_WINDOW_SIZE));
     context.show_viewport_immediate(viewport, builder, |ui, class| {
         wheel::track_burst(ui.ctx());
         // Several panels can be open; their widgets must not share state.
