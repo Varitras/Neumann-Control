@@ -714,12 +714,7 @@ fn no_strip_moves_in_a_window_narrower_than_the_desk() {
 fn own_layouts_keep_the_other_speaker_of_the_model() {
     let models = [SimModel::Kh120Ii, SimModel::Kh120Ii];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
-    harness.get_by_label(texts::SETTINGS.get()).click();
-    harness.run_steps(2);
-    harness.get_by_label(texts::LAYOUTS_PER_MODEL.get()).click();
-    harness.run_steps(1);
-    harness.key_press(egui::Key::Escape);
-    harness.run_steps(2);
+    switch_to_own_layouts(&mut harness);
     let identify = |harness: &Harness<'static, NeumannApp>| {
         harness
             .query_all_by_role_and_label(Role::Button, texts::IDENTIFY.get())
@@ -737,4 +732,36 @@ fn own_layouts_keep_the_other_speaker_of_the_model() {
     let settings = settings::load(&directory.path().join(settings::SETTINGS_FILE));
     assert!(settings.desk.strip_layouts.is_empty());
     assert_eq!(settings.desk.speaker_strip_layouts.len(), 1);
+}
+
+/// Switches "Same layout for every speaker of a model" off in the settings.
+fn switch_to_own_layouts(harness: &mut Harness<'static, NeumannApp>) {
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::LAYOUTS_PER_MODEL.get()).click();
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+}
+
+/// With own layouts, a knob let go on the other speaker's strip of the same model lands nowhere:
+/// it belongs to its own speaker's layout.
+#[test]
+fn with_own_layouts_a_drag_onto_another_speakers_strip_changes_nothing() {
+    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii];
+    let (_simulators, directory, mut harness) = desk_of(&models, knob_strip_layouts());
+    switch_to_own_layouts(&mut harness);
+    start_editing(&mut harness);
+    let delays: Vec<egui::Pos2> = harness
+        .query_all_by_role_and_label(Role::Slider, label(paths::DELAY))
+        .map(|node| node.rect().center())
+        .collect();
+    let other_mutes: Vec<egui::Pos2> = harness
+        .query_all_by_role_and_label(Role::Button, texts::MUTE.get())
+        .map(|node| node.rect().center())
+        .collect();
+    assert!(other_mutes[1].x > delays[0].x, "the second strip is to the right");
+    drag(&mut harness, delays[0], other_mutes[1]);
+    let settings = settings::load(&directory.path().join(settings::SETTINGS_FILE));
+    assert!(settings.desk.speaker_strip_layouts.is_empty());
 }
