@@ -1,5 +1,5 @@
 //! When the speaker worker reads which path: meters on their own tick, the fast and slow paths
-//! one at a time in turn, so a long round of them never delays the meters.
+//! one at a time in turn, so a long round of them delays the meters by one read at most.
 
 use std::time::{Duration, Instant};
 
@@ -26,6 +26,8 @@ pub struct Schedule {
     next_meter: Instant,
     slots: Vec<Slot>,
     cursor: usize,
+    /// The last item taken was the meters: a due path goes before they come again.
+    meters_last: bool,
 }
 
 impl Schedule {
@@ -55,6 +57,7 @@ impl Schedule {
             next_meter: now + timing.meter,
             slots,
             cursor: 0,
+            meters_last: false,
         }
     }
 
@@ -72,15 +75,21 @@ impl Schedule {
         })
     }
 
-    /// The due item, rescheduled from `now`. Meters go first; of the due paths only the next
-    /// one in turn, so every due path gets its read before any path gets a second one.
+    /// The due item, rescheduled from `now`. Meters go first, but not twice in a row while a
+    /// path is due: a speaker answering the meters slower than their tick (four meter paths on
+    /// the KH 750, or a walk between them) would otherwise never get a path read. Of the due
+    /// paths only the next one in turn, so every due path gets its read before any path gets a
+    /// second one.
     pub fn take_due(&mut self, now: Instant) -> Due {
+        let due_slot = self.next_due_slot(now);
         let meters_due = !self.meters.is_empty() && self.next_meter <= now;
-        if meters_due {
+        let path_waits = self.meters_last && due_slot.is_some();
+        self.meters_last = meters_due && !path_waits;
+        if self.meters_last {
             self.next_meter = now + self.meter_interval;
             return Due::Meters(self.meters.clone());
         }
-        let Some(index) = self.next_due_slot(now) else {
+        let Some(index) = due_slot else {
             return Due::Nothing;
         };
         self.cursor = (index + 1) % self.slots.len();
@@ -152,6 +161,19 @@ mod tests {
         let fast_again = both_due + timing().fast;
         assert_eq!(schedule.take_due(fast_again), Due::Path(slow.path.clone()));
         assert_eq!(schedule.take_due(fast_again), Due::Path(fast.path.clone()));
+    }
+
+    /// A slow speaker (or a walk taking every pause) answers the meters only after their next
+    /// tick is due: one path still gets its read between two meter rounds.
+    #[test]
+    fn meters_overdue_again_still_let_one_path_through() {
+        let start = Instant::now();
+        let mut schedule = schedule(start);
+        let all_due = start + Duration::from_secs(10);
+        assert!(matches!(schedule.take_due(all_due), Due::Meters(_)));
+        let late = all_due + Duration::from_secs(2);
+        assert!(matches!(schedule.take_due(late), Due::Path(_)));
+        assert!(matches!(schedule.take_due(late), Due::Meters(_)));
     }
 
     #[test]
