@@ -154,8 +154,11 @@ fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>),
         return Ok((format!("{first} {Q_SUFFIX}"), rest[1..].to_vec()));
     }
     let shelf = matches!(
-        first.to_ascii_uppercase().as_str(),
-        "LS" | "HS" | "LSC" | "HSC"
+        file_type(first),
+        Ok(Some(FileType {
+            q: QRule::Shelf,
+            ..
+        }))
     );
     if shelf && !second.is_empty() && !is_key(second) {
         return Err(LineProblem::UnsupportedForm(format!("{first} {second}")));

@@ -11,7 +11,7 @@ use neumann_control_core::settings::{
 
 use crate::system_audio::AudioDevice;
 use crate::texts;
-use crate::ui_kit::eq_palette::{band_color, curve_color, hex, BAND_COLOR_COUNT};
+use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COLOR_COUNT};
 
 const MODAL_ID: &str = "settings_dialog";
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
@@ -142,11 +142,9 @@ fn eq_display(ui: &mut Ui, display: &mut EqDisplaySettings, curve_labels: &[(Str
         for band in 0..BAND_COLOR_COUNT {
             let mut color = band_color(display, band, dark);
             ui.horizontal(|ui| {
-                ui.label((band + 1).to_string());
+                ui.label(band_key(band));
                 if color_edit_button_srgba(ui, &mut color, Alpha::Opaque).changed() {
-                    display
-                        .band_colors
-                        .insert((band + 1).to_string(), hex(color));
+                    display.band_colors.insert(band_key(band), hex(color));
                 }
             });
             if (band + 1) % BAND_COLUMNS == 0 {

@@ -51,12 +51,17 @@ pub fn default_band_color(band: usize, dark: bool) -> Color32 {
 pub fn band_color(display: &EqDisplaySettings, band: usize, dark: bool) -> Color32 {
     display
         .band_colors
-        .get(&(band + 1).to_string())
+        .get(&band_key(band))
         .and_then(|text| parse_hex(text))
         .unwrap_or_else(|| default_band_color(band, dark))
 }
 
 /// `eq2`, `eq3`, `eq1/in1` from `audio/out1/eq1/in1`: the container below its output.
+/// The band's key in the settings' colours and its number for the user: counted from 1.
+pub fn band_key(band: usize) -> String {
+    (band + 1).to_string()
+}
+
 pub fn curve_key(container: &SscPath) -> String {
     container.segments().get(2..).unwrap_or_default().join("/")
 }

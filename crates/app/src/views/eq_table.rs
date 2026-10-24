@@ -38,6 +38,9 @@ pub struct Limits {
     pub q: RangeInclusive<f64>,
     pub gain: RangeInclusive<f64>,
     pub types: Vec<String>,
+    /// The catalog's units of frequency and of level and boost.
+    pub frequency_unit: Option<String>,
+    pub gain_unit: Option<String>,
 }
 
 pub struct Table<'a> {
@@ -134,16 +137,22 @@ fn row_cells(
             row.frequency,
             &limits.frequency,
             FREQUENCY_DRAG_SPEED,
-            Some("Hz"),
+            limits.frequency_unit.as_deref(),
         ),
         (Leaf::Q, row.q, &limits.q, Q_STEP, None),
-        (Leaf::Gain, row.gain, &limits.gain, GAIN_GRID_DB, Some("dB")),
+        (
+            Leaf::Gain,
+            row.gain,
+            &limits.gain,
+            GAIN_GRID_DB,
+            limits.gain_unit.as_deref(),
+        ),
         (
             Leaf::Boost,
             row.boost,
             &limits.gain,
             GAIN_GRID_DB,
-            Some("dB"),
+            limits.gain_unit.as_deref(),
         ),
     ];
     for (leaf, value, range, speed, unit) in cells {

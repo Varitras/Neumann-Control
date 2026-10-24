@@ -829,18 +829,22 @@ fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a E
 
 /// The catalog's limits for the container's leaves; without a container, nothing is allowed.
 fn limits_of(catalog: &Catalog, container: Option<&SscPath>) -> Limits {
+    let entry = |leaf: Leaf| {
+        container.and_then(|container| paths::catalog_entry(catalog, &leaf.path(container)))
+    };
     let range = |leaf: Leaf| {
-        let entry =
-            container.and_then(|container| paths::catalog_entry(catalog, &leaf.path(container)));
-        let min = entry.and_then(|entry| entry.min).unwrap_or(0.0);
-        let max = entry.and_then(|entry| entry.max).unwrap_or(0.0);
+        let min = entry(leaf).and_then(|entry| entry.min).unwrap_or(0.0);
+        let max = entry(leaf).and_then(|entry| entry.max).unwrap_or(0.0);
         min..=max
     };
+    let unit = |leaf: Leaf| entry(leaf).and_then(|entry| entry.unit.clone());
     Limits {
         frequency: range(Leaf::Frequency),
         q: range(Leaf::Q),
         gain: range(Leaf::Gain),
         types: EQ_TYPES.iter().map(|kind| (*kind).to_owned()).collect(),
+        frequency_unit: unit(Leaf::Frequency),
+        gain_unit: unit(Leaf::Gain),
     }
 }
 
