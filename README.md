@@ -87,6 +87,8 @@ Put the folder anywhere you can write to, for example in your documents, and sta
 [Files and privacy](#files-and-privacy)). To update, replace the executable and the manual; to
 remove the app, delete the folder.
 
+One app runs per folder: starting it again while it runs brings its window to the front.
+
 ## Getting started
 
 1. Start `neumann-control.exe` and press **Scan**. The scan takes 4 seconds. The dialog
@@ -400,6 +402,7 @@ The app is portable and writes only next to the executable:
 | `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode, the choices from **Settings**, each model's strip layout and compact buttons, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
+| `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
 malformed `settings.json` is renamed to `settings.json.bad` and replaced by defaults. If only some

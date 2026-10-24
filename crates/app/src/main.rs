@@ -10,6 +10,7 @@ use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
 use eframe::wgpu;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::single_instance::{self, Claim};
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::system_audio::CoreAudio;
 use neumann_control_app::system_language;
@@ -61,7 +62,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let directory = executable
         .parent()
         .ok_or("the executable has no parent folder")?;
+    // Before the log is started: it would empty the running app's log.
+    let lock = single_instance::claim(directory);
+    if let Claim::Taken = lock {
+        single_instance::show_running(texts::WINDOW_TITLE);
+        return Ok(());
+    }
     start_log(directory);
+    if let Claim::Unavailable(error) = &lock {
+        log::warn!("no instance lock next to the executable ({})", error.kind());
+    }
     let settings_path = directory.join(SETTINGS_FILE);
     let saved = settings::load(&settings_path);
     let saved_window = saved.window_of_mode();
