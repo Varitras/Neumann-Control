@@ -262,7 +262,8 @@ input B ("Crossover A", "Crossover B").
 ![The EQ window of a KH 750: the curves of EQ 2, EQ 3 and the crossovers with their sum, and the band table](docs/images/eq.png)
 
 - The graph shows every EQ of the output as its own curve and their sum as a thicker line, from
-  10 Hz to 24 kHz. The curves are computed from the settings, not measured, as the speakers'
+  10 Hz to 24 kHz. The KH 750's crossovers lie one per input, so it shows a sum per input (input
+  B dashed). The curves are computed from the settings, not measured, as the speakers'
   digital filters at 48 kHz (checked against measurements of every filter type). Each band has two
   levels: **Level** lifts or lowers every frequency while the band is on, **Boost** is the
   height of its filter (the peak or shelf); at the band's frequency both add up. For a shelving

@@ -2,7 +2,7 @@
 //! backend has only one): output and container choice, the graph and the band table.
 
 use eframe::egui::{
-    self, vec2, Button, Color32, Context, Id, Key, Modal, RichText, ScrollArea, Ui,
+    self, vec2, Button, Color32, Context, Id, Key, Modal, RichText, ScrollArea, Shape, Stroke, Ui,
     ViewportBuilder, ViewportClass, ViewportId,
 };
 
@@ -16,6 +16,9 @@ use crate::texts;
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
 const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
+const SUM_SWATCH_LENGTH: f32 = 18.0;
+const SUM_SWATCH_WIDTH: f32 = 2.5;
+const SUM_SWATCH_DASH: f32 = 3.0;
 const IMPORT_ID: &str = "eq_import";
 const IMPORT_LIST_HEIGHT: f32 = 240.0;
 
@@ -43,6 +46,8 @@ pub struct EqView<'a> {
     pub candidates: &'a [(String, bool)],
     /// The compared curves that are drawn, for the legend: name and colour.
     pub compared: &'a [(String, Color32)],
+    /// The sums' legend: name and whether it is drawn dashed.
+    pub sums: &'a [(String, bool)],
     /// Whether the chosen container can be saved as or loaded from a preset, or imported into.
     pub presets: bool,
     pub preset_dialog: Option<PresetDialogView<'a>>,
@@ -180,7 +185,10 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
                 actions.push(EqAction::Container(index));
             }
         }
-        ui.label(RichText::new(texts::EQ_SUM).strong());
+        for (name, dashed) in view.sums {
+            sum_swatch(ui, *dashed);
+            ui.label(RichText::new(name).strong());
+        }
         for (name, color) in view.compared {
             let (swatch, _) =
                 ui.allocate_exact_size(vec2(LEGEND_SWATCH, LEGEND_SWATCH), egui::Sense::hover());
@@ -408,4 +416,21 @@ fn reset_question(ui: &mut Ui, reset: &ResetOffer, kind: ResetKind) -> Option<Eq
     ui.button(texts::CANCEL)
         .clicked()
         .then_some(EqAction::ResetCancel)
+}
+
+/// A short piece of the sum's line, solid or dashed, so the legend tells the inputs apart.
+fn sum_swatch(ui: &mut Ui, dashed: bool) {
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(SUM_SWATCH_LENGTH, LEGEND_SWATCH), egui::Sense::hover());
+    let stroke = Stroke::new(SUM_SWATCH_WIDTH, ui.visuals().text_color());
+    let line = [rect.left_center(), rect.right_center()];
+    match dashed {
+        true => {
+            let dashes = Shape::dashed_line(&line, stroke, SUM_SWATCH_DASH, SUM_SWATCH_DASH);
+            ui.painter().extend(dashes);
+        }
+        false => {
+            ui.painter().line_segment(line, stroke);
+        }
+    }
 }

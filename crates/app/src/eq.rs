@@ -175,6 +175,37 @@ pub fn one_band(length: usize, band: usize, value: Value) -> Option<Value> {
     Some(Value::Array(array))
 }
 
+/// One output's response for each input that has containers of its own (the KH 750's
+/// crossovers): the containers every input passes plus that input's. The crossovers lie side by
+/// side, one per input, so adding them all would describe a signal no input takes. Without
+/// input-specific containers there is one sum, named `None`. `curves` are in dB per frequency.
+pub fn input_sums(
+    curves: &[(Option<&str>, &[f64])],
+    points: usize,
+) -> Vec<(Option<String>, Vec<f64>)> {
+    let mut inputs: Vec<&str> = curves.iter().filter_map(|(input, _)| *input).collect();
+    inputs.dedup();
+    let sum_for = |input: Option<&str>| -> Vec<f64> {
+        let passes = |own: &Option<&str>| own.is_none() || *own == input;
+        (0..points)
+            .map(|point| {
+                curves
+                    .iter()
+                    .filter(|(own, _)| passes(own))
+                    .map(|(_, curve)| curve[point])
+                    .sum()
+            })
+            .collect()
+    };
+    if inputs.is_empty() {
+        return vec![(None, sum_for(None))];
+    }
+    inputs
+        .into_iter()
+        .map(|input| (Some(input.to_owned()), sum_for(Some(input))))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +284,33 @@ mod tests {
         let mut values = two_bands();
         values.remove(&container().child("type"));
         assert_eq!(bands_of(&values, &container()), None);
+    }
+
+    #[test]
+    fn the_crossovers_of_two_inputs_are_summed_apart() {
+        let shared = [1.0, 2.0];
+        let crossover_a = [-10.0, 0.0];
+        let crossover_b = [0.0, -20.0];
+        let curves = [
+            (None, &shared[..]),
+            (Some("A"), &crossover_a[..]),
+            (Some("B"), &crossover_b[..]),
+        ];
+        assert_eq!(
+            input_sums(&curves, 2),
+            vec![
+                (Some("A".to_owned()), vec![-9.0, 2.0]),
+                (Some("B".to_owned()), vec![1.0, -18.0]),
+            ]
+        );
+    }
+
+    #[test]
+    fn containers_without_an_input_give_one_sum() {
+        let first = [1.0, 2.0];
+        let second = [3.0, 4.0];
+        let curves = [(None, &first[..]), (None, &second[..])];
+        assert_eq!(input_sums(&curves, 2), vec![(None, vec![4.0, 6.0])]);
     }
 
     #[test]

@@ -48,6 +48,13 @@ pub struct GraphCurve<'a> {
     pub db: &'a [f64],
 }
 
+/// The sum of an output, or of one input where the output has a crossover per input; the
+/// second input's is drawn dashed.
+pub struct SumCurve<'a> {
+    pub db: &'a [f64],
+    pub dashed: bool,
+}
+
 /// Another speaker's sum on the same output, drawn dashed for comparison.
 pub struct ComparedCurve<'a> {
     pub color: Color32,
@@ -69,7 +76,7 @@ pub struct Graph<'a> {
     pub id: Id,
     pub frequencies: &'a [f64],
     pub curves: &'a [GraphCurve<'a>],
-    pub sum: &'a [f64],
+    pub sums: &'a [SumCurve<'a>],
     pub compared: &'a [ComparedCurve<'a>],
     /// Each band on its own, `None` for a band that is off; drawn thin in the band's colour.
     pub band_curves: &'a [Option<Vec<f64>>],
@@ -150,13 +157,13 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
         paint_dashed(ui, &axes, graph.frequencies, curve.db, stroke);
     }
     paint_band_curves(ui, graph, &axes);
-    paint_curve(
-        ui,
-        &axes,
-        graph.frequencies,
-        graph.sum,
-        Stroke::new(SUM_WIDTH, tokens.text),
-    );
+    for sum in graph.sums {
+        let stroke = Stroke::new(SUM_WIDTH, tokens.text);
+        match sum.dashed {
+            true => paint_dashed(ui, &axes, graph.frequencies, sum.db, stroke),
+            false => paint_curve(ui, &axes, graph.frequencies, sum.db, stroke),
+        }
+    }
     let mut actions = Vec::new();
     // A band that is off changes nothing; it is switched on in the table.
     let enabled: Vec<(usize, &GraphPoint)> = graph
@@ -185,7 +192,8 @@ fn db_span(graph: &Graph) -> f64 {
     let own = graph.curves.iter().map(|curve| curve.db);
     let compared = graph.compared.iter().map(|curve| curve.db);
     let curves = own.chain(compared).flatten();
-    let boosts = curves.chain(graph.sum).copied().filter(|db| *db > 0.0);
+    let sums = graph.sums.iter().flat_map(|sum| sum.db);
+    let boosts = curves.chain(sums).copied().filter(|db| *db > 0.0);
     let points = graph
         .points
         .iter()

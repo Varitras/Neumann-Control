@@ -397,6 +397,10 @@ pub struct EqContainer {
     /// is never reset to flat.
     #[serde(default)]
     pub crossover: bool,
+    /// The input whose signal alone passes this container (a crossover: "A" or "B"); `None`
+    /// for a container every input passes.
+    #[serde(default)]
+    pub input: Option<String>,
 }
 
 impl EqContainer {

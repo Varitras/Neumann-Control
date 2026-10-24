@@ -528,3 +528,14 @@ fn every_error_has_a_text() {
         assert!(!text.is_empty());
     }
 }
+
+/// The EQ sum of an output is drawn per input; a crossover without its input would be added to
+/// every input's sum.
+#[test]
+fn every_crossover_names_its_input() {
+    let catalog = Catalog::embedded();
+    for container in catalog.eq_containers("KH 750") {
+        let named = matches!(container.input.as_deref(), Some("A" | "B"));
+        assert_eq!(container.crossover, named, "{}", container.path);
+    }
+}

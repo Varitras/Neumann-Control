@@ -8,7 +8,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::NeumannApp;
-use crate::eq::{bands_of, container_of, has_eq, one_band, Band, Leaf, ResetKind};
+use crate::eq::{bands_of, container_of, has_eq, input_sums, one_band, Band, Leaf, ResetKind};
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
@@ -17,7 +17,7 @@ use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, curve_color, curve_key};
 use crate::ui_kit::theme::group_color;
-use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint};
+use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint, SumCurve};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
 use crate::views::eq_window::{self, EqAction, EqView, ImportView, PresetDialogView, ResetOffer};
 use crate::writes::{self, Intent};
@@ -163,8 +163,28 @@ impl NeumannApp {
                 }
             })
             .collect();
-        let sum: Vec<f64> = (0..frequencies.len())
-            .map(|point| shown.iter().map(|container| container.curve[point]).sum())
+        let tagged: Vec<(Option<&str>, &[f64])> = shown
+            .iter()
+            .map(|shown| (shown.container.input.as_deref(), shown.curve.as_slice()))
+            .collect();
+        let sums = input_sums(&tagged, frequencies.len());
+        let sum_curves: Vec<SumCurve> = sums
+            .iter()
+            .enumerate()
+            .map(|(place, (_, db))| SumCurve {
+                db,
+                dashed: place > 0,
+            })
+            .collect();
+        let sum_legend: Vec<(String, bool)> = sums
+            .iter()
+            .enumerate()
+            .map(|(place, (input, _))| {
+                let name = input
+                    .as_deref()
+                    .map_or_else(|| texts::EQ_SUM.get().to_owned(), texts::eq_input_sum);
+                (name, place > 0)
+            })
             .collect();
         let key = shown.first().map(|shown| output_key(shown.container));
         let others: Vec<&SpeakerState> = self
@@ -183,19 +203,19 @@ impl NeumannApp {
             .iter()
             .map(|other| (other.display_name(), window.compared.contains(&other.key)))
             .collect();
-        let compared_sums: Vec<(String, Color32, Vec<f64>)> = others
+        let compared_sums: Vec<(String, Color32, Vec<Vec<f64>>)> = others
             .iter()
             .filter(|other| window.compared.contains(&other.key))
             .filter_map(|other| {
-                let sum = output_sum(catalog, other, key.as_deref()?, &frequencies)?;
-                Some((other.display_name(), sum))
+                let sums = output_sums(catalog, other, key.as_deref()?, &frequencies)?;
+                Some((other.display_name(), sums))
             })
             .enumerate()
-            .map(|(place, (name, sum))| (name, group_color((shown.len() + place) as u8), sum))
+            .map(|(place, (name, sums))| (name, group_color((shown.len() + place) as u8), sums))
             .collect();
         let compared_curves: Vec<ComparedCurve> = compared_sums
             .iter()
-            .map(|(_, color, db)| ComparedCurve { color: *color, db })
+            .flat_map(|(_, color, sums)| sums.iter().map(|db| ComparedCurve { color: *color, db }))
             .collect();
         let legend: Vec<(String, Color32)> = compared_sums
             .iter()
@@ -255,7 +275,7 @@ impl NeumannApp {
             id: id.with(EQ_GRAPH_ID).with((window.output, chosen)),
             frequencies: &frequencies,
             curves: &curves,
-            sum: &sum,
+            sums: &sum_curves,
             compared: &compared_curves,
             band_curves: &own_curves,
             band_curve_mode: display.band_curves,
@@ -385,6 +405,7 @@ impl NeumannApp {
             outputs: &output_names,
             output,
             tabs: &tabs,
+            sums: &sum_legend,
             container: chosen,
             graph,
             table,
@@ -773,27 +794,32 @@ fn has_output(catalog: &Catalog, product: &str, key: &str) -> bool {
         .any(|container| output_key(container) == key)
 }
 
-/// The sum of the speaker's EQs on output `key`; `None` while it reported none of them.
-fn output_sum(
+/// The sums of the speaker's EQs on output `key`, one per input where it has crossovers; `None`
+/// while it reported none of them.
+fn output_sums(
     catalog: &Catalog,
     speaker: &SpeakerState,
     key: &str,
     frequencies: &[f64],
-) -> Option<Vec<f64>> {
-    let curves: Vec<Vec<f64>> = catalog
+) -> Option<Vec<Vec<f64>>> {
+    let curves: Vec<(Option<&str>, Vec<f64>)> = catalog
         .eq_containers(speaker.product())
         .into_iter()
         .filter(|container| output_key(container) == key)
-        .filter_map(|container| bands_of(&speaker.values, &container.path))
-        .map(|bands| curve_db(&bands, frequencies))
+        .filter_map(|container| {
+            let bands = bands_of(&speaker.values, &container.path)?;
+            Some((container.input.as_deref(), curve_db(&bands, frequencies)))
+        })
         .collect();
     if curves.is_empty() {
         return None;
     }
-    let sum = (0..frequencies.len())
-        .map(|point| curves.iter().map(|curve| curve[point]).sum())
+    let tagged: Vec<(Option<&str>, &[f64])> = curves
+        .iter()
+        .map(|(input, curve)| (*input, curve.as_slice()))
         .collect();
-    Some(sum)
+    let sums = input_sums(&tagged, frequencies.len());
+    Some(sums.into_iter().map(|(_, db)| db).collect())
 }
 
 /// The speaker's EQ containers by output (`out`, `out1`, `out2`), in catalog order.

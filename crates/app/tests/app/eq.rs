@@ -1120,3 +1120,18 @@ fn deleting_an_eq_preset_asks_first() {
     harness.run_steps(3);
     assert!(saved_eq_presets(&directory).is_empty());
 }
+
+/// The KH 750's crossovers lie side by side, one per input: its sum is drawn per input.
+#[test]
+fn the_kh750_sum_is_drawn_per_input() {
+    let (_simulator, _directory, harness) = open_eq(SimModel::Kh750);
+    harness.get_by_label(&texts::eq_input_sum("A"));
+    harness.get_by_label(&texts::eq_input_sum("B"));
+    assert!(harness.query_by_label(texts::EQ_SUM.get()).is_none());
+}
+
+#[test]
+fn a_monitor_has_one_sum() {
+    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    harness.get_by_label(texts::EQ_SUM.get());
+}

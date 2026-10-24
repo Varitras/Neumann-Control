@@ -436,6 +436,11 @@ pub fn delete_question(name: &str) -> String {
     pick(format!("„{name}“ löschen?"), format!("Delete \"{name}\"?"))
 }
 
+/// The EQ sum of one input, where an output has a crossover per input.
+pub fn eq_input_sum(input: &str) -> String {
+    pick(format!("Summe {input}"), format!("Sum {input}"))
+}
+
 pub fn speaker_count(count: usize) -> String {
     pick(
         format!("{count} Lautsprecher"),
