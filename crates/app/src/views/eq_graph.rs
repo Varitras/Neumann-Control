@@ -290,7 +290,8 @@ fn band_point(
 ) -> Vec<GraphAction> {
     let id = graph.id.with(band);
     let drag_id = id.with(DRAG_ID);
-    // A gesture that ended while the point was not drawn (band switched off) leaves no state behind.
+    // A gesture that ended while the point was not drawn (band switched off) leaves its state
+    // behind; it counts only while this point's drag goes on, and a new drag starts afresh.
     let dragging = ui.ctx().is_being_dragged(id) || ui.ctx().drag_stopped_id() == Some(id);
     let drag = ui
         .data(|data| data.get_temp::<PointDrag>(drag_id))
@@ -318,7 +319,9 @@ fn band_point(
         let pressed = ui
             .input(|input| input.pointer.press_origin())
             .unwrap_or(pointer);
-        let mut state = drag.unwrap_or(PointDrag {
+        // A new gesture takes its own offset, not one left by a drag that ended unseen.
+        let earlier = drag.filter(|_| !response.drag_started());
+        let mut state = earlier.unwrap_or(PointDrag {
             offset: home - pressed,
             at: home,
         });
