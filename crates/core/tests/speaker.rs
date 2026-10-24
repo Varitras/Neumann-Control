@@ -257,9 +257,10 @@ fn set_command_emits_confirmed_value() {
         path: mute.clone(),
         value: json!(true),
     });
+    // The write's own answer, not a later poll of the path.
     collect_until(&events, EVENT_DEADLINE, |event| {
         *event
-            == Event::Value {
+            == Event::Written {
                 path: mute.clone(),
                 value: json!(true),
             }
