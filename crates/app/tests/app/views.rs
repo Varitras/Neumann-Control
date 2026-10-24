@@ -708,6 +708,24 @@ fn settings_dialog_switches_theme_and_saves_on_change() {
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
 }
 
+/// Unticking "Protect crossovers" opens them in the saved settings, ticking it again protects.
+#[test]
+fn the_crossover_switch_is_saved() {
+    use neumann_control_core::settings::CrossoverGuard;
+    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let path = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    let guard = || neumann_control_core::settings::load(&path).desk.crossovers;
+    open_settings(&mut harness);
+    scroll_to_and_click(&mut harness, texts::PROTECT_CROSSOVERS.get());
+    harness.run_steps(2);
+    assert_eq!(guard(), CrossoverGuard::Open);
+    scroll_to_and_click(&mut harness, texts::PROTECT_CROSSOVERS.get());
+    harness.run_steps(2);
+    assert_eq!(guard(), CrossoverGuard::Protected);
+}
+
 /// The delay as the distance sound travels: shown at once on the strip's knob and saved.
 #[test]
 fn the_delay_unit_switches_to_meters_and_is_saved() {

@@ -362,6 +362,32 @@ fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
     harness.get_by_label(&texts::take_back_skipped(&[name]));
 }
 
+/// Cancel and Escape in the "changed since" question both leave the value as it is now.
+#[test]
+fn the_changed_since_question_cancels_by_button_and_escape() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
+    wait_for_level(&mut harness, 90.0);
+    drag_fader_down(&mut harness);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_for_label(&mut harness, texts::REVERT.get());
+    harness.get_by_label(texts::CANCEL.get()).click();
+    harness.run_steps(3);
+    assert!(harness.query_by_label(texts::REVERT.get()).is_none());
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_for_label(&mut harness, texts::REVERT.get());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+    assert!(harness.query_by_label(texts::REVERT.get()).is_none());
+    barrier(&simulator);
+    assert_eq!(level_sets(&simulator).len(), 1);
+}
+
 #[test]
 fn ctrl_z_on_a_changed_value_asks_and_reverts_on_confirm() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
