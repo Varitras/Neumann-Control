@@ -39,7 +39,7 @@ pub struct Settings {
     /// The windows of their own (device panel, EQ, all values) as the user left them, by kind
     /// and speaker, in screen pixels like `window`.
     #[serde(
-        deserialize_with = "or_default",
+        deserialize_with = "readable_entries",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub windows: BTreeMap<String, WindowGeometry>,
@@ -60,13 +60,13 @@ pub struct Settings {
     pub eq_display: EqDisplaySettings,
     /// Speaker identity → its strip's colour; a speaker not listed takes its group's.
     #[serde(
-        deserialize_with = "or_default",
+        deserialize_with = "readable_entries",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub strip_colors: BTreeMap<String, ColorChoice>,
     /// Serial → what that speaker last reported about itself, so it keeps its name while off.
     #[serde(
-        deserialize_with = "or_default",
+        deserialize_with = "readable_entries",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub known: BTreeMap<String, KnownSpeaker>,
@@ -86,10 +86,10 @@ pub struct EqDisplaySettings {
     #[serde(deserialize_with = "or_default")]
     pub band_curves: BandCurves,
     /// Band number (from 1) → `#rrggbb`; a band not listed has its default colour.
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "readable_entries")]
     pub band_colors: BTreeMap<String, String>,
     /// Container below its output (`eq2`, `eq1/in1`, ...) → `#rrggbb`.
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "readable_entries")]
     pub curve_colors: BTreeMap<String, String>,
 }
 
@@ -517,6 +517,16 @@ where
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + left_out));
     }
     Ok(readable)
+}
+
+/// Like `readable_items` for a map by name (colours, window places, known speakers): an entry
+/// this version cannot read is left out, not the map.
+fn readable_entries<'de, D, T>(deserializer: D) -> Result<BTreeMap<String, T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    readable_map(deserializer, "settings entries")
 }
 
 /// Like `readable_items` for the layout map: an entry this version cannot read is left out.
