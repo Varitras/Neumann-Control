@@ -324,6 +324,22 @@ fn an_empty_number_range_is_an_error() {
     assert_eq!(invalid_reason(&format!("{LEVEL}min = 0\nmax = 120")), None);
 }
 
+/// A text without a length limit would let a typed name grow without end on the speaker.
+#[test]
+fn a_text_without_max_length_is_an_error() {
+    let name = r#"
+    path = "device/name"
+    label = "Name"
+    label_en = "Name"
+    group = "device"
+    kind = "text"
+    poll = "slow"
+    class = "all"
+"#;
+    assert_eq!(invalid_reason(name), Some("text without max_length"));
+    assert_eq!(invalid_reason(&format!("{name}max_length = 32")), None);
+}
+
 #[test]
 fn every_entry_has_a_label_in_each_language() {
     for entry in &Catalog::embedded().entries {

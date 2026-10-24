@@ -186,6 +186,18 @@ mod tests {
         assert!(due_paths(&mut schedule, all_due).is_empty());
     }
 
+    /// A meter the speaker does not have is no longer read with the others.
+    #[test]
+    fn forget_drops_a_meter_path() {
+        let start = Instant::now();
+        let mut schedule = schedule(start);
+        let meters = schedule.meters.clone();
+        let (forgotten, kept) = meters.split_first().unwrap();
+        schedule.forget(forgotten);
+        let meter_time = start + Duration::from_secs(20);
+        assert_eq!(schedule.take_due(meter_time), Due::Meters(kept.to_vec()));
+    }
+
     #[test]
     fn forget_removes_only_that_path() {
         let start = Instant::now();

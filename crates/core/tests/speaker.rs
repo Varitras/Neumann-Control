@@ -849,6 +849,20 @@ fn drop_during_connect_read_returns_promptly() {
     assert!(started.elapsed() < STOP_DEADLINE);
 }
 
+/// Exactly at the depth limit the walk still reads the leaf; one level deeper ends it.
+#[test]
+fn a_schema_at_the_depth_limit_is_read() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let deepest = (1..=MAX_SCHEMA_DEPTH)
+        .map(|level| format!("level{level}"))
+        .collect::<Vec<_>>()
+        .join("/");
+    simulator.set_value(&deepest, json!(1));
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+    let reports = read_all(&mut client, &|| false).expect("the walk reaches the limit");
+    assert!(reports.iter().any(|leaf| leaf.path == path(&deepest)));
+}
+
 #[test]
 fn oversized_schema_fails_read_all_but_keeps_connection() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
