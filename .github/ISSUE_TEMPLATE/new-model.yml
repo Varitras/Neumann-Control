@@ -1,0 +1,35 @@
+name: Support for another model
+description: Send the Full scan of a speaker the app only reads, so it can learn to write it.
+title: "Support for <model>"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        In the device panel of the speaker, open **All values…** and press **Full scan**. It
+        writes `scan-<model>-<firmware>-<date>-<time>.json` and `.txt` next to the executable,
+        without serial number, MAC address, the speaker's name or any network address.
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: KH 80
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+    validations:
+      required: true
+  - type: textarea
+    id: scan
+    attributes:
+      label: Full scan files
+      description: Drag both scan files (.json and .txt) into this field.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Settings you would like to change, or what differs from the KH 120 II.

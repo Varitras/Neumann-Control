@@ -405,6 +405,11 @@ listed there for a path is read-only, so models whose behaviour is unknown never
 Settings that only exist on some models (subwoofer outputs, logo brightness) appear only for those
 models.
 
+To bring another model to writing, its reported values are needed: in its device panel open
+**All values…**, press **Full scan** and attach both files to a
+[new-model issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml).
+They hold no serial number, MAC address, name or network address.
+
 ## Files and privacy
 
 The app talks to the speakers on the local network. It goes to the internet only when you click
@@ -442,7 +447,9 @@ start.
   back, and the speaker refuses writes to it.
 - What **Mute persist** does is not known yet; the app only shows and writes the speaker's own
   setting.
-- Models other than the KH 120 II and the KH 750 are read-only.
+- Models other than the KH 120 II and the KH 750 are read-only. If you have one, please
+  [open an issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml)
+  with its **Full scan** (see [Supported models](#supported-models)).
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - Windows only.
 
