@@ -107,10 +107,21 @@ impl History {
     }
 
     pub fn mark_taken_back(&mut self, id: u64, change: usize) {
-        let entry = self.entries.iter_mut().find(|entry| entry.id == id);
-        if let Some(change) = entry.and_then(|entry| entry.changes.get_mut(change)) {
+        if let Some(change) = self.change_mut(id, change) {
             change.taken_back = true;
         }
+    }
+
+    /// A take-back the speaker refused did not happen: the change can be taken back again.
+    pub fn reopen(&mut self, id: u64, change: usize) {
+        if let Some(change) = self.change_mut(id, change) {
+            change.taken_back = false;
+        }
+    }
+
+    fn change_mut(&mut self, id: u64, change: usize) -> Option<&mut Change> {
+        let entry = self.entries.iter_mut().find(|entry| entry.id == id)?;
+        entry.changes.get_mut(change)
     }
 }
 

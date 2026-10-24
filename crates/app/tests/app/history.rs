@@ -8,6 +8,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::history::{is_open, Entry};
 use neumann_control_app::texts;
+use neumann_control_core::settings::SettingsPreset;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
 
@@ -109,6 +110,67 @@ fn taking_back_writes_the_value_before() {
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0].takes_back, Some(id));
     assert!(entries[1].changes[0].taken_back);
+}
+
+/// A take-back the speaker refuses (the rear switch went to LOCAL) did not happen: the entry
+/// stays open, so it can be taken back once the speaker accepts writes again.
+#[test]
+fn a_refused_take_back_leaves_the_entry_open() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    harness.get_by_label(texts::MUTE.get()).click();
+    wait_until(&mut harness, "mute", |_| {
+        sets(&simulator, "/audio/out/mute") == [json!(true)]
+    });
+    let id = entries(&harness)[0].id;
+    simulator.set_value("ui/control_mode", json!("LOCAL"));
+    take_back(&mut harness, id);
+    wait_until(&mut harness, "the unmute sent", |_| {
+        sets(&simulator, "/audio/out/mute").len() == 2
+    });
+    // Later polls answered means the refusal of the unmute reached the window too.
+    barrier(&simulator);
+    harness.run_steps(3);
+    let original = harness.state().history().entry(id).unwrap().clone();
+    assert!(is_open(&original.changes[0]), "{original:?}");
+}
+
+/// A loaded preset is one entry with a change per setting; its unreachable speaker is named
+/// once in the notice, not once per setting.
+#[test]
+fn a_speaker_left_out_of_a_take_back_is_named_once() {
+    let evening = SettingsPreset {
+        name: "Evening".to_owned(),
+        product: "KH 120 II".to_owned(),
+        values: [
+            (LEVEL_PATH.to_owned(), json!(90.0)),
+            ("audio/out/delay".to_owned(), json!(10)),
+        ]
+        .into(),
+    };
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimModel::Kh120Ii, vec![evening]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimModel::Kh120Ii),
+        "Evening",
+        "KH 120 II",
+    );
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    wait_until(&mut harness, "the preset written", |_| {
+        level_sets(&simulator) == [90.0]
+    });
+    harness.run_steps(2);
+    let id = entries(&harness)[0].id;
+    assert_eq!(entries(&harness)[0].changes.len(), 2);
+    simulator.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    take_back(&mut harness, id);
+    let notice = harness
+        .state()
+        .take_back_notice()
+        .expect("a notice")
+        .clone();
+    assert_eq!(notice.skipped, vec![device_name(SimModel::Kh120Ii)]);
 }
 
 #[test]
@@ -287,6 +349,20 @@ fn ctrl_z_in_a_text_field_does_not_take_back() {
     harness.run_steps(5);
     barrier(&simulator);
     assert_eq!(sets(&simulator, "/audio/out/mute").len(), 1);
+}
+
+/// Ctrl+Z with the history closed: what could not be taken back is still told, in the history
+/// window it opens.
+#[test]
+fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    click_mute(&mut harness, &simulator, 1);
+    simulator.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(3);
+    let name = device_name(SimModel::Kh120Ii).to_owned();
+    harness.get_by_label(&texts::take_back_skipped(&[name]));
 }
 
 #[test]

@@ -21,7 +21,7 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
+    self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings, SettingsPreset,
     StoredStripLayout, StripElement, WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -372,6 +372,41 @@ pub fn connected_speaker(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     connected_speaker_with(model, |_| {})
+}
+
+/// Like `connected_speaker`, with settings presets in the file the app starts from (one written
+/// by hand or by another version can hold what the app would not save).
+pub fn connected_speaker_with_presets(
+    model: SimModel,
+    presets: Vec<SettingsPreset>,
+) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let simulator = Simulator::start(model);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut stored = settings::load(&path);
+    stored.presets = presets;
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_for_level(&mut harness, 100.0);
+    wait_for_initial_read(&mut harness, &simulator);
+    (simulator, directory, harness)
+}
+
+/// Selects the stored preset `name` of `product` in the load dialog of the speaker `speaker`.
+pub fn open_stored_preset(
+    harness: &mut Harness<'static, NeumannApp>,
+    speaker: &str,
+    name: &str,
+    product: &str,
+) {
+    open_panel(harness, speaker);
+    scroll_to_and_click(harness, texts::LOAD_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry(name, product))
+        .click();
+    // The preview grows the dialog, which centres itself again over a few frames.
+    harness.run_steps(6);
 }
 
 /// Like `connected_speaker`, with values set on the simulator before the app first reads them.

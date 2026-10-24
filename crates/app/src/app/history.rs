@@ -10,7 +10,7 @@ use crate::display::{conversion_of, converted};
 use crate::eq::{container_of, output_key, several_outputs};
 use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
-use crate::state::{SpeakerState, Status};
+use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::views::history::{
     self as history_view, HistoryAction, HistoryRow, QuestionAction, UNDO_SHORTCUT,
@@ -38,6 +38,17 @@ pub(super) struct HistoryState {
     pub question: Option<u64>,
     pub notice: Option<TakeBackNotice>,
     pub open: bool,
+    /// Take-back writes the speaker has not answered yet.
+    awaited: Vec<AwaitedTakeBack>,
+}
+
+/// A change marked taken back when its write was sent; refused, it is open again.
+#[derive(Debug)]
+struct AwaitedTakeBack {
+    speaker: SpeakerKey,
+    write: u64,
+    entry: u64,
+    change: usize,
 }
 
 /// How a change reads: whose, which setting, and its unit.
@@ -84,7 +95,6 @@ impl Described {
 impl NeumannApp {
     pub(super) fn open_history(&mut self) {
         self.history.open = true;
-        self.history.notice = None;
     }
 
     /// Ctrl+Z: takes back the newest open entry. Not while a text field has the keyboard (it
@@ -130,7 +140,10 @@ impl NeumannApp {
         };
         match history_view::show(ui, count, &row_at, notice.as_deref()) {
             HistoryAction::None => {}
-            HistoryAction::Close => self.history.open = false,
+            HistoryAction::Close => {
+                self.history.open = false;
+                self.history.notice = None;
+            }
             HistoryAction::TakeBack(id) => self.request_take_back(id),
         }
     }
@@ -315,6 +328,7 @@ impl NeumannApp {
     /// Last in the frame: runs a requested take-back, then files everything this frame wrote,
     /// the take-back's own writes included, as one entry.
     pub(super) fn finish_history_frame(&mut self, now: f64) {
+        self.settle_take_backs();
         let mut takes_back = None;
         if let Some((id, confirmed)) = self.history.request.take() {
             takes_back = self.take_back(id, confirmed, now);
@@ -341,6 +355,27 @@ impl NeumannApp {
         self.history.history.push(clock_now(), changes, takes_back);
     }
 
+    /// Opens again the changes whose take-back the speaker refused; forgets the ones answered
+    /// or never to be answered.
+    fn settle_take_backs(&mut self) {
+        for speaker in &mut self.speakers {
+            let refused = std::mem::take(&mut speaker.state.refused_writes);
+            let key = &speaker.state.key;
+            let awaited = self.history.awaited.iter();
+            for awaited in awaited.filter(|awaited| awaited.speaker == *key) {
+                if refused.contains(&awaited.write) {
+                    self.history.history.reopen(awaited.entry, awaited.change);
+                }
+            }
+        }
+        let speakers = &self.speakers;
+        self.history.awaited.retain(|awaited| {
+            speakers.iter().any(|speaker| {
+                speaker.state.key == awaited.speaker && speaker.state.awaits_write(awaited.write)
+            })
+        });
+    }
+
     /// Writes the open changes' values before; returns the entry when it was taken back (in
     /// part or whole), `None` when it waits for the user's answer or is gone.
     fn take_back(&mut self, id: u64, confirmed: bool, now: f64) -> Option<u64> {
@@ -361,18 +396,28 @@ impl NeumannApp {
                 .iter_mut()
                 .find(|speaker| speaker.state.key == change.speaker);
             let Some(speaker) = speaker else {
-                skipped.push(texts::REMOVED_SPEAKER.get().to_owned());
+                skip(&mut skipped, texts::REMOVED_SPEAKER.get().to_owned());
                 continue;
             };
-            let sent = send_before(&mut speaker.state, change, catalog, now);
-            match sent {
-                Some(command) => {
-                    speaker.handle.send(command);
-                    self.history.history.mark_taken_back(id, index);
-                    written += 1;
-                }
-                None => skipped.push(speaker.state.display_name()),
+            let Some(command) = send_before(&mut speaker.state, change, catalog, now) else {
+                skip(&mut skipped, speaker.state.display_name());
+                continue;
+            };
+            speaker.handle.send(command);
+            self.history.history.mark_taken_back(id, index);
+            written += 1;
+            if let Some(write) = speaker.state.newest_write() {
+                self.history.awaited.push(AwaitedTakeBack {
+                    speaker: speaker.state.key.clone(),
+                    write,
+                    entry: id,
+                    change: index,
+                });
             }
+        }
+        // Ctrl+Z and the EQ window's undo work with the history closed; it opens to tell this.
+        if !skipped.is_empty() {
+            self.history.open = true;
         }
         self.history.notice = (!skipped.is_empty()).then_some(TakeBackNotice {
             entry: id,
@@ -395,6 +440,13 @@ impl NeumannApp {
 }
 
 /// The value before through the write policy; a level as a level, so the fader holds it.
+/// Each speaker once, however many of the entry's changes it left out.
+fn skip(skipped: &mut Vec<String>, name: String) {
+    if !skipped.contains(&name) {
+        skipped.push(name);
+    }
+}
+
 fn send_before(
     speaker: &mut SpeakerState,
     change: &Change,

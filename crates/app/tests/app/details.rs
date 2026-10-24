@@ -9,6 +9,7 @@ use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
 use neumann_control_core::discovery::Found;
+use neumann_control_core::settings::SettingsPreset;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
 
@@ -762,32 +763,23 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
 /// by hand). Loading it then writes nothing, not the part before the refused value.
 #[test]
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
-    let directory = tempfile::tempdir().unwrap();
-    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
-    let mut stored = neumann_control_core::settings::load(&path);
-    stored
-        .presets
-        .push(neumann_control_core::settings::SettingsPreset {
-            name: "Far".to_owned(),
-            product: "KH 120 II".to_owned(),
-            values: [
-                ("audio/out/level".to_owned(), json!(90.0)),
-                ("audio/out/delay".to_owned(), json!(99_999)),
-            ]
-            .into(),
-        });
-    neumann_control_core::settings::save(&stored, &path).unwrap();
-    let mut harness = harness(path, Vec::new());
-    wait_for_level(&mut harness, 100.0);
-    wait_for_initial_read(&mut harness, &simulator);
-    open_panel(&mut harness, device_name(SimModel::Kh120Ii));
-    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
-    harness.run_steps(3);
-    harness
-        .get_by_label(&texts::preset_entry("Far", "KH 120 II"))
-        .click();
-    harness.run_steps(6);
+    let far = SettingsPreset {
+        name: "Far".to_owned(),
+        product: "KH 120 II".to_owned(),
+        values: [
+            ("audio/out/level".to_owned(), json!(90.0)),
+            ("audio/out/delay".to_owned(), json!(99_999)),
+        ]
+        .into(),
+    };
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimModel::Kh120Ii, vec![far]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimModel::Kh120Ii),
+        "Far",
+        "KH 120 II",
+    );
     let range = Refusal::OutOfRange {
         min: 0.0,
         max: 120.0,

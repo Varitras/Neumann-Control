@@ -1,7 +1,7 @@
 //! UI-independent state of one speaker: what the worker events add up to.
 //! All times are seconds of the UI clock passed in by the caller.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::net::SocketAddrV6;
 use std::time::Duration;
 
@@ -127,6 +127,10 @@ pub struct SpeakerState {
     pub written: Vec<(SscPath, Option<Value>, Value)>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
+    /// The number the next sent write gets.
+    next_write: u64,
+    /// The numbers of writes the speaker refused or that failed since the app last took them.
+    pub refused_writes: Vec<u64>,
     /// `device/temperature` as reported (kelvin), for the device panel's trend.
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
@@ -134,11 +138,12 @@ pub struct SpeakerState {
     pub full_scan: FullScanState,
 }
 
-/// The newest value sent to one path and how many of its `Set`s are still unanswered.
+/// The newest value sent to one path and the numbers of its `Set`s still unanswered, oldest
+/// first: the worker sends them in order and the speaker answers each.
 #[derive(Clone, Debug, PartialEq)]
 struct Pending {
     value: Value,
-    unanswered: usize,
+    unanswered: VecDeque<u64>,
 }
 
 impl SpeakerState {
@@ -164,6 +169,8 @@ impl SpeakerState {
             response_time: None,
             written: Vec::new(),
             pending: BTreeMap::new(),
+            next_write: 0,
+            refused_writes: Vec::new(),
             temperature: Trend::default(),
             warnings: Trend::default(),
             full_scan: FullScanState::Idle,
@@ -238,16 +245,32 @@ impl SpeakerState {
         let base = self.latest(path);
         let before = base.map(|base| matching(base, value)).filter(is_given);
         let merged = merged(base, value);
-        let unanswered = self
+        let mut unanswered = self
             .pending
-            .get(path)
-            .map_or(0, |pending| pending.unanswered);
+            .remove(path)
+            .map(|pending| pending.unanswered)
+            .unwrap_or_default();
+        unanswered.push_back(self.next_write);
+        self.next_write += 1;
         self.written.push((path.clone(), before, value.clone()));
         let pending = Pending {
             value: merged,
-            unanswered: unanswered + 1,
+            unanswered,
         };
         self.pending.insert(path.clone(), pending);
+    }
+
+    /// The number of the write sent last, to follow its answer.
+    pub fn newest_write(&self) -> Option<u64> {
+        self.next_write.checked_sub(1)
+    }
+
+    /// Whether the write numbered `write` is still unanswered. A write whose answer will not
+    /// come (the connection was lost) is not.
+    pub fn awaits_write(&self, write: u64) -> bool {
+        self.pending
+            .values()
+            .any(|pending| pending.unanswered.contains(&write))
     }
 
     /// The newest sent value not yet answered, else the reported one: what the speaker holds
@@ -258,13 +281,14 @@ impl SpeakerState {
         sent.or_else(|| self.values.get(path))
     }
 
-    /// Counts one `Set` to `path` as answered; when none is left, the sent value is no longer
-    /// held. Whether the speaker took it, its next report says.
-    fn settle(&mut self, path: &SscPath) {
+    /// Counts the oldest `Set` to `path` as answered and returns its number; when none is left,
+    /// the sent value is no longer held. Whether the speaker took it, its next report says.
+    fn settle(&mut self, path: &SscPath) -> Option<u64> {
+        let mut answered = None;
         if let Some(pending) = self.pending.get_mut(path) {
-            pending.unanswered = pending.unanswered.saturating_sub(1);
-            if pending.unanswered > 0 {
-                return;
+            answered = pending.unanswered.pop_front();
+            if !pending.unanswered.is_empty() {
+                return answered;
             }
             self.pending.remove(path);
         }
@@ -274,6 +298,7 @@ impl SpeakerState {
         if let Some(knob) = self.knobs.get_mut(path) {
             knob.confirmed();
         }
+        answered
     }
 
     fn take_reported(&mut self, path: SscPath, value: Value, now: f64) {
@@ -340,12 +365,14 @@ impl SpeakerState {
             }
             // A re-read or, for a lost connection, the reconnect follows; it shows the real value.
             Event::WriteRejected { path, error } => {
-                self.settle(&path);
+                let refused = self.settle(&path);
+                self.refused_writes.extend(refused);
                 let message = Message::Rejected(error.code);
                 self.set_message(Some(message), MessageSource::Write);
             }
             Event::WriteFailed { path, .. } => {
-                self.settle(&path);
+                let refused = self.settle(&path);
+                self.refused_writes.extend(refused);
                 self.set_message(Some(Message::WriteFailed), MessageSource::Write);
             }
             Event::SerialMismatch { found, .. } => {
