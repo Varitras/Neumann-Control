@@ -307,7 +307,7 @@ input B ("Crossover A", "Crossover B").
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1).
   Refused: shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, a
   missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a
-  condition (`Channel:` twice, `If:`), more filters than the EQ has bands and values the speaker
+  condition (`Channel:` twice or after filters, `If:`), more filters than the EQ has bands and values the speaker
   would refuse: then nothing is written. `Preamp` and other APO commands are not taken over; the
   preview names them. The preview shows which bands change before **Write** sends them as one
   history entry.
