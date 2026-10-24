@@ -27,11 +27,14 @@ const FREQUENCY_KEY: &str = "FC";
 const PLAIN_SHELF_Q: f64 = FRAC_1_SQRT_2;
 /// First-order filters have no Q; the speakers still want one in their range.
 const FIRST_ORDER_Q: f64 = 0.7;
+/// APO commands that start another channel's filters or a condition (lower case).
+const CHANNEL_COMMAND: &str = "channel";
+const CONDITION_COMMANDS: [&str; 3] = ["if", "elseif", "else"];
 /// APO commands that change the sound but have no place in one EQ container; anything else
 /// before a colon (REW's header lines `Dated:`, `Notes:` ...) is passed over silently.
-const SOUND_COMMANDS: [&str; 14] = [
+const SOUND_COMMANDS: [&str; 11] = [
     "preamp",
-    "channel",
+    CHANNEL_COMMAND,
     "include",
     "graphiceq",
     "device",
@@ -40,9 +43,6 @@ const SOUND_COMMANDS: [&str; 14] = [
     "convolution",
     "stage",
     "eval",
-    "if",
-    "elseif",
-    "else",
     "loudnesscorrection",
 ];
 
@@ -76,6 +76,9 @@ pub enum ImportError {
         band: usize,
         bands: usize,
     },
+    /// Filters for more than one channel, or under a condition: one container takes one
+    /// channel's filters, and stacking them all would sound like none of them.
+    SeveralChannels,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -87,6 +90,8 @@ pub enum LineProblem {
     UnknownState(String),
     /// A second line for the same band (one-based).
     SameBand(usize),
+    /// A Q or bandwidth that gives no finite Q above 0.
+    BadQ,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,6 +167,7 @@ fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>),
 pub fn parse(text: &str) -> Result<Imported, ImportError> {
     let mut imported = Imported::default();
     let mut next_band = 0;
+    let mut channels = 0;
     let text = text.trim_start_matches(BYTE_ORDER_MARK);
     for (place, line) in text.lines().enumerate() {
         let line = line.trim();
@@ -177,6 +183,15 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
             line: place + 1,
             problem,
         };
+        if CONDITION_COMMANDS.contains(&lower.as_str()) {
+            return Err(ImportError::SeveralChannels);
+        }
+        if lower == CHANNEL_COMMAND {
+            channels += 1;
+            if channels > 1 {
+                return Err(ImportError::SeveralChannels);
+            }
+        }
         let Some(number) = lower.strip_prefix(FILTER_COMMAND) else {
             note_ignored(&mut imported, command, &lower);
             continue;
@@ -251,6 +266,11 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
         QRule::Shelf => shelf_slope_of_q(values.q.unwrap_or(PLAIN_SHELF_Q), boost),
         QRule::Unused => FIRST_ORDER_Q,
     };
+    // A bandwidth of 0 octaves gives an infinite Q, which would reach the speaker as `null` and
+    // leave the band's old Q in place.
+    if !(q.is_finite() && q > 0.0) {
+        return Err(LineProblem::BadQ);
+    }
     Ok(Some(Filter {
         kind: file_type.kind,
         frequency,
@@ -533,6 +553,39 @@ mod tests {
         let imported = parse("Filter: ON PEQ Fc 100 Hz Gain 1.0 dB BW Oct 1").unwrap();
         let q = imported.bands[&0].as_ref().unwrap().q;
         assert!((q - std::f64::consts::SQRT_2).abs() < 1e-9, "{q}");
+    }
+
+    /// A bandwidth of 0 octaves or a Q of 0 has no Q the speaker could take; it is refused
+    /// instead of reaching the speaker as `null`, which would keep the band's old Q.
+    #[test]
+    fn a_q_of_zero_or_a_zero_bandwidth_is_refused() {
+        for line in [
+            "Filter: ON PK Fc 100 Hz Gain 1 dB BW Oct 0",
+            "Filter: ON PK Fc 100 Hz Gain 1 dB Q 0",
+            "Filter: ON PK Fc 100 Hz Gain 1 dB Q -1",
+        ] {
+            assert_eq!(problem_of(line), LineProblem::BadQ, "{line}");
+        }
+    }
+
+    /// One EQ container holds one channel's filters; a file with several channels or with
+    /// conditions would stack them into it.
+    #[test]
+    fn several_channels_or_conditions_are_refused() {
+        let channels = "Channel: L
+Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
+                        Channel: R
+Filter: ON PK Fc 200 Hz Gain 1 dB Q 1
+";
+        assert_eq!(parse(channels), Err(ImportError::SeveralChannels));
+        let condition = "If: sampleRate == 48000
+Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
+";
+        assert_eq!(parse(condition), Err(ImportError::SeveralChannels));
+        let one = "Channel: L R
+Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
+";
+        assert!(parse(one).is_ok());
     }
 
     #[test]

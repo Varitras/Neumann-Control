@@ -298,10 +298,11 @@ input B ("Crossover A", "Crossover B").
   instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1).
   Refused: shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, a
-  missing Q, more filters than the EQ has bands and values the speaker would refuse: then nothing
-  is written. `Preamp` and other APO commands are not taken over; the preview
-  names them. The preview shows which bands change before **Write** sends them as one history
-  entry.
+  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a
+  condition (`Channel:` twice, `If:`), more filters than the EQ has bands and values the speaker
+  would refuse: then nothing is written. `Preamp` and other APO commands are not taken over; the
+  preview names them. The preview shows which bands change before **Write** sends them as one
+  history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
   filters and inversion have no APO line; they are written as comments and listed after saving.

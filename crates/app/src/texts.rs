@@ -916,9 +916,15 @@ pub fn eq_import_error(error: &ImportError) -> String {
         .get()
         .to_owned(),
         ImportError::TooManyBands { band, bands } => pick(
-            format!("Die Datei nennt Band {band}, dieses EQ hat {bands} Bänder."),
+            format!("Die Datei nennt Band {band}, dieser EQ hat {bands} Bänder."),
             format!("The file names band {band}, this EQ has {bands} bands."),
         ),
+        ImportError::SeveralChannels => Text::new(
+            "Die Datei hat Filter für mehrere Kanäle oder unter Bedingungen; ein EQ nimmt die eines Kanals.",
+            "The file has filters for several channels or under conditions; an EQ takes one channel's.",
+        )
+        .get()
+        .to_owned(),
     }
 }
 
@@ -950,6 +956,12 @@ fn line_problem(problem: &LineProblem) -> String {
             format!("Band {band} steht schon in einer früheren Zeile."),
             format!("Band {band} is already in an earlier line."),
         ),
+        LineProblem::BadQ => Text::new(
+            "Q bzw. Bandbreite ergibt kein Q über 0.",
+            "Q or bandwidth gives no Q above 0.",
+        )
+        .get()
+        .to_owned(),
     }
 }
 
