@@ -546,3 +546,36 @@ fn a_speaker_colour_is_kept_until_it_follows_the_group_again() {
     harness.run_steps(2);
     assert!(settings::load(&path).strip_colors.is_empty());
 }
+
+/// A new group's dialog lists the speakers: the ones checked are its members at once.
+#[test]
+fn a_new_group_takes_the_speakers_checked_in_its_dialog() {
+    let (_kh120, _kh750, directory, mut harness) = two_speakers(Vec::new());
+    harness.get_by_label(texts::ADD_GROUP.get()).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness
+        .get_by_role_and_label(Role::CheckBox, KH120_DEVICE_NAME)
+        .click();
+    harness.run_steps(1);
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(settings::load(&path).groups[0].members, vec![KH120_ID.to_owned()]);
+}
+
+/// Checking a speaker of another group moves it: a speaker is in one group at most.
+#[test]
+fn a_speaker_checked_in_another_groups_dialog_moves_there() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    harness.get_by_label(texts::ADD_GROUP.get()).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness
+        .get_by_role_and_label(Role::CheckBox, KH750_DEVICE_NAME)
+        .click();
+    harness.run_steps(1);
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    let groups = settings::load(&directory.path().join(SETTINGS_FILE)).groups;
+    assert_eq!(groups[0].members, vec![KH120_ID.to_owned()]);
+    assert_eq!(groups[1].members, vec![KH750_ID.to_owned()]);
+}
