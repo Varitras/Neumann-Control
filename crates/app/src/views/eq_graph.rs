@@ -5,8 +5,8 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Mesh, Pos2, Rect, Role, Sense, Shape,
-    Stroke, Ui, WidgetInfo,
+    pos2, vec2, Align2, Color32, CursorIcon, FontId, Id, Key, Mesh, Pos2, Rect, Role, Sense, Shape,
+    Stroke, Ui, Vec2, WidgetInfo,
 };
 
 use super::wheel::notches_for;
@@ -159,13 +159,21 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
     );
     let mut actions = Vec::new();
     // A band that is off changes nothing; it is switched on in the table.
-    for (band, point) in graph
+    let enabled: Vec<(usize, &GraphPoint)> = graph
         .points
         .iter()
         .enumerate()
         .filter(|(_, point)| point.enabled)
-    {
-        actions.extend(band_point(ui, graph, &axes, band, point));
+        .collect();
+    // Points can lie on one spot: the wheel turns only the one drawn last, which is on top.
+    let wheeled = enabled
+        .iter()
+        .rev()
+        .find(|(_, point)| !notches_for(ui, grab_rect(home(&axes, point))).is_empty())
+        .map(|(band, _)| *band);
+    for (band, point) in enabled {
+        let takes_wheel = wheeled == Some(band);
+        actions.extend(band_point(ui, graph, &axes, band, point, takes_wheel));
     }
     actions
 }
@@ -245,6 +253,14 @@ fn curve_points(axes: &Axes, frequencies: &[f64], db: &[f64]) -> Vec<Pos2> {
         .collect()
 }
 
+/// A point being dragged: it keeps the offset it had to the pointer when grabbed, so only the
+/// axis the pointer moved along changes.
+#[derive(Clone, Copy)]
+struct PointDrag {
+    offset: Vec2,
+    at: Pos2,
+}
+
 /// Draws one band's point and hands out what its gesture chose.
 fn band_point(
     ui: &mut Ui,
@@ -252,13 +268,18 @@ fn band_point(
     axes: &Axes,
     band: usize,
     point: &GraphPoint,
+    takes_wheel: bool,
 ) -> Vec<GraphAction> {
     let id = graph.id.with(band);
     let drag_id = id.with(DRAG_ID);
-    let dragged_to = ui.data(|data| data.get_temp::<Pos2>(drag_id));
-    let home = pos2(axes.x(point.frequency), axes.y(point.gain + point.boost));
-    let center = dragged_to.unwrap_or(home);
-    let rect = Rect::from_center_size(center, vec2(POINT_GRAB, POINT_GRAB));
+    // A gesture that ended while the point was not drawn (band switched off) leaves no state behind.
+    let dragging = ui.ctx().is_being_dragged(id) || ui.ctx().drag_stopped_id() == Some(id);
+    let drag = ui
+        .data(|data| data.get_temp::<PointDrag>(drag_id))
+        .filter(|_| dragging);
+    let home = home(axes, point);
+    let center = drag.map_or(home, |drag| drag.at);
+    let rect = grab_rect(center);
     let sense = if graph.editable {
         Sense::click_and_drag()
     } else {
@@ -271,26 +292,52 @@ fn band_point(
     if response.clicked() || response.drag_started() {
         actions.push(GraphAction::Select(band));
     }
+    let escaped = ui.input(|input| input.key_pressed(Key::Escape));
     if response.dragged() {
         let pointer = response.interact_pointer_pos().unwrap_or(center);
-        let inside = pointer.clamp(axes.rect.min, axes.rect.max);
-        ui.data_mut(|data| data.insert_temp(drag_id, inside));
+        // egui reports a drag only after the pointer moved a little; the offset is taken where
+        // the button went down, else that first move would be lost.
+        let pressed = ui
+            .input(|input| input.pointer.press_origin())
+            .unwrap_or(pointer);
+        let mut state = drag.unwrap_or(PointDrag {
+            offset: home - pressed,
+            at: home,
+        });
+        state.at = (pointer + state.offset).clamp(axes.rect.min, axes.rect.max);
+        ui.data_mut(|data| data.insert_temp(drag_id, state));
     }
     if response.drag_stopped() {
-        ui.data_mut(|data| data.remove::<Pos2>(drag_id));
-        if let Some(end) = dragged_to {
-            actions.extend(moved(axes, graph, band, point, end));
+        ui.data_mut(|data| data.remove::<PointDrag>(drag_id));
+        // egui ends a drag on Escape; that frame cancels the gesture instead of writing it.
+        if let Some(end) = drag.filter(|_| !escaped) {
+            actions.extend(moved(axes, graph, band, point, end.at));
         }
     }
-    // Asked every frame: a wheel step falls due after the pointer may have left the point.
+    // Asked every frame: a wheel step falls due after the pointer may have left the point. A held
+    // point ignores the wheel, as a held fader does.
     if graph.editable {
-        actions.extend(wheel_q(ui, graph, id, band, point, rect));
+        let held = response.is_pointer_button_down_on() || response.dragged();
+        let notches = match takes_wheel && !held {
+            true => notches_for(ui, rect),
+            false => Vec::new(),
+        };
+        actions.extend(wheel_q(ui, graph, id, band, point, &notches));
     }
     if graph.editable && response.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     paint_point(ui, graph, band, point, center);
     actions
+}
+
+/// Where a band's point stands when nothing moves it.
+fn home(axes: &Axes, point: &GraphPoint) -> Pos2 {
+    pos2(axes.x(point.frequency), axes.y(point.gain + point.boost))
+}
+
+fn grab_rect(center: Pos2) -> Rect {
+    Rect::from_center_size(center, vec2(POINT_GRAB, POINT_GRAB))
 }
 
 fn moved(
@@ -321,15 +368,15 @@ fn wheel_q(
     id: Id,
     band: usize,
     point: &GraphPoint,
-    rect: Rect,
+    notches: &[f64],
 ) -> Option<GraphAction> {
     let wheel_id = id.with(WHEEL_ID);
     let now = ui.input(|input| input.time);
     let mut state = ui
         .data(|data| data.get_temp::<GestureState>(wheel_id))
         .unwrap_or_default();
-    for notches in notches_for(ui, rect) {
-        state.on_wheel(notches, Q_STEP, point.q, graph.q_range.clone(), now);
+    for notches in notches {
+        state.on_wheel(*notches, Q_STEP, point.q, graph.q_range.clone(), now);
     }
     let due = state.due(now);
     if let Some(deadline) = state.deadline() {

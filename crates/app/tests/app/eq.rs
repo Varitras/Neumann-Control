@@ -891,3 +891,118 @@ fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
         Some(json!(vec![0.7; 20]))
     );
 }
+
+/// Hardly anyone grabs a point at its very centre: the point keeps its offset to the pointer, so
+/// an upward drag changes the boost only.
+#[test]
+fn a_point_grabbed_beside_its_centre_writes_only_the_moved_axis() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(
+        &mut harness,
+        point + egui::vec2(5.0, 5.0),
+        egui::vec2(0.0, -40.0),
+    );
+    wait_until(&mut harness, "the boost write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    barrier(&simulator);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
+#[test]
+fn a_point_dragged_away_and_back_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let start = harness.get_by_label(&texts::eq_band(2)).rect().center() + egui::vec2(4.0, -3.0);
+    harness.drag_at(start);
+    for offset in [(10.0, -10.0), (30.0, -30.0), (10.0, -10.0), (0.0, 0.0)] {
+        harness.hover_at(start + egui::Vec2::from(offset));
+        harness.step();
+    }
+    harness.drop_at(start);
+    harness.run_steps(3);
+    barrier(&simulator);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+    assert!(sets(&simulator, BOOST_POINTER).is_empty());
+}
+
+#[test]
+fn escape_during_a_point_drag_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let start = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=3 {
+        harness.hover_at(start + egui::vec2(10.0, -15.0) * frame as f32);
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.step();
+    harness.drop_at(start + egui::vec2(30.0, -45.0));
+    harness.run_steps(3);
+    barrier(&simulator);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+    assert!(sets(&simulator, BOOST_POINTER).is_empty());
+    // The Escape went to the drag, not to the window.
+    harness.get_by_label(texts::EQ_COMPUTED.get());
+}
+
+#[test]
+fn the_wheel_during_a_point_drag_leaves_q_alone() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let start = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    harness.drag_at(start);
+    // Just past egui's drag threshold, so the pointer is still over the point's resting place.
+    for offset in [-2.0, -4.0, -6.5] {
+        harness.hover_at(start + egui::vec2(0.0, offset));
+        harness.step();
+    }
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 3.0),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(40);
+    harness.drop_at(start + egui::vec2(0.0, -6.5));
+    harness.run_steps(3);
+    barrier(&simulator);
+    assert!(sets(&simulator, "/audio/out/eq2/q").is_empty());
+}
+
+/// Two points on one spot: the wheel turns the one drawn on top, not both.
+#[test]
+fn the_wheel_over_overlapping_points_turns_one_band() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut frequencies: Vec<f64> = (0..10).map(|band| 50.0 * 2f64.powi(band)).collect();
+        frequencies[2] = frequencies[1];
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    let point = harness.get_by_label(&texts::eq_band(3)).rect().center();
+    harness.hover_at(point);
+    harness.step();
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, 2.0),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+    wait_until(&mut harness, "a Q write", |_| {
+        !sets(&simulator, "/audio/out/eq2/q").is_empty()
+    });
+    harness.run_steps(40);
+    barrier(&simulator);
+    let written: Vec<Value> = sets(&simulator, "/audio/out/eq2/q");
+    let bands: usize = written
+        .iter()
+        .map(|set| {
+            set.as_array()
+                .unwrap()
+                .iter()
+                .filter(|q| !q.is_null())
+                .count()
+        })
+        .sum();
+    assert_eq!(bands, 1, "{written:?}");
+}

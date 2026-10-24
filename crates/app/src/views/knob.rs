@@ -183,7 +183,9 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                     data.remove::<f64>(start_id);
                 });
             }
-            if enabled && response.hovered() {
+            // A held knob ignores the wheel, as a held fader does.
+            let held = response.is_pointer_button_down_on() || response.dragged();
+            if enabled && response.hovered() && !held {
                 let wheel = notches_for(ui, rect);
                 let step = wheel_step(&knob.range, knob.step);
                 for notches in &wheel {

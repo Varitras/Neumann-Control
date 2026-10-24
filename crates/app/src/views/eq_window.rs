@@ -134,8 +134,11 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
             }
         };
         let close_requested = ui.input(|input| input.viewport().close_requested());
-        // Escape in a field cancels the edit; only Escape with nothing being edited closes.
-        let editing = ui.memory(|memory| memory.focused().is_some());
+        // Escape in a field or during a drag cancels that gesture; only Escape with nothing being
+        // edited closes.
+        // egui ends the drag on that very Escape, so a drag that stopped this frame counts too.
+        let dragging = ui.ctx().dragged_id().is_some() || ui.ctx().drag_stopped_id().is_some();
+        let editing = dragging || ui.memory(|memory| memory.focused().is_some());
         let escape = !editing && ui.input(|input| input.key_pressed(Key::Escape));
         if close_requested || escape {
             actions.push(EqAction::Close);

@@ -270,3 +270,18 @@ fn a_typed_level_just_outside_the_range_is_refused_too() {
         level_sets(&simulator)
     );
 }
+
+/// The drag is the gesture: a wheel turned while the knob is held must not write a value of its
+/// own in the middle of it.
+#[test]
+fn the_wheel_during_a_knob_drag_writes_nothing_of_its_own() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let end = turn_knob(&mut harness, DELAY_KNOB, 90.0, 150.0);
+    wheel(&mut harness, 3.0);
+    harness.run_steps(40);
+    harness.drop_at(end);
+    harness.run_steps(5);
+    barrier(&simulator);
+    let sets = delay_sets(&simulator);
+    assert_eq!(sets.len(), 1, "{sets:?}");
+}
