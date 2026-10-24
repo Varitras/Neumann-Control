@@ -15,6 +15,7 @@ use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::ssc::client::RESPONSE_TIMEOUT;
 
 const KH750_NAME: &str = "Sub";
 const KH120_NAME: &str = "Desk";
@@ -34,10 +35,10 @@ fn kh750_found(simulator: &Simulator) -> Found {
 
 /// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
 const SILENCE_SETTLE: Duration = Duration::from_millis(300);
-/// Far below the 3 s a joined worker could take, far above two frames.
-const STALL_LIMIT: Duration = Duration::from_secs(1);
-/// Below the client's 3 s reply timeout, so the speaker stays connecting instead of failing.
-const SLOW_CONNECT_REPLY: Duration = Duration::from_millis(1500);
+/// Far below the reply timeout a joined worker could wait for, far above two frames.
+const STALL_LIMIT: Duration = RESPONSE_TIMEOUT.saturating_sub(Duration::from_secs(2));
+/// Half the client's reply timeout, so the speaker stays connecting instead of failing.
+const SLOW_CONNECT_REPLY: Duration = RESPONSE_TIMEOUT.saturating_sub(Duration::from_millis(1500));
 
 /// The unreachable status shows a few frames after the outage began, and the scan answers a few
 /// frames after it started.
@@ -350,8 +351,7 @@ fn add_address_names_an_address_already_listed() {
 /// Opens the device panel of the only speaker and asks to remove it.
 fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
     open_panel(harness, KH120_DEVICE_NAME);
-    scroll_to_and_click(harness, texts::REMOVE.get());
-    wait_for_label(harness, texts::REMOVE_TITLE.get());
+    ask_in_open_panel(harness);
 }
 
 #[test]
@@ -361,12 +361,7 @@ fn remove_needs_confirmation_and_forgets_speaker() {
     ask_to_remove(&mut harness);
     harness.get_by_label(&texts::speaker_count(1));
     assert_eq!(settings::load(&path).manual.len(), 1);
-    let confirm = harness
-        .query_all_by_label(texts::REMOVE.get())
-        .last()
-        .expect("the dialog's button");
-    confirm.click();
-    harness.run_steps(2);
+    confirm_remove(&mut harness);
     assert!(harness.query_by_label(texts::REMOVE_TITLE.get()).is_none());
     harness.get_by_label(&texts::speaker_count(0));
     assert!(settings::load(&path).manual.is_empty());
@@ -539,8 +534,8 @@ fn a_speaker_that_connects_while_asked_about_is_removed() {
     harness.get_by_label(&texts::speaker_count(0));
 }
 
-/// A worker can wait up to the client's 3 s reply timeout before it sees the stop; removing its
-/// speaker must not make the window wait with it.
+/// A worker can wait up to the client's reply timeout (`RESPONSE_TIMEOUT`) before it sees the
+/// stop; removing its speaker must not make the window wait with it.
 #[test]
 fn removing_a_speaker_that_does_not_answer_does_not_stall_the_window() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
