@@ -12,21 +12,6 @@ use crate::display::{conversion_of, converted_unit};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Switch {
-    Mute,
-    Identify,
-}
-
-impl Switch {
-    pub fn path(self) -> SscPath {
-        match self {
-            Switch::Mute => paths::path(paths::MUTE),
-            Switch::Identify => paths::path(paths::IDENTIFY),
-        }
-    }
-}
-
 /// What a control of a speaker asks for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Intent {
@@ -98,10 +83,7 @@ pub enum Refusal {
 
 /// Whether a control for `path` may be offered at all.
 pub fn can_write(speaker: &SpeakerState, catalog: &Catalog, path: &SscPath) -> bool {
-    let product = speaker.product();
-    let writable =
-        paths::catalog_entry(catalog, path).is_some_and(|entry| entry.is_writable(product));
-    speaker.status == Status::Connected && writable
+    writable_entry(speaker, catalog, path).is_ok()
 }
 
 /// The checks of the policy, in the order the user would fix them.
@@ -111,16 +93,26 @@ pub fn check(
     path: &SscPath,
     value: &Value,
 ) -> Result<(), Refusal> {
+    let entry = writable_entry(speaker, catalog, path)?;
+    entry
+        .validate(value, speaker.product(), &catalog.classes)
+        .map_err(|error| refusal_of(entry, error))
+}
+
+/// The rule both a control's enabling and every write follow: connected, and writable on the
+/// model the speaker reported.
+fn writable_entry<'a>(
+    speaker: &SpeakerState,
+    catalog: &'a Catalog,
+    path: &SscPath,
+) -> Result<&'a Entry, Refusal> {
     if speaker.status != Status::Connected {
         return Err(Refusal::NotConnected);
     }
     let product = speaker.product();
-    let entry = paths::catalog_entry(catalog, path)
+    paths::catalog_entry(catalog, path)
         .filter(|entry| entry.is_writable(product))
-        .ok_or(Refusal::NotWritable)?;
-    entry
-        .validate(value, product, &catalog.classes)
-        .map_err(|error| refusal_of(entry, error))
+        .ok_or(Refusal::NotWritable)
 }
 
 /// A range is told in the unit the value is shown and typed in, which for a converted entry is
@@ -235,7 +227,7 @@ mod tests {
     fn toggle_writes_the_opposite_switch_value() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(
-            Intent::Toggle(Switch::Mute.path()),
+            Intent::Toggle(paths::path(paths::MUTE)),
             Catalog::embedded(),
             0.0,
         );
@@ -337,7 +329,7 @@ mod tests {
         speaker.apply(level, 2.0);
         assert!(speaker.message.is_some(), "a poll ended the refusal");
         let command = speaker.request(
-            Intent::Toggle(Switch::Mute.path()),
+            Intent::Toggle(paths::path(paths::MUTE)),
             Catalog::embedded(),
             3.0,
         );
@@ -452,7 +444,7 @@ mod tests {
         };
         speaker.apply(identify, 0.0);
         speaker.request(
-            Intent::Toggle(Switch::Identify.path()),
+            Intent::Toggle(paths::path(paths::IDENTIFY)),
             Catalog::embedded(),
             0.0,
         );
@@ -532,9 +524,9 @@ mod tests {
     fn a_second_toggle_before_the_confirmation_toggles_back() {
         let mut speaker = speaker("KH 120 II");
         let catalog = Catalog::embedded();
-        let first = speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.0);
+        let first = speaker.request(Intent::Toggle(paths::path(paths::MUTE)), catalog, 0.0);
         assert_eq!(first, set(paths::MUTE, Value::Bool(true)));
-        let second = speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.1);
+        let second = speaker.request(Intent::Toggle(paths::path(paths::MUTE)), catalog, 0.1);
         assert_eq!(second, set(paths::MUTE, Value::Bool(false)));
     }
 
@@ -542,7 +534,7 @@ mod tests {
     fn a_poll_reply_older_than_the_write_does_not_undo_it() {
         let mut speaker = speaker("KH 120 II");
         speaker.request(
-            Intent::Toggle(Switch::Mute.path()),
+            Intent::Toggle(paths::path(paths::MUTE)),
             Catalog::embedded(),
             0.0,
         );
@@ -571,8 +563,8 @@ mod tests {
     fn two_toggles_show_the_second_only_when_both_are_answered() {
         let mut speaker = speaker("KH 120 II");
         let catalog = Catalog::embedded();
-        speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.0);
-        speaker.request(Intent::Toggle(Switch::Mute.path()), catalog, 0.1);
+        speaker.request(Intent::Toggle(paths::path(paths::MUTE)), catalog, 0.0);
+        speaker.request(Intent::Toggle(paths::path(paths::MUTE)), catalog, 0.1);
         let mute = paths::path(paths::MUTE);
         answered(&mut speaker, paths::MUTE, Value::Bool(true));
         assert_eq!(speaker.values.get(&mute), Some(&Value::Bool(false)));
@@ -586,7 +578,7 @@ mod tests {
     fn a_rejected_write_lets_the_re_read_show_the_kept_value() {
         let mut speaker = speaker("KH 120 II");
         speaker.request(
-            Intent::Toggle(Switch::Mute.path()),
+            Intent::Toggle(paths::path(paths::MUTE)),
             Catalog::embedded(),
             0.0,
         );
@@ -610,7 +602,7 @@ mod tests {
     fn a_failed_write_lets_the_reconnect_read_show_the_value() {
         let mut speaker = speaker("KH 120 II");
         speaker.request(
-            Intent::Toggle(Switch::Mute.path()),
+            Intent::Toggle(paths::path(paths::MUTE)),
             Catalog::embedded(),
             0.0,
         );
@@ -656,7 +648,7 @@ mod tests {
     fn a_switch_without_a_reported_value_is_refused() {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(
-            Intent::Toggle(Switch::Identify.path()),
+            Intent::Toggle(paths::path(paths::IDENTIFY)),
             Catalog::embedded(),
             0.0,
         );

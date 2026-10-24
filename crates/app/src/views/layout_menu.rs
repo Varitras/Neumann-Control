@@ -155,7 +155,9 @@ mod tests {
     #[test]
     fn every_kh750_setting_has_its_own_menu_name() {
         let entries = Catalog::embedded().entries_for("KH 750");
-        let offered = entries.iter().filter(|entry| strip_layout::fits_a_strip(entry));
+        let offered = entries
+            .iter()
+            .filter(|entry| strip_layout::fits_a_strip(entry));
         let mut labels: Vec<String> = offered.map(|entry| setting_label(entry)).collect();
         assert!(labels.contains(&texts::MUTE_OUTPUT_A.get().to_owned()));
         let count = labels.len();

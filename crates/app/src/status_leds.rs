@@ -145,7 +145,10 @@ mod tests {
         let calm = json!([NO_WARNING]);
         assert_eq!(active_warnings(&calm), Some(Vec::new()));
         assert!(!holds_a_warning(&calm));
-        assert_eq!(active_warnings(&json!("OVERTEMP")), Some(vec!["OVERTEMP".to_owned()]));
+        assert_eq!(
+            active_warnings(&json!("OVERTEMP")),
+            Some(vec!["OVERTEMP".to_owned()])
+        );
         assert_eq!(active_warnings(&json!(7)), None);
         assert!(!holds_a_warning(&json!(7)));
     }
