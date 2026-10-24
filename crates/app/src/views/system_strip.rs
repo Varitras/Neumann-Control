@@ -14,8 +14,10 @@ use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
 const PERCENT_RANGE: RangeInclusive<f64> = 0.0..=100.0;
-/// Windows' order of speaker positions; a device with more channels shows the rest unnamed.
-const CHANNEL_NAMES: [&str; 8] = ["L", "R", "C", "LFE", "SL", "SR", "BL", "BR"];
+/// A stereo device's two channels. Beyond two, the positions depend on the device's channel
+/// mask (7.1 puts the rear pair before the side pair, quad has no centre), which the app does
+/// not read: those channels are numbered instead of named wrong.
+const STEREO_NAMES: [&str; 2] = ["L", "R"];
 
 pub struct SystemStrip<'a> {
     pub name: &'a str,
@@ -56,9 +58,8 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
                 Orientation::Vertical,
             );
             response.volume = moved.map(|moved| (volume + moved).clamp(0.0, 100.0));
-            let channels: Vec<&str> = (0..strip.meters.len())
-                .map(|channel| CHANNEL_NAMES.get(channel).copied().unwrap_or_default())
-                .collect();
+            let names = channel_names(strip.meters.len());
+            let channels: Vec<&str> = names.iter().map(String::as_str).collect();
             let group = Meters {
                 name: texts::SYSTEM_METERS.get(),
                 channels: &channels,
@@ -74,4 +75,23 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
         response.mute = mute_button(ui, texts::SYSTEM_MUTE.get(), strip.mute);
     });
     response
+}
+
+fn channel_names(count: usize) -> Vec<String> {
+    if count == STEREO_NAMES.len() {
+        return STEREO_NAMES.iter().map(|name| (*name).to_owned()).collect();
+    }
+    (1..=count).map(|channel| channel.to_string()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_stereo_channels_are_named() {
+        assert_eq!(channel_names(2), vec!["L", "R"]);
+        assert_eq!(channel_names(8)[4..], ["5", "6", "7", "8"]);
+        assert_eq!(channel_names(1), vec!["1"]);
+    }
 }
