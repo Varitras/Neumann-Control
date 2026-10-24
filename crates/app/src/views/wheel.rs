@@ -54,7 +54,10 @@ pub fn track_burst(context: &Context) {
 /// This frame's wheel events in notches (lines), upwards positive, for the control at `rect` when
 /// the burst began over it; none otherwise.
 pub(super) fn notches_for(ui: &Ui, rect: Rect) -> Vec<f64> {
-    let burst = ui.data(|data| data.get_temp::<Burst>(burst_id(ui.ctx())));
+    // Taken before the data lock: asking the context inside it would lock it twice, which
+    // deadlocks once a worker waits to request a repaint.
+    let id = burst_id(ui.ctx());
+    let burst = ui.data(|data| data.get_temp::<Burst>(id));
     let now = ui.input(|input| input.time);
     let held_here = burst.is_some_and(|burst| {
         rect.contains(burst.start) && now - burst.last_event < WHEEL_IDLE_SECONDS

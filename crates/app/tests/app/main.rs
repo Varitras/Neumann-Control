@@ -10,6 +10,7 @@ mod glyphs;
 mod groups;
 mod help;
 mod history;
+mod source_guards;
 mod speakers;
 mod strip_layout;
 mod system_audio;
