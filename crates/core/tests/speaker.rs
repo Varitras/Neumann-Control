@@ -545,6 +545,31 @@ fn serial_mismatch_is_reported() {
     }
 }
 
+/// Another unit at the address: a write meant for the expected speaker must not reach it.
+#[test]
+fn a_write_never_reaches_a_speaker_of_another_serial() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let (handle, events) = start_worker(simulator.address(), Some("OTHER"), short_timing());
+    collect_until(&events, EVENT_DEADLINE, |event| {
+        matches!(event, Event::SerialMismatch { .. })
+    });
+    let mute = path("audio/out/mute");
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    // Two more identity reads: the worker kept trying and never wrote in between.
+    let serial = path("device/identity/serial");
+    let reads = count_requests(&simulator, &serial);
+    wait_for_requests(&simulator, &serial, reads + 2, EVENT_DEADLINE);
+    let written = simulator
+        .requests()
+        .iter()
+        .any(|request| request.pointer("/audio/out/mute").is_some_and(|value| !value.is_null()));
+    assert!(!written, "a write reached the other speaker");
+    assert_eq!(simulator.value("audio/out/mute"), Some(json!(false)));
+}
+
 /// A speaker added by address alone: the serial it reported first is the one it must keep, so
 /// another unit answering at that address later is not taken for it.
 #[test]
