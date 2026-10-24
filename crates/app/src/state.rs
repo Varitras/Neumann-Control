@@ -696,6 +696,26 @@ mod tests {
     }
 
     /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
+    /// The connection went away with a write on its way: the worker fails it after reporting
+    /// the outage, and that failure still counts for the write.
+    #[test]
+    fn a_write_outstanding_at_an_outage_counts_as_failed() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let mute = path(paths::MUTE);
+        speaker.record_written(&mute, &json!(true));
+        let write = speaker.newest_write().unwrap();
+        speaker.apply(Event::Unreachable("gone".to_owned()), 1.0);
+        speaker.apply(
+            Event::WriteFailed {
+                path: mute,
+                message: "not connected".to_owned(),
+            },
+            1.1,
+        );
+        assert!(speaker.refused_writes.contains(&write));
+    }
+
     #[test]
     fn a_shorter_meter_list_drops_the_meters_it_no_longer_reports() {
         let mut speaker = state();
