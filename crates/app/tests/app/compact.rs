@@ -8,7 +8,6 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::paths;
 use neumann_control_app::texts;
-use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
 use neumann_control_core::simulator::SimModel;
 use serde_json::Value;
@@ -41,13 +40,6 @@ fn stored_buttons(directory: &tempfile::TempDir, model: &str) -> Option<Vec<Comp
 
 fn switch(text: &str) -> CompactButton {
     CompactButton::Switch(paths::path(text))
-}
-
-/// As the add menu offers a switch: under its name in the device panel.
-fn panel_label(text: &str) -> &'static str {
-    paths::catalog_entry(Catalog::embedded(), &paths::path(text))
-        .unwrap()
-        .label(texts::language())
 }
 
 fn left_of(harness: &Harness<'static, NeumannApp>, label: &str) -> f32 {
@@ -272,7 +264,8 @@ fn a_compact_button_is_hidden_and_another_added_by_right_click() {
     assert_eq!(stored_buttons(&directory, MONITOR), Some(hidden));
     right_click_button(&mut harness, texts::EQ.get());
     choose(&mut harness, texts::ADD_BUTTON.get());
-    choose(&mut harness, panel_label(paths::IDENTIFY));
+    // The menu names it as the button does.
+    choose(&mut harness, texts::IDENTIFY.get());
     harness.get_by_role_and_label(Role::Button, texts::IDENTIFY.get());
     let stored = stored_buttons(&directory, MONITOR).unwrap();
     assert_eq!(stored.last(), Some(&switch(paths::IDENTIFY)));

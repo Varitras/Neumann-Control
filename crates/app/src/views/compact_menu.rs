@@ -5,7 +5,7 @@ use eframe::egui::{Rect, Ui};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::CompactButton;
 
-use super::layout_menu::{popup, right_clicked};
+use super::layout_menu::{popup, right_clicked, setting_label};
 use crate::compact_layout::{self, CompactChange};
 use crate::paths;
 use crate::texts;
@@ -34,10 +34,9 @@ fn offer_label(button: &CompactButton, catalog: &Catalog) -> String {
     match button {
         CompactButton::Eq => texts::EQ.get().to_owned(),
         CompactButton::Details => texts::DETAILS.get().to_owned(),
-        CompactButton::Switch(path) => paths::catalog_entry(catalog, path).map_or_else(
-            || path.to_string(),
-            |entry| entry.label(texts::language()).to_owned(),
-        ),
+        CompactButton::Switch(path) => {
+            paths::catalog_entry(catalog, path).map_or_else(|| path.to_string(), setting_label)
+        }
     }
 }
 

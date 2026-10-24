@@ -3,9 +3,10 @@
 //! disabled control, which takes no click itself. They only report the change.
 
 use eframe::egui::{Id, Popup, PopupAnchor, PopupKind, Rect, SetOpenCommand, Ui};
-use neumann_control_core::catalog::Catalog;
+use neumann_control_core::catalog::{Catalog, Entry, Group};
 use neumann_control_core::settings::StripElement;
 
+use super::strip;
 use crate::strip_layout::{self, Area, LayoutChange, StripLayout};
 use crate::texts;
 
@@ -37,10 +38,22 @@ pub(super) fn element_label(element: &StripElement, catalog: &Catalog) -> String
         .entries
         .iter()
         .find(|entry| entry.path == *path)
-        .map_or_else(
-            || path.to_string(),
-            |entry| entry.label(texts::language()).to_owned(),
-        )
+        .map_or_else(|| path.to_string(), setting_label)
+}
+
+/// A setting as the menus name it: the strip's short name where it has one ("Stumm A"), else
+/// the panel's with its output where the model has several ("Stumm-Persistenz (Ausgang B)"):
+/// the menus list them side by side, without the panel's headings.
+pub(super) fn setting_label(entry: &Entry) -> String {
+    let language = texts::language();
+    let text = strip::button_text(entry);
+    let short = text != entry.label(language);
+    match entry.group {
+        Group::Output1 | Group::Output2 if !short => {
+            format!("{text} ({})", entry.group.title(language))
+        }
+        _ => text.to_owned(),
+    }
 }
 
 /// Hide, swap, move up or down one element of a strip.
@@ -130,5 +143,24 @@ pub(super) fn menu_key(element: &StripElement) -> String {
     match element {
         StripElement::Path(path) => path.to_string(),
         StripElement::Eq => texts::EQ.get().to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The KH 750 has a mute, a mute persist and a level per output; the menus must not offer
+    /// three of the same name.
+    #[test]
+    fn every_kh750_setting_has_its_own_menu_name() {
+        let entries = Catalog::embedded().entries_for("KH 750");
+        let offered = entries.iter().filter(|entry| strip_layout::fits_a_strip(entry));
+        let mut labels: Vec<String> = offered.map(|entry| setting_label(entry)).collect();
+        assert!(labels.contains(&texts::MUTE_OUTPUT_A.get().to_owned()));
+        let count = labels.len();
+        labels.sort();
+        labels.dedup();
+        assert_eq!(labels.len(), count, "{labels:?}");
     }
 }
