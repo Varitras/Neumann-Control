@@ -208,18 +208,16 @@ fn identify_button_sends_set() {
 fn panel_opens_from_strip_name_and_closes_on_escape() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    harness.get_by_label(texts::CLOSE.get());
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::ALL_VALUES.get()).is_none());
+    // The window's own ✕ closes it; the panel has no second close button.
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    harness.get_by_label(texts::CLOSE.get()).click();
-    harness.run_steps(2);
-    assert!(harness.query_by_label(texts::ALL_VALUES.get()).is_none());
+    assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
 }
 
-/// From the panel's close button up to the title bar of its embedded window.
-const PANEL_TITLE_ABOVE_CLOSE: f32 = 24.0;
+/// From the top of the panel's embedded window down to the middle of its title bar.
+const TITLE_BAR_MIDDLE: f32 = 10.0;
 const PANEL_MOVE: f32 = 520.0;
 
 fn drag_from_to(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, to: egui::Pos2) {
@@ -266,8 +264,10 @@ fn two_panels_stay_open_side_by_side() {
     );
     open_panel(&mut harness, KH120_DEVICE_NAME);
     // In the test window the panel is embedded over the desk: move it off the other strip.
-    let title = harness.get_by_label(texts::CLOSE.get()).rect().center()
-        - egui::vec2(0.0, PANEL_TITLE_ABOVE_CLOSE);
+    let window = harness
+        .get_by_label(&texts::panel_window_title(KH120_DEVICE_NAME))
+        .rect();
+    let title = egui::pos2(window.center().x, window.top() + TITLE_BAR_MIDDLE);
     drag_from_to(&mut harness, title, title + egui::vec2(PANEL_MOVE, 0.0));
     harness.get_by_label(KH750_DEVICE_NAME).click();
     wait_until(&mut harness, "two panels", |harness| {
@@ -684,6 +684,16 @@ fn a_first_window_fits_the_desk() {
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());
+}
+
+/// The settings close at their top right too, as a window does.
+#[test]
+fn the_settings_close_from_their_top_right() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_settings(&mut harness);
+    harness.get_by_label(texts::CLOSE_SETTINGS.get()).click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::THEME.get()).is_none());
 }
 
 #[test]

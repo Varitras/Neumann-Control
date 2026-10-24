@@ -3,7 +3,9 @@
 //! at once; the app saves it.
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
-use eframe::egui::{ComboBox, Grid, Id, Modal, ScrollArea, Theme, Ui};
+use eframe::egui::{
+    Align, Button, ComboBox, Grid, Id, Layout, Modal, Role, ScrollArea, Theme, Ui, WidgetInfo,
+};
 use neumann_control_core::settings::{
     BandCurves, CrossoverGuard, DelayUnit, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
     SystemAudioSettings, ThemeChoice,
@@ -13,6 +15,8 @@ use crate::system_audio::AudioDevice;
 use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COLOR_COUNT};
 
+/// The mark of the close button at the top right, as on a window.
+const CLOSE_MARK: &str = "×";
 const MODAL_ID: &str = "settings_dialog";
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
 const METER_FLOOR_ID: &str = "meter_floor";
@@ -59,7 +63,22 @@ fn contents(
         settings.eq_display.clone(),
     );
     let desk = &mut settings.desk;
-    ui.heading(texts::SETTINGS_TITLE);
+    let closed = ui
+        .horizontal(|ui| {
+            ui.heading(texts::SETTINGS_TITLE);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let close = ui.add(Button::new(CLOSE_MARK).frame(false));
+                close.widget_info(|| {
+                    WidgetInfo::labeled(Role::Button, true, texts::CLOSE_SETTINGS.get())
+                });
+                close.on_hover_text(texts::CLOSE).clicked()
+            })
+            .inner
+        })
+        .inner;
+    if closed {
+        return SettingsAction::Close;
+    }
     ui.label(texts::THEME);
     ui.horizontal(|ui| {
         ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::LIKE_WINDOWS);

@@ -2,8 +2,8 @@
 //! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
 use eframe::egui::{
-    self, Button, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2,
-    ViewportBuilder, ViewportClass, ViewportId,
+    self, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2, ViewportBuilder,
+    ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
@@ -124,7 +124,7 @@ fn contents(
     ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let close = header(ui, speaker);
+            header(ui, speaker);
             let group = group_choice(ui, groups);
             let copy_to_group = copy_buttons(ui, groups);
             let details = details::show(ui, speaker, catalog, layout);
@@ -147,7 +147,7 @@ fn contents(
             PanelResponse {
                 commands: details.commands,
                 layout: details.layout,
-                close,
+                close: false,
                 remove,
                 group,
                 copy_to_group,
@@ -180,18 +180,9 @@ fn trends_of<'a>(ui: &Ui, speaker: &'a SpeakerState, catalog: &'a Catalog) -> Tr
     }
 }
 
-/// Name, model, masked serial and firmware; true when the close button was clicked.
-fn header(ui: &mut Ui, speaker: &SpeakerState) -> bool {
-    let closed = ui
-        .horizontal(|ui| {
-            ui.add(Label::new(RichText::new(speaker.display_name()).strong()).truncate());
-            ui.with_layout(
-                eframe::egui::Layout::right_to_left(eframe::egui::Align::Center),
-                |ui| ui.add(Button::new(texts::CLOSE).small()).clicked(),
-            )
-            .inner
-        })
-        .inner;
+/// Name, model, masked serial and firmware. The window's own ✕ and Escape close it.
+fn header(ui: &mut Ui, speaker: &SpeakerState) {
+    ui.add(Label::new(RichText::new(speaker.display_name()).strong()).truncate());
     let model = speaker.model().unwrap_or_default().to_owned();
     if let Some(identity) = &speaker.identity {
         let line = texts::status_line(
@@ -200,7 +191,6 @@ fn header(ui: &mut Ui, speaker: &SpeakerState) -> bool {
         );
         ui.add(Label::new(RichText::new(format!("{model} · {line}")).small().weak()).wrap());
     }
-    closed
 }
 
 /// "Gruppe: keine / <name>"; returns a different choice.
