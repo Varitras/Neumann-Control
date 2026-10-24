@@ -335,7 +335,8 @@ impl NeumannApp {
         }
     }
 
-    /// "Für Gruppe übernehmen": the member's current value of `linkable` for all others.
+    /// "Für Gruppe übernehmen": the member's value of `linkable` for all others; a write of it
+    /// still on its way counts, since that is what the member will hold.
     pub(super) fn copy_to_group(
         &mut self,
         index: usize,
@@ -345,7 +346,11 @@ impl NeumannApp {
         now: f64,
     ) {
         let path = linked_path(linkable);
-        let Some(value) = self.speakers[index].state.values.get(&path).cloned() else {
+        let source = &self.speakers[index].state;
+        if source.status != Status::Connected {
+            return;
+        }
+        let Some(value) = source.latest(&path).cloned() else {
             return;
         };
         let Some(group) = group_of(&self.settings.groups, &ids[index]) else {

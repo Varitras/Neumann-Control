@@ -412,3 +412,29 @@ fn ungrouped_strips_can_be_reordered_too() {
         vec![KH750_ID.to_owned(), KH120_ID.to_owned()]
     );
 }
+
+/// A write still on its way is what the member will hold: the group gets that, not the value
+/// the member reported before it.
+#[test]
+fn copy_to_group_right_after_a_change_sends_the_new_value() {
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Mute]);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
+    kh120.set_reply_delay(std::time::Duration::from_secs(2));
+    harness
+        .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
+        .click();
+    wait_until(&mut harness, "the member's mute sent", |_| {
+        !sets(&kh120, "/audio/out/mute").is_empty()
+    });
+    let copy = texts::copy_to_group(linkable_label(Linkable::Mute));
+    harness.get_by_label(&copy).click();
+    harness.run_steps(5);
+    barrier(&kh750);
+    // The link already sent the change; the copy must not follow it with the old value.
+    let sent = sets(&kh750, "/audio/out/mute");
+    assert!(
+        !sent.is_empty() && sent.iter().all(|mute| *mute == Value::Bool(true)),
+        "{sent:?}"
+    );
+}
