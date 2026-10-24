@@ -93,6 +93,8 @@
 
 ### Fixed
 
+- A change made just before the app closed or a speaker was removed could be lost, and after a
+  speaker moved to another address a write or **All values** still on the way could hang.
 - **All values** showed the network addresses below `device/network/` unmasked, and a speaker's
   own name that holds its serial (as factory names do) was shown with the serial in full.
 - The clip, warning and LOCAL LEDs of an unreachable speaker kept showing its last report; they

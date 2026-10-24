@@ -39,13 +39,41 @@ impl Inbox {
         true
     }
 
+    /// Commands that came before a `Stop` go first: a write sent just before a speaker is closed
+    /// or removed still reaches it.
     pub(super) fn next(&self, timeout: Duration) -> Result<Command, RecvTimeoutError> {
-        if self.stop_requested.get() {
-            return Ok(Command::Stop);
-        }
         if let Some(command) = self.pending.borrow_mut().pop_front() {
             return Ok(command);
         }
+        if self.stop_requested.get() {
+            return Ok(Command::Stop);
+        }
         self.receiver.recv_timeout(timeout)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc::channel;
+
+    use super::*;
+    use crate::ssc::wire::SscPath;
+
+    const WAIT: Duration = Duration::from_millis(10);
+
+    /// A write sent before closing or removing a speaker reaches it before the worker stops.
+    #[test]
+    fn writes_that_came_before_stop_are_done_first() {
+        let (sender, receiver) = channel();
+        let set = Command::Set {
+            path: SscPath::parse("audio/out/mute").unwrap(),
+            value: serde_json::json!(true),
+        };
+        sender.send(set.clone()).unwrap();
+        sender.send(Command::Stop).unwrap();
+        let inbox = Inbox::new(receiver);
+        assert!(inbox.stop_requested());
+        assert_eq!(inbox.next(WAIT), Ok(set));
+        assert_eq!(inbox.next(WAIT), Ok(Command::Stop));
     }
 }

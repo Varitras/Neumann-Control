@@ -266,6 +266,7 @@ impl NeumannApp {
         let (handle, events) = self.spawn(key, address);
         let speaker = &mut self.speakers[position];
         speaker.state.address = address;
+        speaker.state.forget_outstanding();
         speaker.events = events;
         retire(std::mem::replace(&mut speaker.handle, handle));
     }

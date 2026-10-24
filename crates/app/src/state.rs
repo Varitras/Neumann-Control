@@ -273,6 +273,19 @@ impl SpeakerState {
         self.values.insert(path, value);
     }
 
+    /// Forgets what the worker was asked and will no longer answer (the connection is gone or
+    /// the worker was replaced for a moved speaker): sent writes no longer hold their paths, and
+    /// a running read or scan can be asked again.
+    pub fn forget_outstanding(&mut self) {
+        self.pending.clear();
+        if self.all_values == AllValuesState::Loading {
+            self.all_values = AllValuesState::Idle;
+        }
+        if self.full_scan == FullScanState::Running {
+            self.full_scan = FullScanState::Idle;
+        }
+    }
+
     pub fn apply(&mut self, event: Event, now: f64) {
         match event {
             Event::Connected(identity) => {
@@ -291,7 +304,7 @@ impl SpeakerState {
                 self.set_message(Some(Message::Unreachable), MessageSource::Connection);
                 self.reset_meters();
                 self.response_time = None;
-                self.pending.clear();
+                self.forget_outstanding();
                 self.temperature.record(now, None);
                 self.warnings.record(now, None);
             }
@@ -805,5 +818,27 @@ mod tests {
         };
         speaker.apply(Event::Connected(identity), 0.0);
         assert!(!speaker.display_name().contains("3712345678"));
+    }
+
+    /// A worker replaced for a moved speaker answers nothing the old one was asked: the writes
+    /// it held no longer hold the path, and a running read can be asked again.
+    #[test]
+    fn a_replaced_worker_leaves_nothing_outstanding() {
+        let mut speaker = state();
+        let path = paths::path(paths::MUTE);
+        speaker.apply(
+            Event::Value {
+                path: path.clone(),
+                value: json!(false),
+            },
+            0.0,
+        );
+        speaker.record_written(&path, &json!(true));
+        speaker.all_values = AllValuesState::Loading;
+        speaker.full_scan = FullScanState::Running;
+        speaker.forget_outstanding();
+        assert_eq!(speaker.latest(&path), Some(&json!(false)));
+        assert_eq!(speaker.all_values, AllValuesState::Idle);
+        assert_eq!(speaker.full_scan, FullScanState::Idle);
     }
 }
