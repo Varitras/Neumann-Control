@@ -493,11 +493,13 @@ fn a_typed_number_outside_the_range_is_refused_not_clamped() {
     barrier(&simulator);
     let sets = sets_to(&simulator, DELAY_PATH);
     assert!(sets.is_empty(), "{sets:?}");
-    let range = ValueError::OutOfRange {
+    // In the unit the delay is typed in, not in the speaker's samples.
+    let range = Refusal::OutOfRange {
         min: 0.0,
-        max: 5760.0,
+        max: 120.0,
+        unit: "ms".to_owned(),
     };
-    harness.get_by_label(&texts::describe_refusal(&Refusal::Invalid(range)));
+    harness.get_by_label(&texts::describe_refusal(&range));
 }
 
 #[test]

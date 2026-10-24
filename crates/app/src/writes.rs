@@ -8,6 +8,7 @@ use neumann_control_core::speaker::Command;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use crate::display::{conversion_of, converted_unit};
 use crate::paths;
 use crate::state::{Message, MessageSource, SpeakerState, Status};
 
@@ -85,6 +86,13 @@ pub enum Refusal {
     NotWritable,
     /// A switch whose current value the speaker has not reported yet.
     ValueUnknown,
+    /// Outside the range, with the bounds in the unit the value is shown and typed in (a delay
+    /// in ms or m, not the speaker's samples).
+    OutOfRange {
+        min: f64,
+        max: f64,
+        unit: String,
+    },
     Invalid(ValueError),
 }
 
@@ -112,7 +120,24 @@ pub fn check(
         .ok_or(Refusal::NotWritable)?;
     entry
         .validate(value, product, &catalog.classes)
-        .map_err(Refusal::Invalid)
+        .map_err(|error| refusal_of(entry, error))
+}
+
+/// A range is told in the unit the value is shown and typed in, which for a converted entry is
+/// not the speaker's.
+fn refusal_of(entry: &Entry, error: ValueError) -> Refusal {
+    let ValueError::OutOfRange { min, max } = error else {
+        return Refusal::Invalid(error);
+    };
+    let Some(conversion) = conversion_of(entry) else {
+        let unit = entry.unit.clone().unwrap_or_default();
+        return Refusal::OutOfRange { min, max, unit };
+    };
+    Refusal::OutOfRange {
+        min: conversion.apply(min),
+        max: conversion.apply(max),
+        unit: converted_unit(conversion).to_owned(),
+    }
 }
 
 impl SpeakerState {
@@ -245,11 +270,12 @@ mod tests {
         let mut speaker = speaker("KH 120 II");
         let command = speaker.request(Intent::Level(130.0), Catalog::embedded(), 0.0);
         assert_eq!(command, None);
-        let reason = ValueError::OutOfRange {
+        let reason = Refusal::OutOfRange {
             min: 0.0,
             max: 120.0,
+            unit: "dB SPL".to_owned(),
         };
-        let expected = Message::Refused(Refusal::Invalid(reason));
+        let expected = Message::Refused(reason);
         assert_eq!(speaker.message, Some(expected));
     }
 

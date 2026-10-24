@@ -644,6 +644,15 @@ pub fn describe_refusal(refusal: &Refusal) -> String {
         )
         .into(),
         Refusal::ValueUnknown => Text::new("Wert noch unbekannt", "Value not known yet").into(),
+        Refusal::OutOfRange { min, max, unit } => {
+            let (min, max) = (number(*min), number(*max));
+            let range = format!("{min} {unit}").trim_end().to_owned();
+            let range_end = format!("{max} {unit}").trim_end().to_owned();
+            pick(
+                format!("Wert außerhalb von {range} bis {range_end}."),
+                format!("Value outside {range} to {range_end}."),
+            )
+        }
         Refusal::Invalid(error) => describe_value_error(error),
     }
 }

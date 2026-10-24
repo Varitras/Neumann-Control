@@ -9,7 +9,6 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::eq_file;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
-use neumann_control_core::catalog::ValueError;
 use neumann_control_core::settings::CrossoverGuard;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::{json, Value};
@@ -155,11 +154,12 @@ fn a_typed_gain_out_of_range_is_refused() {
     harness.run_steps(3);
     barrier(&simulator);
     assert!(sets(&simulator, GAIN_POINTER).is_empty());
-    let range = ValueError::OutOfRange {
+    let range = Refusal::OutOfRange {
         min: -99.0,
         max: 24.0,
+        unit: "dB".to_owned(),
     };
-    harness.get_by_label_contains(&texts::describe_refusal(&Refusal::Invalid(range)));
+    harness.get_by_label_contains(&texts::describe_refusal(&range));
 }
 
 #[test]

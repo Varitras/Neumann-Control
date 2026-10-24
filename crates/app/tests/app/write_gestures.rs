@@ -9,7 +9,6 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
-use neumann_control_core::catalog::ValueError;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
 
@@ -93,11 +92,12 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
         "{:?}",
         level_sets(&simulator)
     );
-    let range = ValueError::OutOfRange {
+    let range = Refusal::OutOfRange {
         min: 0.0,
         max: 120.0,
+        unit: "dB SPL".to_owned(),
     };
-    harness.get_by_label(&texts::describe_refusal(&Refusal::Invalid(range)));
+    harness.get_by_label(&texts::describe_refusal(&range));
 }
 
 #[test]
