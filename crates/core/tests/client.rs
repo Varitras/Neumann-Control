@@ -94,6 +94,19 @@ fn reply_without_xid_is_accepted_when_it_has_the_path() {
     assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(100.0));
 }
 
+/// A refusal without the request's id answers it all the same, as the speaker's refusal of a
+/// too long request does (it carries no xid).
+#[test]
+fn a_refusal_without_xid_is_the_reply() {
+    let (simulator, mut client) = start(SimModel::Kh750);
+    simulator.inject(Fault::NoXidEcho);
+    let error = client
+        .set(&path("device/identity/serial"), json!("X"))
+        .unwrap_err();
+    assert_eq!(device_code(error), DeviceError::READ_ONLY);
+    assert!(!client.is_closed());
+}
+
 #[test]
 fn overlong_line_closes_connection() {
     let (simulator, mut client) = start(SimModel::Kh750);
