@@ -7,15 +7,23 @@ use std::thread;
 
 use serde_json::Value;
 
-/// Written next to the exe by the release build (build-release.ps1 names it the same).
+/// Written next to the exe by the release build (build-release.ps1 names it the same, which a
+/// source guard test checks).
 pub const MANUAL_FILE: &str = "neumann-control-manual.html";
-pub const REPOSITORY_URL: &str = "https://github.com/Varitras/Neumann-Control";
-pub const RELEASES_URL: &str = "https://github.com/Varitras/Neumann-Control/releases";
+/// From the workspace manifest, as the manual's links to repository files.
+pub const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
+pub const RELEASES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/releases");
 /// The SSC protocol reference and the speakers' measured behaviour.
-pub const WIKI_URL: &str = "https://github.com/Varitras/Neumann-Control/wiki";
+pub const WIKI_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/wiki");
 /// GitHub's API for the newest release that is not a draft or a prerelease.
 pub const API_HOST: &str = "api.github.com";
-pub const LATEST_RELEASE_PATH: &str = "/repos/Varitras/Neumann-Control/releases/latest";
+const GITHUB_PAGES: &str = "https://github.com/";
+
+/// `/repos/<owner>/<name>/releases/latest` of this repository.
+pub fn latest_release_path() -> String {
+    let repository = REPOSITORY_URL.trim_start_matches(GITHUB_PAGES);
+    format!("/repos/{repository}/releases/latest")
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Release {
@@ -152,7 +160,7 @@ mod windows_help {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    use super::{parse_release, Help, LookupError, Release, API_HOST, LATEST_RELEASE_PATH};
+    use super::{latest_release_path, parse_release, Help, LookupError, Release, API_HOST};
 
     /// GitHub refuses API calls without one.
     const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
@@ -188,7 +196,7 @@ mod windows_help {
 
         fn latest_release(&self) -> Result<Option<Release>, LookupError> {
             let (status, body) =
-                get(API_HOST, LATEST_RELEASE_PATH).map_err(LookupError::Unreachable)?;
+                get(API_HOST, &latest_release_path()).map_err(LookupError::Unreachable)?;
             match status {
                 STATUS_OK => parse_release(&body)
                     .map(Some)
@@ -332,6 +340,15 @@ mod tests {
             verdict("0.1.0", Ok(Some(release("v1.0.0-beta")))),
             UpdateResult::Newer(release("v1.0.0-beta"))
         );
+    }
+
+    #[test]
+    fn the_api_asks_for_this_repositorys_latest_release() {
+        assert_eq!(
+            latest_release_path(),
+            "/repos/Varitras/Neumann-Control/releases/latest"
+        );
+        assert_eq!(WIKI_URL, "https://github.com/Varitras/Neumann-Control/wiki");
     }
 
     /// The final release is newer than its own beta, as in SemVer; build metadata is no beta.

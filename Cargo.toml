@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Varitras"]
 license = "MIT"
+repository = "https://github.com/Varitras/Neumann-Control"
 rust-version = "1.95"
 
 # Dependencies carry no debug info in dev and test builds: their PDBs made up

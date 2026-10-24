@@ -75,3 +75,16 @@ fn no_context_closure_reaches_the_context_again() {
         "context reached inside its lock: {nested:?}"
     );
 }
+
+/// The release script and the app name the manual each in their own language; the app opens
+/// the file the script ships.
+#[test]
+fn the_release_script_ships_the_manual_the_app_opens() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = fs::read_to_string(root.join("build-release.ps1")).unwrap();
+    let quoted = format!("'{}'", neumann_control_app::help::MANUAL_FILE);
+    assert!(
+        script.matches(&quoted).count() >= 2,
+        "{quoted} in build-release.ps1"
+    );
+}

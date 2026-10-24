@@ -7,7 +7,8 @@ use std::collections::BTreeSet;
 use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag, TagEnd};
 
 /// Where links to files that are not shipped lead.
-pub const REPOSITORY_URL: &str = "https://github.com/Varitras/Neumann-Control";
+/// From the workspace manifest, as the app's help menu.
+pub const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
 /// Files of the release folder: a link to them stays relative.
 const SHIPPED: [&str; 1] = ["LICENSE"];
 const TITLE: &str = "Neumann Control manual";
