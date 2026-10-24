@@ -554,16 +554,7 @@ pub fn sets(simulator: &Simulator, pointer: &str) -> Vec<Value> {
 }
 
 pub fn delay_sets(simulator: &Simulator) -> Vec<Value> {
-    simulator
-        .requests()
-        .iter()
-        .filter_map(|request| {
-            request
-                .pointer("/audio/out/delay")
-                .filter(|value| !value.is_null())
-        })
-        .cloned()
-        .collect()
+    sets(simulator, &format!("/{}", paths::DELAY))
 }
 
 /// The harness clock moves about half a second per frame, more than egui allows between the

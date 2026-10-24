@@ -30,16 +30,6 @@ fn speaker_with_panel(
     (simulator, directory, harness)
 }
 
-/// The values written to `pointer`; polls ask with `null` and are left out.
-fn sets_to(simulator: &Simulator, pointer: &str) -> Vec<Value> {
-    simulator
-        .requests()
-        .iter()
-        .filter_map(|request| request.pointer(pointer).filter(|value| !value.is_null()))
-        .cloned()
-        .collect()
-}
-
 /// The name field sits in "Device", below the outputs, input and standby: scrolled to first.
 fn click_name_field(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_role(Role::TextInput).scroll_to_me();
@@ -100,7 +90,7 @@ fn name_field_shows_refusal() {
     harness.get_by_label(texts::APPLY.get()).click();
     harness.run_steps(2);
     barrier(&simulator);
-    let sets = sets_to(&simulator, NAME_POINTER);
+    let sets = sets(&simulator, NAME_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
     let refusal = texts::describe_value_error(&ValueError::NotPrintableAscii);
     let refusal = harness.get_by_label(&refusal).rect();
@@ -190,16 +180,16 @@ fn number_field_sends_once_per_gesture() {
     }
     barrier(&simulator);
     assert!(
-        sets_to(&simulator, DELAY_POINTER).is_empty(),
+        sets(&simulator, DELAY_POINTER).is_empty(),
         "a Set went out while dragging"
     );
     harness.drop_at(start + egui::vec2(40.0, 0.0));
     wait_until(&mut harness, "the Set after release", |_| {
-        !sets_to(&simulator, DELAY_POINTER).is_empty()
+        !sets(&simulator, DELAY_POINTER).is_empty()
     });
     harness.run_steps(10);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert_eq!(sets.len(), 1, "{sets:?}");
     let delay = sets[0]
         .as_i64()
@@ -235,7 +225,7 @@ fn out_of_range_device_value_is_not_written_back() {
     });
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -251,7 +241,7 @@ fn visiting_a_number_field_does_not_write_its_rounded_text() {
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -267,7 +257,7 @@ fn visiting_an_out_of_range_number_field_writes_nothing() {
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
     assert_eq!(numeric_value(&harness, DELAY_LABEL), Some(6000.0));
 }
@@ -289,7 +279,7 @@ fn a_number_typed_and_entered_in_one_frame_is_sent() {
     harness.run_steps(1);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    assert_eq!(sets_to(&simulator, STANDBY_TIME_POINTER), vec![json!(50)]);
+    assert_eq!(sets(&simulator, STANDBY_TIME_POINTER), vec![json!(50)]);
 }
 
 #[test]
@@ -305,7 +295,7 @@ fn abandoned_number_edit_is_not_sent_on_reopen() {
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, STANDBY_TIME_POINTER);
+    let sets = sets(&simulator, STANDBY_TIME_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -318,9 +308,9 @@ fn a_typed_number_is_snapped_only_when_sent() {
     assert_eq!(shown.as_deref(), Some("1.5"));
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the Set after Enter", |_| {
-        !sets_to(&simulator, STANDBY_TIME_POINTER).is_empty()
+        !sets(&simulator, STANDBY_TIME_POINTER).is_empty()
     });
-    assert_eq!(sets_to(&simulator, STANDBY_TIME_POINTER), vec![json!(2)]);
+    assert_eq!(sets(&simulator, STANDBY_TIME_POINTER), vec![json!(2)]);
 }
 
 #[test]
@@ -330,7 +320,7 @@ fn escape_during_number_edit_sends_nothing() {
     harness.key_press(egui::Key::Escape);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, STANDBY_TIME_POINTER);
+    let sets = sets(&simulator, STANDBY_TIME_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
     assert_eq!(numeric_value(&harness, STANDBY_TIME_LABEL), Some(60.0));
 }
@@ -365,10 +355,10 @@ fn a_name_typed_then_tabbed_to_apply_is_sent() {
     harness.run_steps(2);
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the Set after Enter on Übernehmen", |_| {
-        !sets_to(&simulator, NAME_POINTER).is_empty()
+        !sets(&simulator, NAME_POINTER).is_empty()
     });
     barrier(&simulator);
-    assert_eq!(sets_to(&simulator, NAME_POINTER), vec![json!("Studio")]);
+    assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
 }
 
 #[test]
@@ -495,9 +485,9 @@ fn delay_is_typed_in_milliseconds_and_sent_in_samples() {
     type_number(&mut harness, DELAY_LABEL, "10");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the delay Set", |_| {
-        !sets_to(&simulator, DELAY_POINTER).is_empty()
+        !sets(&simulator, DELAY_POINTER).is_empty()
     });
-    assert_eq!(sets_to(&simulator, DELAY_POINTER), vec![json!(480)]);
+    assert_eq!(sets(&simulator, DELAY_POINTER), vec![json!(480)]);
 }
 
 #[test]
@@ -508,7 +498,7 @@ fn a_typed_number_outside_the_range_is_refused_not_clamped() {
     harness.key_press(egui::Key::Enter);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
     // In the unit the delay is typed in, not in the speaker's samples.
     let range = Refusal::OutOfRange {
@@ -532,7 +522,7 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    assert!(sets_to(&simulator, DELAY_POINTER).is_empty());
+    assert!(sets(&simulator, DELAY_POINTER).is_empty());
 }
 
 #[test]
@@ -551,7 +541,7 @@ fn a_panel_drag_outside_the_range_writes_nothing() {
     harness.drop_at(start + egui::vec2(40.0, 0.0));
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -571,7 +561,7 @@ fn a_panel_drag_back_to_its_start_writes_nothing() {
     harness.drop_at(start);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, DELAY_POINTER);
+    let sets = sets(&simulator, DELAY_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -649,12 +639,12 @@ fn the_input_mix_writes_the_whole_list() {
         .type_text("-20");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the mix written", |_| {
-        !sets_to(&simulator, INPUT_MIX_POINTER).is_empty()
+        !sets(&simulator, INPUT_MIX_POINTER).is_empty()
     });
     let mut expected = before.as_array().unwrap().clone();
     expected[1] = json!(-20.0);
     assert_eq!(
-        sets_to(&simulator, INPUT_MIX_POINTER),
+        sets(&simulator, INPUT_MIX_POINTER),
         vec![Value::Array(expected)]
     );
 }
@@ -681,10 +671,10 @@ fn the_input_mix_keeps_the_speakers_number_type() {
         .type_text("-20");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the mix written", |_| {
-        !sets_to(&simulator, INPUT_MIX_POINTER).is_empty()
+        !sets(&simulator, INPUT_MIX_POINTER).is_empty()
     });
     assert_eq!(
-        sets_to(&simulator, INPUT_MIX_POINTER),
+        sets(&simulator, INPUT_MIX_POINTER),
         vec![json!([0, -20])]
     );
 }
@@ -695,10 +685,10 @@ fn mute_persist_is_a_checkbox_that_writes() {
     assert_eq!(role_of(&harness, "Stumm-Persistenz"), Role::CheckBox);
     harness.get_by_label("Stumm-Persistenz").click();
     wait_until(&mut harness, "mute persist written", |_| {
-        !sets_to(&simulator, "/audio/out/mute_persist").is_empty()
+        !sets(&simulator, "/audio/out/mute_persist").is_empty()
     });
     assert_eq!(
-        sets_to(&simulator, "/audio/out/mute_persist"),
+        sets(&simulator, "/audio/out/mute_persist"),
         vec![json!(true)]
     );
 }
@@ -799,7 +789,7 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     harness.get_by_label_contains("Pegel: ");
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the level written back", |_| {
-        sets_to(&simulator, LEVEL_POINTER).contains(&json!(100.0))
+        sets(&simulator, LEVEL_POINTER).contains(&json!(100.0))
     });
     harness.run_steps(2);
     assert_eq!(harness.state().history().len(), entries_before + 1);
@@ -838,8 +828,8 @@ fn a_settings_preset_with_a_refused_value_writes_nothing() {
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    assert!(sets_to(&simulator, LEVEL_POINTER).is_empty());
-    assert!(sets_to(&simulator, DELAY_POINTER).is_empty());
+    assert!(sets(&simulator, LEVEL_POINTER).is_empty());
+    assert!(sets(&simulator, DELAY_POINTER).is_empty());
 }
 
 /// What is in the field when it is left counts, not a number typed on the way there: a field
@@ -857,7 +847,7 @@ fn a_number_field_left_empty_or_unreadable_writes_nothing() {
     harness.key_press(egui::Key::Tab);
     harness.run_steps(IDLE_FRAMES);
     barrier(&simulator);
-    let sets = sets_to(&simulator, STANDBY_TIME_POINTER);
+    let sets = sets(&simulator, STANDBY_TIME_POINTER);
     assert!(sets.is_empty(), "{sets:?}");
 }
 
@@ -874,10 +864,10 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
     harness.get_by_role_and_label(Role::CheckBox, mute).click();
     // Each request waits for its delayed answer, so the second write comes seconds later.
     wait_until(&mut harness, "both mute writes", |_| {
-        sets_to(&simulator, MUTE_POINTER).len() >= 2
+        sets(&simulator, MUTE_POINTER).len() >= 2
     });
     assert_eq!(
-        sets_to(&simulator, MUTE_POINTER),
+        sets(&simulator, MUTE_POINTER),
         vec![json!(true), json!(false)]
     );
 }
@@ -969,7 +959,7 @@ fn the_history_shows_a_delay_in_its_shown_unit() {
     type_number(&mut harness, DELAY_LABEL, "10");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the delay write", |_| {
-        !sets_to(&simulator, DELAY_POINTER).is_empty()
+        !sets(&simulator, DELAY_POINTER).is_empty()
     });
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
