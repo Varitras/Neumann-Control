@@ -53,14 +53,13 @@ fn contents(
     catalog: &Catalog,
     commands: &mut Vec<Command>,
 ) {
-    let loading = speaker.all_values == AllValuesState::Loading;
     ui.horizontal(|ui| {
         let label = ui.label(texts::ALL_VALUES_FILTER_LABEL);
         ui.add(TextEdit::singleline(&mut speaker.all_values_filter).desired_width(FILTER_WIDTH))
             .labelled_by(label.id);
         if ui
             .add_enabled(
-                !loading,
+                speaker.can_read_all_values(),
                 eframe::egui::Button::new(texts::ALL_VALUES_RELOAD),
             )
             .clicked()

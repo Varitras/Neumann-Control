@@ -13,7 +13,7 @@ use super::knob;
 use super::layout_menu;
 use crate::display::shown_value;
 use crate::paths;
-use crate::state::{AllValuesState, FullScanState, SpeakerState, Status};
+use crate::state::{FullScanState, SpeakerState, Status};
 use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
@@ -250,10 +250,8 @@ fn full_scan_outcome(ui: &mut Ui, speaker: &SpeakerState) {
 }
 
 fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {
-    let loading = speaker.all_values == AllValuesState::Loading;
-    let enabled = speaker.status == Status::Connected && !loading;
     if ui
-        .add_enabled(enabled, Button::new(texts::ALL_VALUES))
+        .add_enabled(speaker.can_read_all_values(), Button::new(texts::ALL_VALUES))
         .clicked()
     {
         commands.push(speaker.read_all_values());

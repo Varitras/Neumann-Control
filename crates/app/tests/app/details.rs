@@ -454,6 +454,23 @@ fn all_values_button_reads_the_whole_tree() {
     });
 }
 
+/// Reloading a speaker that is gone would only swap the table for a failure: the window's
+/// button follows the same rule as the panel's.
+#[test]
+fn all_values_cannot_be_reloaded_from_an_unreachable_speaker() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
+    let reload_enabled = |harness: &Harness<'static, NeumannApp>| {
+        harness
+            .query_by_label(texts::ALL_VALUES_RELOAD.get())
+            .is_some_and(|button| !button.accesskit_node().is_disabled())
+    };
+    wait_until(&mut harness, "the values read", reload_enabled);
+    simulator.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    assert!(!reload_enabled(&harness));
+}
+
 #[test]
 fn panel_number_rows_keep_their_labels_on_one_line() {
     let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh120Ii);

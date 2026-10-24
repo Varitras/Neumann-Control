@@ -410,6 +410,11 @@ impl SpeakerState {
         }
     }
 
+    /// "Alle Werte" may be (re)read: only from a connected speaker, once at a time.
+    pub fn can_read_all_values(&self) -> bool {
+        self.status == Status::Connected && self.all_values != AllValuesState::Loading
+    }
+
     /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
     pub fn read_all_values(&mut self) -> Command {
         self.all_values = AllValuesState::Loading;
