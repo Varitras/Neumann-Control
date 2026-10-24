@@ -546,6 +546,27 @@ fn serial_mismatch_is_reported() {
     }
 }
 
+/// A speaker added by address alone: the serial it reported first is the one it must keep, so
+/// another unit answering at that address later is not taken for it.
+#[test]
+fn another_serial_after_a_reconnect_is_a_mismatch() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let (_handle, events) = start_worker(simulator.address(), None, short_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+    simulator.set_value("device/identity/serial", json!("OTHER"));
+    simulator.inject(Fault::CloseConnection);
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        matches!(event, Event::SerialMismatch { .. } | Event::Connected(_))
+    });
+    assert_eq!(
+        seen.last(),
+        Some(&Event::SerialMismatch {
+            expected: KH_120_II_SERIAL.to_owned(),
+            found: "OTHER".to_owned(),
+        })
+    );
+}
+
 #[test]
 fn read_all_lists_every_leaf() {
     let simulator = Simulator::start(SimModel::Kh120Ii);

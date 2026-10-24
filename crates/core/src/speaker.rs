@@ -40,7 +40,8 @@ const THREAD_NAME: &str = "speaker";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Target {
     pub address: SocketAddrV6,
-    /// When set, a speaker reporting another serial is not used.
+    /// When set, a speaker reporting another serial is not used; unset, the serial reported on
+    /// the first connection is expected from then on.
     pub expected_serial: Option<String>,
 }
 
@@ -335,6 +336,10 @@ impl Worker {
             return Ok(());
         }
         log::info!("connected to {}", self.host);
+        // Added by address alone: from now on this is the speaker, not whatever answers there.
+        if self.target.expected_serial.is_none() && !identity.serial.is_empty() {
+            self.target.expected_serial = Some(identity.serial.clone());
+        }
         self.reported = None;
         let entries = Catalog::embedded().entries_for(&identity.product);
         self.outbox.emit(Event::Connected(identity));
