@@ -755,3 +755,22 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     harness.run_steps(2);
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
+
+/// What is in the field when it is left counts, not a number typed on the way there: a field
+/// emptied or made unreadable writes nothing.
+#[test]
+fn a_number_field_left_empty_or_unreadable_writes_nothing() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    type_number(&mut harness, STANDBY_TIME_LABEL, "50");
+    harness.key_press(egui::Key::Backspace);
+    harness.key_press(egui::Key::Backspace);
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(IDLE_FRAMES);
+    type_number(&mut harness, STANDBY_TIME_LABEL, "50x");
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets_to(&simulator, STANDBY_TIME_PATH);
+    assert!(sets.is_empty(), "{sets:?}");
+}

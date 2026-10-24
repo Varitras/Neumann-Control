@@ -4,7 +4,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{DragValue, Event, Id, Key, Response, Ui};
+use eframe::egui::{DragValue, Event, Id, Key, Pos2, Response, Ui};
 use neumann_control_core::catalog::Conversion;
 
 use crate::display::converted_unit;
@@ -12,6 +12,10 @@ use crate::gesture::{bounded_move, on_grid, released, typed_value};
 use crate::texts;
 
 const PENDING_NUMBER_ID: &str = "pending_number";
+const TYPED_ID: &str = "number_typed";
+const ORIGIN_ID: &str = "number_drag_origin";
+/// A drag released this close to where it was pressed (points) went nowhere.
+const RETURN_DISTANCE: f32 = 1.0;
 
 fn is_text_edit(event: &Event) -> bool {
     match event {
@@ -48,6 +52,18 @@ pub fn show(ui: &mut Ui, field: &NumberField) -> Option<f64> {
     let mut value = held.or(field.device).or(low).unwrap_or_default();
     let response = drag_value(ui, field, &mut value);
     let device = field.device;
+    let typed_id = field.id.with(TYPED_ID);
+    // egui forgets where the button went down once it is released; the drag keeps it.
+    let origin_id = field.id.with(ORIGIN_ID);
+    if response.drag_started() {
+        let pressed = ui.input(|input| input.pointer.press_origin());
+        ui.data_mut(|data| {
+            data.remove::<Pos2>(origin_id);
+            if let Some(pressed) = pressed {
+                data.insert_temp(origin_id, pressed);
+            }
+        });
+    }
     if response.dragged() {
         let start = device.unwrap_or(value);
         value = bounded_move(start, value, &field.range).unwrap_or(start);
@@ -55,30 +71,47 @@ pub fn show(ui: &mut Ui, field: &NumberField) -> Option<f64> {
     let active = response.dragged() || response.has_focus();
     let ended = response.drag_stopped() || response.lost_focus();
     if !active && !ended {
-        ui.data_mut(|data| data.remove::<f64>(pending_id));
+        ui.data_mut(|data| {
+            data.remove::<f64>(pending_id);
+            data.remove::<bool>(typed_id);
+            data.remove::<Pos2>(origin_id);
+        });
         return None;
     }
-    // egui also reports a change on the frame focus leaves, when it reparses and clamps the
-    // shown text; that one is the user's only if the same frame carried their typing.
+    // A typed value counts only when the field is left and only as the text it holds then (egui
+    // drops text that does not parse). egui also reparses the shown text on leaving, so a mere
+    // visit changes the value too; that is the user's only if they typed in this visit.
     let typed_this_frame = ui.input(|input| input.events.iter().any(is_text_edit));
-    let changed_by_user = response.changed() && (active || typed_this_frame);
+    let typed = typed_this_frame || ui.data(|data| data.get_temp::<bool>(typed_id).is_some());
+    if typed_this_frame {
+        ui.data_mut(|data| data.insert_temp(typed_id, true));
+    }
+    let changed_by_user = response.changed() && (response.dragged() || typed);
     if changed_by_user {
         ui.data_mut(|data| data.insert_temp(pending_id, value));
     }
     if active {
         return None;
     }
+    ui.data_mut(|data| data.remove::<bool>(typed_id));
     let number = changed_by_user.then_some(value).or(held)?;
     ui.data_mut(|data| data.remove::<f64>(pending_id));
     if ui.input(|input| input.key_pressed(Key::Escape)) {
         return None;
     }
-    // A drag or an edit that ends where it began writes nothing.
+    // A drag or an edit that ends where it began writes nothing. egui rounds a dragged value to
+    // the shown decimals, so a drag back to its start is told by the pointer, not by the value.
+    let origin = ui.data(|data| data.get_temp::<Pos2>(origin_id));
+    let end = ui.input(|input| input.pointer.latest_pos());
+    let dragged_back = response.drag_stopped()
+        && origin
+            .zip(end)
+            .is_some_and(|(origin, end)| origin.distance(end) < RETURN_DISTANCE);
     let unchanged = match (field.step, device) {
         (Some(step), Some(device)) => released(device, number, step).is_none(),
         _ => Some(number) == device,
     };
-    (!unchanged).then_some(number)
+    (!unchanged && !dragged_back).then_some(number)
 }
 
 /// No range on the egui field: it would clamp typed text to it, and a typo would reach the
@@ -88,6 +121,7 @@ fn drag_value(ui: &mut Ui, field: &NumberField, value: &mut f64) -> Response {
     let mut drag = DragValue::new(value)
         .custom_formatter(|number, _| texts::number(number))
         .custom_parser(|text| typed_value(text, None))
+        .update_while_editing(false)
         .speed(field.drag_speed);
     // A converted field shows the converted unit only; both would read "0 1/48 kHz ms".
     let device_unit = field.unit.filter(|_| field.conversion.is_none());

@@ -1006,3 +1006,30 @@ fn the_wheel_over_overlapping_points_turns_one_band() {
         .sum();
     assert_eq!(bands, 1, "{written:?}");
 }
+
+/// A table field dragged away and back to where it started writes nothing, even though egui
+/// rounds a dragged value to the shown decimals.
+#[test]
+fn a_table_field_dragged_away_and_back_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut boosts = vec![0.0; 10];
+        boosts[1] = 1.234567;
+        simulator.set_value("audio/out/eq2/boost", json!(boosts));
+    });
+    let field = harness
+        .query_all_by_role_and_label(Role::SpinButton, BOOST_LABEL)
+        .nth(1)
+        .expect("band 2's boost")
+        .rect()
+        .center();
+    harness.drag_at(field);
+    for offset in [10.0, 30.0, 10.0, 0.0] {
+        harness.hover_at(field + egui::vec2(offset, 0.0));
+        harness.step();
+    }
+    harness.drop_at(field);
+    harness.run_steps(3);
+    barrier(&simulator);
+    let written = sets(&simulator, BOOST_POINTER);
+    assert!(written.is_empty(), "{written:?}");
+}
