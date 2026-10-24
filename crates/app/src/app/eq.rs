@@ -9,7 +9,8 @@ use serde_json::Value;
 
 use super::NeumannApp;
 use crate::eq::{
-    bands_of, container_of, has_eq, input_sums, one_band, output_key, Band, Leaf, ResetKind,
+    bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, Band, Leaf,
+    ResetKind,
 };
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
@@ -818,7 +819,7 @@ fn output_sums(
 fn outputs_of<'a>(catalog: &'a Catalog, product: &str) -> Vec<(String, Vec<&'a EqContainer>)> {
     let mut outputs: Vec<(String, Vec<&EqContainer>)> = Vec::new();
     for container in catalog.eq_containers(product) {
-        let name = texts::eq_output(&output_key(container)).to_owned();
+        let name = texts::eq_output(output_group(container)).to_owned();
         match outputs.iter_mut().find(|(known, _)| *known == name) {
             Some((_, containers)) => containers.push(container),
             None => outputs.push((name, vec![container])),

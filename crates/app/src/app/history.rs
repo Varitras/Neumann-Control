@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_key, several_outputs};
+use crate::eq::{container_of, output_group, several_outputs};
 use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
@@ -274,7 +274,7 @@ impl NeumannApp {
         let container_name = container.map(|container| {
             let name = container.label(language);
             match several_outputs(catalog, product) {
-                true => texts::eq_on_output(texts::eq_output(&output_key(container)), name),
+                true => texts::eq_on_output(texts::eq_output(output_group(container)), name),
                 false => name.to_owned(),
             }
         });

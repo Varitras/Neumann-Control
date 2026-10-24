@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use super::eq::PendingImport;
 use super::NeumannApp;
-use crate::eq::{bands_of, output_key, several_outputs};
+use crate::eq::{bands_of, output_group, several_outputs};
 use crate::eq_file::{self, MAX_FILE_BYTES};
 use crate::presets::eq_plan;
 use crate::texts;
@@ -137,7 +137,7 @@ impl NeumannApp {
         );
         let label = match (known, several_outputs(catalog, product)) {
             (Some(known), true) => {
-                texts::eq_on_output(texts::eq_output(&output_key(known)), &label)
+                texts::eq_on_output(texts::eq_output(output_group(known)), &label)
             }
             _ => label,
         };

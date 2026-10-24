@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use neumann_control_core::catalog::{eq_leaf, eq_type, Catalog, EqContainer};
+use neumann_control_core::catalog::{eq_leaf, eq_type, Catalog, EqContainer, Group};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
@@ -180,9 +180,23 @@ pub fn output_key(container: &EqContainer) -> String {
     container
         .path
         .segments()
-        .get(1)
+        .get(OUTPUT_SEGMENT)
         .cloned()
         .unwrap_or_default()
+}
+
+/// Where a container's path names its output (`audio/out1/eq2`).
+const OUTPUT_SEGMENT: usize = 1;
+const OUTPUT_A_KEY: &str = "out1";
+const OUTPUT_B_KEY: &str = "out2";
+
+/// The output's group in the device panel: the KH 750's A and B, else the one output.
+pub fn output_group(container: &EqContainer) -> Group {
+    match output_key(container).as_str() {
+        OUTPUT_A_KEY => Group::Output1,
+        OUTPUT_B_KEY => Group::Output2,
+        _ => Group::Output,
+    }
 }
 
 /// Whether `product` has EQs on more than one output (the KH 750's subwoofer, A and B); there

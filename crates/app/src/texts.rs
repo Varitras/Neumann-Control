@@ -9,7 +9,7 @@ use std::fmt;
 
 use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
-use neumann_control_core::catalog::ValueError;
+use neumann_control_core::catalog::{Group, ValueError};
 use neumann_control_core::settings::{Language, LoadOutcome};
 use serde_json::Value;
 
@@ -237,8 +237,6 @@ pub const EQ_NOT_REPORTED: Text = Text::new(
 /// The KH 750's outputs, measured 2026-10-19: `out` drives its own woofer, `out1`/`out2` are the
 /// sockets A and B.
 pub const EQ_OUTPUT_SUBWOOFER: Text = Text::new("Subwoofer", "Subwoofer");
-pub const EQ_OUTPUT_A: Text = Text::new("Ausgang A", "Output A");
-pub const EQ_OUTPUT_B: Text = Text::new("Ausgang B", "Output B");
 /// Shown for a value the speaker has not reported.
 pub const UNKNOWN_VALUE: &str = "?";
 pub const BAND: Text = Text::new("Band", "Band");
@@ -698,14 +696,12 @@ pub fn describe_rejection(code: i64) -> String {
     }
 }
 
-/// The name of an EQ container's output (`out`, `out1`, `out2`).
-pub fn eq_output(key: &str) -> &'static str {
-    let text = match key {
-        "out1" => EQ_OUTPUT_A,
-        "out2" => EQ_OUTPUT_B,
-        _ => EQ_OUTPUT_SUBWOOFER,
-    };
-    text.get()
+/// The name of an EQ container's output: the subwoofer, or output A or B as the panel names them.
+pub fn eq_output(group: Group) -> &'static str {
+    match group {
+        Group::Output1 | Group::Output2 => group.title(language()),
+        _ => EQ_OUTPUT_SUBWOOFER.get(),
+    }
 }
 
 /// An EQ named with its output, where the model has several (`EQ 2` is on each of them).
