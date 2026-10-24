@@ -1,5 +1,5 @@
 //! The device panel: every setting of one speaker, in a window of its own that can be moved
-//! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
+//! anywhere, opened from its strip. It closes on Escape or the window's close button.
 
 use eframe::egui::{
     self, Color32, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2,

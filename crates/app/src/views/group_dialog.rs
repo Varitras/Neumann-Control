@@ -1,5 +1,5 @@
-//! Renaming, colouring, filling or deleting a group, opened from its strip's name and right
-//! after **+ Group**.
+//! Renaming, colouring, filling or deleting a group, opened from its strip's name or
+//! **Details**, from **Delete group…** in its context menu, and right after **+ Group**.
 
 use eframe::egui::{Color32, Id, Modal, TextEdit, Ui};
 use neumann_control_core::settings::ColorChoice;
