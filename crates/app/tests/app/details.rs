@@ -774,3 +774,22 @@ fn a_number_field_left_empty_or_unreadable_writes_nothing() {
     let sets = sets_to(&simulator, STANDBY_TIME_PATH);
     assert!(sets.is_empty(), "{sets:?}");
 }
+
+/// A second click before the speaker answered the first goes from the value just sent, as on
+/// the strip: mute and unmute, not mute twice.
+#[test]
+fn a_second_switch_click_before_the_answer_undoes_the_first() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
+    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    let mute = texts::MUTE.get();
+    harness.get_by_role_and_label(Role::CheckBox, mute).click();
+    harness.run_steps(1);
+    harness.get_by_role_and_label(Role::CheckBox, mute).click();
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(
+        sets_to(&simulator, "/audio/out/mute"),
+        vec![json!(true), json!(false)]
+    );
+}

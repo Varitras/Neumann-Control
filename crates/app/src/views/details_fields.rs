@@ -82,13 +82,13 @@ impl Fields<'_> {
     }
 
     /// A list value (`elements` in the catalog): one field per entry. A change writes the whole
-    /// list, the other entries as the speaker reported them.
+    /// list, the other entries as last sent or else as the speaker reported them, so a second
+    /// change before the answer keeps the first.
     pub fn number_list(&mut self, ui: &mut Ui, entry: &Entry) {
         let names = entry.element_labels(texts::language());
-        let reported: Option<Vec<Value>> = self
+        let current: Option<Vec<Value>> = self
             .speaker
-            .values
-            .get(&entry.path)
+            .latest(&entry.path)
             .and_then(Value::as_array)
             .filter(|entries| entries.len() == names.len())
             .cloned();
@@ -101,9 +101,7 @@ impl Fields<'_> {
         ui.label(entry.label(texts::language()));
         for (index, name) in names.iter().enumerate() {
             ui.horizontal(|ui| {
-                let device = reported
-                    .as_ref()
-                    .and_then(|entries| entries[index].as_f64());
+                let device = current.as_ref().and_then(|entries| entries[index].as_f64());
                 let label = ui.label(name);
                 let field = NumberField {
                     id: ui.scope_id().with(entry.path.to_string()).with(index),
@@ -121,7 +119,7 @@ impl Fields<'_> {
                 }
             });
         }
-        let (Some((index, number)), Some(mut entries)) = (written, reported) else {
+        let (Some((index, number)), Some(mut entries)) = (written, current) else {
             return;
         };
         // Outside the range it goes as typed, for the write policy to refuse with the reason.
@@ -131,12 +129,10 @@ impl Fields<'_> {
         self.send(ui, Intent::Write { path, value });
     }
 
+    /// Shows and toggles from the value last sent, as the strip does: a second click before the
+    /// answer undoes the first instead of repeating it.
     pub fn switch(&mut self, ui: &mut Ui, entry: &Entry) {
-        let current = self
-            .speaker
-            .values
-            .get(&entry.path)
-            .and_then(Value::as_bool);
+        let current = self.speaker.latest(&entry.path).and_then(Value::as_bool);
         let enabled = self.enabled(entry, current.is_some());
         let mut checked = current.unwrap_or(false);
         let checkbox = Checkbox::new(&mut checked, entry.label(texts::language()));
