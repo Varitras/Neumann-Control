@@ -71,7 +71,7 @@ fn write_report(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let now = super::local_now();
     let time = format!(
         "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
         now.year(),

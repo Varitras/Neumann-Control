@@ -453,7 +453,7 @@ fn send_before(
 }
 
 fn clock_now() -> ClockTime {
-    let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let now = super::local_now();
     ClockTime {
         hour: now.hour(),
         minute: now.minute(),
