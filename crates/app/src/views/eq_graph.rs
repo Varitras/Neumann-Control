@@ -26,6 +26,12 @@ const FREQUENCY_MARKS: [f64; 10] = [
     20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0,
 ];
 const LABEL_SIZE: f32 = 9.0;
+/// Room left of and below the plot for the dB and frequency labels.
+const LABEL_ROOM: Vec2 = vec2(28.0, 14.0);
+/// Between a label and the line it names.
+const LABEL_GAP_BELOW: f32 = 2.0;
+const LABEL_GAP_LEFT: f32 = 3.0;
+const GRID_WIDTH: f32 = 1.0;
 const CURVE_WIDTH: f32 = 1.5;
 const SUM_WIDTH: f32 = 2.5;
 const DASH_LENGTH: f32 = 6.0;
@@ -143,7 +149,7 @@ pub fn show(ui: &mut Ui, graph: &Graph) -> Vec<GraphAction> {
     let size = vec2(ui.available_width(), GRAPH_HEIGHT);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let axes = Axes {
-        rect: rect.shrink2(vec2(28.0, 14.0)),
+        rect: rect.shrink2(LABEL_ROOM),
         db_span: db_span(graph),
     };
     paint_grid(ui, &axes, &tokens);
@@ -215,13 +221,13 @@ fn db_grid(span: f64) -> f64 {
 fn paint_grid(ui: &Ui, axes: &Axes, tokens: &Tokens) {
     let painter = ui.painter();
     let rect = axes.rect;
-    let line = Stroke::new(1.0, tokens.border);
+    let line = Stroke::new(GRID_WIDTH, tokens.border);
     let font = FontId::proportional(LABEL_SIZE);
     for mark in FREQUENCY_MARKS {
         let x = axes.x(mark);
         painter.line_segment([pos2(x, rect.top()), pos2(x, rect.bottom())], line);
         let text = texts::frequency_mark(mark);
-        let at = pos2(x, rect.bottom() + 2.0);
+        let at = pos2(x, rect.bottom() + LABEL_GAP_BELOW);
         painter.text(at, Align2::CENTER_TOP, text, font.clone(), tokens.text_dim);
     }
     let grid = db_grid(axes.db_span);
@@ -230,12 +236,12 @@ fn paint_grid(ui: &Ui, axes: &Axes, tokens: &Tokens) {
         let db = f64::from(step) * grid;
         let y = axes.y(db);
         let stroke = if step == 0 {
-            Stroke::new(1.0, tokens.text_dim)
+            Stroke::new(GRID_WIDTH, tokens.text_dim)
         } else {
             line
         };
         painter.line_segment([pos2(rect.left(), y), pos2(rect.right(), y)], stroke);
-        let at = pos2(rect.left() - 3.0, y);
+        let at = pos2(rect.left() - LABEL_GAP_LEFT, y);
         painter.text(
             at,
             Align2::RIGHT_CENTER,
