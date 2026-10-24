@@ -9,14 +9,15 @@ use crate::paths;
 
 /// Stands for every value the report leaves out.
 pub const REDACTED: &str = "<redacted>";
-/// Leaves that name the speaker or its owner.
-const IDENTIFYING_PATHS: &[&str] = &[paths::SERIAL, paths::MAC_ADDRESSES, paths::DEVICE_NAME];
-/// Every leaf below this holds network details of the owner's setup.
-const NETWORK_PREFIX: &str = "device/network/";
 const MAC_GROUPS: usize = 6;
 const MAC_GROUP_LENGTH: usize = 2;
-/// An IPv6 address has at least two colons; a time like "12:30" has one.
-const IPV6_MIN_COLONS: usize = 2;
+/// A full IPv6 address has seven colons; a shortened one has `::`. A clock time has two at most.
+const IPV6_FULL_COLONS: usize = 7;
+const IPV6_SHORTENED: &str = "::";
+const IPV4_GROUPS: usize = 4;
+/// Punctuation around an address in a word; brackets are not among it, `[address]:port` is
+/// told by them.
+const WORD_TRIM: &str = ",;()\"'";
 
 /// What the report says about the speaker, apart from its leaves.
 pub struct ScanHeader<'a> {
@@ -60,8 +61,7 @@ pub fn redacted(reports: &[LeafReport], known: &[&str]) -> Vec<LeafReport> {
         .iter()
         .map(|report| {
             let path = report.path.to_string();
-            let identifying =
-                IDENTIFYING_PATHS.contains(&path.as_str()) || path.starts_with(NETWORK_PREFIX);
+            let identifying = paths::is_identifier(&path) || path == paths::DEVICE_NAME;
             let value = match &report.value {
                 _ if identifying => Ok(Value::String(REDACTED.to_owned())),
                 Ok(value) => Ok(redacted_value(value, &known)),
@@ -103,21 +103,41 @@ fn redacted_text(text: &str, known: &[&str]) -> String {
     let text = known.iter().fold(text.to_owned(), |text, identifier| {
         text.replace(identifier, REDACTED)
     });
-    text.split(' ')
-        .map(|word| {
-            let bare = word.trim_matches(|character: char| ",;()[]\"'".contains(character));
-            if looks_like_address(bare) {
-                word.replace(bare, REDACTED)
-            } else {
-                word.to_owned()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut redacted = String::new();
+    // Whitespace of any kind separates words; it stays as it was.
+    for piece in text.split_inclusive(char::is_whitespace) {
+        let word = piece.trim_end_matches(char::is_whitespace);
+        let space = &piece[word.len()..];
+        redacted.push_str(&redacted_word(word));
+        redacted.push_str(space);
+    }
+    redacted
+}
+
+/// One word with the address in it replaced: `key=address`, `[address]:port` and
+/// `address/prefix` are found as well as a bare address.
+fn redacted_word(word: &str) -> String {
+    let value = word.rsplit_once('=').map_or(word, |(_, value)| value);
+    let bare = value.trim_matches(|character: char| WORD_TRIM.contains(character));
+    let bracketed = bare
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once(']'))
+        .map(|(inside, _)| inside);
+    let address = bracketed.unwrap_or(bare);
+    let address = address.split('/').next().unwrap_or_default();
+    match !address.is_empty() && looks_like_address(address) {
+        true => word.replace(address, REDACTED),
+        false => word.to_owned(),
+    }
 }
 
 fn looks_like_address(word: &str) -> bool {
-    looks_like_mac(word) || looks_like_ipv6(word)
+    looks_like_mac(word) || looks_like_ipv6(word) || looks_like_ipv4(word)
+}
+
+fn looks_like_ipv4(word: &str) -> bool {
+    let groups: Vec<&str> = word.split('.').collect();
+    groups.len() == IPV4_GROUPS && groups.iter().all(|group| group.parse::<u8>().is_ok())
 }
 
 fn looks_like_mac(word: &str) -> bool {
@@ -137,7 +157,8 @@ fn looks_like_ipv6(word: &str) -> bool {
     let has_digit = address
         .chars()
         .any(|character| character.is_ascii_hexdigit());
-    colons >= IPV6_MIN_COLONS && allowed && has_digit
+    let shaped = address.contains(IPV6_SHORTENED) || colons >= IPV6_FULL_COLONS;
+    shaped && allowed && has_digit
 }
 
 /// The report as JSON: header, then per leaf the value or the refusal, the device's limits, and
@@ -265,6 +286,31 @@ mod tests {
             shown[2].limits,
             Some(json!({"desc": format!("mac {REDACTED}")}))
         );
+    }
+
+    #[test]
+    fn addresses_with_prefix_port_key_or_tab_are_redacted() {
+        let reports = [
+            leaf("osc/a", json!("net fe80::1/64 up")),
+            leaf("osc/b", json!("at [fe80::1]:45")),
+            leaf("osc/c", json!("ip=fe80::1\tgw=192.168.1.1")),
+            leaf("osc/d", json!("v4 192.168.1.20 seen")),
+            leaf("osc/e", json!("mac=aa:bb:cc:dd:ee:ff")),
+        ];
+        let shown = values(&redacted(&reports, &[]));
+        for value in &shown {
+            let text = value.as_str().unwrap();
+            for address in ["fe80::1", "192.168.1", "aa:bb:cc"] {
+                assert!(!text.contains(address), "{text}");
+            }
+        }
+    }
+
+    /// A clock time has colons too, but no `::` and too few groups for IPv6.
+    #[test]
+    fn a_time_with_seconds_is_kept() {
+        let shown = values(&redacted(&[leaf("osc/t", json!("at 19:04:05"))], &[]));
+        assert_eq!(shown[0], json!("at 19:04:05"));
     }
 
     #[test]

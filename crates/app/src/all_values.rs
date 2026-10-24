@@ -18,8 +18,6 @@ const UNITS_KEY: &str = "units";
 const MINIMUM_KEY: &str = "min";
 const MAXIMUM_KEY: &str = "max";
 const OPTIONS_KEY: &str = "option";
-/// Leaves that name the device itself; shown masked like the serial in the device panel.
-const IDENTIFIER_PATHS: &[&str] = &[paths::SERIAL, paths::MAC_ADDRESSES];
 const IDENTIFIER_SEPARATOR: &str = ", ";
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,14 +62,14 @@ fn row<'a>(report: &'a LeafReport, catalog: &Catalog) -> Row<'a> {
 
 fn value_text(report: &LeafReport, path: &str) -> String {
     match &report.value {
-        Ok(value) if IDENTIFIER_PATHS.contains(&path) => masked_identifier(value),
+        Ok(value) if paths::is_identifier(path) => masked_identifier(value),
         Ok(value) => plain_text(value),
         Err(refusal) => refusal.clone(),
     }
 }
 
-/// A list (the MAC addresses) is masked entry by entry; masked as one JSON text only its
-/// closing bracket would be left.
+/// Masked like the serial in the device panel. A list (MAC or network addresses) is masked
+/// entry by entry; masked as one JSON text only its closing bracket would be left.
 fn masked_identifier(value: &Value) -> String {
     let Some(list) = value.as_array() else {
         return mask_serial(&plain_text(value));
@@ -146,6 +144,22 @@ mod tests {
         rows(leaked, "", Catalog::embedded()).remove(0)
     }
 
+    /// The interface promises masked addresses: every leaf below `device/network/` is one.
+    #[test]
+    fn network_details_are_masked_like_the_serial() {
+        let row = one(report(
+            "device/network/ipv6/address",
+            Ok(json!(["fe80::2a36:38ff:fe12:3456"])),
+            None,
+        ));
+        assert!(!row.value.contains("fe80::2a36"), "{}", row.value);
+        assert!(
+            !row.copy_text().contains("fe80::2a36"),
+            "{}",
+            row.copy_text()
+        );
+    }
+
     #[test]
     fn filter_ignores_case_and_blanks() {
         let reports = [
@@ -176,7 +190,7 @@ mod tests {
 
     #[test]
     fn identifiers_are_masked_in_cell_and_copy() {
-        for path in IDENTIFIER_PATHS {
+        for path in [paths::SERIAL, paths::MAC_ADDRESSES] {
             let row = one(report(path, Ok(json!("SIM0001234")), None));
             assert_eq!(row.value, "…234", "{path}");
             assert_eq!(row.copy_text(), format!("{path} = …234"));

@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use mdns_sd::{IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use crate::address::is_link_local;
-use crate::mask::mask_serial;
+use crate::mask::{mask_serial_in, mask_serial_like};
 
 pub const SCAN_DURATION: Duration = Duration::from_secs(4);
 pub const MAX_SERVICES: usize = 32;
@@ -114,25 +114,6 @@ fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
     name
 }
 
-fn with_serial_masked(name: &str, serial: &str) -> String {
-    // An empty serial would be found at every position without moving on.
-    if serial.is_empty() {
-        return name.to_owned();
-    }
-    let lower_name = name.to_ascii_lowercase();
-    let lower_serial = serial.to_ascii_lowercase();
-    let mask = mask_serial(serial);
-    let mut masked = String::new();
-    let mut rest = 0;
-    while let Some(offset) = lower_name[rest..].find(&lower_serial) {
-        masked.push_str(&name[rest..rest + offset]);
-        masked.push_str(&mask);
-        rest += offset + serial.len();
-    }
-    masked.push_str(&name[rest..]);
-    masked
-}
-
 fn found_from_parts(
     fullname: &str,
     service_type: &str,
@@ -142,10 +123,11 @@ fn found_from_parts(
     serial: Option<&str>,
 ) -> Option<Found> {
     let serial = txt_value(serial);
-    let mut name = instance_name(fullname, service_type).to_owned();
-    if let Some(serial) = &serial {
-        name = with_serial_masked(without_serial_suffix(&name, serial), serial);
-    }
+    let name = instance_name(fullname, service_type);
+    let name = match &serial {
+        Some(serial) => mask_serial_in(without_serial_suffix(name, serial), serial),
+        None => mask_serial_like(name),
+    };
     Some(Found {
         name: capped(&name),
         product: txt_value(product),
@@ -208,6 +190,7 @@ fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mask::mask_serial;
 
     #[test]
     fn instance_name_loses_the_service_suffix() {
@@ -216,6 +199,21 @@ mod tests {
             "KH 120 II 1"
         );
         assert_eq!(instance_name("plain", SERVICE_TYPE), "plain");
+    }
+
+    #[test]
+    fn an_announced_name_without_its_serial_entry_is_masked_too() {
+        let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let found = found_from_parts(
+            "KH 120 II 3712345678._ssc._tcp.local.",
+            "_ssc._tcp.local.",
+            45,
+            &[(address, 0)],
+            Some("KH 120 II"),
+            None,
+        )
+        .unwrap();
+        assert!(!found.name.contains("3712345678"), "{}", found.name);
     }
 
     #[test]
@@ -332,11 +330,6 @@ mod tests {
             ),
             format!("{} desk", mask_serial("SIM0001234"))
         );
-    }
-
-    #[test]
-    fn an_empty_serial_leaves_the_name_as_it_is() {
-        assert_eq!(with_serial_masked("Desk left", ""), "Desk left");
     }
 
     #[test]

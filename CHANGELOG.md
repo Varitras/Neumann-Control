@@ -93,6 +93,8 @@
 
 ### Fixed
 
+- **All values** showed the network addresses below `device/network/` unmasked, and a speaker's
+  own name that holds its serial (as factory names do) was shown with the serial in full.
 - The clip, warning and LOCAL LEDs of an unreachable speaker kept showing its last report; they
   now stay dark until it answers again.
 - A group or master fader moved a member whose level lay above its range down against the

@@ -6,7 +6,7 @@ use std::net::SocketAddrV6;
 use std::time::Duration;
 
 use neumann_control_core::discovery::Found;
-use neumann_control_core::mask::{mask_host, mask_serial};
+use neumann_control_core::mask::{mask_host, mask_serial, mask_serial_in, mask_serial_like};
 use neumann_control_core::schema_walk::LeafReport;
 use neumann_control_core::settings::KnownSpeaker;
 use neumann_control_core::speaker::{Command, Event, Identity};
@@ -173,8 +173,26 @@ impl SpeakerState {
             .into_iter()
             .flatten()
             .find(|name| !name.is_empty())
-            .map(capped)
+            .map(|name| capped(&self.with_serial_masked(name)))
             .unwrap_or_else(|| mask_host(&self.address))
+    }
+
+    /// A name may hold the serial (factory names do); it is shown masked like the announced
+    /// name. Without a known serial, digits as long as a serial are masked.
+    fn with_serial_masked(&self, name: &str) -> String {
+        let serial = self
+            .identity
+            .as_ref()
+            .map(|identity| identity.serial.as_str())
+            .or(match &self.key {
+                SpeakerKey::Serial(serial) => Some(serial.as_str()),
+                SpeakerKey::Address(_) => None,
+            })
+            .filter(|serial| !serial.is_empty());
+        match serial {
+            Some(serial) => mask_serial_in(name, serial),
+            None => mask_serial_like(name),
+        }
     }
 
     /// The product the speaker itself reported. Writes and the catalog rows use only this,
@@ -772,5 +790,20 @@ mod tests {
         assert_eq!(speaker.model(), Some("KH 750"));
         speaker.identity = Some(identity("", "KH 120 II"));
         assert_eq!(speaker.model(), Some("KH 120 II"));
+    }
+
+    /// A name that holds the serial is shown masked, as the announced one is.
+    #[test]
+    fn the_own_name_shows_its_serial_masked() {
+        let address: SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "3712345678".to_owned(),
+            name: "KH 120 II 3712345678".to_owned(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        assert!(!speaker.display_name().contains("3712345678"));
     }
 }

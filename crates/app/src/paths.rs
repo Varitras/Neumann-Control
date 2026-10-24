@@ -17,6 +17,8 @@ pub const SERIAL: &str = "device/identity/serial";
 pub const MAC_ADDRESSES: &str = "device/network/ether/macs";
 pub const WARNINGS: &str = "warnings";
 pub const DEVICE_NAME: &str = "device/name";
+/// Every leaf below this holds network details of the owner's setup.
+const NETWORK_PREFIX: &str = "device/network/";
 pub const TEMPERATURE: &str = "device/temperature";
 pub const CONTROL_MODE: &str = "ui/control_mode";
 pub const INPUT_SELECT: &str = "ui/input_select";
@@ -32,6 +34,12 @@ pub const MUTE_OUTPUT_B: &str = "audio/out2/mute";
 
 pub fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("constant path is valid")
+}
+
+/// Whether the leaf at `path` identifies the speaker or the owner's network: the serial, the
+/// MAC addresses and everything below `device/network/`. Shown masked, left out of reports.
+pub fn is_identifier(path: &str) -> bool {
+    path == SERIAL || path == MAC_ADDRESSES || path.starts_with(NETWORK_PREFIX)
 }
 
 pub fn catalog_entry<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a Entry> {
