@@ -1,11 +1,11 @@
 //! Groups on the desk: who belongs where, the order of the strips, and the relative moves of a
 //! group or master fader. No drawing here.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeInclusive;
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::settings::{GroupSettings, Linkable};
+use neumann_control_core::settings::{ColorChoice, GroupSettings, Linkable};
 use neumann_control_core::ssc::wire::SscPath;
 
 use crate::gesture::bounded_move;
@@ -197,6 +197,52 @@ pub fn forget_member(
 
 /// A new group: named `base` with the lowest number no group has, in the palette colour fewest
 /// groups have, so no two groups look alike until there are more groups than colours.
+/// What a strip is coloured with: a palette colour, one the user chose (`#rrggbb`), or none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Tint {
+    Palette(u8),
+    Own(String),
+    None,
+}
+
+/// A group strip's colour.
+pub fn group_tint(group: &GroupSettings) -> Tint {
+    match &group.color_choice {
+        ColorChoice::Default => Tint::Palette(group.color),
+        ColorChoice::Off => Tint::None,
+        ColorChoice::Own(hex) => Tint::Own(hex.clone()),
+    }
+}
+
+/// Gives `member` its own strip colour; the default is not stored, so the group's shows.
+pub fn set_strip_color(
+    strip_colors: &mut BTreeMap<String, ColorChoice>,
+    member: &str,
+    color: ColorChoice,
+) {
+    if color.is_default() {
+        strip_colors.remove(member);
+    } else {
+        strip_colors.insert(member.to_owned(), color);
+    }
+}
+
+/// A speaker strip's colour: its own choice, else its group's, else none.
+pub fn speaker_tint(
+    groups: &[GroupSettings],
+    strip_colors: &BTreeMap<String, ColorChoice>,
+    member: &str,
+) -> Tint {
+    match strip_colors.get(member) {
+        Some(ColorChoice::Off) => Tint::None,
+        Some(ColorChoice::Own(hex)) => Tint::Own(hex.clone()),
+        Some(ColorChoice::Default) | None => groups
+            .iter()
+            .find(|group| group.members.iter().any(|id| id == member))
+            .map_or(Tint::None, group_tint),
+    }
+}
+
 pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSettings {
     let taken = |name: &str| groups.iter().any(|group| group.name == name);
     let name = (1..)
@@ -208,6 +254,7 @@ pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSetti
     GroupSettings {
         name,
         color,
+        color_choice: ColorChoice::Default,
         members: Vec::new(),
         linked: Vec::new(),
     }
@@ -347,6 +394,39 @@ mod tests {
         assert_eq!(groups, vec![group("B", &[])]);
     }
 
+    /// A speaker's own choice wins; without one it takes its group's colour, and a speaker in
+    /// no group has none.
+    #[test]
+    fn a_strip_takes_its_own_colour_else_its_groups() {
+        let mut front = group("Front", &["serial:A", "serial:B", "serial:C"]);
+        front.color = 2;
+        let mut colors = BTreeMap::new();
+        colors.insert(
+            "serial:A".to_owned(),
+            ColorChoice::Own("#112233".to_owned()),
+        );
+        colors.insert("serial:B".to_owned(), ColorChoice::Off);
+        let groups = [front];
+        let tint = |member: &str| speaker_tint(&groups, &colors, member);
+        assert_eq!(tint("serial:A"), Tint::Own("#112233".to_owned()));
+        assert_eq!(tint("serial:B"), Tint::None);
+        assert_eq!(tint("serial:C"), Tint::Palette(2));
+        assert_eq!(tint("serial:D"), Tint::None);
+    }
+
+    /// A group switched to no colour leaves its members without one too, unless they chose.
+    #[test]
+    fn a_group_without_colour_tints_nothing() {
+        let mut front = group("Front", &["serial:A"]);
+        front.color_choice = ColorChoice::Off;
+        assert_eq!(group_tint(&front), Tint::None);
+        let groups = [front];
+        assert_eq!(
+            speaker_tint(&groups, &BTreeMap::new(), "serial:A"),
+            Tint::None
+        );
+    }
+
     #[test]
     fn an_index_past_the_end_deletes_nothing() {
         let mut groups = vec![group("A", &[])];
@@ -358,6 +438,7 @@ mod tests {
         GroupSettings {
             name: name.to_owned(),
             color: 0,
+            color_choice: ColorChoice::Default,
             members: members.iter().map(|id| (*id).to_owned()).collect(),
             linked: Vec::new(),
         }

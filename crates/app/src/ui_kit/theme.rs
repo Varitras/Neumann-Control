@@ -1,6 +1,8 @@
 //! The look of the app in Windows' light and dark mode. egui follows the system theme on its
 //! own, so each of its two themes gets its own style here.
 
+use crate::groups::Tint;
+use crate::ui_kit::eq_palette::parse_hex;
 use std::sync::Arc;
 
 use eframe::egui::style::{ScrollStyle, Selection, WidgetVisuals};
@@ -174,6 +176,15 @@ const GROUP_COLORS: [Color32; 6] = [
     Color32::from_rgb(186, 117, 23),
     Color32::from_rgb(212, 83, 126),
 ];
+
+/// The colour a strip is drawn in; `None` for a strip without one.
+pub fn tint_color(tint: &Tint) -> Option<Color32> {
+    match tint {
+        Tint::Palette(index) => Some(group_color(*index)),
+        Tint::Own(hex) => parse_hex(hex),
+        Tint::None => None,
+    }
+}
 
 pub fn group_color(index: u8) -> Color32 {
     GROUP_COLORS[usize::from(index) % GROUP_COLORS.len()]

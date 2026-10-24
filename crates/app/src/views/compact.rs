@@ -159,14 +159,21 @@ pub struct SharedRow {
 pub fn group(
     ui: &mut Ui,
     group: &GroupSettings,
-    color: Color32,
+    color: Option<Color32>,
     shown: SharedRow,
 ) -> GroupStripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut response = GroupStripResponse::default();
-    row(ui, color, |ui| {
-        cell(ui, MARK_WIDTH, |ui| swatch(ui, color));
-        let name = RichText::new(&group.name).strong().color(color);
+    row(ui, color.unwrap_or(tokens.border), |ui| {
+        cell(ui, MARK_WIDTH, |ui| {
+            if let Some(color) = color {
+                swatch(ui, color);
+            }
+        });
+        let mut name = RichText::new(&group.name).strong();
+        if let Some(color) = color {
+            name = name.color(color);
+        }
         response.open_settings = cell(ui, NAME_WIDTH, |ui| {
             ui.add(Button::new(name).frame(false).truncate()).clicked()
         });

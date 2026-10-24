@@ -58,6 +58,12 @@ pub struct Settings {
     pub system_audio: SystemAudioSettings,
     #[serde(deserialize_with = "or_default")]
     pub eq_display: EqDisplaySettings,
+    /// Speaker identity → its strip's colour; a speaker not listed takes its group's.
+    #[serde(
+        deserialize_with = "or_default",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub strip_colors: BTreeMap<String, ColorChoice>,
     /// Serial → what that speaker last reported about itself, so it keeps its name while off.
     #[serde(
         deserialize_with = "or_default",
@@ -154,6 +160,24 @@ impl Settings {
     }
 }
 
+/// The colour of a strip: its default (a group's palette colour; a speaker's group colour),
+/// none, or one the user chose.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorChoice {
+    #[default]
+    Default,
+    Off,
+    /// `#rrggbb`.
+    Own(String),
+}
+
+impl ColorChoice {
+    pub fn is_default(&self) -> bool {
+        *self == ColorChoice::Default
+    }
+}
+
 /// A group of speakers with a group strip; a speaker is in at most one group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupSettings {
@@ -161,6 +185,13 @@ pub struct GroupSettings {
     /// Index into the app's group colour palette.
     #[serde(default, deserialize_with = "or_default")]
     pub color: u8,
+    /// The palette's colour, another one, or none on the group's strips.
+    #[serde(
+        default,
+        deserialize_with = "or_default",
+        skip_serializing_if = "ColorChoice::is_default"
+    )]
+    pub color_choice: ColorChoice,
     /// Speaker identities, as in `Settings::order`.
     #[serde(default, deserialize_with = "readable_items")]
     pub members: Vec<String>,

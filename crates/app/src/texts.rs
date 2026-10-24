@@ -198,6 +198,11 @@ pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
 pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
 pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
+pub const STRIP_COLOR: Text = Text::new("Farbe des Zugs", "Strip colour");
+pub const COLOR_DEFAULT: Text = Text::new("Standard", "Default");
+pub const COLOR_LIKE_GROUP: Text = Text::new("Wie die Gruppe", "As the group");
+pub const COLOR_OFF: Text = Text::new("Keine", "None");
+pub const COLOR_OWN: Text = Text::new("Eigene", "Own");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
 /// In the group strip's context menu; the dialog asks before it deletes.
 pub const DELETE_GROUP_MENU: Text = Text::new("Gruppe löschen…", "Delete group…");

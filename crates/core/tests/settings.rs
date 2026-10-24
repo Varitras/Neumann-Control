@@ -1,8 +1,8 @@
 use neumann_control_core::settings::{
-    load, load_checked, save, BandCurves, CompactButton, CrossoverGuard, DelayUnit, DeskSettings,
-    EqPreset, GroupSettings, Language, LanguageChoice, Linkable, LoadOutcome, ManualSpeaker,
-    MeterFloor, Settings, SettingsPreset, StoredStripLayout, StripElement, SystemAudioSettings,
-    ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, load_checked, save, BandCurves, ColorChoice, CompactButton, CrossoverGuard, DelayUnit,
+    DeskSettings, EqPreset, GroupSettings, Language, LanguageChoice, Linkable, LoadOutcome,
+    ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout, StripElement,
+    SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -259,6 +259,7 @@ fn groups_and_order_round_trip() {
         groups: vec![GroupSettings {
             name: "Front".to_owned(),
             color: 1,
+            color_choice: ColorChoice::Default,
             members: vec!["serial:SIM0001234".to_owned()],
             linked: vec![Linkable::Level, Linkable::Mute],
         }],

@@ -8,9 +8,9 @@ use super::desk::{all_muted, levels, members_of, DeskAction};
 use super::{NeumannApp, COMPACT_SCROLL_ID};
 use crate::compact_layout;
 use crate::fader::output_level_range;
-use crate::groups::{compact_rows, layout, reference_level, shared_level, CompactRow};
+use crate::groups::{compact_rows, group_tint, layout, reference_level, shared_level, CompactRow};
 use crate::texts;
-use crate::ui_kit::theme::group_color;
+use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
 use crate::window_placement::{first_window_size, place_window, resize_window};
 
@@ -62,7 +62,7 @@ impl NeumannApp {
                             let settings = &self.settings.groups[group];
                             let members = members_of(settings, &ids);
                             let shown = self.shared_row(&members, floor, now);
-                            let color = group_color(settings.color);
+                            let color = tint_color(&group_tint(settings));
                             let response = ui
                                 .push_id((texts::GROUP, group), |ui| {
                                     compact::group(ui, settings, color, shown)

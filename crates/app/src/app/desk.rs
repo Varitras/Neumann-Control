@@ -16,14 +16,14 @@ use super::{NeumannApp, DESK_SCROLL_ID};
 use crate::compact_layout::{self, CompactChange};
 use crate::fader::output_level_range;
 use crate::groups::{
-    insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of, shared_level,
-    shifted_levels, with_moved, DeskItem,
+    group_tint, insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of,
+    shared_level, shifted_levels, speaker_tint, with_moved, DeskItem,
 };
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::strip_layout::{self, LayoutChange};
 use crate::texts;
-use crate::ui_kit::theme::{group_color, group_color_count};
+use crate::ui_kit::theme::{group_color_count, tint_color};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip::{self, StripView};
 use crate::views::system_strip::{self, SystemStrip, SystemStripResponse};
@@ -105,8 +105,12 @@ impl NeumannApp {
                     for item in &items {
                         match *item {
                             DeskItem::Speaker(index) => {
-                                let color = group_of(&self.settings.groups, &ids[index])
-                                    .map(|group| group_color(self.settings.groups[group].color));
+                                let tint = speaker_tint(
+                                    &self.settings.groups,
+                                    &self.settings.strip_colors,
+                                    &ids[index],
+                                );
+                                let color = tint_color(&tint);
                                 let speaker = &mut self.speakers[index];
                                 let key = speaker.state.key.clone();
                                 let response = ui
@@ -152,7 +156,7 @@ impl NeumannApp {
                                 let states = self.states(&members);
                                 let level = shared_level(&levels(&states), &range);
                                 let muted = all_muted(&states);
-                                let color = group_color(settings.color);
+                                let color = tint_color(&group_tint(settings));
                                 let response = ui
                                     .push_id((texts::GROUP, group), |ui| {
                                         let range = range.clone();

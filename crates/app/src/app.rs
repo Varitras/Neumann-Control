@@ -22,7 +22,10 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
-use crate::groups::{delete_group, forget_member, member_id, rename_member, set_membership};
+use crate::groups::{
+    delete_group, forget_member, group_tint, member_id, rename_member, set_membership,
+    set_strip_color, Tint,
+};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
@@ -41,7 +44,7 @@ use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
 use crate::views::about::{self, AboutAction, UpdateView};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
-use crate::views::group_dialog::{self, GroupDialogAction};
+use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
@@ -615,10 +618,20 @@ impl NeumannApp {
         let linked = current.map_or(Vec::new(), |group| {
             self.settings.groups[group].linked.clone()
         });
+        let group_tint =
+            current.map_or(Tint::None, |group| group_tint(&self.settings.groups[group]));
         let choice = panel::GroupChoice {
             names: &names,
             current,
             linked: &linked,
+            color: self
+                .settings
+                .strip_colors
+                .get(&ids[index])
+                .cloned()
+                .unwrap_or_default(),
+            start_color: theme::tint_color(&group_tint)
+                .unwrap_or(theme::Tokens::current(context).accent),
         };
         let state = &mut self.speakers[index].state;
         let product = state.product().to_owned();
@@ -646,6 +659,10 @@ impl NeumannApp {
         }
         if let Some(group) = response.group {
             set_membership(&mut self.settings.groups, &ids[index], group);
+            self.save_settings();
+        }
+        if let Some(color) = response.color {
+            set_strip_color(&mut self.settings.strip_colors, &ids[index], color);
             self.save_settings();
         }
         if let Some(linkable) = response.copy_to_group {
@@ -676,7 +693,17 @@ impl NeumannApp {
         let Some(draft) = &mut self.group_draft else {
             return;
         };
-        match group_dialog::show(ui, &mut draft.name, draft.deleting) {
+        let Some(group) = self.settings.groups.get_mut(draft.index) else {
+            self.group_draft = None;
+            return;
+        };
+        let view = GroupDraftView {
+            name: &mut draft.name,
+            palette: theme::group_color(group.color),
+            color: &mut group.color_choice,
+            deleting: draft.deleting,
+        };
+        match group_dialog::show(ui, view) {
             GroupDialogAction::None => {}
             GroupDialogAction::Close => {
                 let (index, name) = (draft.index, draft.name.trim().to_owned());

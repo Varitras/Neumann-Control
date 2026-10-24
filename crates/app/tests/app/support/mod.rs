@@ -22,8 +22,8 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings, SettingsPreset,
-    StoredStripLayout, StripElement, WindowGeometry,
+    self, ColorChoice, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
+    SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
@@ -519,6 +519,7 @@ pub fn grouped(
     let group = GroupSettings {
         name: GROUP_NAME.to_owned(),
         color: 0,
+        color_choice: ColorChoice::Default,
         members: vec![KH120_ID.to_owned(), KH750_ID.to_owned()],
         linked,
     };

@@ -1,7 +1,9 @@
-//! Renaming or deleting a group, opened from its strip's name.
+//! Renaming, colouring or deleting a group, opened from its strip's name.
 
-use eframe::egui::{Id, Modal, TextEdit, Ui};
+use eframe::egui::{Color32, Id, Modal, TextEdit, Ui};
+use neumann_control_core::settings::ColorChoice;
 
+use super::color_choice;
 use crate::texts;
 
 const MODAL_ID: &str = "group_dialog";
@@ -17,19 +19,34 @@ pub enum GroupDialogAction {
     CancelDelete,
 }
 
-/// `deleting`: the delete is being confirmed. A group goes with its members' places and links.
-pub fn show(ui: &mut Ui, name: &mut String, deleting: bool) -> GroupDialogAction {
-    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, name, deleting));
+/// The group's name and colour as edited, the palette colour an own one starts from.
+pub struct GroupDraftView<'a> {
+    pub name: &'a mut String,
+    pub color: &'a mut ColorChoice,
+    pub palette: Color32,
+    /// The delete is being confirmed. A group goes with its members' places and links.
+    pub deleting: bool,
+}
+
+pub fn show(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
+    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, draft));
     if modal.should_close() {
         return GroupDialogAction::Close;
     }
     modal.inner
 }
 
-fn contents(ui: &mut Ui, name: &mut String, deleting: bool) -> GroupDialogAction {
+fn contents(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
+    let GroupDraftView {
+        name,
+        color,
+        palette,
+        deleting,
+    } = draft;
     ui.heading(texts::GROUP_DIALOG_TITLE);
     let label = ui.label(texts::GROUP_NAME);
     ui.add(TextEdit::singleline(name)).labelled_by(label.id);
+    color_choice::edit(ui, texts::COLOR_DEFAULT.get(), color, palette);
     if deleting {
         ui.label(texts::delete_question(name.trim()));
         return ui

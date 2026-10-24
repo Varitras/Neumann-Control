@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Strip colour** for groups (group dialog) and speakers (device panel): the default, none, or
+  an own colour.
 - The device panel, the EQ window and **All values** open where and as large as they were
   left, per speaker, also after a restart.
 - The toolbar says when the settings file was set aside or only partly understood at the start.

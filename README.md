@@ -228,6 +228,10 @@ longer remembered, and it also leaves its group and its place in the order.
   value to the other members.
 - Click the group's name or **Details** at the foot of the group strip to rename or delete it,
   or right-click the group strip for **Delete group…**; deleting asks first.
+- **Strip colour** in the group's dialog keeps the group's colour (**Default**), takes it off
+  (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
+  (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
+  coloured frame.
 - The master strip at the end moves and mutes all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the

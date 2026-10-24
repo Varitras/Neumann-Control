@@ -34,14 +34,18 @@ pub struct GroupStripResponse {
 pub fn group(
     ui: &mut Ui,
     group: &GroupSettings,
-    color: Color32,
+    color: Option<Color32>,
     level: Option<&SharedLevel>,
     muted: Option<bool>,
     range: RangeInclusive<f64>,
 ) -> GroupStripResponse {
+    let tokens = Tokens::current(ui.ctx());
     let mut response = GroupStripResponse::default();
-    let rect = frame(ui, color, |ui| {
-        let name = RichText::new(&group.name).strong().color(color);
+    let rect = frame(ui, color.unwrap_or(tokens.border), |ui| {
+        let mut name = RichText::new(&group.name).strong();
+        if let Some(color) = color {
+            name = name.color(color);
+        }
         response.open_settings = ui.add(Button::new(name).frame(false).truncate()).clicked();
         ui.add(egui::Label::new(
             RichText::new(texts::LINKED).small().weak(),

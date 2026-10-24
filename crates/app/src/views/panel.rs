@@ -2,14 +2,15 @@
 //! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
 use eframe::egui::{
-    self, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2, ViewportBuilder,
-    ViewportClass, ViewportId,
+    self, Color32, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2,
+    ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
-use neumann_control_core::settings::Linkable;
+use neumann_control_core::settings::{ColorChoice, Linkable};
 use neumann_control_core::speaker::Command;
 
+use super::color_choice;
 use super::details;
 use super::escape_closes;
 use super::trends::{self, TemperatureTrend, Trends};
@@ -66,13 +67,18 @@ pub struct PanelResponse {
     pub load_preset: bool,
     /// A row put on the model's strips or taken off them.
     pub layout: Option<LayoutChange>,
+    /// The strip's colour as the user changed it.
+    pub color: Option<ColorChoice>,
 }
 
-/// The groups the speaker could be in, which one it is in, and what that group links.
+/// The groups the speaker could be in, which one it is in, and what that group links; the
+/// strip's own colour and the one an own colour starts from (its group's, or the accent).
 pub struct GroupChoice<'a> {
     pub names: &'a [String],
     pub current: Option<usize>,
     pub linked: &'a [Linkable],
+    pub color: ColorChoice,
+    pub start_color: Color32,
 }
 
 /// The panel in its own window (`viewport`), one per speaker, opened at `placement`.
@@ -126,6 +132,13 @@ fn contents(
         .show(ui, |ui| {
             header(ui, speaker);
             let group = group_choice(ui, groups);
+            let mut color = groups.color.clone();
+            let color_changed = color_choice::edit(
+                ui,
+                texts::COLOR_LIKE_GROUP.get(),
+                &mut color,
+                groups.start_color,
+            );
             let copy_to_group = copy_buttons(ui, groups);
             let details = details::show(ui, speaker, catalog, layout);
             ui.separator();
@@ -154,6 +167,7 @@ fn contents(
                 open_eq,
                 save_preset,
                 load_preset,
+                color: color_changed.then_some(color),
             }
         })
         .inner

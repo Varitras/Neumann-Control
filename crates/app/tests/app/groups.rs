@@ -9,7 +9,9 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::groups::linkable_label;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
-use neumann_control_core::settings::{self, GroupSettings, Linkable, Settings, SETTINGS_FILE};
+use neumann_control_core::settings::{
+    self, ColorChoice, GroupSettings, Linkable, Settings, SETTINGS_FILE,
+};
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
 
@@ -297,6 +299,7 @@ fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
         groups: vec![GroupSettings {
             name: GROUP_NAME.to_owned(),
             color: 0,
+            color_choice: ColorChoice::Default,
             members: vec![address_id(&kh120)],
             linked: Vec::new(),
         }],
@@ -508,4 +511,38 @@ fn a_settings_preset_of_another_model_keeps_its_name() {
         .map(|preset| preset.product.as_str())
         .collect();
     assert_eq!(models, vec!["KH 120 II", "KH 750"]);
+}
+
+/// "None" in the group dialog takes the colour off the group's strips, saved on close.
+#[test]
+fn a_group_colour_switched_off_is_saved() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    harness.get_by_label(GROUP_NAME).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::COLOR_OFF.get()).click();
+    harness.run_steps(1);
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(
+        settings::load(&path).groups[0].color_choice,
+        ColorChoice::Off
+    );
+}
+
+/// A speaker's own colour is kept by its identity; back to "As the group" it is forgotten.
+#[test]
+fn a_speaker_colour_is_kept_until_it_follows_the_group_again() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(texts::COLOR_OFF.get()).click();
+    harness.run_steps(2);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(
+        settings::load(&path).strip_colors.get(KH120_ID),
+        Some(&ColorChoice::Off)
+    );
+    harness.get_by_label(texts::COLOR_LIKE_GROUP.get()).click();
+    harness.run_steps(2);
+    assert!(settings::load(&path).strip_colors.is_empty());
 }
