@@ -50,6 +50,7 @@ pub fn catalog_entry<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a Ent
 mod tests {
     use super::*;
 
+    /// `MAC_ADDRESSES` is left out: the catalog does not list it, it is only masked.
     #[test]
     fn every_named_path_is_in_the_catalog() {
         let catalog = Catalog::embedded();
@@ -69,6 +70,16 @@ mod tests {
             INPUT_SELECT,
             STANDBY_ENABLED,
             INPUT_INTERFACE,
+            PHASE_INVERSION,
+            DEVICE_NAME,
+            TEMPERATURE,
+            DELAY,
+            STANDBY_TIME,
+            STANDBY_COUNTDOWN,
+            CURRENT_INPUT,
+            LOGO_BRIGHTNESS,
+            MUTE_OUTPUT_A,
+            MUTE_OUTPUT_B,
         ] {
             assert!(catalog_entry(catalog, &path(text)).is_some(), "{text}");
         }

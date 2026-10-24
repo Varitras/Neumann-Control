@@ -450,11 +450,13 @@ mod tests {
         let layout = monitor_default();
         let phase = element(PHASE_INVERSION);
         let mute = element(paths::MUTE);
+        let move_down = LayoutChange::MoveDown(mute.clone());
+        assert_ne!(stored(apply(&layout, &move_down).unwrap()), layout);
         let changes = [
             LayoutChange::Add(mute.clone(), Area::Above),
             LayoutChange::Add(phase.clone(), Area::Above),
             LayoutChange::MoveTo(mute.clone(), Area::Above, 1),
-            LayoutChange::MoveDown(element(paths::STANDBY_TIME)),
+            move_down,
             LayoutChange::Swap {
                 old: mute.clone(),
                 new: element(paths::IDENTIFY),
