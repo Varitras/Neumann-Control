@@ -29,7 +29,16 @@ pub trait Help: Send + Sync {
     /// Opens a file or web address as Explorer would; false when Windows could not.
     fn open(&self, target: &str) -> bool;
     /// The newest release; `Ok(None)` while none is published.
-    fn latest_release(&self) -> Result<Option<Release>, String>;
+    fn latest_release(&self) -> Result<Option<Release>, LookupError>;
+}
+
+/// Why the newest release could not be told; the text is for the log.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LookupError {
+    /// No answer from GitHub (offline, proxy, timeout).
+    Unreachable(String),
+    /// GitHub answered, but not with a release the app can read (a rate limit, another form).
+    Unusable(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,18 +46,24 @@ pub enum UpdateResult {
     Newer(Release),
     Current,
     NoRelease,
-    /// No answer, or one that could not be read; the reason is logged.
-    Failed,
+    /// No answer from GitHub; the reason is logged.
+    Unreachable,
+    /// An answer that could not be read, or a tag that is no version; the reason is logged.
+    Unusable,
 }
 
 /// What the answer means for the running version `current`.
-pub fn verdict(current: &str, latest: Result<Option<Release>, String>) -> UpdateResult {
+pub fn verdict(current: &str, latest: Result<Option<Release>, LookupError>) -> UpdateResult {
     let release = match latest {
         Ok(Some(release)) => release,
         Ok(None) => return UpdateResult::NoRelease,
-        Err(error) => {
-            log::warn!("update check failed: {error}");
-            return UpdateResult::Failed;
+        Err(LookupError::Unreachable(reason)) => {
+            log::warn!("update check: GitHub not reached: {reason}");
+            return UpdateResult::Unreachable;
+        }
+        Err(LookupError::Unusable(reason)) => {
+            log::warn!("update check: answer not usable: {reason}");
+            return UpdateResult::Unusable;
         }
     };
     let (Some(published), Some(running)) = (version(&release.tag), version(current)) else {
@@ -56,7 +71,7 @@ pub fn verdict(current: &str, latest: Result<Option<Release>, String>) -> Update
             "update check: cannot compare {:?} with {current}",
             release.tag
         );
-        return UpdateResult::Failed;
+        return UpdateResult::Unusable;
     };
     match published > running {
         true => UpdateResult::Newer(release),
@@ -134,7 +149,7 @@ mod windows_help {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    use super::{parse_release, Help, Release, API_HOST, LATEST_RELEASE_PATH};
+    use super::{parse_release, Help, LookupError, Release, API_HOST, LATEST_RELEASE_PATH};
 
     /// GitHub refuses API calls without one.
     const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
@@ -168,12 +183,15 @@ mod windows_help {
             result as isize > SHELL_ERROR_LIMIT
         }
 
-        fn latest_release(&self) -> Result<Option<Release>, String> {
-            let (status, body) = get(API_HOST, LATEST_RELEASE_PATH)?;
+        fn latest_release(&self) -> Result<Option<Release>, LookupError> {
+            let (status, body) =
+                get(API_HOST, LATEST_RELEASE_PATH).map_err(LookupError::Unreachable)?;
             match status {
-                STATUS_OK => parse_release(&body).map(Some),
+                STATUS_OK => parse_release(&body)
+                    .map(Some)
+                    .map_err(LookupError::Unusable),
                 STATUS_NOT_FOUND => Ok(None),
-                other => Err(format!("GitHub answered {other}")),
+                other => Err(LookupError::Unusable(format!("GitHub answered {other}"))),
             }
         }
     }
@@ -313,20 +331,22 @@ mod tests {
         );
     }
 
+    /// "Not reachable" only when GitHub did not answer: a rate limit or an unreadable answer is
+    /// told apart, so nobody looks for a network fault that is not there.
     #[test]
-    fn no_release_and_failures_are_told_apart() {
+    fn no_release_no_answer_and_an_unusable_answer_are_told_apart() {
         assert_eq!(verdict("0.1.0", Ok(None)), UpdateResult::NoRelease);
-        assert_eq!(
-            verdict("0.1.0", Err("offline".to_owned())),
-            UpdateResult::Failed
-        );
+        let offline = LookupError::Unreachable("offline".to_owned());
+        assert_eq!(verdict("0.1.0", Err(offline)), UpdateResult::Unreachable);
+        let limited = LookupError::Unusable("GitHub answered 403".to_owned());
+        assert_eq!(verdict("0.1.0", Err(limited)), UpdateResult::Unusable);
         assert_eq!(
             verdict("0.1.0", Ok(Some(release("latest")))),
-            UpdateResult::Failed
+            UpdateResult::Unusable
         );
         assert_eq!(
             verdict("0.1.0", Ok(Some(release("v1.2")))),
-            UpdateResult::Failed
+            UpdateResult::Unusable
         );
     }
 

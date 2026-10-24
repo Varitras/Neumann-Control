@@ -14,7 +14,7 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
-use neumann_control_app::help::{Help, Release};
+use neumann_control_app::help::{Help, LookupError, Release};
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
@@ -246,7 +246,7 @@ impl Help for FakeHelp {
         true
     }
 
-    fn latest_release(&self) -> Result<Option<Release>, String> {
+    fn latest_release(&self) -> Result<Option<Release>, LookupError> {
         Ok(self.release.clone())
     }
 }

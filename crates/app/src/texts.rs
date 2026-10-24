@@ -174,6 +174,10 @@ pub const UPDATE_CHECK_FAILED: Text = Text::new(
     "GitHub war nicht erreichbar.",
     "GitHub could not be reached.",
 );
+pub const UPDATE_CHECK_UNUSABLE: Text = Text::new(
+    "GitHub hat geantwortet, die Antwort ließ sich aber nicht auswerten.",
+    "GitHub answered, but the answer could not be read.",
+);
 pub const OPEN_RELEASE_PAGE: Text = Text::new("Release-Seite öffnen", "Open the release page");
 pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
 pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
