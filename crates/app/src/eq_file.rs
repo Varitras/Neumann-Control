@@ -590,6 +590,12 @@ Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
 Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
 ";
         assert!(parse(one).is_ok());
+        // Filters before the first Channel line are for every channel, the ones after for L only.
+        let before = "Filter: ON PK Fc 100 Hz Gain 1 dB Q 1
+Channel: L
+Filter: ON PK Fc 200 Hz Gain 1 dB Q 1
+";
+        assert_eq!(parse(before), Err(ImportError::SeveralChannels));
     }
 
     #[test]
