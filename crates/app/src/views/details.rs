@@ -243,8 +243,8 @@ fn full_scan_outcome(ui: &mut Ui, speaker: &SpeakerState) {
         FullScanState::Written(path) => {
             ui.add(egui::Label::new(texts::scan_written(path)).wrap());
         }
-        FullScanState::Failed(reason) => {
-            ui.colored_label(ui.visuals().error_fg_color, texts::scan_failed(reason));
+        FullScanState::Failed(failure) => {
+            ui.colored_label(ui.visuals().error_fg_color, texts::scan_failed(*failure));
         }
     }
 }

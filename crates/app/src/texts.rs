@@ -13,7 +13,7 @@ use neumann_control_core::settings::{Language, LoadOutcome};
 use serde_json::Value;
 
 use crate::eq_file::{ExportNote, ImportError, LineProblem, Parameter};
-use crate::state::Message;
+use crate::state::{Message, ScanFailure};
 use crate::trend::whole_minutes;
 use crate::writes::Refusal;
 
@@ -364,6 +364,8 @@ pub const ALL_VALUES_FAILED: Text = Text::new(
     "Die Werte konnten nicht gelesen werden. Das Gerät ist nicht erreichbar oder hat die Abfrage abgelehnt.",
     "The values could not be read. The device is unreachable or refused the request.",
 );
+/// A value the speaker refused to give; its own words stay in the copied line.
+pub const LEAF_REFUSED: Text = Text::new("vom Gerät abgelehnt", "refused by the device");
 pub const ALL_VALUES_PATH_COLUMN: Text = Text::new("Pfad", "Path");
 pub const ALL_VALUES_VALUE_COLUMN: Text = Text::new("Wert", "Value");
 pub const ALL_VALUES_RANGE_COLUMN: Text = Text::new("Einheit / Bereich", "Unit / range");
@@ -808,11 +810,18 @@ pub fn scan_written(path: &str) -> String {
     )
 }
 
-pub fn scan_failed(reason: &str) -> String {
-    pick(
-        format!("Scan fehlgeschlagen: {reason}"),
-        format!("Scan failed: {reason}"),
-    )
+pub fn scan_failed(failure: ScanFailure) -> &'static str {
+    let text = match failure {
+        ScanFailure::Reading => Text::new(
+            "Scan fehlgeschlagen: Der Lautsprecher hat nicht vollständig geantwortet.",
+            "Scan failed: the speaker did not answer completely.",
+        ),
+        ScanFailure::Writing => Text::new(
+            "Scan fehlgeschlagen: Der Bericht ließ sich neben der Exe nicht speichern.",
+            "Scan failed: the report could not be saved next to the executable.",
+        ),
+    };
+    text.get()
 }
 
 /// The device panel's trend heading: "Verlauf (2 h)".

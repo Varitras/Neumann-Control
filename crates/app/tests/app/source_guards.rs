@@ -70,5 +70,8 @@ fn no_context_closure_reaches_the_context_again() {
             }
         }
     }
-    assert!(nested.is_empty(), "context reached inside its lock: {nested:?}");
+    assert!(
+        nested.is_empty(),
+        "context reached inside its lock: {nested:?}"
+    );
 }

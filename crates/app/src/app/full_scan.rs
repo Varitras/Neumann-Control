@@ -11,7 +11,7 @@ use serde_json::Value;
 use super::NeumannApp;
 use crate::paths;
 use crate::scan_report::{file_stem, json_report, redacted, text_report, ScanHeader};
-use crate::state::{FullScanState, SpeakerState};
+use crate::state::{FullScanState, ScanFailure, SpeakerState};
 
 const JSON_EXTENSION: &str = "json";
 const TEXT_EXTENSION: &str = "txt";
@@ -36,7 +36,10 @@ impl NeumannApp {
             };
             state.full_scan = match write_report(&directory, state, &reports) {
                 Ok(path) => FullScanState::Written(path.display().to_string()),
-                Err(error) => FullScanState::Failed(error.to_string()),
+                Err(error) => {
+                    log::warn!("scan report not written ({})", error.kind());
+                    FullScanState::Failed(ScanFailure::Writing)
+                }
             };
         }
     }

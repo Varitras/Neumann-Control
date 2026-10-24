@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::display::capped;
 use crate::paths;
+use crate::texts;
 
 /// A device can answer with any amount of text; one table cell must not grow with it.
 const COPY_SEPARATOR: &str = " = ";
@@ -32,9 +33,13 @@ pub struct Row<'a> {
 }
 
 impl Row<'_> {
-    /// `path = value`, whole; built on demand because only a click needs it.
+    /// `path = value`, whole and with a refusal in the device's own words; built on demand
+    /// because only a click needs it.
     pub fn copy_text(&self) -> String {
-        let value = value_text(self.report, &self.path);
+        let value = match &self.report.value {
+            Err(refusal) => refusal.clone(),
+            Ok(_) => value_text(self.report, &self.path),
+        };
         format!("{}{COPY_SEPARATOR}{value}", self.path)
     }
 }
@@ -64,7 +69,7 @@ fn value_text(report: &LeafReport, path: &str) -> String {
     match &report.value {
         Ok(value) if paths::is_identifier(path) => masked_identifier(value),
         Ok(value) => plain_text(value),
-        Err(refusal) => refusal.clone(),
+        Err(_) => texts::LEAF_REFUSED.get().to_owned(),
     }
 }
 
@@ -160,6 +165,15 @@ mod tests {
         );
     }
 
+    /// The device's refusal is English protocol text: the cell words it; the copy keeps it whole
+    /// for whoever looks into it.
+    #[test]
+    fn a_refused_leaf_is_worded_in_the_cell() {
+        let row = one(report("osc/x", Err("device error 405".to_owned()), None));
+        assert_eq!(row.value, texts::LEAF_REFUSED.get());
+        assert_eq!(row.copy_text(), "osc/x = device error 405");
+    }
+
     #[test]
     fn filter_ignores_case_and_blanks() {
         let reports = [
@@ -202,12 +216,6 @@ mod tests {
         let macs = json!(["00:1b:66:00:00:aa", "00:1b:66:00:00:bb"]);
         let row = one(report(paths::MAC_ADDRESSES, Ok(macs), None));
         assert_eq!(row.value, "…:aa, …:bb");
-    }
-
-    #[test]
-    fn a_refusal_is_the_value_text() {
-        let row = one(report("warnings", Err("refused (404)".to_owned()), None));
-        assert_eq!(row.value, "refused (404)");
     }
 
     #[test]

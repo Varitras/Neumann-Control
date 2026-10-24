@@ -42,7 +42,17 @@ pub enum FullScanState {
     Read(Vec<LeafReport>),
     /// The JSON file's path.
     Written(String),
-    Failed(String),
+    Failed(ScanFailure),
+}
+
+/// Why "Komplett scannen" ended without a report; the raw reason (English, possibly with an
+/// address in it) goes to the log only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanFailure {
+    /// The speaker did not answer the walk through.
+    Reading,
+    /// The report could not be written next to the executable.
+    Writing,
 }
 
 /// What the speaker's message is about, which decides when it ends.
@@ -356,7 +366,8 @@ impl SpeakerState {
             }
             Event::AllValuesFailed(reason) => {
                 if self.full_scan == FullScanState::Running {
-                    self.full_scan = FullScanState::Failed(reason.clone());
+                    log::warn!("full scan ended early: {reason}");
+                    self.full_scan = FullScanState::Failed(ScanFailure::Reading);
                 }
                 self.finish_all_values(AllValuesState::Failed(reason));
             }
@@ -840,5 +851,18 @@ mod tests {
         assert_eq!(speaker.latest(&path), Some(&json!(false)));
         assert_eq!(speaker.all_values, AllValuesState::Idle);
         assert_eq!(speaker.full_scan, FullScanState::Idle);
+    }
+
+    /// The walk's own reason is English and may name an address; the panel words the failure
+    /// itself, and the reason goes to the log.
+    #[test]
+    fn a_failed_full_scan_keeps_no_raw_reason() {
+        let mut speaker = state();
+        speaker.full_scan = FullScanState::Running;
+        speaker.apply(Event::AllValuesFailed("schema has no osc".to_owned()), 1.0);
+        assert_eq!(
+            speaker.full_scan,
+            FullScanState::Failed(ScanFailure::Reading)
+        );
     }
 }
