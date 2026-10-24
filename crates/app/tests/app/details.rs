@@ -786,8 +786,10 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
     harness.get_by_role_and_label(Role::CheckBox, mute).click();
     harness.run_steps(1);
     harness.get_by_role_and_label(Role::CheckBox, mute).click();
-    harness.run_steps(5);
-    barrier(&simulator);
+    // Each request waits for its delayed answer, so the second write comes seconds later.
+    wait_until(&mut harness, "both mute writes", |_| {
+        sets_to(&simulator, "/audio/out/mute").len() >= 2
+    });
     assert_eq!(
         sets_to(&simulator, "/audio/out/mute"),
         vec![json!(true), json!(false)]

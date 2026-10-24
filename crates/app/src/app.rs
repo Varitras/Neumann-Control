@@ -15,7 +15,9 @@ use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::{merge_found, Found};
 use neumann_control_core::mask::mask_host;
-use neumann_control_core::settings::{self, Language, ManualSpeaker, Settings, WindowGeometry};
+use neumann_control_core::settings::{
+    self, Language, LoadOutcome, Loaded, ManualSpeaker, Settings, WindowGeometry,
+};
 use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Target};
 
 use crate::display;
@@ -102,6 +104,9 @@ pub struct NeumannApp {
     rediscovery: Rediscovery,
     scan_choice: Option<ScanChoice>,
     notice: Option<texts::Text>,
+    /// False when the file at the start could be neither read nor set aside: saving would
+    /// overwrite it with what this run holds.
+    settings_writable: bool,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panels: Vec<OpenPanel>,
@@ -138,11 +143,11 @@ impl NeumannApp {
         system_audio: Box<dyn SystemAudio>,
         system_language: Language,
     ) -> NeumannApp {
-        let settings = settings::load(&settings_path);
+        let loaded = settings::load_checked(&settings_path);
         NeumannApp::with_settings(
             context,
             settings_path,
-            settings,
+            loaded,
             spawner,
             system_audio,
             system_language,
@@ -154,11 +159,12 @@ impl NeumannApp {
     pub fn with_settings(
         context: &Context,
         settings_path: PathBuf,
-        settings: Settings,
+        loaded: Loaded,
         spawner: Box<dyn SpeakerSpawner>,
         system_audio: Box<dyn SystemAudio>,
         system_language: Language,
     ) -> NeumannApp {
+        let Loaded { settings, outcome } = loaded;
         fonts::install(context);
         theme::apply(context);
         context.set_theme(theme::preference(settings.desk.theme));
@@ -177,7 +183,8 @@ impl NeumannApp {
             scan_silent: false,
             rediscovery: Rediscovery::default(),
             scan_choice: None,
-            notice: None,
+            notice: texts::settings_notice(outcome),
+            settings_writable: outcome != LoadOutcome::Untouchable,
             add_address: None,
             removal: None,
             panels: Vec::new(),
@@ -439,6 +446,10 @@ impl NeumannApp {
     }
 
     fn save_settings(&mut self) {
+        if !self.settings_writable {
+            self.notice = Some(texts::SETTINGS_UNTOUCHABLE);
+            return;
+        }
         if let Err(error) = settings::save(&self.settings, &self.settings_path) {
             log::warn!("settings could not be saved ({})", error.kind());
             self.notice = Some(texts::SETTINGS_NOT_SAVED);

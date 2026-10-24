@@ -406,9 +406,11 @@ The app is portable and writes only next to the executable:
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
 malformed `settings.json` is renamed to `settings.json.bad` and replaced by defaults. If only some
-values in it are not understood (for example after going back to an older version), those values
-fall back to their defaults, the rest is kept, and a copy of the file is kept as
-`settings.json.bad`.
+values in it are not understood, or it holds values of a newer version (for example after going
+back to an older one), those values fall back to their defaults, the rest is kept, and a copy of
+the file is kept as `settings.json.bad`. A settings file that can be neither read nor moved aside
+(held open by another program) is not written over: the app says so and saves nothing in that
+run. The toolbar tells you whenever one of this happened at the start.
 
 ## Known limits
 

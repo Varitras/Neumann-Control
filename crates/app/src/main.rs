@@ -73,13 +73,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         log::warn!("no instance lock next to the executable ({})", error.kind());
     }
     let settings_path = directory.join(SETTINGS_FILE);
-    let saved = settings::load(&settings_path);
-    let saved_window = saved.window_of_mode();
+    let saved = settings::load_checked(&settings_path);
+    let saved_window = saved.settings.window_of_mode();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
             .with_icon(Arc::new(window_icon()?))
-            .with_inner_size(first_window_size(saved.desk.compact))
+            .with_inner_size(first_window_size(saved.settings.desk.compact))
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
         wgpu_options: wgpu_options(),

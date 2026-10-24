@@ -36,6 +36,7 @@ pub struct Settings {
     pub window: Option<WindowGeometry>,
     #[serde(deserialize_with = "or_default")]
     pub compact_window: Option<WindowGeometry>,
+    #[serde(deserialize_with = "or_default")]
     pub desk: DeskSettings,
     #[serde(deserialize_with = "readable_items")]
     pub groups: Vec<GroupSettings>,
@@ -514,31 +515,52 @@ where
     Ok(readable)
 }
 
-/// Loads the settings; a missing file yields the defaults, an unreadable or
-/// malformed one is moved aside (never overwriting an earlier one) and also
-/// yields the defaults. Within a readable file, values this version does not understand take
-/// their defaults (see `or_default`).
+/// What loading found: the app tells the user, and saves only what it may.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoadOutcome {
+    /// No file yet, or a file read in full.
+    Read,
+    /// Values not understood or of a newer version fell back to defaults; a copy of the file is
+    /// kept next to it.
+    PartlyUnderstood,
+    /// Unreadable or malformed: moved aside, defaults in use.
+    SetAside,
+    /// Unreadable or not understood, and it could not be moved or copied aside: saving would
+    /// overwrite it with what this run holds, so it must not be saved.
+    Untouchable,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Loaded {
+    pub settings: Settings,
+    pub outcome: LoadOutcome,
+}
+
+/// The settings for a reader that does not save them.
 pub fn load(path: &Path) -> Settings {
+    load_checked(path).settings
+}
+
+/// Loads the settings; a missing file yields the defaults. An unreadable or malformed file is
+/// moved aside (never overwriting an earlier one); one with values this version does not
+/// understand is kept, with a copy next to it.
+pub fn load_checked(path: &Path) -> Loaded {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Settings::default(),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return loaded(Settings::default(), LoadOutcome::Read);
+        }
         Err(error) => {
             log::warn!(
                 "settings file could not be read ({}); using defaults",
                 error.kind()
             );
-            quarantine(path);
-            return Settings::default();
+            return set_aside(path);
         }
     };
     NOT_UNDERSTOOD.with(|count| count.set(0));
-    match serde_json::from_slice(&bytes) {
-        Ok(settings) => {
-            if NOT_UNDERSTOOD.with(Cell::get) > 0 {
-                keep_a_copy(path);
-            }
-            settings
-        }
+    let settings: Settings = match serde_json::from_slice(&bytes) {
+        Ok(settings) => settings,
         Err(error) => {
             // Only the error category is logged: the message can quote file contents,
             // which include speaker addresses.
@@ -546,9 +568,74 @@ pub fn load(path: &Path) -> Settings {
                 "settings file is malformed ({:?}); using defaults",
                 error.classify()
             );
-            quarantine(path);
-            Settings::default()
+            return set_aside(path);
         }
+    };
+    let dropped = dropped_on_save(&bytes, &settings);
+    if dropped > 0 {
+        log::warn!("{dropped} settings values of a newer version would be dropped on saving");
+    }
+    if NOT_UNDERSTOOD.with(Cell::get) + dropped == 0 {
+        return loaded(settings, LoadOutcome::Read);
+    }
+    let outcome = match keep_a_copy(path) {
+        true => LoadOutcome::PartlyUnderstood,
+        false => LoadOutcome::Untouchable,
+    };
+    loaded(settings, outcome)
+}
+
+fn loaded(settings: Settings, outcome: LoadOutcome) -> Loaded {
+    Loaded { settings, outcome }
+}
+
+fn set_aside(path: &Path) -> Loaded {
+    let outcome = match quarantine(path) {
+        true => LoadOutcome::SetAside,
+        false => LoadOutcome::Untouchable,
+    };
+    loaded(Settings::default(), outcome)
+}
+
+/// How many values of the file `bytes` saving `settings` would lose: keys this version does not
+/// know, at any depth.
+fn dropped_on_save(bytes: &[u8], settings: &Settings) -> usize {
+    let Ok(original) = serde_json::from_slice::<serde_json::Value>(bytes) else {
+        return 0;
+    };
+    let Ok(written) = serde_json::to_value(settings) else {
+        return 0;
+    };
+    dropped_keys(&original, &written)
+}
+
+fn dropped_keys(original: &serde_json::Value, written: &serde_json::Value) -> usize {
+    use serde_json::Value;
+    match (original, written) {
+        (Value::Object(original), Value::Object(written)) => original
+            .iter()
+            .map(|(key, value)| match written.get(key) {
+                Some(kept) => dropped_keys(value, kept),
+                None => usize::from(carries_something(value)),
+            })
+            .sum(),
+        (Value::Array(original), Value::Array(written)) => original
+            .iter()
+            .zip(written)
+            .map(|(value, kept)| dropped_keys(value, kept))
+            .sum(),
+        _ => 0,
+    }
+}
+
+/// Empty lists and maps and `null` are what this version leaves out itself.
+fn carries_something(value: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match value {
+        Value::Null => false,
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(entries) => !entries.is_empty(),
+        _ => true,
     }
 }
 
@@ -565,18 +652,24 @@ pub fn save(settings: &Settings, path: &Path) -> io::Result<()> {
 }
 
 /// Copies the file aside, as `quarantine` would move it, keeping the original in place.
-fn keep_a_copy(path: &Path) {
+/// Whether the copy was made.
+fn keep_a_copy(path: &Path) -> bool {
     let target = free_quarantine_path(path);
-    if let Err(error) = fs::copy(path, &target) {
+    let copied = fs::copy(path, &target);
+    if let Err(error) = &copied {
         log::warn!("settings file could not be copied aside ({})", error.kind());
     }
+    copied.is_ok()
 }
 
-fn quarantine(path: &Path) {
+/// Whether the file was moved aside.
+fn quarantine(path: &Path) -> bool {
     let target = free_quarantine_path(path);
-    if let Err(error) = fs::rename(path, &target) {
+    let moved = fs::rename(path, &target);
+    if let Err(error) = &moved {
         log::warn!("settings file could not be moved aside ({})", error.kind());
     }
+    moved.is_ok()
 }
 
 fn free_quarantine_path(path: &Path) -> PathBuf {

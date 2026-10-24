@@ -1091,3 +1091,26 @@ fn the_language_follows_windows_unless_one_is_chosen() {
     harness.run_steps(2);
     harness.get_by_label("Einstellungen");
 }
+
+/// A settings file the app could neither read nor move aside (held open by another program)
+/// is not written over with the defaults; the app says so.
+#[cfg(windows)]
+#[test]
+fn an_untouchable_settings_file_is_not_written_over() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let before = std::fs::read(&path).unwrap();
+    let held = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&path)
+        .unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.run_steps(2);
+    harness.get_by_label(texts::SETTINGS_UNTOUCHABLE.get());
+    harness.get_by_label(texts::ADD_GROUP.get()).click();
+    harness.run_steps(3);
+    drop(held);
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+}

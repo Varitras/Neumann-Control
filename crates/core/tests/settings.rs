@@ -1,8 +1,8 @@
 use neumann_control_core::settings::{
-    load, save, BandCurves, CompactButton, CrossoverGuard, DelayUnit, DeskSettings, EqPreset,
-    GroupSettings, Language, LanguageChoice, Linkable, ManualSpeaker, MeterFloor, Settings,
-    SettingsPreset, StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice,
-    WindowGeometry, SETTINGS_FILE,
+    load, load_checked, save, BandCurves, CompactButton, CrossoverGuard, DelayUnit, DeskSettings,
+    EqPreset, GroupSettings, Language, LanguageChoice, Linkable, LoadOutcome, ManualSpeaker,
+    MeterFloor, Settings, SettingsPreset, StoredStripLayout, StripElement, SystemAudioSettings,
+    ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -110,6 +110,65 @@ fn unknown_and_missing_fields_are_tolerated() {
     assert_eq!(loaded.manual[0].serial, None);
     assert_eq!(loaded.window, None);
     assert!(path.exists());
+}
+
+/// Values of a newer version would be dropped by the next save: a copy keeps them, as for
+/// values that are not understood.
+#[test]
+fn values_of_a_newer_version_keep_a_copy() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"future": {"feature": 1}, "desk": {"compact": true, "newer": "x"}}"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load_checked(&path);
+    assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
+    assert!(loaded.settings.desk.compact);
+    let copy = directory.path().join(format!("{SETTINGS_FILE}.bad"));
+    assert_eq!(fs::read_to_string(copy).unwrap(), text);
+}
+
+#[test]
+fn a_file_of_this_version_is_read_without_a_copy() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    save(&sample(), &path).unwrap();
+    assert_eq!(load_checked(&path).outcome, LoadOutcome::Read);
+    assert!(!directory
+        .path()
+        .join(format!("{SETTINGS_FILE}.bad"))
+        .exists());
+}
+
+/// The desk's look is not worth the remembered speakers.
+#[test]
+fn a_desk_of_the_wrong_type_keeps_the_speakers() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"desk": 3, "manual": [{"address": "192.0.2.10", "port": 45}]}"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load_checked(&path);
+    assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
+    assert_eq!(loaded.settings.manual.len(), 1);
+    assert_eq!(loaded.settings.desk, DeskSettings::default());
+}
+
+/// A file that can be neither read nor moved aside (held open by another program) must not
+/// be written over with the defaults.
+#[cfg(windows)]
+#[test]
+fn a_file_that_cannot_be_read_or_moved_is_untouchable() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    save(&sample(), &path).unwrap();
+    let held = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&path)
+        .unwrap();
+    assert_eq!(load_checked(&path).outcome, LoadOutcome::Untouchable);
+    drop(held);
+    assert_eq!(load(&path), sample());
 }
 
 #[test]

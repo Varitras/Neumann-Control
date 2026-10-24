@@ -4,6 +4,7 @@
 
 ### Added
 
+- The toolbar says when the settings file was set aside or only partly understood at the start.
 - Starting the app again in the same folder brings the running window to the front instead of
   opening a second app, which would overwrite the first one's settings.
 - **?** in the toolbar: the **Manual** (an HTML file of this README next to the executable), the
@@ -91,6 +92,14 @@
 
 ### Fixed
 
+- A group or master fader moved a member whose level lay above its range down against the
+  fader, and members that may not write their level or mute shaped the group's fader and kept
+  its mute from ever offering to unmute.
+- A second click on a switch in the device panel before the speaker answered the first repeated
+  the first instead of undoing it; the same held for the input mix fields.
+- Copying a setting to the group right after changing it sent the old value.
+- Values of a newer version in `settings.json` were dropped on the next save without a copy, and
+  a settings file that could be neither read nor moved aside was written over with the defaults.
 - Scroll bars lay over the desk and covered the foot of a strip (**Details**); they now have room
   of their own.
 - In edit mode a right-drag moved the element along; only the left button drags now, and the ×

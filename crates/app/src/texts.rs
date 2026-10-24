@@ -9,7 +9,7 @@ use std::fmt;
 use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::ValueError;
-use neumann_control_core::settings::Language;
+use neumann_control_core::settings::{Language, LoadOutcome};
 use serde_json::Value;
 
 use crate::eq_file::{ExportNote, ImportError, LineProblem, Parameter};
@@ -120,6 +120,18 @@ pub const SCAN_FAILED: Text = Text::new("Suche fehlgeschlagen", "Scan failed");
 pub const SETTINGS_NOT_SAVED: Text = Text::new(
     "Einstellungen konnten nicht gespeichert werden",
     "Settings could not be saved",
+);
+pub const SETTINGS_PARTLY_UNDERSTOOD: Text = Text::new(
+    "Einstellungen teils nicht verstanden, Vorgaben genommen; Kopie liegt als .bad daneben",
+    "Some settings not understood, defaults taken; a copy is kept as .bad",
+);
+pub const SETTINGS_SET_ASIDE: Text = Text::new(
+    "Einstellungsdatei unlesbar, als .bad beiseitegelegt; Vorgaben genommen",
+    "Settings file unreadable, moved aside as .bad; defaults taken",
+);
+pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
+    "Einstellungsdatei nicht lesbar; Änderungen werden nicht gespeichert",
+    "Settings file cannot be read; changes are not saved",
 );
 pub const NO_SPEAKERS: Text = Text::new(
     "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.",
@@ -402,6 +414,16 @@ pub fn update_available(tag: &str) -> String {
         format!("Neue Version {tag} verfügbar"),
         format!("Version {tag} is available"),
     )
+}
+
+/// What the start says about loading the settings; nothing when they were read in full.
+pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
+    match outcome {
+        LoadOutcome::Read => None,
+        LoadOutcome::PartlyUnderstood => Some(SETTINGS_PARTLY_UNDERSTOOD),
+        LoadOutcome::SetAside => Some(SETTINGS_SET_ASIDE),
+        LoadOutcome::Untouchable => Some(SETTINGS_UNTOUCHABLE),
+    }
 }
 
 pub fn speaker_count(count: usize) -> String {
