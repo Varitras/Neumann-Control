@@ -91,7 +91,11 @@ impl Tokens {
 
     /// The tokens of the theme egui is showing right now.
     pub fn current(context: &Context) -> Tokens {
-        match context.theme() {
+        Tokens::of(context.theme())
+    }
+
+    fn of(theme: Theme) -> Tokens {
+        match theme {
             Theme::Dark => Tokens::dark(),
             Theme::Light => Tokens::light(),
         }
@@ -133,10 +137,7 @@ fn visuals(tokens: &Tokens, theme: Theme) -> Visuals {
 }
 
 fn style(theme: Theme) -> Style {
-    let tokens = match theme {
-        Theme::Dark => Tokens::dark(),
-        Theme::Light => Tokens::light(),
-    };
+    let tokens = Tokens::of(theme);
     let mut style = Style {
         visuals: visuals(&tokens, theme),
         ..Style::default()
