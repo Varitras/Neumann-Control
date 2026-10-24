@@ -32,15 +32,17 @@ use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
 pub const STRIP_WIDTH: f32 = 140.0;
-const STRIP_MARGIN: i8 = 6;
-const STRIP_RADIUS: u8 = 6;
+/// The frame of every strip; the group strip draws the same.
+pub(super) const STRIP_MARGIN: i8 = 6;
+pub(super) const STRIP_RADIUS: u8 = 6;
 const GRIP_ID: &str = "grip";
 const GRIP_ROWS: usize = 3;
+const GRIP_COLUMNS: usize = 2;
 const GRIP_DOT_SPACING: f32 = 4.0;
 const GRIP_DOT_RADIUS: f32 = 1.2;
-const GRIP_WIDTH: f32 = 2.0 * GRIP_DOT_SPACING;
+const GRIP_WIDTH: f32 = GRIP_COLUMNS as f32 * GRIP_DOT_SPACING;
 const GRIP_HEIGHT: f32 = GRIP_ROWS as f32 * GRIP_DOT_SPACING;
-const BORDER_WIDTH: f32 = 1.0;
+pub(super) const BORDER_WIDTH: f32 = 1.0;
 const LED_RADIUS: f32 = 3.5;
 const LED_SPACING: f32 = 6.0;
 pub(super) const UNREACHABLE_OPACITY: f32 = 0.55;
@@ -240,7 +242,7 @@ fn grip(ui: &mut Ui, member: &str, tokens: &Tokens) {
             let size = vec2(GRIP_WIDTH, GRIP_HEIGHT);
             let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
             for row in 0..GRIP_ROWS {
-                for column in 0..2 {
+                for column in 0..GRIP_COLUMNS {
                     let center = rect.left_top()
                         + vec2(
                             GRIP_DOT_SPACING * (column as f32 + 0.5),

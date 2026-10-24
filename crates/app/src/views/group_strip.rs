@@ -7,14 +7,12 @@ use eframe::egui::{self, Button, Color32, CornerRadius, RichText, Role, Stroke, 
 use neumann_control_core::settings::{GroupSettings, Linkable};
 
 use super::fader::{self, Orientation};
+use super::strip::{BORDER_WIDTH, STRIP_MARGIN, STRIP_RADIUS};
 use crate::groups::{linkable_label, SharedLevel, LINKABLE};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
 
 const STRIP_WIDTH: f32 = 96.0;
-const STRIP_MARGIN: i8 = 6;
-const STRIP_RADIUS: u8 = 6;
-const BORDER_WIDTH: f32 = 1.0;
 
 #[derive(Default)]
 pub struct GroupStripResponse {

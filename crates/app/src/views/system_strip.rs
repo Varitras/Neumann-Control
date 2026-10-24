@@ -57,7 +57,8 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
                 PERCENT_RANGE,
                 Orientation::Vertical,
             );
-            response.volume = moved.map(|moved| (volume + moved).clamp(0.0, 100.0));
+            let (lowest, highest) = (*PERCENT_RANGE.start(), *PERCENT_RANGE.end());
+            response.volume = moved.map(|moved| (volume + moved).clamp(lowest, highest));
             let names = channel_names(strip.meters.len());
             let channels: Vec<&str> = names.iter().map(String::as_str).collect();
             let group = Meters {
