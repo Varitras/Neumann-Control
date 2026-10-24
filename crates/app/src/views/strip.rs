@@ -767,7 +767,6 @@ fn response_time(ui: &mut Ui, speaker: &SpeakerState) {
     ui.add(Label::new(RichText::new(text).small().weak().monospace()));
 }
 
-/// Mute and identify, and EQ for models with EQ containers; true when EQ was clicked.
 /// A button showing a switch value of the speaker; a click asks for the opposite.
 pub(super) fn toggle(
     ui: &mut Ui,

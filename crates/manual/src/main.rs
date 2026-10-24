@@ -1,5 +1,5 @@
-//! `neumann-control-manual <README> <output>`: writes the manual for the README; pictures and
-//! links are taken relative to the README's folder.
+//! `neumann-control-manual <README> <output>`: writes the manual for the README; pictures are
+//! read relative to the README's folder and embedded, links to repository files lead to GitHub.
 
 use std::path::Path;
 use std::process::ExitCode;

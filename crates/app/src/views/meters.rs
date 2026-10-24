@@ -55,7 +55,7 @@ pub struct Meters<'a> {
     pub played: &'a [bool],
 }
 
-/// Returns the area the meters themselves cover, without names that stick out beside them.
+/// Returns the area the meters and their channel names cover.
 pub fn show(ui: &mut Ui, group: &Meters, height: f32, floor: f64, tokens: &Tokens) -> Rect {
     let mut covered = Rect::NOTHING;
     let (name_of_group, channels, meters) = (group.name, group.channels, group.levels);

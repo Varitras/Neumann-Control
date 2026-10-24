@@ -107,7 +107,7 @@ impl NeumannApp {
     /// Desk to compact or back: the window the new mode last had comes back, fitted onto the
     /// monitors there are now, else the mode's first size.
     pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
-        // Compact rows have no layout to edit; back on the desk the strips are as usual.
+        // Edit mode drags strip elements; compact buttons change by right click instead.
         self.editing = false;
         let target = self.settings.switch_mode(self.window);
         self.save_settings();

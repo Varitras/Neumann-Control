@@ -1,6 +1,7 @@
 //! The app's UI strings in German and English, side by side so that no text lacks a translation.
 //! Not here: group titles (`catalog::Group::title`), entry labels and units (`paths.toml`), and
-//! the separators that format device values (`all_values`, `display`). Log texts stay English
+//! the separators that format device values in the panel and "Alle Werte" (`all_values`,
+//! `display`); the history's own value line is here (`history_value`). Log texts stay English
 //! and never come from here.
 
 use std::cell::Cell;

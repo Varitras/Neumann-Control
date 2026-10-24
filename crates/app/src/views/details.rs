@@ -139,7 +139,7 @@ fn split_in_columns(groups: Groups<'_>) -> (Groups<'_>, Groups<'_>) {
     (left, right)
 }
 
-/// The entries to show, grouped in the order the catalog first names each group.
+/// The entries to show, grouped by topic (`arranged`).
 fn groups<'a>(entries: Vec<&'a Entry>, speaker: &SpeakerState) -> Groups<'a> {
     let shown = entries.into_iter().filter(|entry| is_shown(entry, speaker));
     arranged(grouped(shown.collect()), speaker.product())
@@ -251,7 +251,10 @@ fn full_scan_outcome(ui: &mut Ui, speaker: &SpeakerState) {
 
 fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {
     if ui
-        .add_enabled(speaker.can_read_all_values(), Button::new(texts::ALL_VALUES))
+        .add_enabled(
+            speaker.can_read_all_values(),
+            Button::new(texts::ALL_VALUES),
+        )
         .clicked()
     {
         commands.push(speaker.read_all_values());

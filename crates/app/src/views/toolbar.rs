@@ -1,8 +1,9 @@
 //! The top bar: "Suchen", "+ Adresse", "+ Gruppe", the speaker count, a notice when something
-//! failed, and at the right the average response time, "Kompakt", "Verlauf", "Einstellungen" and
-//! "?" with the manual, the wiki and "Über" (one small button: the narrowest window has no room for two). The
-//! compact window is narrow, so there only the count, notice and the right side remain; adding
-//! speakers and groups is the desk's job.
+//! failed, and at the right the average response time, the pen (edit the strips), "Kompakt",
+//! "Verlauf", "Einstellungen" and "?" with the manual, the wiki and "Über" (one small button:
+//! the narrowest window has no room for two). The compact window is narrow, so there only the
+//! count, notice and the right side without the pen remain; adding speakers and groups and
+//! editing the strips are the desk's job.
 
 use std::time::Duration;
 
@@ -14,7 +15,6 @@ use eframe::egui::{
 use crate::texts;
 
 const PANEL_ID: &str = "toolbar";
-/// A mark needs less room around it than a word.
 /// The drawn pen on the edit button, in points.
 const PEN_LENGTH: f32 = 13.0;
 const PEN_WIDTH: f32 = 3.5;

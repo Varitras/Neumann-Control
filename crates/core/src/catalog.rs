@@ -1,5 +1,6 @@
 //! The path table: which SSC paths exist, on which models, how they are shown, polled and
-//! written. All of it is data in `paths.toml`; this module only loads and applies it.
+//! written. The paths are data in `paths.toml`, which this module loads and applies; the six EQ
+//! leaves with their limits and filter types, and the group titles, are defined here.
 
 use std::collections::HashSet;
 use std::fmt;

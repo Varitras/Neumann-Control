@@ -26,8 +26,9 @@ time = { version = "0.3", features = ["local-offset"] }
 winit = "0.30"
 
 [target.'cfg(windows)'.dependencies]
-# Already in the tree through winit; asks Windows for its display language, opens the manual
-# and web pages, and asks GitHub for the latest release over WinHTTP (no HTTP crate needed).
+# Already in the tree through eframe and others; asks Windows for its display language, opens
+# the manual and web pages, and asks GitHub for the latest release over WinHTTP (no HTTP crate
+# needed).
 windows-sys = { version = "0.61", features = [
     "Win32_Globalization",
     "Win32_Networking_WinHttp",

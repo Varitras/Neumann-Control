@@ -40,7 +40,8 @@ pub struct EqView<'a> {
     pub table: Option<Table<'a>>,
     /// Why nothing can be written right now, or why the last write was refused.
     pub notice: Option<String>,
-    /// The reset of the chosen container; `None` on a crossover or while it cannot be written.
+    /// The reset of the chosen container; `None` while it cannot be written, and on a crossover
+    /// while crossovers are protected.
     pub reset: Option<ResetOffer>,
     /// The history line Undo would take back; `None` disables it.
     pub undo: Option<String>,
@@ -65,7 +66,7 @@ pub struct EqView<'a> {
 /// The preview of a filter file before it is written.
 pub struct ImportView<'a> {
     pub file: &'a str,
-    /// The bands that would change; empty while `refusal` is set.
+    /// The bands that would change, also while `refusal` says why nothing is written.
     pub changes: &'a [String],
     /// What the file holds that is not taken over.
     pub notes: &'a [String],

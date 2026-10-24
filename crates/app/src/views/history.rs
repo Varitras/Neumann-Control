@@ -106,10 +106,10 @@ fn row_line(ui: &mut Ui, row: &HistoryRow) -> Option<u64> {
     .inner
 }
 
-/// "Seitdem geändert": the changes whose values are no longer the written ones.
 /// Ctrl+Z, in the main window and in the EQ windows.
 pub const UNDO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
 
+/// "Seitdem geändert": the changes whose values are no longer the written ones.
 pub fn question(ui: &mut Ui, lines: &[String]) -> QuestionAction {
     let modal = Modal::new(Id::unique(QUESTION_ID)).show(ui.ctx(), |ui| {
         ui.heading(texts::CHANGED_SINCE);

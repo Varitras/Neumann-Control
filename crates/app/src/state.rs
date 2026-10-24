@@ -220,7 +220,8 @@ impl SpeakerState {
             .map_or("", |identity| identity.product.as_str())
     }
 
-    /// The reported product, else the announced one; for showing only.
+    /// The reported product, else the announced one, else the one kept from an earlier
+    /// connection; for showing only.
     pub fn model(&self) -> Option<&str> {
         let reported = self
             .identity

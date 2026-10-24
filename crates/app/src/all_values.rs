@@ -10,7 +10,6 @@ use crate::display::capped;
 use crate::paths;
 use crate::texts;
 
-/// A device can answer with any amount of text; one table cell must not grow with it.
 const COPY_SEPARATOR: &str = " = ";
 const RANGE_SEPARATOR: &str = "  ";
 const OPTION_SEPARATOR: &str = " | ";
