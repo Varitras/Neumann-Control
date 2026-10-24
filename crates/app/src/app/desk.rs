@@ -27,7 +27,7 @@ use crate::ui_kit::theme::{group_color, group_color_count};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip::{self, StripView};
 use crate::views::system_strip::{self, SystemStrip, SystemStripResponse};
-use crate::writes::Intent;
+use crate::writes::{can_write, Intent};
 
 const STRIP_CENTERS_ID: &str = "strip_centers";
 /// The dragged strip stays where it would land, faded so the strips around it read as the
@@ -476,31 +476,72 @@ fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
     }
 }
 
+/// Only a member that may write its level follows a group or master fader, so only such a
+/// member counts for the fader's position and reach.
 fn level_of(state: &SpeakerState) -> Option<f64> {
-    if state.status != Status::Connected {
+    let path = paths::path(paths::OUTPUT_LEVEL);
+    if !can_write(state, Catalog::embedded(), &path) {
         return None;
     }
-    state
-        .values
-        .get(&paths::path(paths::OUTPUT_LEVEL))
-        .and_then(Value::as_f64)
+    state.values.get(&path).and_then(Value::as_f64)
 }
 
 pub(super) fn levels(states: &[&SpeakerState]) -> Vec<f64> {
     states.iter().filter_map(|state| level_of(state)).collect()
 }
 
-/// Whether every connected member is muted; none when no member is connected.
+/// Whether every member that may write its mute is muted; none when there is no such member. A
+/// member that cannot follow the switch would otherwise keep it from ever offering to unmute.
 pub(super) fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
+    let path = paths::path(paths::MUTE);
     let mutes: Vec<bool> = states
         .iter()
-        .filter(|state| state.status == Status::Connected)
-        .filter_map(|state| {
-            state
-                .values
-                .get(&paths::path(paths::MUTE))
-                .and_then(Value::as_bool)
-        })
+        .filter(|state| can_write(state, Catalog::embedded(), &path))
+        .filter_map(|state| state.values.get(&path).and_then(Value::as_bool))
         .collect();
     (!mutes.is_empty()).then(|| mutes.iter().all(|muted| *muted))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::SocketAddrV6;
+
+    use neumann_control_core::speaker::{Event, Identity};
+    use serde_json::json;
+
+    use super::*;
+
+    /// A connected speaker of `product` reporting `level` and `mute`.
+    fn member(product: &str, level: f64, mute: bool) -> SpeakerState {
+        let address: SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: product.to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        let reported = [
+            (paths::OUTPUT_LEVEL, json!(level)),
+            (paths::MUTE, json!(mute)),
+        ];
+        for (path, value) in reported {
+            let path = paths::path(path);
+            speaker.apply(Event::Value { path, value }, 0.0);
+        }
+        speaker
+    }
+
+    /// A member that may not write a setting cannot follow the group's control for it, so it
+    /// neither sets the fader's reach nor keeps the group from showing it unmuted.
+    #[test]
+    fn a_read_only_member_does_not_shape_the_group_controls() {
+        // Muted the writable one; the read-only one is not: the group must offer to unmute.
+        let writable = member("KH 120 II", 80.0, true);
+        let read_only = member("KH 80", 120.0, false);
+        let states = [&writable, &read_only];
+        assert_eq!(levels(&states), vec![80.0]);
+        assert_eq!(all_muted(&states), Some(true));
+    }
 }

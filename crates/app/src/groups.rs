@@ -8,6 +8,7 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
 use neumann_control_core::ssc::wire::SscPath;
 
+use crate::gesture::bounded_move;
 use crate::paths;
 use crate::state::SpeakerKey;
 use crate::texts;
@@ -311,7 +312,8 @@ pub fn shared_level(levels: &[f64], range: &RangeInclusive<f64>) -> Option<Share
 }
 
 /// Every member moved by `delta` dB within its own range; members that would not change are
-/// left out, so nothing is written for them.
+/// left out, so nothing is written for them. A member outside its range only moves towards it,
+/// as a single fader does.
 pub fn shifted_levels<K: Clone>(
     members: &[(K, f64, RangeInclusive<f64>)],
     delta: f64,
@@ -319,7 +321,7 @@ pub fn shifted_levels<K: Clone>(
     members
         .iter()
         .filter_map(|(key, level, range)| {
-            let shifted = (level + delta).clamp(*range.start(), *range.end());
+            let shifted = bounded_move(*level, level + delta, range)?;
             (shifted != *level).then(|| (key.clone(), shifted))
         })
         .collect()
@@ -328,6 +330,15 @@ pub fn shifted_levels<K: Clone>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A member above the range (a value set elsewhere) is never pulled down by a move up.
+    #[test]
+    fn a_member_outside_the_range_moves_only_towards_it() {
+        let range = 0.0..=120.0;
+        let members = [("a", 125.0, range.clone())];
+        assert_eq!(shifted_levels(&members, 2.0), vec![]);
+        assert_eq!(shifted_levels(&members, -2.0), vec![("a", 120.0)]);
+    }
 
     #[test]
     fn a_group_is_deleted_by_its_index() {
