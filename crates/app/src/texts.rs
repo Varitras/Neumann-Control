@@ -849,12 +849,14 @@ pub fn trends_title(window_seconds: f64) -> String {
 
 /// The left end of a trend's time axis: "−2 h" for whole hours, else "−25 min".
 pub fn trend_start(span_seconds: f64) -> String {
-    let hours = hours(span_seconds);
-    if hours.fract() == 0.0 {
-        return format!("−{hours} h");
+    let minutes = whole_minutes(span_seconds);
+    if minutes > 0 && minutes % MINUTES_PER_HOUR == 0 {
+        return format!("−{} h", minutes / MINUTES_PER_HOUR);
     }
-    format!("−{} min", whole_minutes(span_seconds))
+    format!("−{minutes} min")
 }
+
+const MINUTES_PER_HOUR: u64 = 60;
 
 const SECONDS_PER_HOUR: f64 = 3600.0;
 
@@ -1081,6 +1083,16 @@ fn export_note(note: &ExportNote) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The span is a difference of clock readings, never exactly 3600: whole hours are told
+    /// by the minutes it shows.
+    #[test]
+    fn a_trend_of_an_hour_starts_at_one_hour() {
+        assert_eq!(trend_start(3600.4), "−1 h");
+        assert_eq!(trend_start(7199.9), "−2 h");
+        assert_eq!(trend_start(1500.0), "−25 min");
+        assert_eq!(trend_start(60.0), "−1 min");
+    }
 
     #[test]
     fn a_list_value_reads_entry_by_entry() {
