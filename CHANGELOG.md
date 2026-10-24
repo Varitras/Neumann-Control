@@ -47,7 +47,8 @@
   with a preview as one history entry.
 - **Full scan** in the device panel: a report of everything a speaker answers, without its
   identifiers, next to the executable.
-- A strip with the Windows volume of a chosen playback device, with mute and peak meters.
+- A strip with the Windows volume of a chosen playback device, with mute and peak meters named
+  after their speaker positions.
 - Each EQ band has its own colour and its number in its point; every band's own curve is drawn
   thin, the chosen band's with its area. Colours and which band curves show are set in the
   settings.

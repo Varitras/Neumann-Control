@@ -348,7 +348,8 @@ recorded.
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
 - whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
-  default device or a chosen one): a fader in percent, mute and a peak meter per channel. It
+  default device or a chosen one): a fader in percent, mute and a peak meter per channel, named
+  after its speaker position (L, R, C, LFE, BL, BR, SL, SR …) as the device's format gives it. It
   sets Windows' own volume, like the volume slider in the taskbar.
 
 ### Help and updates
