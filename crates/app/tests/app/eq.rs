@@ -591,6 +591,46 @@ fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
 
+/// A preset taken while the speaker reported a value outside the range: loading it writes no
+/// leaf, not the ones before the refused one, and says why.
+#[test]
+fn an_eq_preset_with_a_refused_value_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut frequencies = simulator.value("audio/out/eq2/frequency").unwrap();
+        frequencies[0] = json!(30000.0);
+        simulator.set_value("audio/out/eq2/frequency", frequencies);
+    });
+    save_eq_preset(&mut harness, "Far");
+    // Band 2 moved in boost and frequency: the preset differs in both leaves, and its
+    // frequencies hold the refused one.
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(30.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+            && !sets(&simulator, FREQUENCY_POINTER).is_empty()
+    });
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Far", 10))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    harness.run_steps(3);
+    let range = Refusal::OutOfRange {
+        min: 10.0,
+        max: 24000.0,
+        unit: "Hz".to_owned(),
+    };
+    harness.get_by_label_contains(&texts::describe_refusal(&range));
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
+}
+
 #[test]
 fn eq_presets_of_another_band_count_are_not_offered() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
