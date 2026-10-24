@@ -46,6 +46,7 @@ pub fn place_window(window: &Window, saved: WindowGeometry) {
     window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
     // The size granted arrives as a resize event like any other.
     let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
+    window.set_maximized(geometry.maximized);
 }
 
 /// Gives the window a mode's first size, where it is.
@@ -85,6 +86,7 @@ pub fn fit_into(
         y: clamp_start(saved.y, monitor.y, monitor.height, height),
         width,
         height,
+        maximized: saved.maximized,
     }
 }
 
@@ -130,6 +132,7 @@ mod tests {
             y,
             width,
             height,
+            maximized: false,
         }
     }
 

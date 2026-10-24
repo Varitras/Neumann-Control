@@ -50,6 +50,7 @@ pub fn first_place(main: Option<Rect>, monitor: Option<Vec2>) -> WindowPlace {
     WindowPlace {
         position,
         size: Vec2::new(full.x, height),
+        maximized: false,
     }
 }
 

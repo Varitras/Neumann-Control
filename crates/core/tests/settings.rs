@@ -26,6 +26,7 @@ fn sample() -> Settings {
             y: 20.0,
             width: 800.0,
             height: 600.0,
+            maximized: false,
         }),
         desk: DeskSettings::default(),
         ..Settings::default()
@@ -43,6 +44,7 @@ fn window_places_survive_a_save() {
         y: 20.0,
         width: 640.0,
         height: 480.0,
+        maximized: false,
     };
     settings
         .windows
@@ -234,6 +236,7 @@ fn desk_settings_round_trip() {
             y: 20.0,
             width: 400.0,
             height: 300.0,
+            maximized: false,
         }),
         ..Settings::default()
     };
@@ -280,10 +283,12 @@ fn each_mode_keeps_its_own_window() {
         y: 0.0,
         width: 900.0,
         height: 600.0,
+        maximized: false,
     };
     let compact = WindowGeometry {
         width: 480.0,
         height: 360.0,
+        maximized: false,
         ..desk
     };
     let mut settings = Settings::default();

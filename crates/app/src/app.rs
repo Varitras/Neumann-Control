@@ -889,20 +889,32 @@ fn retire(handle: SpeakerHandle) {
 }
 
 /// Outer position and inner size in physical pixels, as `window_placement` takes them back.
-/// `None` while minimized or maximized, so the file keeps the last normal window.
-pub fn window_geometry(viewport: &ViewportInfo, pixels_per_point: f32) -> Option<WindowGeometry> {
+/// Minimized, the window stays as `last` had it; maximized, it keeps `last`'s normal place and
+/// size for when it is restored, marked maximized.
+pub fn window_geometry(
+    viewport: &ViewportInfo,
+    pixels_per_point: f32,
+    last: Option<WindowGeometry>,
+) -> Option<WindowGeometry> {
+    if viewport.minimized == Some(true) {
+        return last;
+    }
+    let maximized = viewport.maximized == Some(true);
+    if let Some(normal) = last.filter(|_| maximized) {
+        return Some(WindowGeometry {
+            maximized: true,
+            ..normal
+        });
+    }
     let outer = viewport.outer_rect?;
     let inner = viewport.inner_rect?;
-    let normal = viewport.minimized != Some(true) && viewport.maximized != Some(true);
-    if !normal {
-        return None;
-    }
     let physical = |points: f32| (points * pixels_per_point).round();
     Some(WindowGeometry {
         x: physical(outer.min.x),
         y: physical(outer.min.y),
         width: physical(inner.width()),
         height: physical(inner.height()),
+        maximized,
     })
 }
 
@@ -914,8 +926,8 @@ impl eframe::App for NeumannApp {
         self.rediscover(now);
         self.poll_scan();
         let pixels_per_point = context.pixels_per_point();
-        let geometry = context.input(|input| window_geometry(input.viewport(), pixels_per_point));
-        self.window = geometry.or(self.window);
+        self.window =
+            context.input(|input| window_geometry(input.viewport(), pixels_per_point, self.window));
     }
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
@@ -976,28 +988,53 @@ mod tests {
     #[test]
     fn geometry_is_outer_position_and_inner_size_in_physical_pixels() {
         assert_eq!(
-            window_geometry(&viewport(), 1.5),
+            window_geometry(&viewport(), 1.5, None),
             Some(WindowGeometry {
                 x: -15.0,
                 y: 30.0,
                 width: 1200.0,
                 height: 750.0,
+                maximized: false,
             })
         );
     }
 
+    const LAST_NORMAL: WindowGeometry = WindowGeometry {
+        x: 100.0,
+        y: 80.0,
+        width: 640.0,
+        height: 480.0,
+        maximized: false,
+    };
+
     #[test]
-    fn minimized_or_maximized_windows_keep_the_last_normal_geometry() {
+    fn a_minimized_window_keeps_how_it_was() {
         let minimized = ViewportInfo {
             minimized: Some(true),
             ..viewport()
         };
+        assert_eq!(
+            window_geometry(&minimized, 1.0, Some(LAST_NORMAL)),
+            Some(LAST_NORMAL)
+        );
+        assert_eq!(window_geometry(&ViewportInfo::default(), 1.0, None), None);
+    }
+
+    /// Full screen used to be forgotten: the window opened at its normal size again.
+    #[test]
+    fn a_maximized_window_is_remembered_maximized_over_its_normal_place() {
         let maximized = ViewportInfo {
             maximized: Some(true),
             ..viewport()
         };
-        assert_eq!(window_geometry(&minimized, 1.0), None);
-        assert_eq!(window_geometry(&maximized, 1.0), None);
-        assert_eq!(window_geometry(&ViewportInfo::default(), 1.0), None);
+        let remembered = window_geometry(&maximized, 1.0, Some(LAST_NORMAL)).unwrap();
+        assert!(remembered.maximized);
+        assert_eq!(
+            (remembered.x, remembered.width),
+            (LAST_NORMAL.x, LAST_NORMAL.width)
+        );
+        let first = window_geometry(&maximized, 1.0, None).unwrap();
+        assert!(first.maximized);
+        assert_eq!(first.width, 800.0);
     }
 }

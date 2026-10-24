@@ -41,6 +41,7 @@ pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> Windo
     WindowPlace {
         position: Some(pos2(points(geometry.x), points(geometry.y))),
         size: vec2(points(geometry.width), points(geometry.height)),
+        maximized: geometry.maximized,
     }
 }
 
@@ -93,13 +94,13 @@ impl NeumannApp {
         key: &SpeakerKey,
     ) {
         // The window's own scale: on another monitor it may differ from the main window's.
+        let place_key = place_key(kind, &member_id(key));
+        let last = self.settings.windows.get(&place_key).copied();
         let geometry = context.input_for(viewport, |input| {
-            window_geometry(input.viewport(), input.pixels_per_point)
+            window_geometry(input.viewport(), input.pixels_per_point, last)
         });
         if let Some(geometry) = geometry {
-            self.settings
-                .windows
-                .insert(place_key(kind, &member_id(key)), geometry);
+            self.settings.windows.insert(place_key, geometry);
         }
     }
 }
@@ -116,6 +117,7 @@ mod tests {
             y: 300.0,
             width: 900.0,
             height: 600.0,
+            maximized: false,
         };
         let place = place_of(geometry, 1.5);
         assert_eq!(place.position, Some(pos2(100.0, 200.0)));

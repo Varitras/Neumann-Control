@@ -74,6 +74,7 @@ mod tests {
             y: 2.0,
             width: 300.0,
             height: 200.0,
+            maximized: false,
         };
         settings
             .windows

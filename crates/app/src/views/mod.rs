@@ -54,6 +54,8 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
 pub struct WindowPlace {
     pub position: Option<eframe::egui::Pos2>,
     pub size: eframe::egui::Vec2,
+    /// Opens maximized; position and size are where it goes when restored.
+    pub maximized: bool,
 }
 
 /// How a window of its own is drawn this frame.
@@ -77,7 +79,9 @@ pub(crate) fn placed(
 ) -> ViewportBuilder {
     match opening {
         Opening::At(place) => {
-            let sized = builder.with_inner_size(place.size);
+            let sized = builder
+                .with_inner_size(place.size)
+                .with_maximized(place.maximized);
             match place.position {
                 Some(position) => sized.with_position(position),
                 None => sized,
@@ -107,10 +111,23 @@ mod tests {
         let place = WindowPlace {
             position: Some(pos2(10.0, 20.0)),
             size: vec2(500.0, 200.0),
+            maximized: false,
         };
         let builder = placed(ViewportBuilder::default(), Opening::At(place), DEFAULT_SIZE);
         assert_eq!(builder.position, Some(pos2(10.0, 20.0)));
         assert_eq!(builder.inner_size, Some(vec2(500.0, 200.0)));
+        assert_eq!(builder.maximized, Some(false));
+    }
+
+    #[test]
+    fn a_window_left_maximized_opens_maximized() {
+        let place = WindowPlace {
+            position: Some(pos2(10.0, 20.0)),
+            size: vec2(500.0, 200.0),
+            maximized: true,
+        };
+        let builder = placed(ViewportBuilder::default(), Opening::At(place), DEFAULT_SIZE);
+        assert_eq!(builder.maximized, Some(true));
     }
 
     #[test]

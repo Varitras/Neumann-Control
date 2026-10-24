@@ -474,6 +474,9 @@ pub struct WindowGeometry {
     pub y: f32,
     pub width: f32,
     pub height: f32,
+    /// Maximized; position and size are then the normal window's, for when it is restored.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub maximized: bool,
 }
 
 /// A value this version cannot read (one a later version wrote, a hand edit) takes its default

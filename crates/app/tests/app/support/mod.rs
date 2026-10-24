@@ -118,6 +118,7 @@ pub const SAVED_WINDOW: WindowGeometry = WindowGeometry {
     y: 0.0,
     width: WINDOW_SIZE[0],
     height: WINDOW_SIZE[1],
+    maximized: false,
 };
 
 pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
