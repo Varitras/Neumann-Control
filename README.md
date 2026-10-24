@@ -139,7 +139,7 @@ Each speaker has a channel strip:
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
 speaker of that model at once:
 
-- Right-click a knob or button on a strip to **Hide** it, **Swap for …** another setting, or move it
+- Right-click a knob or button on a strip to **Hide** it, **Swap for…** another setting, or move it
   up or down (past the fader too). Right-click a row in the device panel to put it on the strip
   (**Add to strip**) or take it off.
 - The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**

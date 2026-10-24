@@ -302,7 +302,7 @@ fn import_preview(ui: &mut Ui, import: &ImportView) -> Option<EqAction> {
         }
         let unchanged = import.refusal.is_none() && import.changes.is_empty();
         if unchanged {
-            ui.weak(texts::PRESET_UNCHANGED);
+            ui.weak(texts::IMPORT_UNCHANGED);
         }
         ScrollArea::vertical()
             .max_height(IMPORT_LIST_HEIGHT)
@@ -364,7 +364,7 @@ fn edit_row(ui: &mut Ui, reset: Option<&ResetOffer>, undo: Option<&str>) -> Opti
         let flatten = reset.is_some() && ui.button(texts::EQ_RESET).clicked();
         let full = reset.is_some() && ui.button(texts::EQ_FULL_RESET).clicked();
         let undone = ui
-            .add_enabled(undo.is_some(), Button::new(texts::EQ_UNDO))
+            .add_enabled(undo.is_some(), Button::new(texts::UNDO))
             .clicked();
         if let Some(line) = undo {
             ui.weak(line);

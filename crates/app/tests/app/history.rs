@@ -284,12 +284,9 @@ fn the_history_lists_the_newest_write_first() {
     let older = harness.get_by_label(&mute_change(false, true)).rect().top();
     let newer = harness.get_by_label(&mute_change(true, false)).rect().top();
     assert!(newer < older, "newer {newer}, older {older}");
-    assert_eq!(
-        harness.query_all_by_label(texts::TAKE_BACK.get()).count(),
-        2
-    );
+    assert_eq!(harness.query_all_by_label(texts::UNDO.get()).count(), 2);
     harness
-        .query_all_by_label(texts::TAKE_BACK.get())
+        .query_all_by_label(texts::UNDO.get())
         .next()
         .unwrap()
         .click();

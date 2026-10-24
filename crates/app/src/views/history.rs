@@ -86,7 +86,7 @@ fn contents(
 /// Returns the entry when its "Zurück" was clicked.
 fn row_line(ui: &mut Ui, row: &HistoryRow) -> Option<u64> {
     ui.horizontal(|ui| {
-        let button = ui.add_enabled(row.open, Button::new(texts::TAKE_BACK));
+        let button = ui.add_enabled(row.open, Button::new(texts::UNDO));
         let button = match &row.reason {
             Some(reason) => button.on_disabled_hover_text(reason),
             None => button,

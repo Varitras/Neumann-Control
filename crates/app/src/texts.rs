@@ -183,12 +183,12 @@ pub const OPEN_RELEASE_PAGE: Text = Text::new("Release-Seite öffnen", "Open the
 pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
 pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
 pub const HIDE: Text = Text::new("Ausblenden", "Hide");
-pub const SWAP_FOR: Text = Text::new("Tauschen gegen …", "Swap for …");
+pub const SWAP_FOR: Text = Text::new("Tauschen gegen…", "Swap for…");
 pub const MOVE_UP: Text = Text::new("Nach oben", "Move up");
 pub const MOVE_DOWN: Text = Text::new("Nach unten", "Move down");
 pub const MOVE_LEFT: Text = Text::new("Nach links", "Move left");
 pub const MOVE_RIGHT: Text = Text::new("Nach rechts", "Move right");
-pub const ADD_BUTTON: Text = Text::new("Hinzufügen …", "Add …");
+pub const ADD_BUTTON: Text = Text::new("Hinzufügen…", "Add…");
 pub const ADD_TO_STRIP: Text = Text::new("Auf den Zug", "Add to strip");
 pub const REMOVE_FROM_STRIP: Text = Text::new("Vom Zug nehmen", "Remove from strip");
 pub const CUSTOMIZE_STRIPS: Text = Text::new("Züge anpassen", "Customize strips");
@@ -212,15 +212,16 @@ pub const NO_HISTORY: Text = Text::new(
     "Noch keine Änderungen in dieser Sitzung.",
     "No changes in this session yet.",
 );
-pub const TAKE_BACK: Text = Text::new("Zurück", "Undo");
+/// Takes a write back, in the history and the EQ window alike.
+pub const UNDO: Text = Text::new("Rückgängig", "Undo");
 pub const TAKEN_BACK: Text = Text::new("Zurückgenommen", "Undone");
 pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",
     "The value before is unknown",
 );
 pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since");
-pub const REVERT_ANYWAY: Text = Text::new("Trotzdem zurücksetzen?", "Revert anyway?");
-pub const REVERT: Text = Text::new("Zurücksetzen", "Revert");
+pub const REVERT_ANYWAY: Text = Text::new("Trotzdem rückgängig machen?", "Undo anyway?");
+pub const REVERT: Text = Text::new("Trotzdem rückgängig", "Undo anyway");
 pub const SWITCH_ON: Text = Text::new("an", "on");
 pub const SWITCH_OFF: Text = Text::new("aus", "off");
 pub const EQ: Text = Text::new("EQ", "EQ");
@@ -243,7 +244,6 @@ pub const UNKNOWN_VALUE: &str = "?";
 pub const BAND: Text = Text::new("Band", "Band");
 pub const EQ_RESET: Text = Text::new("Flach stellen", "Make flat");
 pub const EQ_FULL_RESET: Text = Text::new("Zurücksetzen", "Reset");
-pub const EQ_UNDO: Text = Text::new("Rückgängig", "Undo");
 pub const EQ_PRESET_SAVE: Text = Text::new("Als EQ-Preset speichern…", "Save as EQ preset…");
 pub const EQ_PRESET_LOAD: Text = Text::new("EQ-Preset laden…", "Load EQ preset…");
 pub const EQ_PRESET_SAVE_TITLE: Text = Text::new("EQ als Preset", "EQ as a preset");
@@ -281,8 +281,8 @@ pub const CROSSOVER_WARNING: Text = Text::new(
     "This is a crossover: its low or high pass goes, the output plays unfiltered.",
 );
 pub const PROTECT_CROSSOVERS: Text = Text::new(
-    "Weichen schützen (kein Flachstellen, keine EQ-Presets)",
-    "Protect crossovers (no flattening, no EQ presets)",
+    "Weichen schützen (kein Flachstellen, Zurücksetzen oder Importieren, keine EQ-Presets)",
+    "Protect crossovers (no flattening, reset, import or EQ presets)",
 );
 pub const NO_TREND_VALUES: Text = Text::new("Noch keine Werte", "No values yet");
 pub const TREND_NOW: Text = Text::new("jetzt", "now");
@@ -356,6 +356,10 @@ pub const NO_PRESETS: Text = Text::new("Noch keine Presets.", "No presets yet.")
 pub const PRESET_UNCHANGED: Text = Text::new(
     "Der Lautsprecher hat schon die Werte des Presets.",
     "The speaker already has the preset's values.",
+);
+pub const IMPORT_UNCHANGED: Text = Text::new(
+    "Der Lautsprecher hat schon die Werte der Datei.",
+    "The speaker already has the file's values.",
 );
 pub const FULL_SCAN: Text = Text::new("Komplett scannen", "Full scan");
 pub const FULL_SCAN_RUNNING: Text = Text::new("Scan läuft …", "Scanning …");
@@ -512,12 +516,16 @@ pub fn knob_label(label: &str) -> String {
 }
 
 /// A mark on the meter scale, without unit to fit beside the meters.
+/// With the real minus sign, as the number under each meter has.
 pub fn scale_mark(db: f64) -> String {
-    format!("{db}")
+    match db < 0.0 {
+        true => format!("−{}", -db),
+        false => format!("{db}"),
+    }
 }
 
 pub fn meter_floor(db: f64) -> String {
-    format!("{db} dB")
+    format!("{} dB", scale_mark(db))
 }
 
 /// The toolbar's average over all connected speakers.
@@ -1089,6 +1097,15 @@ mod tests {
 
     /// The span is a difference of clock readings, never exactly 3600: whole hours are told
     /// by the minutes it shows.
+    /// Scale, floor setting and the number under the meter show one and the same minus.
+    #[test]
+    fn meter_numbers_share_the_minus_sign() {
+        assert_eq!(scale_mark(-6.0), "−6");
+        assert_eq!(scale_mark(0.0), "0");
+        assert_eq!(meter_floor(-60.0), "−60 dB");
+        assert_eq!(meter_readout(Some(-18)), "−18");
+    }
+
     #[test]
     fn a_trend_of_an_hour_starts_at_one_hour() {
         assert_eq!(trend_start(3600.4), "−1 h");

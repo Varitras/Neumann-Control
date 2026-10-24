@@ -382,7 +382,7 @@ fn eq_undo_takes_back_the_speakers_last_eq_change() {
     eq_change_then_mute(&mut harness, &simulator);
     harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
     harness
-        .get_by_role_and_label(Role::Button, texts::EQ_UNDO.get())
+        .get_by_role_and_label(Role::Button, texts::UNDO.get())
         .click();
     wait_until(&mut harness, "the band written back", |_| {
         sets(&simulator, BOOST_POINTER).len() == 2
@@ -406,7 +406,7 @@ fn ctrl_z_in_the_eq_window_undoes_eq_only() {
 #[test]
 fn eq_undo_is_disabled_without_eq_changes() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
-    let undo = harness.get_by_role_and_label(Role::Button, texts::EQ_UNDO.get());
+    let undo = harness.get_by_role_and_label(Role::Button, texts::UNDO.get());
     assert!(undo.accesskit_node().is_disabled());
 }
 
