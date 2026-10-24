@@ -3,7 +3,7 @@ use std::net::{Ipv6Addr, SocketAddrV6, TcpStream};
 use std::time::Duration;
 
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
-use neumann_control_core::ssc::wire::{device_error, parse_line, reply_xid};
+use neumann_control_core::ssc::wire::{device_error, parse_line, reply_xid, DeviceError};
 use serde_json::{json, Value};
 
 const FIXTURES: &str = include_str!("fixtures/recorded_replies.json");
@@ -172,7 +172,10 @@ fn control_mode_set_answers_405_on_both_models() {
     for model in [SimModel::Kh120Ii, SimModel::Kh750] {
         let simulator = Simulator::start(model);
         let reply = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
-        assert_eq!(device_error(&reply).map(|error| error.code), Some(405));
+        assert_eq!(
+            device_error(&reply).map(|error| error.code),
+            Some(DeviceError::READ_ONLY)
+        );
     }
 }
 
@@ -180,7 +183,10 @@ fn control_mode_set_answers_405_on_both_models() {
 fn auto_standby_set_answers_405_on_kh750() {
     let simulator = Simulator::start(SimModel::Kh750);
     let reply = Client::connect(&simulator).ask(&json!({"ui":{"auto_standby":"OFF"}}));
-    assert_eq!(device_error(&reply).map(|error| error.code), Some(405));
+    assert_eq!(
+        device_error(&reply).map(|error| error.code),
+        Some(DeviceError::READ_ONLY)
+    );
     assert_eq!(simulator.value("ui/auto_standby"), Some(json!("ON")));
 }
 

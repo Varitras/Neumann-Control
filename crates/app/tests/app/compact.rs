@@ -10,6 +10,7 @@ use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
 use neumann_control_core::simulator::SimModel;
+use neumann_control_core::ssc::wire::DeviceError;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -204,7 +205,7 @@ fn a_compact_row_says_why_a_write_was_refused() {
     simulator.set_value("ui/control_mode", serde_json::json!("LOCAL"));
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, texts::LEVEL.get(), -40.0);
-    let message = texts::describe_rejection(401);
+    let message = texts::describe_rejection(DeviceError::LOCAL_MODE);
     wait_until(&mut harness, "the LOCAL message", |harness| {
         harness.query_by_label(&message).is_some()
     });
@@ -216,7 +217,7 @@ fn a_group_row_says_why_a_members_write_was_refused() {
     kh120.set_value("ui/control_mode", serde_json::json!("LOCAL"));
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, &texts::group_level(GROUP_NAME), -40.0);
-    let message = texts::describe_rejection(401);
+    let message = texts::describe_rejection(DeviceError::LOCAL_MODE);
     // On the group row and on the master row, which both hold the member.
     wait_until(&mut harness, "the LOCAL message", |harness| {
         harness.query_all_by_label_contains(&message).count() == 2

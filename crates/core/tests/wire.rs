@@ -1,6 +1,6 @@
 use neumann_control_core::ssc::wire::{
-    device_error, extract, number, parse_line, reply_xid, request_line, token_count, SscPath,
-    WireError, MAX_REQUEST_TOKENS,
+    device_error, extract, number, parse_line, reply_xid, request_line, token_count, DeviceError,
+    SscPath, WireError, MAX_REQUEST_TOKENS,
 };
 use serde_json::{json, Value};
 
@@ -75,12 +75,15 @@ fn duplicate_non_object_member_takes_the_later_value() {
 fn set_replies_report_their_errors() {
     let codes: Vec<Option<i64>> = group("set")
         .into_iter()
-        .map(|(_, reply)| device_error(&parse_line(reply.as_bytes()).unwrap()).map(|e| e.code))
+        .map(|(_, reply)| {
+            let reply = parse_line(reply.as_bytes()).unwrap();
+            device_error(&reply).map(|error| error.code)
+        })
         .collect();
     assert!(codes.contains(&None));
-    assert!(codes.contains(&Some(404)));
-    assert!(codes.contains(&Some(405)));
-    assert!(codes.contains(&Some(406)));
+    assert!(codes.contains(&Some(DeviceError::NOT_FOUND)));
+    assert!(codes.contains(&Some(DeviceError::READ_ONLY)));
+    assert!(codes.contains(&Some(DeviceError::NOT_ACCEPTABLE)));
 }
 
 #[test]

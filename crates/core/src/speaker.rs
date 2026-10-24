@@ -33,7 +33,6 @@ const VERSION_PATH: &str = "device/identity/version";
 const SERIAL_PATH: &str = "device/identity/serial";
 const NAME_PATH: &str = "device/name";
 
-const NOT_FOUND_CODE: i64 = 404;
 const NOT_CONNECTED_MESSAGE: &str = "the speaker is not connected";
 const THREAD_NAME: &str = "speaker";
 
@@ -439,7 +438,7 @@ impl Worker {
                 path: path.clone(),
                 value,
             }),
-            Err(SscError::Device(error)) if error.code == NOT_FOUND_CODE => {
+            Err(SscError::Device(error)) if error.code == DeviceError::NOT_FOUND => {
                 if self.forget(session, path) {
                     self.outbox.emit(Event::Absent(path.clone()));
                 }
@@ -469,7 +468,7 @@ impl Worker {
         };
         match error {
             // Reported even when already known: the app waits for an answer to its write.
-            SscError::Device(error) if error.code == NOT_FOUND_CODE => {
+            SscError::Device(error) if error.code == DeviceError::NOT_FOUND => {
                 self.forget(session, &path);
                 self.outbox.emit(Event::Absent(path));
                 Ok(())

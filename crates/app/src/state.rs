@@ -620,13 +620,16 @@ mod tests {
             Event::WriteRejected {
                 path: path("device/name"),
                 error: DeviceError {
-                    code: 405,
+                    code: DeviceError::READ_ONLY,
                     description: String::new(),
                 },
             },
             0.0,
         );
-        assert_eq!(speaker.message, Some(Message::Rejected(405)));
+        assert_eq!(
+            speaker.message,
+            Some(Message::Rejected(DeviceError::READ_ONLY))
+        );
     }
 
     #[test]
@@ -738,7 +741,7 @@ mod tests {
             Event::WriteRejected {
                 path: path("ui/bass_gain"),
                 error: DeviceError {
-                    code: 405,
+                    code: DeviceError::READ_ONLY,
                     description: String::new(),
                 },
             },
@@ -746,7 +749,10 @@ mod tests {
         );
         speaker.apply(value_event("ui/bass_gain", json!(0.0)), 0.1);
         speaker.apply(value_event("ui/bass_gain", json!(0.0)), 30.0);
-        assert_eq!(speaker.message, Some(Message::Rejected(405)));
+        assert_eq!(
+            speaker.message,
+            Some(Message::Rejected(DeviceError::READ_ONLY))
+        );
     }
 
     #[test]
@@ -770,13 +776,16 @@ mod tests {
             Event::WriteRejected {
                 path: path("audio/out/level"),
                 error: DeviceError {
-                    code: 401,
+                    code: DeviceError::LOCAL_MODE,
                     description: "authorisation needed".to_owned(),
                 },
             },
             0.0,
         );
-        assert_eq!(speaker.message, Some(Message::Rejected(401)));
+        assert_eq!(
+            speaker.message,
+            Some(Message::Rejected(DeviceError::LOCAL_MODE))
+        );
     }
 
     #[test]

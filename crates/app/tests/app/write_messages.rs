@@ -10,7 +10,7 @@ use neumann_control_app::writes::Intent;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Command, Event, Events, SpeakerHandle, Target, Timing};
-use neumann_control_core::ssc::wire::SscPath;
+use neumann_control_core::ssc::wire::{DeviceError, SscPath};
 use serde_json::json;
 
 const EVENT_DEADLINE: Duration = Duration::from_secs(5);
@@ -18,9 +18,6 @@ const EVENT_DEADLINE: Duration = Duration::from_secs(5);
 const QUIET_PERIOD: Duration = Duration::from_millis(300);
 /// Polls far apart, so only the reply to the write and its re-read follow it.
 const LONG_INTERVAL: Duration = Duration::from_secs(60);
-/// The error codes the speakers answer a refused write with.
-const READ_ONLY_CODE: i64 = 405;
-const LOCAL_MODE_CODE: i64 = 401;
 
 fn quiet_timing() -> Timing {
     Timing {
@@ -98,7 +95,10 @@ fn a_rejected_write_keeps_its_message_after_the_reread() {
         value: json!(2.0),
     });
     apply_reply_to_write(&events, &mut state, &path);
-    assert_eq!(state.message, Some(Message::Rejected(READ_ONLY_CODE)));
+    assert_eq!(
+        state.message,
+        Some(Message::Rejected(DeviceError::READ_ONLY))
+    );
 }
 
 #[test]
@@ -112,6 +112,9 @@ fn a_write_in_local_mode_shows_the_local_mode_message() {
     handle.send(command);
     let path = SscPath::parse("audio/out/level").unwrap();
     apply_reply_to_write(&events, &mut state, &path);
-    assert_eq!(state.message, Some(Message::Rejected(LOCAL_MODE_CODE)));
+    assert_eq!(
+        state.message,
+        Some(Message::Rejected(DeviceError::LOCAL_MODE))
+    );
     assert_eq!(simulator.value("audio/out/level"), Some(json!(100.0)));
 }

@@ -11,6 +11,7 @@ use eframe::egui::{RichText, WidgetText};
 use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::{Group, ValueError};
 use neumann_control_core::settings::{Language, LoadOutcome};
+use neumann_control_core::ssc::wire::DeviceError;
 use serde_json::Value;
 
 use crate::eq_file::{ExportNote, ImportError, LineProblem, Parameter};
@@ -411,10 +412,6 @@ pub const UNREACHABLE: Text = Text::new(
 );
 pub const WRITE_FAILED: Text = Text::new("Schreiben fehlgeschlagen", "Write failed");
 
-const REJECTED_LOCAL_MODE_CODE: i64 = 401;
-const REJECTED_READ_ONLY_CODE: i64 = 405;
-const REJECTED_WRONG_VALUE_CODE: i64 = 406;
-
 /// The edit mode's note that a strip layout belongs to the model, not to the one speaker.
 pub fn applies_to_every(model: &str) -> String {
     pick(
@@ -676,15 +673,15 @@ pub fn describe_refusal(refusal: &Refusal) -> String {
 
 pub fn describe_rejection(code: i64) -> String {
     match code {
-        REJECTED_LOCAL_MODE_CODE => Text::new(
+        DeviceError::LOCAL_MODE => Text::new(
             "Gerät steht auf LOCAL (Schalter hinten), Schreiben gesperrt",
             "Device is set to LOCAL (rear switch), writing locked",
         )
         .into(),
-        REJECTED_READ_ONLY_CODE => {
+        DeviceError::READ_ONLY => {
             Text::new("Gerät lehnt ab: nur lesbar", "Device refuses: read only").into()
         }
-        REJECTED_WRONG_VALUE_CODE => Text::new(
+        DeviceError::NOT_ACCEPTABLE => Text::new(
             "Gerät lehnt ab: falscher Wert",
             "Device refuses: wrong value",
         )

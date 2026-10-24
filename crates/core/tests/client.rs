@@ -8,13 +8,10 @@ use neumann_control_core::ssc::client::{
     Client, NodeKind, SscError, MAX_LINE_BYTES, MAX_READ_DURATION, MAX_RESPONSE_BYTES,
     MAX_RESPONSE_LINES,
 };
-use neumann_control_core::ssc::wire::SscPath;
+use neumann_control_core::ssc::wire::{DeviceError, SscPath};
 use serde_json::{json, Value};
 
 const SILENCE_DEADLINE: Duration = Duration::from_millis(3500);
-const MISSING_PATH_CODE: i64 = 404;
-const READ_ONLY_CODE: i64 = 405;
-const WRONG_TYPE_CODE: i64 = 406;
 
 fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("a valid path")
@@ -51,7 +48,7 @@ fn set_returns_confirmed_value() {
 fn missing_path_is_device_error_404() {
     let (_simulator, mut client) = start(SimModel::Kh750);
     let error = client.get(&path("audio/out5/level")).unwrap_err();
-    assert_eq!(device_code(error), MISSING_PATH_CODE);
+    assert_eq!(device_code(error), DeviceError::NOT_FOUND);
     assert!(!client.is_closed());
 }
 
@@ -61,7 +58,7 @@ fn read_only_set_is_device_error_405() {
     let error = client
         .set(&path("device/identity/serial"), json!("X"))
         .unwrap_err();
-    assert_eq!(device_code(error), READ_ONLY_CODE);
+    assert_eq!(device_code(error), DeviceError::READ_ONLY);
 }
 
 #[test]
@@ -70,7 +67,7 @@ fn wrong_type_set_is_device_error_406() {
     let error = client
         .set(&path("audio/out/level"), json!("loud"))
         .unwrap_err();
-    assert_eq!(device_code(error), WRONG_TYPE_CODE);
+    assert_eq!(device_code(error), DeviceError::NOT_ACCEPTABLE);
 }
 
 // Rule 3: a line without an id counts only if it has the requested path.
@@ -170,7 +167,7 @@ fn limits_returns_the_dict() {
 fn limits_of_unknown_path_is_device_error_454() {
     let (_simulator, mut client) = start(SimModel::Kh750);
     let error = client.limits(&path("audio/out5/level")).unwrap_err();
-    assert_eq!(device_code(error), 454);
+    assert_eq!(device_code(error), DeviceError::PARAMETER_NOT_FOUND);
 }
 
 #[test]

@@ -4,7 +4,7 @@
 use serde_json::{json, Map, Number, Value};
 
 use super::SimModel;
-use crate::ssc::wire::{merge, token_count, SscPath, MAX_REQUEST_TOKENS};
+use crate::ssc::wire::{merge, token_count, DeviceError, SscPath, MAX_REQUEST_TOKENS};
 
 const OSC_KEY: &str = "osc";
 const XID_KEY: &str = "xid";
@@ -27,7 +27,7 @@ const TYPE_STRING: &str = "String";
 const TYPE_BOOLEAN: &str = "Boolean";
 
 struct ErrorKind {
-    code: u16,
+    code: i64,
     description: &'static str,
 }
 
@@ -36,19 +36,19 @@ const BAD_REQUEST: ErrorKind = ErrorKind {
     description: "message not understood",
 };
 const NOT_FOUND: ErrorKind = ErrorKind {
-    code: 404,
+    code: DeviceError::NOT_FOUND,
     description: "address not found",
 };
 const NOT_AUTHORISED: ErrorKind = ErrorKind {
-    code: 401,
+    code: DeviceError::LOCAL_MODE,
     description: "authorisation needed",
 };
 const NOT_ALLOWED: ErrorKind = ErrorKind {
-    code: 405,
+    code: DeviceError::READ_ONLY,
     description: "method not allowed",
 };
 const NOT_ACCEPTABLE: ErrorKind = ErrorKind {
-    code: 406,
+    code: DeviceError::NOT_ACCEPTABLE,
     description: "not acceptable",
 };
 const REQUEST_TOO_LONG: ErrorKind = ErrorKind {
@@ -56,7 +56,7 @@ const REQUEST_TOO_LONG: ErrorKind = ErrorKind {
     description: "request too long",
 };
 const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
-    code: 454,
+    code: DeviceError::PARAMETER_NOT_FOUND,
     description: "parameter address not found",
 };
 

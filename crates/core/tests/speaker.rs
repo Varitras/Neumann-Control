@@ -12,7 +12,7 @@ use neumann_control_core::speaker::{
     spawn, Command, Event, Events, Identity, SpeakerHandle, Target, Timing,
 };
 use neumann_control_core::ssc::client::Client;
-use neumann_control_core::ssc::wire::SscPath;
+use neumann_control_core::ssc::wire::{DeviceError, SscPath};
 use serde_json::{json, Value};
 
 const EVENT_DEADLINE: Duration = Duration::from_secs(5);
@@ -24,7 +24,6 @@ const STOP_DEADLINE: Duration = Duration::from_secs(1);
 // Slow enough that a walk or connect-time read takes many seconds.
 const SLOW_REPLY: Duration = Duration::from_millis(200);
 const LONG_INTERVAL: Duration = Duration::from_secs(60);
-const READ_ONLY_CODE: i64 = 405;
 const KH_120_II_LEAVES: usize = 50;
 const KH_120_II_PRODUCT: &str = "KH 120 II";
 const KH_120_II_SERIAL: &str = "SIM0001234";
@@ -290,7 +289,7 @@ fn read_only_set_emits_rejection_and_reread() {
         unreachable!("collect_until returns the match last");
     };
     assert_eq!(path, &standby);
-    assert_eq!(error.code, READ_ONLY_CODE);
+    assert_eq!(error.code, DeviceError::READ_ONLY);
 
     let reread = events.recv_timeout(EVENT_DEADLINE).expect("the re-read");
     assert_eq!(

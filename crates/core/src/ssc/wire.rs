@@ -90,6 +90,19 @@ pub struct DeviceError {
     pub description: String,
 }
 
+impl DeviceError {
+    /// "authorisation needed": every write while the rear CONTROL switch is on LOCAL.
+    pub const LOCAL_MODE: i64 = 401;
+    /// The speaker does not have the path.
+    pub const NOT_FOUND: i64 = 404;
+    /// The path is read only on this model.
+    pub const READ_ONLY: i64 = 405;
+    /// The value has the wrong type or lies outside the range.
+    pub const NOT_ACCEPTABLE: i64 = 406;
+    /// An `osc/schema` or `osc/limits` address the speaker does not know.
+    pub const PARAMETER_NOT_FOUND: i64 = 454;
+}
+
 /// Merges `incoming` into `target`: objects recursively, anything else is replaced.
 pub(crate) fn merge(target: &mut Value, incoming: Value) {
     match (target, incoming) {

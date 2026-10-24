@@ -7,6 +7,7 @@ use neumann_control_core::address::AddressError;
 use neumann_control_core::catalog::{Catalog, ValueError};
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::settings::Language;
+use neumann_control_core::ssc::wire::DeviceError;
 
 const SIMULATED_SERIAL: &str = "SIM0001234";
 
@@ -64,8 +65,8 @@ fn formatted_texts() -> Vec<String> {
         texts::readout(-12.5, "dB SPL"),
         texts::status_line("1_7_3", &mask_serial(SIMULATED_SERIAL)),
         texts::serial_mismatch(&mask_serial(SIMULATED_SERIAL)),
-        texts::describe_rejection(405),
-        texts::describe_rejection(406),
+        texts::describe_rejection(DeviceError::READ_ONLY),
+        texts::describe_rejection(DeviceError::NOT_ACCEPTABLE),
         texts::describe_rejection(500),
     ];
     for error in [

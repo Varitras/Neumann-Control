@@ -192,8 +192,6 @@ mod tests {
 
     use crate::state::{Message, SpeakerKey};
 
-    const READ_ONLY_CODE: i64 = 405;
-
     const ADDRESS_TEXT: &str = "fe80::2a36:38ff:fe12:3456%7";
 
     fn speaker(product: &str) -> SpeakerState {
@@ -584,7 +582,7 @@ mod tests {
         );
         let mute = paths::path(paths::MUTE);
         let error = DeviceError {
-            code: READ_ONLY_CODE,
+            code: DeviceError::READ_ONLY,
             description: String::new(),
         };
         speaker.apply(
