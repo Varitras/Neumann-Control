@@ -17,7 +17,7 @@ use serde_json::Value;
 use super::fader::{drag_aborted, value_beside, FINE_DIVISOR};
 use super::wheel::notches_for;
 use crate::display::{conversion_of, shown_value};
-use crate::gesture::{bounded_move, released, typed_value, GestureState};
+use crate::gesture::{bounded_move, on_grid, released, typed_value, GestureState};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -49,8 +49,9 @@ const CAPTION_SIZE: f32 = 9.0;
 /// Room for the value line under the knob.
 const CELL_MIN_WIDTH: f32 = 52.0;
 pub const KNOB_DIAMETER: f32 = 34.0;
-/// Grid for entries without a catalog step.
+/// Grid for entries without a catalog step: about this many steps over the range.
 const UNSTEPPED_DIVISIONS: f64 = 1000.0;
+const DECIMAL_BASE: f64 = 10.0;
 
 /// A knob for a catalog number of the speaker; returns the write the policy allowed.
 pub fn for_entry(
@@ -68,7 +69,7 @@ pub fn for_entry(
     let reported = speaker.values.get(&entry.path).cloned();
     let step = entry
         .step
-        .unwrap_or((maximum - minimum) / UNSTEPPED_DIVISIONS);
+        .unwrap_or_else(|| unstepped_grid(maximum - minimum));
     // Through the write's own type, so a whole-number entry reads "60 min", not "60.0 min".
     let format = |value: f64| {
         let typed = writes::number_value(entry, reported.as_ref(), value);
@@ -90,9 +91,10 @@ pub fn for_entry(
     let sent = show(ui, id, &knob, &mut state);
     speaker.knobs.insert(entry.path.clone(), state);
     let sent = sent?;
-    // A typed value outside the range is sent as typed, for the write policy to refuse.
+    // A typed value outside the range is sent as typed, for the write policy to refuse. Inside
+    // it lands on the grid: a wheel step added to a reported value would keep a remainder.
     let value = if (minimum..=maximum).contains(&sent) {
-        writes::number_value(entry, reported.as_ref(), sent)
+        writes::number_value(entry, reported.as_ref(), on_grid(sent, step))
     } else {
         Value::from(sent)
     };
@@ -369,11 +371,26 @@ fn paint(
     );
 }
 
+/// A power of ten near a thousandth of `span`, so every value on the grid is a short decimal
+/// ("50.1"); a thousandth itself (0.12 dB for 0 to 120 dB) gives "5.279999999999999".
+fn unstepped_grid(span: f64) -> f64 {
+    let exponent = (span / UNSTEPPED_DIVISIONS).log10().floor();
+    DECIMAL_BASE.powf(exponent)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const DELAY_RANGE: RangeInclusive<f64> = 0.0..=5760.0;
+
+    /// The KH 750's output levels (0 to 120 dB, no catalog step): a tenth of a dB, not 0.12.
+    #[test]
+    fn an_unstepped_range_gets_a_decimal_grid() {
+        assert_eq!(unstepped_grid(120.0), 0.1);
+        assert_eq!(unstepped_grid(5760.0), 1.0);
+        assert_eq!(unstepped_grid(1.0), 0.001);
+    }
 
     #[test]
     fn pointer_angle_is_measured_clockwise_from_the_top() {

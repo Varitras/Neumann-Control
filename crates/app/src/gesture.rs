@@ -130,6 +130,12 @@ pub fn released(start: f64, end: f64, step: f64) -> Option<f64> {
 }
 
 pub fn on_grid(value: f64, step: f64) -> f64 {
+    let per_unit = 1.0 / step;
+    // A decimal step (0.1) is not exact in binary: dividing by its whole reciprocal lands on the
+    // value's short decimal, multiplying by the step would leave a remainder (0.30000000000000004).
+    if step < 1.0 && per_unit.fract() == 0.0 {
+        return (value * per_unit).round() / per_unit;
+    }
     (value / step).round() * step
 }
 
@@ -147,6 +153,17 @@ mod tests {
 
     const LEVEL_STEP: f64 = 0.5;
     const LEVEL_RANGE: RangeInclusive<f64> = 0.0..=120.0;
+
+    /// A decimal step is not exact in binary; the value sent and shown must still be the short
+    /// decimal ("5.3", never "5.300000000000001").
+    #[test]
+    fn a_decimal_grid_gives_short_decimals() {
+        for tenths in 0..=1200 {
+            let value = on_grid(f64::from(tenths) * 0.1, 0.1);
+            assert_eq!(value, f64::from(tenths) / 10.0, "{tenths}");
+        }
+        assert_eq!(on_grid(7.3, LEVEL_STEP), 7.5);
+    }
 
     #[test]
     fn wheel_steps_debounce_to_one_value() {
