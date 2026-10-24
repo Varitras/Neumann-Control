@@ -453,6 +453,17 @@ impl SpeakerState {
         self.message_source = source;
     }
 
+    /// A refused write's message. "Not connected" says less than the connection's own message
+    /// (unreachable, another serial), which stays.
+    pub(crate) fn tell_refusal(&mut self, refusal: Refusal) {
+        let told = refusal == Refusal::NotConnected
+            && self.message_source == MessageSource::Connection
+            && self.message.is_some();
+        if !told {
+            self.set_message(Some(Message::Refused(refusal)), MessageSource::Write);
+        }
+    }
+
     /// A new write request makes the message about the previous one stale.
     pub(crate) fn clear_write_message(&mut self) {
         if self.message_source == MessageSource::Write {

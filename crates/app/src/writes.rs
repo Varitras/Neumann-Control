@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::display::{conversion_of, converted_unit};
 use crate::paths;
-use crate::state::{Message, MessageSource, SpeakerState, Status};
+use crate::state::{SpeakerState, Status};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Switch {
@@ -147,7 +147,7 @@ impl SpeakerState {
         match self.try_request(intent, catalog, now) {
             Ok(command) => Some(command),
             Err(refusal) => {
-                self.set_message(Some(Message::Refused(refusal)), MessageSource::Write);
+                self.tell_refusal(refusal);
                 None
             }
         }
@@ -198,7 +198,7 @@ mod tests {
     use neumann_control_core::speaker::{Event, Identity};
     use neumann_control_core::ssc::wire::DeviceError;
 
-    use crate::state::SpeakerKey;
+    use crate::state::{Message, SpeakerKey};
 
     const READ_ONLY_CODE: i64 = 405;
 
@@ -356,6 +356,18 @@ mod tests {
         assert!(speaker
             .try_request(intent, Catalog::embedded(), 2.0)
             .is_err());
+        assert_eq!(speaker.message, Some(Message::Unreachable));
+    }
+
+    /// A wheel value falling due after the speaker went away: "not connected" would only
+    /// replace what the strip already says, and with it the reason.
+    #[test]
+    fn a_refused_request_keeps_the_unreachable_message() {
+        let mut speaker = speaker("KH 120 II");
+        speaker.apply(Event::Unreachable("masked".to_owned()), 1.0);
+        assert!(speaker
+            .request(Intent::Level(90.0), Catalog::embedded(), 2.0)
+            .is_none());
         assert_eq!(speaker.message, Some(Message::Unreachable));
     }
 
