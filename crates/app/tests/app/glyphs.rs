@@ -1,5 +1,6 @@
 //! Every UI text can be drawn with the bundled fonts.
 
+use crate::support::SIMULATED_SERIAL;
 use eframe::egui::{self, FontFamily, FontId};
 use neumann_control_app::texts;
 use neumann_control_app::ui_kit::fonts;
@@ -8,8 +9,6 @@ use neumann_control_core::catalog::{Catalog, ValueError};
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::settings::Language;
 use neumann_control_core::ssc::wire::DeviceError;
-
-const SIMULATED_SERIAL: &str = "SIM0001234";
 
 /// Every string literal in texts.rs, so a new text is covered without being listed here.
 fn literals_of_texts_module() -> Vec<String> {

@@ -387,9 +387,9 @@ fn ungrouped_strips_can_be_reordered_too() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     let mut first = manual_for(&kh120);
-    first.serial = Some("SIM0001234".to_owned());
+    first.serial = Some(SIMULATED_SERIAL.to_owned());
     let mut second = manual_for(&kh750);
-    second.serial = Some("SIM0007500".to_owned());
+    second.serial = Some(KH750_SERIAL.to_owned());
     let settings = Settings {
         manual: vec![first, second],
         ..Settings::default()

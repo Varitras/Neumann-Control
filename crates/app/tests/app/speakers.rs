@@ -17,7 +17,6 @@ use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 
 const KH750_NAME: &str = "Sub";
-const KH750_SERIAL: &str = "SIM0007500";
 const KH120_NAME: &str = "Desk";
 
 fn announced(simulator: &Simulator, name: &str, product: &str, serial: &str) -> Found {

@@ -22,14 +22,18 @@ use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
     self, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings, SettingsPreset,
-    StoredStripLayout, StripElement, WindowGeometry, SETTINGS_FILE,
+    StoredStripLayout, StripElement, WindowGeometry,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+/// For the tests that read the settings file the app wrote.
+pub use neumann_control_core::settings::SETTINGS_FILE;
+
 pub const SIMULATED_SERIAL: &str = "SIM0001234";
+pub const KH750_SERIAL: &str = "SIM0007500";
 pub const KH120_DEVICE_NAME: &str = "Simulated KH 120 II";
 pub const KH750_DEVICE_NAME: &str = "Simulated KH 750";
 pub const WAIT_LIMIT: Duration = Duration::from_secs(15);
@@ -492,6 +496,8 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     harness.run_steps(1);
 }
 
+/// The settings keys of `SIMULATED_SERIAL` and `KH750_SERIAL` (a const cannot be built from
+/// another const's text).
 pub const KH120_ID: &str = "serial:SIM0001234";
 pub const KH750_ID: &str = "serial:SIM0007500";
 pub const GROUP_NAME: &str = "Front";
@@ -510,9 +516,9 @@ pub fn grouped(
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     let mut first = manual_for(&kh120);
-    first.serial = Some("SIM0001234".to_owned());
+    first.serial = Some(SIMULATED_SERIAL.to_owned());
     let mut second = manual_for(&kh750);
-    second.serial = Some("SIM0007500".to_owned());
+    second.serial = Some(KH750_SERIAL.to_owned());
     let settings = Settings {
         manual: vec![first, second],
         window: Some(SAVED_WINDOW),
@@ -660,4 +666,10 @@ pub fn desk_prepared(
         wait_for_initial_read(&mut harness, simulator);
     }
     (simulators, directory, harness)
+}
+
+#[test]
+fn the_speaker_ids_are_their_serials_keys() {
+    assert_eq!(KH120_ID, format!("serial:{SIMULATED_SERIAL}"));
+    assert_eq!(KH750_ID, format!("serial:{KH750_SERIAL}"));
 }

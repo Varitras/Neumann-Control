@@ -741,7 +741,7 @@ fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
         assert!(name.starts_with("scan-KH-120-II-1_7_3-"), "{name}");
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("audio/out/level"), "{name}");
-        assert!(!text.contains("SIM0001234"), "{name} holds the serial");
+        assert!(!text.contains(SIMULATED_SERIAL), "{name} holds the serial");
         assert!(!text.contains(KH120_DEVICE_NAME), "{name} holds the name");
     }
     wait_until(&mut harness, "the report noted in the panel", |harness| {
@@ -778,7 +778,7 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     harness.run_steps(2);
     harness.get_by_label(texts::SAVE.get()).click();
     harness.run_steps(3);
-    let saved = neumann_control_core::settings::load(&directory.path().join("settings.json"));
+    let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.presets.len(), 1);
     let preset = &saved.presets[0];
     assert_eq!(preset.name, "Evening");
@@ -902,7 +902,7 @@ fn deleting_a_settings_preset_asks_first() {
     harness.get_by_label(texts::SAVE.get()).click();
     harness.run_steps(3);
     let presets =
-        || neumann_control_core::settings::load(&directory.path().join("settings.json")).presets;
+        || neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE)).presets;
     if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
         open_panel(&mut harness, device_name(SimModel::Kh120Ii));
     }

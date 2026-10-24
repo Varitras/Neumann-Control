@@ -561,7 +561,7 @@ fn type_eq_preset_name(harness: &mut Harness<'static, NeumannApp>, name: &str) {
 fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
     let (simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
-    let saved = neumann_control_core::settings::load(&directory.path().join("settings.json"));
+    let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.eq_presets.len(), 1);
     assert_eq!(saved.eq_presets[0].bands, 10);
     assert_eq!(saved.eq_presets[0].leaves.len(), 6);
@@ -1079,7 +1079,7 @@ fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
 }
 
 fn saved_eq_presets(directory: &tempfile::TempDir) -> Vec<(String, usize)> {
-    neumann_control_core::settings::load(&directory.path().join("settings.json"))
+    neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE))
         .eq_presets
         .iter()
         .map(|preset| (preset.name.clone(), preset.bands))

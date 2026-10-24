@@ -135,6 +135,6 @@ fn the_device_is_chosen_in_the_settings() {
         .expect("the device in the list")
         .click();
     harness.run_steps(2);
-    let stored = settings::load(&directory.path().join("settings.json"));
+    let stored = settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(stored.system_audio.device.as_deref(), Some(DEVICE_ID));
 }
