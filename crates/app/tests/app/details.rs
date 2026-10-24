@@ -831,3 +831,47 @@ fn deleting_a_settings_preset_asks_first() {
     harness.run_steps(3);
     assert!(presets().is_empty());
 }
+
+/// Escape in the filter ends the typing; only the next one closes the window.
+#[test]
+fn escape_in_the_all_values_filter_keeps_the_window() {
+    let (_simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
+    let filter = || texts::ALL_VALUES_FILTER_LABEL.get();
+    wait_until(&mut harness, "the filter", |harness| {
+        harness
+            .query_by_role_and_label(Role::TextInput, filter())
+            .is_some()
+    });
+    harness
+        .get_by_role_and_label(Role::TextInput, filter())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, filter())
+        .type_text("level");
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    harness.get_by_role_and_label(Role::TextInput, filter());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_role_and_label(Role::TextInput, filter())
+        .is_none());
+}
+
+/// Escape with a list open closes the list, not the panel.
+#[test]
+fn escape_on_an_open_list_keeps_the_panel() {
+    let (_simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    harness
+        .query_all_by_role(Role::ComboBox)
+        .next()
+        .expect("a choice in the panel")
+        .click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    harness.get_by_label(texts::ALL_VALUES.get());
+}

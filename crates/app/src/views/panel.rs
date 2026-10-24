@@ -2,7 +2,7 @@
 //! anywhere, opened from its strip. It closes on Escape, its close button or the window's.
 
 use eframe::egui::{
-    self, Button, ComboBox, Context, Id, Key, Label, Pos2, Rect, RichText, ScrollArea, Ui, Vec2,
+    self, Button, ComboBox, Context, Id, Label, Pos2, Rect, RichText, ScrollArea, Ui, Vec2,
     ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
@@ -11,7 +11,9 @@ use neumann_control_core::settings::Linkable;
 use neumann_control_core::speaker::Command;
 
 use super::details;
+use super::escape_closes;
 use super::trends::{self, TemperatureTrend, Trends};
+use super::wheel;
 use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
@@ -22,7 +24,6 @@ use crate::texts;
 
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
-const EDITING_ID: &str = "editing";
 const PANEL_WINDOW_SIZE: [f32; 2] = [600.0, 760.0];
 const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 /// From the main window's top left, so the panel is seen to belong to it.
@@ -100,6 +101,7 @@ pub fn show(
         builder = builder.with_position(position);
     }
     context.show_viewport_immediate(viewport, builder, |ui, class| {
+        wheel::track_burst(ui.ctx());
         // Several panels can be open; their widgets must not share state.
         let mut response = ui
             .push_id(viewport, |ui| match class {
@@ -111,13 +113,7 @@ pub fn show(
                 }
             })
             .inner;
-        // Escape in a field cancels the edit; only Escape with nothing being edited closes. egui
-        // drops the focus at the start of the Escape frame, so the last frame's state decides.
-        let editing_id = Id::unique(PANEL_ID).with(viewport).with(EDITING_ID);
-        let editing = ui.data(|data| data.get_temp::<bool>(editing_id).unwrap_or(false));
-        let escape = !editing && ui.input(|input| input.key_pressed(Key::Escape));
-        let editing_now = ui.memory(|memory| memory.focused().is_some());
-        ui.data_mut(|data| data.insert_temp(editing_id, editing_now));
+        let escape = escape_closes(ui, Id::unique(PANEL_ID).with(viewport));
         let close_requested = ui.input(|input| input.viewport().close_requested());
         response.close |= escape || close_requested;
         response

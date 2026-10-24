@@ -2,17 +2,21 @@
 //! backend has only one): output and container choice, the graph and the band table.
 
 use eframe::egui::{
-    self, vec2, Button, Color32, Context, Id, Key, Modal, RichText, ScrollArea, Shape, Stroke, Ui,
+    self, vec2, Button, Color32, Context, Id, Modal, RichText, ScrollArea, Shape, Stroke, Ui,
     ViewportBuilder, ViewportClass, ViewportId,
 };
 
 use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
+use super::escape_closes;
 use super::history::UNDO_SHORTCUT;
 use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
+use super::wheel;
 use crate::eq::ResetKind;
 use crate::texts;
 
+/// Keys the window's own memory (Escape).
+const EQ_WINDOW_ID: &str = "eq_window";
 const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
 const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
@@ -136,6 +140,7 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
         .with_inner_size(EQ_WINDOW_SIZE)
         .with_min_inner_size(EQ_WINDOW_MIN_SIZE);
     context.show_viewport_immediate(view.viewport, builder, |ui, class| {
+        wheel::track_burst(ui.ctx());
         let mut actions = match class {
             ViewportClass::EmbeddedWindow => contents(ui, view),
             _ => {
@@ -145,12 +150,7 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
             }
         };
         let close_requested = ui.input(|input| input.viewport().close_requested());
-        // Escape in a field or during a drag cancels that gesture; only Escape with nothing being
-        // edited closes.
-        // egui ends the drag on that very Escape, so a drag that stopped this frame counts too.
-        let dragging = ui.ctx().dragged_id().is_some() || ui.ctx().drag_stopped_id().is_some();
-        let editing = dragging || ui.memory(|memory| memory.focused().is_some());
-        let escape = !editing && ui.input(|input| input.key_pressed(Key::Escape));
+        let escape = escape_closes(ui, Id::unique(EQ_WINDOW_ID).with(view.viewport));
         if close_requested || escape {
             actions.push(EqAction::Close);
         }

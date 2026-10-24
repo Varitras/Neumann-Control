@@ -20,7 +20,13 @@ struct Burst {
     last_event: f64,
 }
 
-/// Once per frame before anything is drawn: notes where a new burst begins. Events closer
+/// Each window has its own pointer and wheel events: a burst in the device panel or the EQ
+/// window is not the main window's.
+fn burst_id(context: &Context) -> Id {
+    Id::unique(BURST_ID).with(context.viewport_id())
+}
+
+/// Once per frame in every window, before its contents: notes where a new burst begins. Events closer
 /// together than the wheel's idle time continue the burst.
 pub fn track_burst(context: &Context) {
     let (wheeling, now, pointer) = context.input(|input| {
@@ -33,7 +39,7 @@ pub fn track_burst(context: &Context) {
     let Some(pointer) = pointer.filter(|_| wheeling) else {
         return;
     };
-    let id = Id::unique(BURST_ID);
+    let id = burst_id(context);
     let previous = context.data(|data| data.get_temp::<Burst>(id));
     let start = previous
         .filter(|burst| now - burst.last_event < WHEEL_IDLE_SECONDS)
@@ -48,7 +54,7 @@ pub fn track_burst(context: &Context) {
 /// This frame's wheel events in notches (lines), upwards positive, for the control at `rect` when
 /// the burst began over it; none otherwise.
 pub(super) fn notches_for(ui: &Ui, rect: Rect) -> Vec<f64> {
-    let burst = ui.data(|data| data.get_temp::<Burst>(Id::unique(BURST_ID)));
+    let burst = ui.data(|data| data.get_temp::<Burst>(burst_id(ui.ctx())));
     let now = ui.input(|input| input.time);
     let held_here = burst.is_some_and(|burst| {
         rect.contains(burst.start) && now - burst.last_event < WHEEL_IDLE_SECONDS

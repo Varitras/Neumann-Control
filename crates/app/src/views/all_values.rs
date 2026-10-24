@@ -3,12 +3,12 @@
 //! fresh read.
 
 use eframe::egui::{
-    self, Context, Id, Key, Label, ScrollArea, TextEdit, Ui, ViewportBuilder, ViewportClass,
-    ViewportId,
+    self, Context, Id, Label, ScrollArea, TextEdit, Ui, ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
+use super::escape_closes;
 use crate::all_values::{rows, Row};
 use crate::state::{AllValuesState, SpeakerState};
 use crate::texts;
@@ -38,8 +38,7 @@ pub fn show(context: &Context, speaker: &mut SpeakerState, catalog: &Catalog) ->
                     .show(ui, |ui| contents(ui, speaker, catalog, &mut commands));
             }
         });
-        let typing = ui.memory(|memory| memory.focused().is_some());
-        let escape = !typing && ui.input(|input| input.key_pressed(Key::Escape));
+        let escape = escape_closes(ui, Id::unique(WINDOW_ID).with(viewport));
         escape || ui.input(|input| input.viewport().close_requested())
     });
     if close {

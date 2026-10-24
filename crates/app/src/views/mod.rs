@@ -27,3 +27,22 @@ pub mod system_strip;
 pub mod toolbar;
 pub mod trends;
 pub mod wheel;
+
+use eframe::egui::{self, Id, Key, Ui};
+
+const BUSY_ID: &str = "escape_busy";
+
+/// Whether Escape closes the window `window` (any id of it) in this frame. Escape first ends
+/// what is going on in the window: typing in a field, an open list, a drag. egui ends those on
+/// that very Escape before the window sees it, so whether one was going on is taken from the
+/// frame before. Asked once per frame, after the window's contents.
+pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
+    let busy_id = window.with(BUSY_ID);
+    let was_busy = ui.data(|data| data.get_temp::<bool>(busy_id).unwrap_or(false));
+    let context = ui.ctx();
+    let busy = ui.memory(|memory| memory.focused().is_some())
+        || context.dragged_id().is_some()
+        || egui::Popup::is_any_open(context);
+    ui.data_mut(|data| data.insert_temp(busy_id, busy));
+    !was_busy && !busy && ui.input(|input| input.key_pressed(Key::Escape))
+}
