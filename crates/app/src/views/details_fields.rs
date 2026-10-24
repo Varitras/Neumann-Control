@@ -1,6 +1,8 @@
 //! The device panel's controls, one per writable kind: number, switch, selection and text.
 //! Every write goes through `writes`.
 
+use std::ops::RangeInclusive;
+
 use eframe::egui::{Button, Checkbox, ComboBox, Key, TextEdit, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
@@ -72,11 +74,7 @@ impl Fields<'_> {
         let Some(number) = written else {
             return;
         };
-        let value = if (min..=max).contains(&number) {
-            writes::number_value(entry, reported.as_ref(), number)
-        } else {
-            Value::from(number)
-        };
+        let value = field_value(entry, reported.as_ref(), number, min..=max);
         let path = entry.path.clone();
         self.send(ui, Intent::Write { path, value });
     }
@@ -122,8 +120,7 @@ impl Fields<'_> {
         let (Some((index, number)), Some(mut entries)) = (written, current) else {
             return;
         };
-        // Outside the range it goes as typed, for the write policy to refuse with the reason.
-        entries[index] = Value::from(number);
+        entries[index] = field_value(entry, entries.get(index), number, min..=max);
         let path = entry.path.clone();
         let value = Value::Array(entries);
         self.send(ui, Intent::Write { path, value });
@@ -244,5 +241,19 @@ impl Fields<'_> {
             }
             Err(refusal) => draft.refusal = Some(texts::describe_refusal(&refusal)),
         }
+    }
+}
+
+/// A typed number on the entry's grid and in the number type the speaker reports; outside the
+/// range it goes as typed, for the write policy to refuse with the reason.
+fn field_value(
+    entry: &Entry,
+    reported: Option<&Value>,
+    number: f64,
+    range: RangeInclusive<f64>,
+) -> Value {
+    match range.contains(&number) {
+        true => writes::number_value(entry, reported, number),
+        false => Value::from(number),
     }
 }

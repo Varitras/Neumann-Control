@@ -660,6 +660,36 @@ fn the_input_mix_writes_the_whole_list() {
     );
 }
 
+/// A speaker that reports the mix in whole numbers gets whole numbers back, as from a single
+/// number field.
+#[test]
+fn the_input_mix_keeps_the_speakers_number_type() {
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("audio/out/mixer/levels", json!([0, -6]));
+        });
+    open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, "Eingang B")
+        .next()
+        .expect("a field for input B")
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, "Eingang B")
+        .next()
+        .unwrap()
+        .type_text("-20");
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the mix written", |_| {
+        !sets_to(&simulator, INPUT_MIX_POINTER).is_empty()
+    });
+    assert_eq!(
+        sets_to(&simulator, INPUT_MIX_POINTER),
+        vec![json!([0, -20])]
+    );
+}
+
 #[test]
 fn mute_persist_is_a_checkbox_that_writes() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
