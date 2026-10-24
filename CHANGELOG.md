@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Same layout for every speaker of a model** in **Settings**: switched off, each speaker keeps
+  its own strip and compact buttons, starting as its model's.
 - **Strip colour** for groups (group dialog) and speakers (device panel): the default, none, or
   an own colour.
 - The device panel, the EQ window and **All values** open where and as large as they were

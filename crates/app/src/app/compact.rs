@@ -4,11 +4,12 @@
 use eframe::egui::{ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 
-use super::desk::{all_muted, levels, members_of, DeskAction};
+use super::desk::{all_muted, layout_owner_of, levels, members_of, DeskAction};
 use super::{NeumannApp, COMPACT_SCROLL_ID};
 use crate::compact_layout;
 use crate::fader::output_level_range;
 use crate::groups::{compact_rows, group_tint, layout, reference_level, shared_level, CompactRow};
+use crate::layout_owner::stored;
 use crate::texts;
 use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
@@ -38,9 +39,18 @@ impl NeumannApp {
                         CompactRow::Speaker(index) => {
                             let speaker = &mut self.speakers[index];
                             let key = speaker.state.key.clone();
-                            let product = speaker.state.product().to_owned();
-                            let stored = desk.compact_layouts.get(&product).map(Vec::as_slice);
-                            let buttons = compact_layout::resolve(stored, &product, catalog);
+                            let owner = layout_owner_of(&speaker.state, &ids[index]);
+                            let stored = stored(
+                                &desk.compact_layouts,
+                                &desk.speaker_compact_layouts,
+                                desk.layouts_per_speaker,
+                                &owner,
+                            );
+                            let buttons = compact_layout::resolve(
+                                stored.map(Vec::as_slice),
+                                &owner.product,
+                                catalog,
+                            );
                             let state = &mut speaker.state;
                             let response = ui
                                 .push_id(&key, |ui| {
@@ -55,7 +65,7 @@ impl NeumannApp {
                                 actions.push(DeskAction::OpenPanel(key));
                             }
                             if let Some(change) = response.layout {
-                                actions.push(DeskAction::CompactLayout(product, change));
+                                actions.push(DeskAction::CompactLayout(owner, change));
                             }
                         }
                         CompactRow::Group(group) => {

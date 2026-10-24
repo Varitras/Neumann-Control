@@ -18,6 +18,9 @@ pub(super) enum WindowKind {
 }
 
 impl WindowKind {
+    pub(super) const ALL: [WindowKind; 3] =
+        [WindowKind::Panel, WindowKind::Eq, WindowKind::AllValues];
+
     fn name(self) -> &'static str {
         match self {
             WindowKind::Panel => "panel",
@@ -27,8 +30,9 @@ impl WindowKind {
     }
 }
 
-fn place_key(kind: WindowKind, key: &SpeakerKey) -> String {
-    format!("{} {}", kind.name(), member_id(key))
+/// Where the `kind` window of the speaker with identity `member` is kept in the settings.
+pub(super) fn place_key(kind: WindowKind, member: &str) -> String {
+    format!("{} {}", kind.name(), member)
 }
 
 /// A saved geometry (screen pixels) as egui places a window (points).
@@ -48,7 +52,10 @@ impl NeumannApp {
         kind: WindowKind,
         key: &SpeakerKey,
     ) -> Option<WindowPlace> {
-        let saved = self.settings.windows.get(&place_key(kind, key))?;
+        let saved = self
+            .settings
+            .windows
+            .get(&place_key(kind, &member_id(key)))?;
         let pixels_per_point = context.pixels_per_point();
         let least = (
             WINDOW_MIN_SIZE[0] * pixels_per_point,
@@ -73,7 +80,9 @@ impl NeumannApp {
             window_geometry(input.viewport(), pixels_per_point)
         });
         if let Some(geometry) = geometry {
-            self.settings.windows.insert(place_key(kind, key), geometry);
+            self.settings
+                .windows
+                .insert(place_key(kind, &member_id(key)), geometry);
         }
     }
 }
@@ -98,11 +107,11 @@ mod tests {
 
     #[test]
     fn each_kind_and_speaker_has_its_own_place() {
-        let key = SpeakerKey::Serial("SIM0001234".to_owned());
-        assert_eq!(place_key(WindowKind::Eq, &key), "eq serial:SIM0001234");
+        let member = member_id(&SpeakerKey::Serial("SIM0001234".to_owned()));
+        assert_eq!(place_key(WindowKind::Eq, &member), "eq serial:SIM0001234");
         assert_ne!(
-            place_key(WindowKind::Panel, &key),
-            place_key(WindowKind::AllValues, &key)
+            place_key(WindowKind::Panel, &member),
+            place_key(WindowKind::AllValues, &member)
         );
     }
 }

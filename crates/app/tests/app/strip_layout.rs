@@ -707,3 +707,34 @@ fn no_strip_moves_in_a_window_narrower_than_the_desk() {
         }
     }
 }
+
+/// With "Same layout for every speaker of a model" off, hiding an element on one speaker's
+/// strip leaves the other speaker of that model as it was.
+#[test]
+fn own_layouts_keep_the_other_speaker_of_the_model() {
+    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii];
+    let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::LAYOUTS_PER_MODEL.get()).click();
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    let identify = |harness: &Harness<'static, NeumannApp>| {
+        harness
+            .query_all_by_role_and_label(Role::Button, texts::IDENTIFY.get())
+            .count()
+    };
+    assert_eq!(identify(&harness), 2);
+    harness
+        .query_all_by_role_and_label(Role::Button, texts::IDENTIFY.get())
+        .next()
+        .unwrap()
+        .click_secondary();
+    harness.run_steps(2);
+    choose(&mut harness, texts::HIDE.get());
+    assert_eq!(identify(&harness), 1);
+    let settings = settings::load(&directory.path().join(settings::SETTINGS_FILE));
+    assert!(settings.desk.strip_layouts.is_empty());
+    assert_eq!(settings.desk.speaker_strip_layouts.len(), 1);
+}

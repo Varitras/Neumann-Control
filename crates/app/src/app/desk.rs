@@ -19,6 +19,7 @@ use crate::groups::{
     group_tint, insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of,
     shared_level, shifted_levels, speaker_tint, with_moved, DeskItem,
 };
+use crate::layout_owner::{store, stored, LayoutMaps, LayoutOwner};
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::strip_layout::{self, LayoutChange};
@@ -34,6 +35,14 @@ const STRIP_CENTERS_ID: &str = "strip_centers";
 /// result of the drop.
 const DRAGGED_OPACITY: f32 = 0.4;
 
+/// The speaker shown with identity `member`, as the owner of the layout it shows.
+pub(super) fn layout_owner_of(speaker: &SpeakerState, member: &str) -> LayoutOwner {
+    LayoutOwner {
+        product: speaker.product().to_owned(),
+        member: member.to_owned(),
+    }
+}
+
 /// What a frame's gestures asked for; applied once the desk is drawn.
 pub(super) enum DeskAction {
     Commands(usize, Vec<Command>),
@@ -42,10 +51,10 @@ pub(super) enum DeskAction {
     OpenPanel(SpeakerKey),
     OpenEq(SpeakerKey),
     System(SystemStripResponse),
-    /// A change of one model's strip layout.
-    Layout(String, LayoutChange),
-    /// A change of one model's compact buttons.
-    CompactLayout(String, CompactChange),
+    /// A change of a speaker's strip layout (its model's, or with own layouts its own).
+    Layout(LayoutOwner, LayoutChange),
+    /// Like `Layout` for the compact buttons.
+    CompactLayout(LayoutOwner, CompactChange),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -119,10 +128,15 @@ impl NeumannApp {
                                             ui.multiply_opacity(DRAGGED_OPACITY);
                                         }
                                         let member = &ids[index];
-                                        let product = speaker.state.product();
-                                        let stored = desk.strip_layouts.get(product);
+                                        let owner = layout_owner_of(&speaker.state, member);
+                                        let stored = stored(
+                                            &desk.strip_layouts,
+                                            &desk.speaker_strip_layouts,
+                                            desk.layouts_per_speaker,
+                                            &owner,
+                                        );
                                         let layout =
-                                            strip_layout::resolve(stored, product, catalog);
+                                            strip_layout::resolve(stored, &owner.product, catalog);
                                         strip::show(
                                             ui,
                                             &mut speaker.state,
@@ -143,8 +157,8 @@ impl NeumannApp {
                                     actions.push(DeskAction::OpenEq(key.clone()));
                                 }
                                 if let Some(change) = response.layout {
-                                    let product = speaker.state.product().to_owned();
-                                    actions.push(DeskAction::Layout(product, change));
+                                    let owner = layout_owner_of(&speaker.state, &ids[index]);
+                                    actions.push(DeskAction::Layout(owner, change));
                                 }
                                 if response.open_panel {
                                     actions.push(DeskAction::OpenPanel(key));
@@ -243,44 +257,59 @@ impl NeumannApp {
             DeskAction::OpenPanel(key) => self.open_panel(key),
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
-            DeskAction::Layout(product, change) => self.change_layout(&product, &change, catalog),
-            DeskAction::CompactLayout(product, change) => {
-                self.change_compact_layout(&product, &change, catalog);
+            DeskAction::Layout(owner, change) => self.change_layout(&owner, &change, catalog),
+            DeskAction::CompactLayout(owner, change) => {
+                self.change_compact_layout(&owner, &change, catalog);
             }
         }
     }
 
-    /// Applies `change` to the stored layout of `product` and saves; a reset drops the entry.
+    /// Applies `change` to the layout `owner` shows and saves; a reset drops the entry.
     pub(super) fn change_layout(
         &mut self,
-        product: &str,
+        owner: &LayoutOwner,
         change: &LayoutChange,
         catalog: &Catalog,
     ) {
-        let layouts = &mut self.settings.desk.strip_layouts;
-        match strip_layout::changed(layouts.get(product), product, catalog, change) {
-            Some(stored) => {
-                layouts.insert(product.to_owned(), stored);
-            }
-            None => {
-                layouts.remove(product);
-            }
-        }
+        let desk = &mut self.settings.desk;
+        let current = stored(
+            &desk.strip_layouts,
+            &desk.speaker_strip_layouts,
+            desk.layouts_per_speaker,
+            owner,
+        );
+        let changed = strip_layout::changed(current, &owner.product, catalog, change);
+        let maps = LayoutMaps {
+            by_model: &mut desk.strip_layouts,
+            by_speaker: &mut desk.speaker_strip_layouts,
+            per_speaker: desk.layouts_per_speaker,
+        };
+        store(maps, owner, changed);
         self.save_settings();
     }
 
-    /// Like `change_layout` for the compact buttons of `product`.
-    fn change_compact_layout(&mut self, product: &str, change: &CompactChange, catalog: &Catalog) {
-        let layouts = &mut self.settings.desk.compact_layouts;
-        let stored = layouts.get(product).map(Vec::as_slice);
-        match compact_layout::changed(stored, product, catalog, change) {
-            Some(changed) => {
-                layouts.insert(product.to_owned(), changed);
-            }
-            None => {
-                layouts.remove(product);
-            }
-        }
+    /// Like `change_layout` for the compact buttons.
+    fn change_compact_layout(
+        &mut self,
+        owner: &LayoutOwner,
+        change: &CompactChange,
+        catalog: &Catalog,
+    ) {
+        let desk = &mut self.settings.desk;
+        let current = stored(
+            &desk.compact_layouts,
+            &desk.speaker_compact_layouts,
+            desk.layouts_per_speaker,
+            owner,
+        );
+        let changed =
+            compact_layout::changed(current.map(Vec::as_slice), &owner.product, catalog, change);
+        let maps = LayoutMaps {
+            by_model: &mut desk.compact_layouts,
+            by_speaker: &mut desk.speaker_compact_layouts,
+            per_speaker: desk.layouts_per_speaker,
+        };
+        store(maps, owner, changed);
         self.save_settings();
     }
 

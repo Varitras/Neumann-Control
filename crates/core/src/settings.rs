@@ -243,6 +243,21 @@ pub struct DeskSettings {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub compact_layouts: BTreeMap<String, Vec<CompactButton>>,
+    /// Each speaker keeps its own strip and compact layout instead of its model's.
+    #[serde(deserialize_with = "or_default")]
+    pub layouts_per_speaker: bool,
+    /// Like `strip_layouts`, per speaker identity, used with `layouts_per_speaker`.
+    #[serde(
+        deserialize_with = "readable_layouts",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub speaker_strip_layouts: BTreeMap<String, StoredStripLayout>,
+    /// Like `compact_layouts`, per speaker identity, used with `layouts_per_speaker`.
+    #[serde(
+        deserialize_with = "readable_compact_layouts",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub speaker_compact_layouts: BTreeMap<String, Vec<CompactButton>>,
 }
 
 /// One element a channel strip shows besides its fixed part: a catalog path, or the EQ button.
@@ -330,6 +345,9 @@ impl Default for DeskSettings {
             delay_unit: DelayUnit::Milliseconds,
             strip_layouts: BTreeMap::new(),
             compact_layouts: BTreeMap::new(),
+            layouts_per_speaker: false,
+            speaker_strip_layouts: BTreeMap::new(),
+            speaker_compact_layouts: BTreeMap::new(),
         }
     }
 }

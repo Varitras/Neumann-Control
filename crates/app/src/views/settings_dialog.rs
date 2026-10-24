@@ -113,6 +113,13 @@ fn contents(
     });
     ui.checkbox(&mut desk.show_response_times, texts::SHOW_RESPONSE_TIMES);
     ui.checkbox(&mut desk.show_master, texts::SHOW_MASTER);
+    let mut per_model = !desk.layouts_per_speaker;
+    if ui
+        .checkbox(&mut per_model, texts::LAYOUTS_PER_MODEL)
+        .changed()
+    {
+        desk.layouts_per_speaker = !per_model;
+    }
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
     if ui
         .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)

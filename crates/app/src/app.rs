@@ -22,11 +22,9 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
-use crate::groups::{
-    delete_group, forget_member, group_tint, member_id, rename_member, set_membership,
-    set_strip_color, Tint,
-};
+use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
+use crate::layout_owner::stored;
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
@@ -60,6 +58,8 @@ mod eq;
 mod eq_files;
 mod full_scan;
 mod history;
+mod member_settings;
+use member_settings::{forget_member_settings, rename_member_settings};
 mod preset_dialogs;
 mod system_volume;
 mod window_places;
@@ -323,8 +323,7 @@ impl NeumannApp {
             panel.key = after.clone();
         }
         let (old, new) = (member_id(before), member_id(after));
-        let settings = &mut self.settings;
-        rename_member(&mut settings.groups, &mut settings.order, &old, &new)
+        rename_member_settings(&mut self.settings, &old, &new)
     }
 
     /// One speaker reached at two addresses shows up twice until both connected.
@@ -450,7 +449,7 @@ impl NeumannApp {
         log::info!("speaker at {} removed", mask_host(&address));
         let ids = [member_id(&key), member_id(&SpeakerKey::Address(address))];
         let settings = &mut self.settings;
-        let mut forgotten = forget_member(&mut settings.groups, &mut settings.order, &ids);
+        let mut forgotten = forget_member_settings(settings, &ids);
         if let SpeakerKey::Serial(serial) = &key {
             forgotten |= settings.known.remove(serial).is_some();
         }
@@ -634,12 +633,18 @@ impl NeumannApp {
                 .unwrap_or(theme::Tokens::current(context).accent),
         };
         let state = &mut self.speakers[index].state;
-        let product = state.product().to_owned();
-        let stored = self.settings.desk.strip_layouts.get(&product);
+        let owner = desk::layout_owner_of(state, &ids[index]);
+        let desk_settings = &self.settings.desk;
+        let stored = stored(
+            &desk_settings.strip_layouts,
+            &desk_settings.speaker_strip_layouts,
+            desk_settings.layouts_per_speaker,
+            &owner,
+        );
         let layout = state
             .identity
             .is_some()
-            .then(|| strip_layout::resolve(stored, &product, catalog));
+            .then(|| strip_layout::resolve(stored, &owner.product, catalog));
         let response = panel::show(
             context,
             viewport,
@@ -651,7 +656,7 @@ impl NeumannApp {
         );
         self.remember_place(context, viewport, WindowKind::Panel, &key);
         if let Some(change) = &response.layout {
-            self.change_layout(&product, change, catalog);
+            self.change_layout(&owner, change, catalog);
         }
         let now = context.input(|input| input.time);
         for command in response.commands {

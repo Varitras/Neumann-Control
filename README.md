@@ -37,7 +37,7 @@ strips on a desk, with level faders, meters, groups and a master.
   address. Added speakers are remembered.
 - **A desk of channel strips**: status LEDs, the input and the standby countdown, a level fader,
   input meters (on the KH 750 also its output meters), mute and identify; what a strip shows can
-  be changed per model.
+  be changed per model or per speaker.
 - **A device panel** per speaker with every setting the catalog knows for its model.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
@@ -137,7 +137,10 @@ Each speaker has a channel strip:
 - **Details** at the foot, which opens the device panel.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
-speaker of that model at once:
+speaker of that model at once. With **Same layout for every speaker of a model** off in
+**Settings**, each speaker keeps its own strip and compact buttons instead: they start as its
+model's, and **Default** takes the speaker back to its model's layout. Switched on again, every
+speaker shows its model's layout; the own ones are kept for the next time.
 
 - Right-click a knob or button on a strip to **Hide** it, **Swap for…** another setting, or move it
   up or down (past the fader too). Right-click a row in the device panel to put it on the strip
@@ -213,7 +216,8 @@ while a warning was active. Hover over them for the value and how long ago it wa
 Gaps mark the times the speaker could not be read.
 
 To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
-longer remembered, and it also leaves its group and its place in the order.
+longer remembered, and it also leaves its group and its place in the order; its strip colour,
+its own layouts and where its windows were are forgotten.
 
 ### Groups and master
 
@@ -250,7 +254,7 @@ for a speaker's message (on a group or the master row, a member's), which shows 
 Right-click a button of a speaker's row to hide it, move it left or right, add another (a switch
 such as **Ident.**, **Mute A**/**Mute B** or auto standby, or EQ and Details again) or go back to
 **Default**; right-click elsewhere in the row to add one when none is left. The buttons are chosen
-per model, like the strips.
+per model (or per speaker), like the strips.
 
 The compact window keeps its own size and position and scrolls sideways when it is narrower than
 its rows. Scanning and adding speakers or groups stay on the desk.

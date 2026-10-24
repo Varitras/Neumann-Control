@@ -195,8 +195,6 @@ pub fn forget_member(
     after != before
 }
 
-/// A new group: named `base` with the lowest number no group has, in the palette colour fewest
-/// groups have, so no two groups look alike until there are more groups than colours.
 /// What a strip is coloured with: a palette colour, one the user chose (`#rrggbb`), or none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Tint {
@@ -243,6 +241,8 @@ pub fn speaker_tint(
     }
 }
 
+/// A new group: named `base` with the lowest number no group has, in the palette colour fewest
+/// groups have, so no two groups look alike until there are more groups than colours.
 pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSettings {
     let taken = |name: &str| groups.iter().any(|group| group.name == name);
     let name = (1..)
