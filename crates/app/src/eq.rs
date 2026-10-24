@@ -185,6 +185,18 @@ pub fn output_key(container: &EqContainer) -> String {
         .unwrap_or_default()
 }
 
+/// Whether `product` has EQs on more than one output (the KH 750's subwoofer, A and B); there
+/// an EQ is named with its output.
+pub fn several_outputs(catalog: &Catalog, product: &str) -> bool {
+    let mut keys: Vec<String> = catalog
+        .eq_containers(product)
+        .into_iter()
+        .map(output_key)
+        .collect();
+    keys.dedup();
+    keys.len() > 1
+}
+
 /// One output's response for each input that has containers of its own (the KH 750's
 /// crossovers): the containers every input passes plus that input's. The crossovers lie side by
 /// side, one per input, so adding them all would describe a signal no input takes. Without

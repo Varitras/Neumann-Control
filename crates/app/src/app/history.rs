@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_key};
+use crate::eq::{container_of, output_key, several_outputs};
 use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
 use crate::paths;
 use crate::state::{SpeakerState, Status};
@@ -419,15 +419,4 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
-}
-
-/// Whether `product` has EQs on more than one output (the KH 750's subwoofer, A and B).
-fn several_outputs(catalog: &Catalog, product: &str) -> bool {
-    let mut keys: Vec<String> = catalog
-        .eq_containers(product)
-        .into_iter()
-        .map(output_key)
-        .collect();
-    keys.dedup();
-    keys.len() > 1
 }

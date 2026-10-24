@@ -1155,3 +1155,21 @@ fn the_history_names_the_output_of_a_kh750_eq_change() {
     harness.run_steps(2);
     harness.get_by_label_contains(texts::EQ_OUTPUT_SUBWOOFER.get());
 }
+
+/// The KH 750 has an EQ 2 on each of its three outputs: the suggested file name tells them apart.
+#[test]
+fn an_eq_export_of_a_kh750_names_the_output() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let files = FakeFiles::default();
+    harness.state_mut().set_file_dialog(Box::new(files.clone()));
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
+        .click();
+    harness.run_steps(2);
+    let suggested = files.suggested.lock().unwrap().clone();
+    assert_eq!(suggested.len(), 1);
+    assert!(
+        suggested[0].contains(texts::EQ_OUTPUT_SUBWOOFER.get()),
+        "{suggested:?}"
+    );
+}

@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use super::eq::PendingImport;
 use super::NeumannApp;
-use crate::eq::bands_of;
+use crate::eq::{bands_of, output_key, several_outputs};
 use crate::eq_file::{self, MAX_FILE_BYTES};
 use crate::presets::eq_plan;
 use crate::texts;
@@ -126,14 +126,21 @@ impl NeumannApp {
         let (container, _) = self.chosen_container(index)?;
         let speaker = self.eq_speaker(index)?;
         let bands = bands_of(&speaker.values, &container)?;
-        let label = catalog
-            .eq_containers(speaker.product())
+        let product = speaker.product();
+        let known = catalog
+            .eq_containers(product)
             .into_iter()
-            .find(|known| known.path == container)
-            .map_or_else(
-                || container.to_string(),
-                |known| known.label(texts::language()).to_owned(),
-            );
+            .find(|known| known.path == container);
+        let label = known.map_or_else(
+            || container.to_string(),
+            |known| known.label(texts::language()).to_owned(),
+        );
+        let label = match (known, several_outputs(catalog, product)) {
+            (Some(known), true) => {
+                texts::eq_on_output(texts::eq_output(&output_key(known)), &label)
+            }
+            _ => label,
+        };
         let suggested = safe_file_name(&format!("{} {label}.{FILE_EXTENSION}", speaker.product()));
         Some((suggested, eq_file::export(&bands, &label)))
     }
