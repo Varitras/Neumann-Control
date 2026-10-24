@@ -472,9 +472,7 @@ impl SpeakerState {
             return;
         };
         let levels = &levels[..levels.len().min(MAX_METER_CHANNELS)];
-        if meters.len() < levels.len() {
-            meters.resize_with(levels.len(), MeterState::default);
-        }
+        meters.resize_with(levels.len(), MeterState::default);
         for (meter, level) in meters.iter_mut().zip(levels) {
             meter.update(level.as_f64().unwrap_or(METER_FLOOR_DB), now);
         }
@@ -675,6 +673,16 @@ mod tests {
         );
         assert_eq!(speaker.output_meters.len(), 2);
         assert_eq!(speaker.output_meters[1].level(), -20.5);
+    }
+
+    /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
+    #[test]
+    fn a_shorter_meter_list_drops_the_meters_it_no_longer_reports() {
+        let mut speaker = state();
+        speaker.apply(value_event("m/in/level", json!([-10.0, -12.0, -3.0])), 0.0);
+        speaker.apply(value_event("m/in/level", json!([-10.0, -12.0])), 0.1);
+        assert_eq!(speaker.input_meters.len(), 2);
+        assert_eq!(speaker.loudest_input(10.0), Some(-10.0));
     }
 
     #[test]
