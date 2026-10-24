@@ -93,6 +93,8 @@
 
 ### Fixed
 
+- The clip, warning and LOCAL LEDs of an unreachable speaker kept showing its last report; they
+  now stay dark until it answers again.
 - A group or master fader moved a member whose level lay above its range down against the
   fader, and members that may not write their level or mute shaped the group's fader and kept
   its mute from ever offering to unmute.

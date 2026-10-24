@@ -35,7 +35,9 @@ pub fn status_leds(speaker: &SpeakerState) -> StatusLeds {
         Status::Connecting => ConnectionLed::Connecting,
         Status::Unreachable => ConnectionLed::Off,
     };
-    let reported = |path: &str| speaker.values.get(&paths::path(path));
+    // Without a connection the last report is history, not the speaker's state now.
+    let connected = speaker.status == Status::Connected;
+    let reported = |path: &str| speaker.values.get(&paths::path(path)).filter(|_| connected);
     let clip = [paths::INPUT_CLIP, paths::OUTPUT_CLIP]
         .into_iter()
         .filter_map(reported)
@@ -115,6 +117,20 @@ mod tests {
             0.0,
         );
         speaker
+    }
+
+    /// What a speaker reported before it went away says nothing about it now: clip, warning
+    /// and LOCAL stay dark; the connection LED tells the state.
+    #[test]
+    fn an_unreachable_speaker_shows_no_old_device_state() {
+        let mut speaker = connected();
+        report(&mut speaker, paths::INPUT_CLIP, json!([true, false]));
+        report(&mut speaker, paths::WARNINGS, json!(["OVERTEMPERATURE"]));
+        report(&mut speaker, paths::CONTROL_MODE, json!(LOCAL_CONTROL_MODE));
+        speaker.status = Status::Unreachable;
+        let leds = status_leds(&speaker);
+        assert_eq!(leds.connection, ConnectionLed::Off);
+        assert!(!leds.clip && !leds.warning && !leds.local, "{leds:?}");
     }
 
     fn report(speaker: &mut SpeakerState, path: &str, value: Value) {
