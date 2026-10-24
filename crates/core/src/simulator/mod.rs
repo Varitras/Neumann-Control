@@ -46,6 +46,8 @@ pub enum Fault {
     CloseConnection,
     /// The request is read and never answered.
     Silence,
+    /// The reply carries the request's id and nothing else: an answer that tells nothing.
+    EmptyReply,
 }
 
 /// What the connection sends back for one request.
@@ -98,6 +100,9 @@ impl Shared {
             Some(Fault::Silence) => Delivery::Silent,
             Some(Fault::OverlongLine) => Delivery::Lines(vec![overlong_line()]),
             Some(Fault::NoXidEcho) => Delivery::Lines(vec![encode_line(&answer.body, None)]),
+            Some(Fault::EmptyReply) => {
+                Delivery::Lines(vec![encode_line(&json!({}), answer.xid.as_ref())])
+            }
             Some(Fault::ForeignXidFirst) => {
                 let foreign =
                     answer.xid.as_ref().and_then(Value::as_u64).unwrap_or(0) + FOREIGN_XID_OFFSET;

@@ -181,7 +181,11 @@ mod tests {
     #[test]
     fn an_input_clip_lights_the_clip_led() {
         let mut speaker = connected();
-        report(&mut speaker, paths::OUTPUT_CLIP, json!([false, false, false]));
+        report(
+            &mut speaker,
+            paths::OUTPUT_CLIP,
+            json!([false, false, false]),
+        );
         report(&mut speaker, paths::INPUT_CLIP, json!([false, true]));
         assert!(status_leds(&speaker).clip);
     }

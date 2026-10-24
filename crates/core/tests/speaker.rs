@@ -503,6 +503,37 @@ fn commands_while_unreachable_fail_at_once() {
     assert!(matches!(failed, Event::AllValuesFailed(_)));
 }
 
+/// An answer to a write that tells nothing: whether the speaker took the value is unknown, so
+/// the write failed and the value is read again.
+#[test]
+fn an_empty_answer_to_a_write_fails_it_and_reads_the_value_again() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let last = last_initial_path(KH_120_II_PRODUCT);
+    collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
+
+    simulator.inject(Fault::EmptyReply);
+    let mute = path("audio/out/mute");
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    let failed = events
+        .recv_timeout(EVENT_DEADLINE)
+        .expect("a write failure");
+    assert!(matches!(failed, Event::WriteFailed { path, .. } if path == mute));
+    let reread = events
+        .recv_timeout(EVENT_DEADLINE)
+        .expect("the value read again");
+    assert_eq!(
+        reread,
+        Event::Value {
+            path: mute,
+            value: json!(true),
+        }
+    );
+}
+
 #[test]
 fn connection_loss_during_set_reports_write_failed() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
