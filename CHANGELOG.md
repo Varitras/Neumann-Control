@@ -132,8 +132,8 @@
 - A speaker added by its address alone took on another unit that answered at that address
   later, with its name, group and place on the desk; it now reports the other serial instead.
 - When a scan found a speaker where another remembered one used to be, the moved speaker stayed
-  unreachable at its old address, the scan dialog listed it as already shown, and removing the
-  other one removed it too.
+  unreachable at its old address, the scan dialog listed it as already shown, the other one was
+  shown under its name, and removing the other one removed it too.
 - With two network adapters on the speakers' segment, every scan could switch a speaker to the
   other adapter and reconnect it.
 - A slow speaker, or a KH 750 while **All values** was read, got its meters read but not its
