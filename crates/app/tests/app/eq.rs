@@ -52,7 +52,6 @@ fn open_eq_with(
     (simulator, directory, harness)
 }
 
-/// The strip has an "EQ" button too; the panel's lies below it, at the panel's foot.
 /// The panel's EQ button, the lowest one (the strip has one too), at the panel's foot.
 fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>) {
     fn lowest<'h>(harness: &'h Harness<'static, NeumannApp>) -> egui_kittest::Node<'h> {
@@ -105,14 +104,14 @@ fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
     });
     // The flat gain stays: dragging a point shapes the filter, not the level of everything.
     assert!(sets(&simulator, GAIN_POINTER).is_empty());
-    let gain = sets(&simulator, BOOST_POINTER)[0].clone();
-    let entries = gain.as_array().unwrap();
+    let boost = sets(&simulator, BOOST_POINTER)[0].clone();
+    let entries = boost.as_array().unwrap();
     assert_eq!(entries.len(), 10);
     let only_band_3 = entries
         .iter()
         .enumerate()
         .all(|(band, entry)| (band == 2) != entry.is_null());
-    assert!(only_band_3, "{gain}");
+    assert!(only_band_3, "{boost}");
     assert!(entries[2].as_f64().unwrap() > 0.0);
     let frequency = sets(&simulator, FREQUENCY_POINTER)[0][2].as_f64().unwrap();
     assert!(frequency > 200.0, "{frequency}");
@@ -123,7 +122,13 @@ fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
 
 #[test]
 fn a_drag_beyond_the_edge_stays_in_the_limits() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    // With the band's level at -12 dB the top of the graph means a boost of 36 dB, past the
+    // limit: only the boost's own limit keeps it at 24 dB, not the graph's edge.
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut gains = simulator.value("audio/out/eq2/gain").unwrap();
+        gains[9] = json!(-12.0);
+        simulator.set_value("audio/out/eq2/gain", gains);
+    });
     let point = harness.get_by_label(&texts::eq_band(10)).rect().center();
     drag(&mut harness, point, egui::vec2(2000.0, -2000.0));
     wait_until(&mut harness, "the band writes", |_| {
@@ -132,8 +137,8 @@ fn a_drag_beyond_the_edge_stays_in_the_limits() {
     });
     let frequency = sets(&simulator, FREQUENCY_POINTER)[0][9].as_f64().unwrap();
     assert!(frequency <= 24000.0, "{frequency}");
-    let gain = sets(&simulator, BOOST_POINTER)[0][9].as_f64().unwrap();
-    assert!(gain <= 24.0, "{gain}");
+    let boost = sets(&simulator, BOOST_POINTER)[0][9].as_f64().unwrap();
+    assert_eq!(boost, 24.0);
 }
 
 #[test]
@@ -167,12 +172,12 @@ fn undo_of_a_band_edit_writes_that_band_back() {
     let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
-    wait_until(&mut harness, "the gain write", |_| {
+    wait_until(&mut harness, "the boost write", |_| {
         !sets(&simulator, BOOST_POINTER).is_empty()
     });
     let id = harness.state().history().newest_open().unwrap();
     harness.state_mut().request_take_back(id);
-    wait_until(&mut harness, "the gain written back", |_| {
+    wait_until(&mut harness, "the boost written back", |_| {
         sets(&simulator, BOOST_POINTER).len() == 2
     });
     let mut expected = vec![Value::Null; 10];
