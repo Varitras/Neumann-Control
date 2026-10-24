@@ -8,8 +8,9 @@
 - Starting the app again in the same folder brings the running window to the front instead of
   opening a second app, which would overwrite the first one's settings.
 - **?** in the toolbar: the **Manual** (an HTML file of this README next to the executable), the
-  **Wiki** on GitHub, and **About Neumann Control** with version, licence and **Check for updates**, which asks GitHub
-  for the newest release when clicked and links to it.
+  **Wiki** on GitHub, and **About Neumann Control** with version, licence and **Check for
+  updates**, which asks GitHub for the newest release when clicked and links to it; it tells an
+  unreachable GitHub from an answer it cannot read.
 - Compact rows of speakers have **EQ** and **Details** next to **Mute**; a right click on a
   button hides it, moves it, adds another switch or goes back to the default, per model.
 - Without a saved window size, the window is made as large as the desk needs and grows with it

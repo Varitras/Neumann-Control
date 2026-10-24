@@ -306,11 +306,11 @@ input B ("Crossover A", "Crossover B").
   instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1).
   Refused: shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, a
-  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a
-  condition (`Channel:` twice or after filters, `If:`), more filters than the EQ has bands and values the speaker
-  would refuse: then nothing is written. `Preamp` and other APO commands are not taken over; the
-  preview names them. The preview shows which bands change before **Write** sends them as one
-  history entry.
+  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or
+  under a condition (`Channel:` twice or after filters, `If:`), more filters than the EQ has
+  bands and values the speaker would refuse: then nothing is written. `Preamp` and other APO
+  commands are not taken over; the preview names them. The preview shows which bands change
+  before **Write** sends them as one history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
   filters and inversion have no APO line; they are written as comments and listed after saving.
@@ -322,10 +322,10 @@ input B ("Crossover A", "Crossover B").
 ### History and undo
 
 **History** in the toolbar lists the settings the app wrote in this session (the newest 500),
-newest first, with the time, the speaker, the setting and the value before and after. A group or master move is one
-entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
-while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is
-itself an entry, so it can be undone too.
+newest first, with the time, the speaker, the setting and the value before and after. A group or
+master move is one entry. **Undo** writes the values before again; Ctrl+Z does the same for the
+newest entry (not while you type in a value field; in an EQ window, for that speaker's newest EQ
+change). An undo is itself an entry, so it can be undone too.
 
 When a value changed since it was written (in another app or on the speaker), the app lists the
 changes and asks before writing the old value back. A speaker that is not connected is left out,
@@ -412,13 +412,13 @@ place you choose:
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
-malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that
-name is taken) and replaced by defaults. If only some
-values in it are not understood, or it holds values of a newer version (for example after going
-back to an older one), those values fall back to their defaults, the rest is kept, and a copy of
-the file is kept as `settings.json.bad`. A settings file that can be neither read nor moved aside
-(held open by another program) is not written over: the app says so and saves nothing in that
-run. The toolbar tells you whenever one of this happened at the start.
+malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that name is
+taken) and replaced by defaults. If only some values in it are not understood, or it holds values of
+a newer version (for example after going back to an older one), those values fall back to their
+defaults, the rest is kept, and a copy of the file is kept as `settings.json.bad`. A settings file
+that can be neither read nor moved aside (held open by another program) is not written over: the app
+says so and saves nothing in that run. The toolbar tells you whenever one of these happened at the
+start.
 
 ## Known limits
 
