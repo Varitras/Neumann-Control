@@ -1,4 +1,4 @@
-# cargo-mutants: `cargo mutants --workspace` (see README, "Mutation testing").
+# cargo-mutants: `cargo mutants --workspace` (see README, "Building from source").
 exclude_globs = [
     # Test infrastructure; its own faults show up as failing tests elsewhere.
     "crates/core/src/simulator/**",

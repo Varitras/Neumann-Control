@@ -26,9 +26,9 @@
   (343 m/s, at 20 °C) instead of in milliseconds.
 - An EQ window per speaker: a computed response graph of every EQ and their sum, band points to
   drag, and a table of the bands. Each change writes one band only and can be undone.
-- A history of every setting the app wrote in this session (**History** in the toolbar), with
-  **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one entry. When a
-  value changed since, the app asks before writing the old one back.
+- A history of the settings the app wrote in this session, the newest 500 (**History** in the
+  toolbar), with **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one
+  entry. When a value changed since, the app asks before writing the old one back.
 - The held peak of each meter as a number under its channel.
 - An **EQ** button on each strip, opening the speaker's EQ window.
 - **Make flat** in the EQ window: level and boost of every band of an EQ to 0 dB, after a

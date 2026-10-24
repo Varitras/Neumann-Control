@@ -42,7 +42,7 @@ strips on a desk, with level faders, meters, groups and a master.
 - **Groups and a master**: move or mute several speakers at once, and link settings within a
   group.
 - **EQ** in a window of its own: a computed response graph and a table of the bands.
-- **History and undo**: every write of the session, each one revertible, Ctrl+Z for the newest.
+- **History and undo**: the writes of the session, each one revertible, Ctrl+Z for the newest.
 - **Presets** of chosen settings and of EQs, and a comparison of EQ curves between speakers.
 - **Windows volume** of a playback device as a strip on the desk.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
@@ -84,8 +84,8 @@ The app needs no installer. A release folder holds:
 
 Put the folder anywhere you can write to, for example in your documents, and start
 `neumann-control.exe`. The app keeps its settings and log in that folder (see
-[Files and privacy](#files-and-privacy)). To update, replace the executable and the manual; to
-remove the app, delete the folder.
+[Files and privacy](#files-and-privacy)). To update, replace the five files above with those of
+the new release; settings and log stay. To remove the app, delete the folder.
 
 One app runs per folder: starting it again while it runs brings its window to the front.
 
@@ -280,8 +280,9 @@ input B ("Crossover A", "Crossover B").
 - A change is written when the gesture ends, and only for that one band, so the other bands
   stay as they are. Every change appears in the history and can be undone.
 - **Make flat** sets level and boost of every band of the chosen EQ to 0 dB, after a question;
-  frequency, Q, type and on/off stay. It is one history entry. The crossovers have no **Make
-  flat**: flattening them would remove the subwoofer's low pass.
+  frequency, Q, type and on/off stay. It is one history entry. On the crossovers it is offered
+  only with **Protect crossovers** off (see below): flattening them removes the subwoofer's low
+  pass.
 - **Reset** switches every band of the chosen EQ off and sets it back to PARAMETRIC, 100 Hz,
   Q 0.7, level and boost 0 dB, after a question. The bands are switched off first; it is one
   history entry.
@@ -320,8 +321,8 @@ input B ("Crossover A", "Crossover B").
 
 ### History and undo
 
-**History** in the toolbar lists every setting the app wrote in this session, newest first, with
-the time, the speaker, the setting and the value before and after. A group or master move is one
+**History** in the toolbar lists the settings the app wrote in this session (the newest 500),
+newest first, with the time, the speaker, the setting and the value before and after. A group or master move is one
 entry. **Undo** writes the values before again; Ctrl+Z does the same for the newest entry (not
 while you type in a value field; in an EQ window, for that speaker's newest EQ change). An undo is
 itself an entry, so it can be undone too.
@@ -400,7 +401,8 @@ The app talks to the speakers on the local network. It goes to the internet only
 **Check for updates**: then it asks `api.github.com` for the latest release of this project,
 with the app's name and version as its user agent.
 
-The app is portable and writes only next to the executable:
+The app is portable and writes only next to the executable, apart from an EQ **Export…** to the
+place you choose:
 
 | File | Content |
 |------|---------|
@@ -410,7 +412,8 @@ The app is portable and writes only next to the executable:
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
-malformed `settings.json` is renamed to `settings.json.bad` and replaced by defaults. If only some
+malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that
+name is taken) and replaced by defaults. If only some
 values in it are not understood, or it holds values of a newer version (for example after going
 back to an older one), those values fall back to their defaults, the rest is kept, and a copy of
 the file is kept as `settings.json.bad`. A settings file that can be neither read nor moved aside
@@ -474,4 +477,4 @@ settings and a speaker simulator for the tests), `crates/app` (the window) and `
 ## Licence
 
 MIT, see [`LICENSE`](LICENSE). The licences of the bundled dependencies are in
-`THIRD-PARTY-LICENSES.html`; the Inter font is under the SIL Open Font Licence.
+`THIRD-PARTY-LICENSES.html`; the Inter font is under the SIL Open Font License.
