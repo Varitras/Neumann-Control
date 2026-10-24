@@ -245,6 +245,24 @@ fn visiting_a_number_field_does_not_write_its_rounded_text() {
     assert!(sets.is_empty(), "{sets:?}");
 }
 
+/// Arrow Up in a focused field steps the value, as a screen reader's increment does; leaving
+/// the field writes it.
+#[test]
+fn an_arrow_key_step_in_a_number_field_is_written() {
+    let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
+    let before = numeric_value(&harness, STANDBY_TIME_LABEL).unwrap();
+    number_field(&harness, STANDBY_TIME_LABEL).click();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::ArrowUp);
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Tab);
+    wait_until(&mut harness, "the stepped value written", |_| {
+        !sets(&simulator, STANDBY_TIME_POINTER).is_empty()
+    });
+    let sent = sets(&simulator, STANDBY_TIME_POINTER)[0].as_f64().unwrap();
+    assert!(sent > before, "{sent} after {before}");
+}
+
 #[test]
 fn visiting_an_out_of_range_number_field_writes_nothing() {
     let (simulator, _directory, mut harness) = speaker_with_panel(SimModel::Kh120Ii);
