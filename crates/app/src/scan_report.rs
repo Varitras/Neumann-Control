@@ -18,6 +18,9 @@ const IPV4_GROUPS: usize = 4;
 /// Punctuation around an address in a word; brackets are not among it, `[address]:port` is
 /// told by them.
 const WORD_TRIM: &str = ",;()\"'";
+/// A serial or name this long is too particular to be part of another word by chance, so it is
+/// replaced anywhere; a shorter name ("L", "Sub") only where it stands alone.
+const ANYWHERE_MIN_LENGTH: usize = 6;
 
 /// What the report says about the speaker, apart from its leaves.
 pub struct ScanHeader<'a> {
@@ -49,8 +52,8 @@ pub fn file_stem(model: &str, firmware: &str, compact_time: &str) -> String {
 }
 
 /// The leaves with every identifying value replaced: the listed paths, the network subtree, any
-/// text that looks like a MAC or IPv6 address, and every occurrence of `known` (the speaker's
-/// serial and name), wherever another leaf repeats them.
+/// text that looks like a MAC or IPv6 address, and `known` (the speaker's serial and name)
+/// wherever another leaf repeats them; a short name only where it stands as a word.
 pub fn redacted(reports: &[LeafReport], known: &[&str]) -> Vec<LeafReport> {
     let known: Vec<&str> = known
         .iter()
@@ -101,7 +104,10 @@ fn redacted_value(value: &Value, known: &[&str]) -> Value {
 /// Replaces the known identifiers and each word that looks like an address; the rest stays.
 fn redacted_text(text: &str, known: &[&str]) -> String {
     let text = known.iter().fold(text.to_owned(), |text, identifier| {
-        text.replace(identifier, REDACTED)
+        match identifier.chars().count() >= ANYWHERE_MIN_LENGTH {
+            true => text.replace(identifier, REDACTED),
+            false => replaced_as_word(&text, identifier),
+        }
     });
     let mut redacted = String::new();
     // Whitespace of any kind separates words; it stays as it was.
@@ -112,6 +118,29 @@ fn redacted_text(text: &str, known: &[&str]) -> String {
         redacted.push_str(space);
     }
     redacted
+}
+
+/// `identifier` replaced where no letter or digit adjoins it.
+fn replaced_as_word(text: &str, identifier: &str) -> String {
+    let mut replaced = String::new();
+    let mut rest = 0;
+    for (start, _) in text.match_indices(identifier) {
+        let end = start + identifier.len();
+        let before = text[..start].chars().next_back();
+        let after = text[end..].chars().next();
+        let joined = [before, after]
+            .into_iter()
+            .flatten()
+            .any(char::is_alphanumeric);
+        if joined {
+            continue;
+        }
+        replaced.push_str(&text[rest..start]);
+        replaced.push_str(REDACTED);
+        rest = end;
+    }
+    replaced.push_str(&text[rest..]);
+    replaced
 }
 
 /// One word with the address in it replaced: `key=address`, `[address]:port` and
@@ -322,6 +351,21 @@ mod tests {
         let shown = values(&redacted(&reports, &["3712345678", "Living room left"]));
         assert_eq!(shown[0], json!(format!("unit {REDACTED} ok")));
         assert_eq!(shown[1], json!([format!("{REDACTED} speaker")]));
+    }
+
+    /// A speaker named "L" or "R": its name goes where it stands alone, not out of every word
+    /// with that letter in it.
+    #[test]
+    fn a_short_name_is_redacted_as_a_word_only() {
+        let reports = [
+            leaf("audio/out/eq2/type", json!(["LOSHELF", "PARAMETRIC"])),
+            leaf("device/name", json!("L")),
+            leaf("osc/text", json!("speaker L, left")),
+        ];
+        let shown = values(&redacted(&reports, &["L", "R"]));
+        assert_eq!(shown[0], json!(["LOSHELF", "PARAMETRIC"]));
+        assert_eq!(shown[1], json!(REDACTED));
+        assert_eq!(shown[2], json!(format!("speaker {REDACTED}, left")));
     }
 
     #[test]
