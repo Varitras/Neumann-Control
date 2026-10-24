@@ -26,6 +26,7 @@ const SLOW_REPLY: Duration = Duration::from_millis(200);
 const LONG_INTERVAL: Duration = Duration::from_secs(60);
 const KH_120_II_LEAVES: usize = 50;
 const KH_120_II_PRODUCT: &str = "KH 120 II";
+const KH_750_PRODUCT: &str = "KH 750";
 const KH_120_II_SERIAL: &str = "SIM0001234";
 
 fn path(text: &str) -> SscPath {
@@ -533,6 +534,30 @@ fn an_empty_answer_to_a_write_fails_it_and_reads_the_value_again() {
             value: json!(true),
         }
     );
+}
+
+/// A change made just before the app closes or the speaker is removed: the worker is busy
+/// reading when the write and the stop come, and still writes before it ends.
+#[test]
+fn a_write_just_before_the_stop_reaches_the_speaker() {
+    // The KH 750 reads four meters in a row; a stop seen between two of them must not
+    // swallow the write that came first.
+    let simulator = Simulator::start(SimModel::Kh750);
+    let (handle, events) = start_worker(simulator.address(), None, short_timing());
+    let last = last_initial_path(KH_750_PRODUCT);
+    collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
+    // Each reply takes a while; once a meter round has begun, the worker is inside its first
+    // read when both commands arrive.
+    simulator.set_reply_delay(Duration::from_millis(100));
+    let meter = path("m/in/level");
+    let started = count_requests(&simulator, &meter);
+    wait_for_requests(&simulator, &meter, started + 2, EVENT_DEADLINE);
+    handle.send(Command::Set {
+        path: path("audio/out/mute"),
+        value: json!(true),
+    });
+    drop(handle);
+    assert_eq!(simulator.value("audio/out/mute"), Some(json!(true)));
 }
 
 #[test]
