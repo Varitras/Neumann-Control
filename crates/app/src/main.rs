@@ -69,8 +69,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
     start_log(directory);
-    if let Claim::Unavailable(error) = &lock {
-        log::warn!("no instance lock next to the executable ({})", error.kind());
+    match &lock {
+        Claim::NoLockFile(error) => {
+            log::warn!(
+                "no instance lock file next to the executable ({})",
+                error.kind()
+            );
+        }
+        Claim::Unlockable(error) => {
+            log::warn!("the instance lock is not supported here ({})", error.kind());
+        }
+        Claim::Ours(_) | Claim::Taken => {}
     }
     let settings_path = directory.join(SETTINGS_FILE);
     let saved = settings::load_checked(&settings_path);

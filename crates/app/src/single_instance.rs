@@ -21,7 +21,10 @@ pub enum Claim {
     Taken,
     /// No lock file could be made (a read-only folder): the app runs, and saving fails there
     /// anyway, so it cannot overwrite another app's settings.
-    Unavailable(io::Error),
+    NoLockFile(io::Error),
+    /// The file system takes the file but not the lock (none known on Windows' own drives):
+    /// the app runs and saves, without keeping a second app on the folder out.
+    Unlockable(io::Error),
 }
 
 pub fn claim(directory: &Path) -> Claim {
@@ -32,16 +35,18 @@ pub fn claim(directory: &Path) -> Claim {
         .open(directory.join(LOCK_FILE));
     let file = match opened {
         Ok(file) => file,
-        Err(error) => return Claim::Unavailable(error),
+        Err(error) => return Claim::NoLockFile(error),
     };
     match file.try_lock() {
         Ok(()) => Claim::Ours(InstanceLock { _file: file }),
         Err(TryLockError::WouldBlock) => Claim::Taken,
-        Err(TryLockError::Error(error)) => Claim::Unavailable(error),
+        Err(TryLockError::Error(error)) => Claim::Unlockable(error),
     }
 }
 
-/// Brings the running app's main window to the front; false when no such window was found.
+/// Brings the running app's main window to the front; false when no such window was found or
+/// it could not be brought forward. Every copy has the same title, so with copies in other
+/// folders running, the one found may be another folder's.
 #[cfg(windows)]
 pub fn show_running(title: &str) -> bool {
     use std::ptr::null;
@@ -94,6 +99,6 @@ mod tests {
     fn a_folder_that_cannot_hold_the_lock_file_is_reported() {
         let directory = tempfile::tempdir().unwrap();
         let missing = directory.path().join("missing");
-        assert!(matches!(claim(&missing), Claim::Unavailable(_)));
+        assert!(matches!(claim(&missing), Claim::NoLockFile(_)));
     }
 }
