@@ -13,6 +13,18 @@ pub struct LayoutOwner {
     pub member: String,
 }
 
+impl LayoutOwner {
+    /// What the layout it shows is kept under: its identity with own layouts, else its model.
+    /// Strips with the same key show the same layout.
+    pub fn key(&self, per_speaker: bool) -> &str {
+        if per_speaker {
+            &self.member
+        } else {
+            &self.product
+        }
+    }
+}
+
 /// Where a kind of layout is kept: by product name and by speaker identity.
 pub struct LayoutMaps<'a, T> {
     pub by_model: &'a mut BTreeMap<String, T>,
@@ -33,14 +45,15 @@ pub fn stored<'a, T>(
 
 /// Keeps `layout` as what `owner` shows from now on; `None` (a reset) drops the entry.
 pub fn store<T>(maps: LayoutMaps<T>, owner: &LayoutOwner, layout: Option<T>) {
-    let (map, key) = if maps.per_speaker {
-        (maps.by_speaker, &owner.member)
+    let map = if maps.per_speaker {
+        maps.by_speaker
     } else {
-        (maps.by_model, &owner.product)
+        maps.by_model
     };
+    let key = owner.key(maps.per_speaker);
     match layout {
         Some(layout) => {
-            map.insert(key.clone(), layout);
+            map.insert(key.to_owned(), layout);
         }
         None => {
             map.remove(key);

@@ -145,6 +145,7 @@ impl NeumannApp {
                                             StripView {
                                                 layout: &layout,
                                                 editing,
+                                                layout_key: owner.key(desk.layouts_per_speaker),
                                             },
                                             color,
                                             member,

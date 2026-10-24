@@ -760,7 +760,10 @@ fn with_own_layouts_a_drag_onto_another_speakers_strip_changes_nothing() {
         .query_all_by_role_and_label(Role::Button, texts::MUTE.get())
         .map(|node| node.rect().center())
         .collect();
-    assert!(other_mutes[1].x > delays[0].x, "the second strip is to the right");
+    assert!(
+        other_mutes[1].x > delays[0].x,
+        "the second strip is to the right"
+    );
     drag(&mut harness, delays[0], other_mutes[1]);
     let settings = settings::load(&directory.path().join(settings::SETTINGS_FILE));
     assert!(settings.desk.speaker_strip_layouts.is_empty());

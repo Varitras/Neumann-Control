@@ -7,10 +7,11 @@ use neumann_control_core::settings::StripElement;
 
 use crate::strip_layout::{Area, LayoutChange, StripLayout};
 
-/// What a drag in edit mode carries: the element, and the model whose layout it belongs to.
+/// What a drag in edit mode carries: the element, and whose layout it belongs to
+/// (`LayoutOwner::key`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dragged {
-    pub product: String,
+    pub layout: String,
     pub element: StripElement,
 }
 

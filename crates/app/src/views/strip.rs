@@ -76,8 +76,8 @@ struct Arrange<'a> {
     area: Area,
     stored: &'a [StripElement],
     catalog: &'a Catalog,
-    /// The model the layout belongs to; a drag carries it to strips of the same model only.
-    product: &'a str,
+    /// Whose layout it is (`LayoutOwner::key`); a drag lands only on strips of the same one.
+    layout_key: &'a str,
     /// The dragged element at its landing place, drawn faded.
     landing: Option<&'a StripElement>,
 }
@@ -94,6 +94,8 @@ struct Wishes {
 pub struct StripView<'a> {
     pub layout: &'a StripLayout,
     pub editing: bool,
+    /// Whose layout it is (`LayoutOwner::key`).
+    pub layout_key: &'a str,
 }
 
 pub fn show(
@@ -105,16 +107,20 @@ pub fn show(
     group_color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
-    let StripView { layout, editing } = view;
+    let StripView {
+        layout,
+        editing,
+        layout_key,
+    } = view;
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let mut wishes = Wishes::default();
-    // While an element of this model is dragged over the strip, it is drawn where it would land.
+    // While an element of this layout is dragged over the strip, it is drawn where it would land.
     let geometry_id = ui.scope_id().with(GEOMETRY_ID);
     let dragged = editing
         .then(|| DragAndDrop::payload::<Dragged>(ui.ctx()))
         .flatten()
-        .filter(|dragged| dragged.product == speaker.product());
+        .filter(|dragged| dragged.layout == layout_key);
     let pointer = ui.ctx().pointer_latest_pos();
     let previous = ui.data(|data| data.get_temp::<Geometry>(geometry_id));
     let landing = match (&dragged, pointer, &previous) {
@@ -135,7 +141,6 @@ pub fn show(
         .as_ref()
         .and(dragged.as_deref())
         .map(|dragged| &dragged.element);
-    let product = speaker.product().to_owned();
     // Only a speaker that reported its model can change that model's layout.
     let offers = speaker
         .identity
@@ -151,7 +156,7 @@ pub fn show(
             Area::Below => &shown.below,
         },
         catalog,
-        product: &product,
+        layout_key,
         landing: landed,
     };
     let mut fader = Rect::NOTHING;
@@ -415,19 +420,19 @@ fn arrange_while_editing(
         ui.painter()
             .rect_filled(rect, CornerRadius::same(STRIP_RADIUS), cover);
     }
-    drag_handle(ui, rect, element, arrange.product);
+    drag_handle(ui, rect, element, arrange.layout_key);
 }
 
 /// Lies over a still element while editing. Only the primary button drags: the secondary one
 /// opens the element's menu, and egui would start a drag for it as well.
-fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, product: &str) {
+fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, layout_key: &str) {
     let drag_id = ui
         .scope_id()
         .with((DRAG_ID, layout_menu::menu_key(element)));
     let handle = ui.interact(rect, drag_id, Sense::drag());
     if handle.drag_started_by(PointerButton::Primary) {
         let dragged = Dragged {
-            product: product.to_owned(),
+            layout: layout_key.to_owned(),
             element: element.clone(),
         };
         DragAndDrop::set_payload(ui.ctx(), dragged);
