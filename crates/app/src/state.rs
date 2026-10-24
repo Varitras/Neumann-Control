@@ -614,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn write_rejected_sets_german_message() {
+    fn a_rejected_write_sets_the_rejection_message() {
         let mut speaker = state();
         speaker.apply(
             Event::WriteRejected {

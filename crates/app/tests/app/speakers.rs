@@ -382,7 +382,7 @@ fn remove_needs_confirmation_and_forgets_speaker() {
 }
 
 /// Off at the next start, a speaker is still called by the name it last reported, not by its
-/// masked address; removing it forgets the name too.
+/// masked address (removing it forgets the name: `remove_needs_confirmation_and_forgets_speaker`).
 #[test]
 fn a_speaker_that_is_off_keeps_its_last_name() {
     let (simulator, directory, harness) = connected_speaker(SimModel::Kh120Ii);

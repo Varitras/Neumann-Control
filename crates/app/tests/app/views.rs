@@ -520,7 +520,6 @@ fn strip_content_stacks_top_down() {
     );
 }
 
-/// Point on a circle of `radius` around `center` at `degrees` clockwise from the top.
 #[test]
 fn strip_shows_leds_knobs_fader_and_buttons() {
     let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);

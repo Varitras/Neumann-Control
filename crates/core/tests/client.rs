@@ -70,7 +70,7 @@ fn wrong_type_set_is_device_error_406() {
     assert_eq!(device_code(error), DeviceError::NOT_ACCEPTABLE);
 }
 
-// Rule 3: a line without an id counts only if it has the requested path.
+// A line without an id is the reply only when it answers the requested path or carries an error.
 #[test]
 fn xidless_line_without_the_path_is_skipped() {
     let (simulator, mut client) = start(SimModel::Kh750);

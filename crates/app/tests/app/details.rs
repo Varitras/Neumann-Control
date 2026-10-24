@@ -487,7 +487,9 @@ fn panel_number_rows_keep_their_labels_on_one_line() {
     }
     // The number field shows the value; the knob beside it does not repeat it, and the strip
     // shows a whole number as a whole number.
-    assert!(harness.query_by_label_contains("60.0 min").is_none());
+    // In the language's own decimal separator, or it could never be found.
+    let decimal = format!("{} min", texts::one_decimal(60.0));
+    assert!(harness.query_by_label_contains(&decimal).is_none());
 }
 
 #[test]

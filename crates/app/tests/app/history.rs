@@ -276,7 +276,7 @@ fn the_history_lists_the_newest_write_first() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
     wait_until(&mut harness, "the muted state", |_| {
-        harness_is_muted(&simulator)
+        speaker_is_muted(&simulator)
     });
     click_mute(&mut harness, &simulator, 2);
     harness.get_by_label(texts::HISTORY.get()).click();
@@ -295,7 +295,7 @@ fn the_history_lists_the_newest_write_first() {
     });
 }
 
-fn harness_is_muted(simulator: &neumann_control_core::simulator::Simulator) -> bool {
+fn speaker_is_muted(simulator: &neumann_control_core::simulator::Simulator) -> bool {
     simulator.value("audio/out/mute") == Some(json!(true))
 }
 

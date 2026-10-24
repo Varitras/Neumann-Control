@@ -470,7 +470,6 @@ pub fn device_name(model: SimModel) -> &'static str {
     }
 }
 
-/// Clicks the strip's name and waits until the device panel shows its settings.
 /// Panels and dialogs scroll; a widget below what they show at first is scrolled to (the
 /// scroll is animated) before the click.
 pub fn scroll_to_and_click(harness: &mut Harness<'static, NeumannApp>, label: &str) {
@@ -481,6 +480,7 @@ pub fn scroll_to_and_click(harness: &mut Harness<'static, NeumannApp>, label: &s
 
 pub const SCROLL_FRAMES: usize = 4;
 
+/// Clicks the strip's name and waits until the device panel shows its settings.
 pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     // The panel takes its size from the window it opens in.
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
@@ -577,6 +577,7 @@ pub fn double_click_at(harness: &mut Harness<'static, NeumannApp>, position: egu
     harness.run_steps(2);
 }
 
+/// Point on a circle of `radius` around `center` at `degrees` clockwise from the top.
 pub fn around(center: egui::Pos2, radius: f32, degrees: f32) -> egui::Pos2 {
     let radians = degrees.to_radians();
     center + radius * egui::vec2(radians.sin(), -radians.cos())
