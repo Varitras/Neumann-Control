@@ -2,6 +2,8 @@
 
 use std::net::{Ipv6Addr, SocketAddrV6};
 
+use crate::address::scope_suffix;
+
 const MASK_PLACEHOLDER: &str = "xx";
 const SEGMENT_COUNT: usize = 8;
 const KEPT_PREFIX_SEGMENTS: usize = 4;
@@ -19,10 +21,7 @@ pub fn mask_host(address: &SocketAddrV6) -> String {
     prefix_segments[..KEPT_PREFIX_SEGMENTS].copy_from_slice(&segments[..KEPT_PREFIX_SEGMENTS]);
     let prefix = Ipv6Addr::from(prefix_segments);
     let last_byte = segments[SEGMENT_COUNT - 1] & LOW_BYTE_MASK;
-    let scope = match address.scope_id() {
-        0 => String::new(),
-        scope_id => format!("%{scope_id}"),
-    };
+    let scope = scope_suffix(address);
     format!("{prefix}{MASK_PLACEHOLDER}{last_byte:02x}{scope}")
 }
 

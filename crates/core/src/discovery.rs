@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use mdns_sd::{IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
 
-use crate::address::is_link_local;
+use crate::address::{is_link_local, NO_SCOPE};
 use crate::mask::{mask_serial_in, mask_serial_like};
 
 pub const SCAN_DURATION: Duration = Duration::from_secs(4);
@@ -16,7 +16,6 @@ const MAX_TXT_CHARACTERS: usize = 64;
 const TXT_PRODUCT_KEY: &str = "model";
 const TXT_SERIAL_KEY: &str = "id";
 const SERIAL_SEPARATOR: char = '-';
-const NO_SCOPE: u32 = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Found {

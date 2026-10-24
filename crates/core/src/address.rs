@@ -9,7 +9,7 @@ pub const SSC_PORT: u16 = 45;
 const SCOPE_SEPARATOR: char = '%';
 const LINK_LOCAL_PREFIX_MASK: u16 = 0xffc0;
 const LINK_LOCAL_PREFIX: u16 = 0xfe80;
-const NO_SCOPE: u32 = 0;
+pub const NO_SCOPE: u32 = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AddressError {
@@ -71,9 +71,14 @@ pub fn parse_address(input: &str, port: u16) -> Result<SocketAddrV6, AddressErro
 /// The host part as `parse_address` reads it back, with the scope as `%index` when there is one;
 /// the port is stored separately.
 pub fn format_host(address: &SocketAddrV6) -> String {
+    format!("{}{}", address.ip(), scope_suffix(address))
+}
+
+/// `%index` for an address with a scope, else nothing.
+pub fn scope_suffix(address: &SocketAddrV6) -> String {
     match address.scope_id() {
-        NO_SCOPE => address.ip().to_string(),
-        scope => format!("{}{SCOPE_SEPARATOR}{scope}", address.ip()),
+        NO_SCOPE => String::new(),
+        scope => format!("{SCOPE_SEPARATOR}{scope}"),
     }
 }
 
