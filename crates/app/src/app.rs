@@ -33,8 +33,8 @@ use crate::status_leds::average_response_time;
 use crate::strip_layout;
 use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{
-    duplicate_speakers, follow_moves, forget, remember_identity, remember_serial, same_speaker,
-    targets,
+    duplicate_speakers, follow_moves, forget, is_found, remember_identity, remember_serial,
+    same_speaker, targets,
 };
 use crate::texts;
 use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
@@ -222,7 +222,10 @@ impl NeumannApp {
     /// points at another address.
     fn sync_targets(&mut self) {
         for (key, address) in targets(&self.settings.manual) {
-            let discovered = self.found.iter().find(|found| found.address == address);
+            let discovered = self
+                .found
+                .iter()
+                .find(|found| is_found(found, &key, address));
             let existing = self.speakers.iter().position(|speaker| {
                 same_speaker(&speaker.state.key, speaker.state.address, &key, address)
             });

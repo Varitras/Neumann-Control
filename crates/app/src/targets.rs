@@ -53,13 +53,18 @@ pub fn same_speaker(
 /// Whether a scanned speaker is already shown (`same_speaker`): by serial, and by address where
 /// one of the two has none.
 pub fn is_shown(found: &Found, shown: &[(SpeakerKey, SocketAddrV6)]) -> bool {
+    shown
+        .iter()
+        .any(|(key, address)| is_found(found, key, *address))
+}
+
+/// Whether `found` is the speaker of `key` at `address` (`same_speaker`).
+pub fn is_found(found: &Found, key: &SpeakerKey, address: SocketAddrV6) -> bool {
     let found_key = match &found.serial {
         Some(serial) => SpeakerKey::Serial(serial.clone()),
         None => SpeakerKey::Address(found.address),
     };
-    shown
-        .iter()
-        .any(|(key, address)| same_speaker(key, *address, &found_key, found.address))
+    same_speaker(key, address, &found_key, found.address)
 }
 
 /// The settings entry that brings a scanned speaker back at the next start without a scan.
