@@ -14,10 +14,11 @@ use neumann_control_core::catalog::{Catalog, Conversion, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
 
-use super::fader::{drag_aborted, value_beside, FINE_DIVISOR};
+use super::drag;
+use super::fader::{value_beside, FINE_DIVISOR};
 use super::wheel::notches_for;
 use crate::display::{conversion_of, shown_value};
-use crate::gesture::{bounded_move, on_grid, released, typed_value, GestureState};
+use crate::gesture::{on_grid, typed_value, GestureState};
 use crate::state::SpeakerState;
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -38,9 +39,8 @@ const INDICATOR_WIDTH: f32 = 2.0;
 /// The pointer line runs from this fraction of the body radius outwards.
 const INDICATOR_START: f32 = 0.3;
 const ARC_SEGMENTS: usize = 32;
-const DRAG_VALUE_ID: &str = "knob_drag_value";
+/// The pointer's angle around the centre in the previous frame of a drag.
 const DRAG_ANGLE_ID: &str = "knob_drag_angle";
-const DRAG_START_ID: &str = "knob_drag_start";
 const EDIT_TEXT_ID: &str = "knob_edit_text";
 const EDIT_WIDTH: f32 = 56.0;
 /// Below the small text style, so the panel's names ("Verzögerung", "Standby-Zeit") fit their
@@ -139,52 +139,32 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 Sense::hover()
             };
             let (rect, response) = ui.allocate_exact_size(size, sense);
-            let drag_id = id.with(DRAG_VALUE_ID);
-            let start_id = id.with(DRAG_START_ID);
             let angle_id = id.with(DRAG_ANGLE_ID);
             let pointer = ui.input(|input| input.pointer.interact_pos());
             let angle = pointer.and_then(|pointer| pointer_angle(rect.center(), pointer));
             let mut value = state.shown(device, now);
             if response.drag_started() {
                 state.drag_started();
-                ui.data_mut(|data| {
-                    data.insert_temp(drag_id, value);
-                    data.insert_temp(start_id, value);
-                    data.remove::<f32>(angle_id);
-                });
+                ui.data_mut(|data| data.remove::<f32>(angle_id));
             }
-            let aborted = drag_aborted(ui, &response);
-            let started = ui
-                .data(|data| data.get_temp::<f64>(start_id))
-                .unwrap_or(value);
-            if response.dragged() && !aborted {
-                let held = ui
-                    .data(|data| data.get_temp::<f64>(drag_id))
-                    .unwrap_or(value);
+            let change = || {
                 let last = ui.data(|data| data.get_temp::<f32>(angle_id));
+                // Inside the dead zone the last good angle stays the reference.
+                if let Some(angle) = angle {
+                    ui.data_mut(|data| data.insert_temp(angle_id, angle));
+                }
                 let fine = ui.input(|input| input.modifiers.shift);
                 let turned = last
                     .zip(angle)
                     .map_or(0.0, |(last, angle)| angle_change(last, angle));
-                let target = held + turn_change(&knob.range, turned, fine);
-                value = bounded_move(started, target, &knob.range).unwrap_or(held);
-                ui.data_mut(|data| {
-                    data.insert_temp(drag_id, value);
-                    // Inside the dead zone the last good angle stays the reference.
-                    if let Some(angle) = angle {
-                        data.insert_temp(angle_id, angle);
-                    }
-                });
+                turn_change(&knob.range, turned, fine)
+            };
+            let drag = drag::follow(ui, &response, id, value, &knob.range, knob.step, change);
+            if let Some(current) = drag.current {
+                value = current;
             }
-            if response.drag_stopped() && !aborted {
-                let dragged = ui.data(|data| data.get_temp::<f64>(drag_id));
-                sent = dragged.and_then(|dragged| released(started, dragged, knob.step));
-            }
-            if response.drag_stopped() {
-                ui.data_mut(|data| {
-                    data.remove::<f64>(drag_id);
-                    data.remove::<f64>(start_id);
-                });
+            if drag.released.is_some() {
+                sent = drag.released;
             }
             // A held knob ignores the wheel, as a held fader does.
             let held = response.is_pointer_button_down_on() || response.dragged();
@@ -213,7 +193,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 };
                 ui.ctx().set_cursor_icon(icon);
             }
-            let moving = (response.dragged() && !aborted) || state.wheel_pending();
+            let moving = drag.current.is_some() || state.wheel_pending();
             if moving {
                 value_beside(ui, id, rect, rect.center().y, &(knob.format)(value));
             }

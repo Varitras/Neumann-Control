@@ -5,15 +5,16 @@
 use std::ops::RangeInclusive;
 
 use eframe::egui::{
-    self, vec2, Align2, Area, CornerRadius, CursorIcon, Frame, Id, Key, Label, Order, Rect,
-    Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo,
+    self, vec2, Align2, Area, CornerRadius, CursorIcon, Frame, Id, Label, Order, Rect, Response,
+    Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
+use super::drag::{self, Drag};
 use super::wheel::notches_for;
 use crate::fader::WHEEL_STEP_DB;
-use crate::gesture::{self, bounded_move, on_grid};
+use crate::gesture::{self, on_grid};
 use crate::groups::SharedLevel;
 use crate::paths;
 use crate::state::SpeakerState;
@@ -21,10 +22,7 @@ use crate::texts;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
-const DRAG_ABORTED_ID: &str = "fader_drag_aborted";
 const HANDLE_LABEL_ID: &str = "fader_handle_label";
-const DRAG_VALUE_ID: &str = "fader_drag_value";
-const DRAG_START_ID: &str = "fader_drag_start";
 const FADER_WIDTH: f32 = 24.0;
 const TRACK_WIDTH: f32 = 4.0;
 const TRACK_RADIUS: u8 = 2;
@@ -205,18 +203,9 @@ pub fn shared(
     drag.released.map(|released| released - drag.started)
 }
 
-/// A drag on a fader this frame: the value it shows while held, and the value it writes when let
-/// go (only when it moved on the level grid; never after Escape).
-struct Drag {
-    /// The value when the drag began; a group move is measured from it, not from the reference
-    /// of the release frame, which may have changed meanwhile.
-    started: f64,
-    current: Option<f64>,
-    released: Option<f64>,
-}
-
 /// `start` is the value when the drag began, `range` what the fader's length spans, `reach` how
-/// far the drag may go (beyond `range` for a group fader).
+/// far the drag may go (beyond `range` for a group fader). The held value shows on the level
+/// grid.
 fn drag_value(
     ui: &Ui,
     response: &Response,
@@ -225,46 +214,22 @@ fn drag_value(
     reach: &RangeInclusive<f64>,
     orientation: Orientation,
 ) -> Drag {
-    let held_id = response.id.with(DRAG_VALUE_ID);
-    let start_id = response.id.with(DRAG_START_ID);
-    if response.drag_started() {
-        ui.data_mut(|data| {
-            data.insert_temp(held_id, start);
-            data.insert_temp(start_id, start);
-        });
-    }
-    let aborted = drag_aborted(ui, response);
-    let started = ui
-        .data(|data| data.get_temp::<f64>(start_id))
-        .unwrap_or(start);
-    let mut current = None;
-    if response.dragged() && !aborted {
-        let held = ui
-            .data(|data| data.get_temp::<f64>(held_id))
-            .unwrap_or(start);
+    let change = || {
         let fine = ui.input(|input| input.modifiers.shift);
         let points = orientation.along(response.drag_delta());
-        let target = held + drag_change(range, points, fine, orientation.length());
-        let moved = bounded_move(started, target, reach).unwrap_or(held);
-        ui.data_mut(|data| data.insert_temp(held_id, moved));
-        current = Some(on_grid(moved, WHEEL_STEP_DB));
-    }
-    let mut released = None;
-    if response.drag_stopped() {
-        let dragged = ui.data(|data| data.get_temp::<f64>(held_id));
-        ui.data_mut(|data| {
-            data.remove::<f64>(held_id);
-            data.remove::<f64>(start_id);
-        });
-        released = dragged
-            .filter(|_| !aborted)
-            .and_then(|dragged| gesture::released(started, dragged, WHEEL_STEP_DB));
-    }
-    Drag {
-        started,
-        current,
-        released,
-    }
+        drag_change(range, points, fine, orientation.length())
+    };
+    let mut drag = drag::follow(
+        ui,
+        response,
+        response.id,
+        start,
+        reach,
+        WHEEL_STEP_DB,
+        change,
+    );
+    drag.current = drag.current.map(|moved| on_grid(moved, WHEEL_STEP_DB));
+    drag
 }
 
 /// The value change for a drag of `points` along a fader of `length`, which spans the whole
@@ -382,17 +347,4 @@ fn floating_value(ui: &Ui, id: Id, anchor: egui::Pos2, pivot: Align2, text: &str
             // One line: the area is narrow and would wrap the value letter by letter.
             Frame::popup(ui.style()).show(ui, |ui| ui.add(Label::new(text).extend()));
         });
-}
-
-/// Escape ends egui's drag but leaves the button down, and the slider keeps following the
-/// pointer until it is released; none of that may reach the speaker. True from the Escape
-/// frame through the release frame.
-pub(super) fn drag_aborted(ui: &Ui, response: &Response) -> bool {
-    let id = response.id.with(DRAG_ABORTED_ID);
-    let was_aborted = ui.data(|data| data.get_temp::<bool>(id)).unwrap_or(false);
-    let escape = ui.input(|input| input.key_pressed(Key::Escape));
-    let aborted = was_aborted || (escape && response.drag_stopped());
-    let button_down = ui.input(|input| input.pointer.primary_down());
-    ui.data_mut(|data| data.insert_temp(id, aborted && button_down));
-    aborted
 }

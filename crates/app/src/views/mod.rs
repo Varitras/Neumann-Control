@@ -5,6 +5,7 @@ pub mod compact;
 mod compact_menu;
 mod details;
 mod details_fields;
+mod drag;
 pub mod eq_graph;
 pub mod eq_table;
 pub mod eq_window;
