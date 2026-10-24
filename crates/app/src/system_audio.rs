@@ -245,4 +245,31 @@ mod tests {
         assert_eq!(peak_db(0.0, -120.0), -120.0);
         assert_eq!(peak_db(1e-9, -60.0), -60.0);
     }
+
+    fn names(mask: Option<u32>, count: usize) -> Vec<String> {
+        channel_names(mask, count)
+    }
+
+    /// Windows orders the channels by the mask's bits: on 7.1 the rear pair comes before the
+    /// side pair, quad has no centre.
+    #[test]
+    fn channels_are_named_in_the_order_of_their_mask() {
+        let surround_7_1 = 0x63F;
+        assert_eq!(
+            names(Some(surround_7_1), 8),
+            ["L", "R", "C", "LFE", "BL", "BR", "SL", "SR"]
+        );
+        let surround_5_1 = 0x60F;
+        assert_eq!(names(Some(surround_5_1), 6), ["L", "R", "C", "LFE", "SL", "SR"]);
+        let quad = 0x33;
+        assert_eq!(names(Some(quad), 4), ["L", "R", "BL", "BR"]);
+    }
+
+    /// Without a mask only stereo is sure; a channel the mask does not cover keeps its number.
+    #[test]
+    fn channels_without_a_mask_are_numbered() {
+        assert_eq!(names(None, 2), ["L", "R"]);
+        assert_eq!(names(None, 3), ["1", "2", "3"]);
+        assert_eq!(names(Some(0x3), 3), ["L", "R", "3"]);
+    }
 }
