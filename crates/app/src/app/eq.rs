@@ -404,7 +404,7 @@ impl NeumannApp {
             crossover: shown.container.crossover,
         });
         let viewport = ViewportId::from_hash_of(id);
-        let opening = self.opening(context, viewport, WindowKind::Eq, &window.key);
+        let opening = self.opening(context, viewport, WindowKind::Eq, index);
         let view = EqView {
             viewport,
             opening,
@@ -429,8 +429,7 @@ impl NeumannApp {
             file_report: &window.file_report,
         };
         let actions = eq_window::show(context, &view);
-        let (viewport, key) = (view.viewport, self.eq_windows[index].key.clone());
-        self.remember_place(context, viewport, WindowKind::Eq, &key);
+        self.remember_place(context, view.viewport, WindowKind::Eq);
         self.eq_windows[index].candidates = candidate_keys;
         actions
     }

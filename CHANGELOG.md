@@ -10,8 +10,10 @@
   its own strip and compact buttons, starting as its model's.
 - **Strip colour** for groups (group dialog) and speakers (device panel): the default, none, or
   an own colour.
-- The device panel, the EQ window and **All values** open where and as large as they were
-  left, per speaker, also after a restart.
+- The device panel, the EQ window, **All values** and **Settings** open where and as large as
+  the last one of their kind was left, for every speaker, also after a restart; a further one
+  opens a little offset. A window left maximized, the main window too, opens maximized again.
+- **Settings** is a window of its own instead of a dialog over the desk.
 - The toolbar says when the settings file was set aside or only partly understood at the start.
 - Starting the app again in the same folder brings the running window to the front instead of
   opening a second app, which would overwrite the first one's settings.

@@ -64,7 +64,7 @@ mod preset_dialogs;
 mod system_volume;
 mod window_places;
 
-use window_places::WindowKind;
+use window_places::{cascaded, WindowKind};
 
 pub use history::TakeBackNotice;
 
@@ -533,12 +533,16 @@ impl NeumannApp {
             }
             let key = self.speakers[index].state.key.clone();
             let viewport = all_values::viewport_of(&key);
-            let opening = self.opening(context, viewport, WindowKind::AllValues, &key);
+            let open_before = self.speakers[..index]
+                .iter()
+                .filter(|speaker| speaker.state.all_values != AllValuesState::Idle)
+                .count();
+            let opening = self.opening(context, viewport, WindowKind::AllValues, open_before);
             let speaker = &mut self.speakers[index];
             for command in all_values::show(context, &mut speaker.state, catalog, opening) {
                 speaker.handle.send(command);
             }
-            self.remember_place(context, viewport, WindowKind::AllValues, &key);
+            self.remember_place(context, viewport, WindowKind::AllValues);
         }
     }
 
@@ -586,14 +590,13 @@ impl NeumannApp {
             return true;
         };
         let viewport = open.viewport;
-        let key = open.key.clone();
-        let opening = match self.opening(context, viewport, WindowKind::Panel, &key) {
+        let opening = match self.opening(context, viewport, WindowKind::Panel, panel) {
             // Never left anywhere: at the main window, as tall as the screen allows.
             Opening::Default => {
                 let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
                     (input.viewport().outer_rect, input.viewport().monitor_size)
                 });
-                Opening::At(panel::first_place(main, monitor))
+                cascaded(Opening::At(panel::first_place(main, monitor)), panel)
             }
             other => other,
         };
@@ -650,7 +653,7 @@ impl NeumannApp {
             &choice,
             layout.as_ref(),
         );
-        self.remember_place(context, viewport, WindowKind::Panel, &key);
+        self.remember_place(context, viewport, WindowKind::Panel);
         if let Some(change) = &response.layout {
             self.change_layout(&owner, change, catalog);
         }
@@ -774,7 +777,18 @@ impl NeumannApp {
             return;
         }
         let labels = curve_labels();
-        match settings_dialog::show(ui, &mut self.settings, &self.audio_devices, &labels) {
+        let context = ui.ctx().clone();
+        let viewport = settings_dialog::viewport();
+        let opening = self.opening(&context, viewport, WindowKind::Settings, 0);
+        let action = settings_dialog::show(
+            &context,
+            opening,
+            &mut self.settings,
+            &self.audio_devices,
+            &labels,
+        );
+        self.remember_place(&context, viewport, WindowKind::Settings);
+        match action {
             SettingsAction::Changed => {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));

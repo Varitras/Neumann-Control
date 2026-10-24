@@ -686,12 +686,12 @@ fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     wait_for_label(harness, texts::THEME.get());
 }
 
-/// The settings close at their top right too, as a window does.
+/// A window of their own, the settings close on Escape as the other windows do.
 #[test]
-fn the_settings_close_from_their_top_right() {
+fn escape_closes_the_settings_window() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     open_settings(&mut harness);
-    harness.get_by_label(texts::CLOSE_SETTINGS.get()).click();
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
 }

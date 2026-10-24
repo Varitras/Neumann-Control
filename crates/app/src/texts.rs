@@ -314,7 +314,6 @@ pub const DETAILS: Text = Text::new("Details", "Details");
 pub const SETTINGS: Text = Text::new("Einstellungen", "Settings");
 pub const COMPACT: Text = Text::new("Kompakt", "Compact");
 pub const COMPACT_HINT: Text = Text::new("Strg+K", "Ctrl+K");
-pub const CLOSE_SETTINGS: Text = Text::new("Einstellungen schließen", "Close settings");
 pub const SETTINGS_TITLE: Text = Text::new("Einstellungen", "Settings");
 pub const THEME: Text = Text::new("Darstellung", "Appearance");
 /// Theme and language that follow Windows.

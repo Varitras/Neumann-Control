@@ -1,29 +1,30 @@
-//! The settings dialog behind the toolbar's "Einstellungen": theme, language, meter range,
-//! response times, crossovers, the Windows strip and the EQ graph's display. Every change applies
-//! at once; the app saves it.
+//! The settings behind the toolbar's "Einstellungen", in a window of their own: theme,
+//! language, meter range, response times, crossovers, the Windows strip and the EQ graph's
+//! display. Every change applies at once; the app saves it. Escape, **Close** or the window's
+//! close button close it.
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
 use eframe::egui::{
-    Align, Button, ComboBox, Grid, Id, Layout, Modal, Role, ScrollArea, Theme, Ui, WidgetInfo,
+    self, ComboBox, Context, Grid, Id, ScrollArea, Theme, Ui, Vec2, ViewportBuilder, ViewportClass,
+    ViewportId,
 };
 use neumann_control_core::settings::{
     BandCurves, CrossoverGuard, DelayUnit, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
     SystemAudioSettings, ThemeChoice,
 };
 
+use super::{escape_closes, placed, Opening};
 use crate::system_audio::AudioDevice;
 use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COLOR_COUNT};
 
-/// The mark of the close button at the top right, as on a window.
-const CLOSE_MARK: &str = "×";
-const MODAL_ID: &str = "settings_dialog";
+const WINDOW_ID: &str = "settings_window";
+const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
+const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
 const METER_FLOOR_ID: &str = "meter_floor";
 const BAND_GRID_ID: &str = "band_colors";
 const BAND_COLUMNS: usize = 10;
-/// Taller than this, the dialog scrolls.
-const DIALOG_MAX_HEIGHT: f32 = 600.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsAction {
@@ -32,23 +33,41 @@ pub enum SettingsAction {
     Close,
 }
 
+/// The settings window's viewport, to read where the user left it.
+pub fn viewport() -> ViewportId {
+    ViewportId::from_hash_of(Id::unique(WINDOW_ID))
+}
+
 /// `curve_labels`: each curve's settings key with its name, as the EQ window's tabs say it.
 pub fn show(
-    ui: &mut Ui,
+    context: &Context,
+    opening: Opening,
     settings: &mut Settings,
     devices: &[AudioDevice],
     curve_labels: &[(String, String)],
 ) -> SettingsAction {
-    let modal = Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| {
-        ScrollArea::vertical()
-            .max_height(DIALOG_MAX_HEIGHT)
-            .show(ui, |ui| contents(ui, settings, devices, curve_labels))
-            .inner
-    });
-    if modal.should_close() {
-        return SettingsAction::Close;
-    }
-    modal.inner
+    let builder = ViewportBuilder::default()
+        .with_title(texts::SETTINGS_TITLE.get())
+        .with_min_inner_size(SETTINGS_WINDOW_MIN_SIZE);
+    let builder = placed(builder, opening, Vec2::from(SETTINGS_WINDOW_SIZE));
+    context.show_viewport_immediate(viewport(), builder, |ui, class| {
+        let mut scrolled = |ui: &mut Ui| {
+            ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| contents(ui, settings, devices, curve_labels))
+                .inner
+        };
+        let action = match class {
+            ViewportClass::EmbeddedWindow => scrolled(ui),
+            _ => egui::CentralPanel::default().show(ui, scrolled).inner,
+        };
+        let escape = escape_closes(ui, Id::unique(WINDOW_ID));
+        let close_requested = ui.input(|input| input.viewport().close_requested());
+        if escape || close_requested {
+            return SettingsAction::Close;
+        }
+        action
+    })
 }
 
 fn contents(
@@ -63,22 +82,6 @@ fn contents(
         settings.eq_display.clone(),
     );
     let desk = &mut settings.desk;
-    let closed = ui
-        .horizontal(|ui| {
-            ui.heading(texts::SETTINGS_TITLE);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let close = ui.add(Button::new(CLOSE_MARK).frame(false));
-                close.widget_info(|| {
-                    WidgetInfo::labeled(Role::Button, true, texts::CLOSE_SETTINGS.get())
-                });
-                close.on_hover_text(texts::CLOSE).clicked()
-            })
-            .inner
-        })
-        .inner;
-    if closed {
-        return SettingsAction::Close;
-    }
     ui.label(texts::THEME);
     ui.horizontal(|ui| {
         ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::LIKE_WINDOWS);

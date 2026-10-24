@@ -1,12 +1,11 @@
 //! Everything the settings keep by a speaker's identity follows it when the identity changes
 //! (its serial became known) and goes when the speaker is removed: its group and place in the
-//! order, its strip colour, its own layouts and where its windows were.
+//! order, its strip colour and its own layouts.
 
 use std::collections::BTreeMap;
 
 use neumann_control_core::settings::Settings;
 
-use super::window_places::{place_key, WindowKind};
 use crate::groups::{forget_member, rename_member};
 
 /// `old` became `new`; true when anything changed. Where `new` already has a value, it stays.
@@ -16,10 +15,6 @@ pub(super) fn rename_member_settings(settings: &mut Settings, old: &str, new: &s
     let desk = &mut settings.desk;
     changed |= rename_key(&mut desk.speaker_strip_layouts, old, new);
     changed |= rename_key(&mut desk.speaker_compact_layouts, old, new);
-    for kind in WindowKind::ALL {
-        let (old, new) = (place_key(kind, old), place_key(kind, new));
-        changed |= rename_key(&mut settings.windows, &old, &new);
-    }
     changed
 }
 
@@ -31,9 +26,6 @@ pub(super) fn forget_member_settings(settings: &mut Settings, ids: &[String]) ->
         let desk = &mut settings.desk;
         forgotten |= desk.speaker_strip_layouts.remove(id).is_some();
         forgotten |= desk.speaker_compact_layouts.remove(id).is_some();
-        for kind in WindowKind::ALL {
-            forgotten |= settings.windows.remove(&place_key(kind, id)).is_some();
-        }
     }
     forgotten
 }
@@ -49,12 +41,12 @@ fn rename_key<T>(map: &mut BTreeMap<String, T>, old: &str, new: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neumann_control_core::settings::{ColorChoice, StoredStripLayout, WindowGeometry};
+    use neumann_control_core::settings::{ColorChoice, StoredStripLayout};
 
     const OLD: &str = "address:192.0.2.10";
     const NEW: &str = "serial:SIM0001234";
 
-    /// A speaker with a colour, an own strip and compact layout and a saved EQ window.
+    /// A speaker with a colour and an own strip and compact layout.
     fn known_as(member: &str) -> Settings {
         let mut settings = Settings::default();
         settings.order.push(member.to_owned());
@@ -69,16 +61,6 @@ mod tests {
             .desk
             .speaker_compact_layouts
             .insert(member.to_owned(), Vec::new());
-        let geometry = WindowGeometry {
-            x: 1.0,
-            y: 2.0,
-            width: 300.0,
-            height: 200.0,
-            maximized: false,
-        };
-        settings
-            .windows
-            .insert(place_key(WindowKind::Eq, member), geometry);
         settings
     }
 
@@ -86,29 +68,23 @@ mod tests {
         settings.strip_colors.contains_key(member)
             || settings.desk.speaker_strip_layouts.contains_key(member)
             || settings.desk.speaker_compact_layouts.contains_key(member)
-            || WindowKind::ALL
-                .iter()
-                .any(|kind| settings.windows.contains_key(&place_key(*kind, member)))
     }
 
     #[test]
-    fn a_removed_speaker_leaves_no_colour_layout_or_window_place() {
+    fn a_removed_speaker_leaves_no_colour_or_layout() {
         let mut settings = known_as(NEW);
         assert!(forget_member_settings(&mut settings, &[NEW.to_owned()]));
         assert!(!keeps_anything_of(&settings, NEW));
     }
 
     #[test]
-    fn a_speaker_whose_serial_became_known_keeps_its_colour_layouts_and_windows() {
+    fn a_speaker_whose_serial_became_known_keeps_its_colour_and_layouts() {
         let mut settings = known_as(OLD);
         assert!(rename_member_settings(&mut settings, OLD, NEW));
         assert!(!keeps_anything_of(&settings, OLD));
         assert_eq!(settings.strip_colors.get(NEW), Some(&ColorChoice::Off));
         assert!(settings.desk.speaker_strip_layouts.contains_key(NEW));
         assert!(settings.desk.speaker_compact_layouts.contains_key(NEW));
-        assert!(settings
-            .windows
-            .contains_key(&place_key(WindowKind::Eq, NEW)));
     }
 
     /// Known under both identities, the newer one's colour wins over the older one's.

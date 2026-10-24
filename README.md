@@ -217,8 +217,8 @@ while a warning was active. Hover over them for the value and how long ago it wa
 Gaps mark the times the speaker could not be read.
 
 To remove a speaker, press **Remove** in its panel and confirm. The speaker is no
-longer remembered, and it also leaves its group and its place in the order; its strip colour,
-its own layouts and where its windows were are forgotten.
+longer remembered, and it also leaves its group and its place in the order; its strip colour
+and its own layouts are forgotten.
 
 ### Groups and master
 
@@ -345,7 +345,8 @@ recorded.
 
 ### Settings
 
-**Settings** sets:
+**Settings** opens a window of its own (Escape, **Close** or the window's close button close
+it). It sets:
 
 - the theme: like Windows, light or dark,
 - the language: like Windows, German or English. It changes at once. German shows a decimal
@@ -423,7 +424,7 @@ place you choose:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position and size for the desk and the compact mode and for each speaker's device panel, EQ and **All values** window, the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values** and **Settings** (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start |
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
