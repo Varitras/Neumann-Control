@@ -852,7 +852,7 @@ pub fn trends_title(window_seconds: f64) -> String {
 /// The left end of a trend's time axis: "−2 h" for whole hours, else "−25 min".
 pub fn trend_start(span_seconds: f64) -> String {
     let minutes = whole_minutes(span_seconds);
-    if minutes > 0 && minutes % MINUTES_PER_HOUR == 0 {
+    if minutes > 0 && minutes.is_multiple_of(MINUTES_PER_HOUR) {
         return format!("−{} h", minutes / MINUTES_PER_HOUR);
     }
     format!("−{minutes} min")
