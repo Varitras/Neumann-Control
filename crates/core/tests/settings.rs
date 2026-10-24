@@ -612,3 +612,38 @@ fn an_unreadable_compact_button_is_left_out_alone() {
     assert_eq!(layouts["KH 750"], vec![CompactButton::Details]);
     assert!(!layouts.contains_key("KH 80"));
 }
+
+/// Every map the settings keep by name keeps its readable entries when one is not understood;
+/// before, one bad colour or window place took all of them.
+#[test]
+fn every_settings_map_keeps_its_readable_entries() {
+    type Count = fn(&Settings) -> usize;
+    let cases: [(&str, Count); 5] = [
+        (
+            r#"{"windows": {"eq a": {"x": 1, "y": 2, "width": 300, "height": 200}, "eq b": 5}}"#,
+            |settings| settings.windows.len(),
+        ),
+        (
+            r#"{"strip_colors": {"serial:A": "off", "serial:B": {"palette": 3}}}"#,
+            |settings| settings.strip_colors.len(),
+        ),
+        (
+            r#"{"known": {"SIM0001234": {"name": "L", "product": "KH 120 II"}, "SIM0001235": 7}}"#,
+            |settings| settings.known.len(),
+        ),
+        (
+            r##"{"eq_display": {"band_colors": {"1": "#112233", "2": 9}}}"##,
+            |settings| settings.eq_display.band_colors.len(),
+        ),
+        (
+            r##"{"eq_display": {"curve_colors": {"eq2": "#112233", "eq1": false}}}"##,
+            |settings| settings.eq_display.curve_colors.len(),
+        ),
+    ];
+    for (text, count) in cases {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(SETTINGS_FILE);
+        fs::write(&path, text).unwrap();
+        assert_eq!(count(&load(&path)), 1, "{text}");
+    }
+}
