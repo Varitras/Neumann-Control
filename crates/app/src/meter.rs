@@ -111,7 +111,9 @@ impl MeterState {
         self.start_time = now;
         self.level = level;
         let hold_expired = now - self.peak_since >= PEAK_HOLD_SECONDS;
-        if level >= self.peak || hold_expired {
+        // After the hold the peak is the falling bar; only a reading above it holds anew.
+        let above_falling_bar = hold_expired && level >= self.start;
+        if level >= self.peak || above_falling_bar {
             self.peak = level;
             self.peak_since = now;
         }
@@ -205,6 +207,19 @@ mod tests {
         assert_eq!(meter.readout(1.75, -120.0), Some(-24));
         meter.update(-3.0, 1.8);
         assert_eq!(meter.readout(1.8, -120.0), Some(-3));
+    }
+
+    /// Playback stopped: the speaker reports silence ten times a second while the bar still
+    /// falls; the number and the peak line follow the bar instead of the silence.
+    #[test]
+    fn after_the_hold_the_peak_follows_the_bar_while_silence_is_reported() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        for tenth in 1..=16 {
+            meter.update(-160.0, f64::from(tenth) / 10.0);
+        }
+        assert_eq!(meter.peak(1.6), meter.shown(1.6));
+        assert!(meter.readout(1.6, -120.0).is_some());
     }
 
     #[test]
