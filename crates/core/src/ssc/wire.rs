@@ -20,7 +20,6 @@ pub const MAX_REQUEST_TOKENS: usize = 29;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WireError {
     InvalidPath,
-    NonFinite,
     Malformed,
     NotAnObject,
 }
@@ -29,7 +28,6 @@ impl fmt::Display for WireError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
             WireError::InvalidPath => "invalid SSC path",
-            WireError::NonFinite => "number is not finite",
             WireError::Malformed => "malformed JSON line",
             WireError::NotAnObject => "line is not a JSON object",
         };
@@ -223,13 +221,6 @@ pub fn token_count(value: &Value) -> usize {
         Value::Array(entries) => 1 + entries.iter().map(token_count).sum::<usize>(),
         _ => 1,
     }
-}
-
-/// A JSON number for a set request; NaN and infinities have no JSON form.
-pub fn number(value: f64) -> Result<Value, WireError> {
-    Number::from_f64(value)
-        .map(Value::Number)
-        .ok_or(WireError::NonFinite)
 }
 
 /// The value at `path` if present and not `null`.

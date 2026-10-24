@@ -1,6 +1,6 @@
 use neumann_control_core::ssc::wire::{
-    device_error, extract, number, parse_line, reply_xid, request_line, token_count, DeviceError,
-    SscPath, WireError, MAX_REQUEST_TOKENS,
+    device_error, extract, parse_line, reply_xid, request_line, token_count, DeviceError, SscPath,
+    WireError, MAX_REQUEST_TOKENS,
 };
 use serde_json::{json, Value};
 
@@ -132,14 +132,6 @@ fn request_line_nests_path_and_xid() {
         json!({"osc": {"xid": 6, "schema": null}})
     );
     assert!(!line.contains('\n'));
-}
-
-#[test]
-fn non_finite_number_is_refused() {
-    assert_eq!(number(f64::NAN), Err(WireError::NonFinite));
-    assert_eq!(number(f64::INFINITY), Err(WireError::NonFinite));
-    assert_eq!(number(f64::NEG_INFINITY), Err(WireError::NonFinite));
-    assert_eq!(number(1.5), Ok(json!(1.5)));
 }
 
 #[test]

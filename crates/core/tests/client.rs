@@ -170,29 +170,6 @@ fn limits_of_unknown_path_is_device_error_454() {
     assert_eq!(device_code(error), DeviceError::PARAMETER_NOT_FOUND);
 }
 
-#[test]
-fn non_finite_set_is_refused_before_sending() {
-    let (simulator, mut client) = start(SimModel::Kh750);
-    let before = simulator.requests().len();
-    let error = client
-        .set_number(&path("audio/out/level"), f64::NAN)
-        .unwrap_err();
-    assert!(matches!(error, SscError::Protocol(_)), "got {error:?}");
-    let error = client
-        .set_number(&path("audio/out/level"), f64::INFINITY)
-        .unwrap_err();
-    assert!(matches!(error, SscError::Protocol(_)), "got {error:?}");
-    assert_eq!(simulator.requests().len(), before);
-    assert!(!client.is_closed());
-}
-
-#[test]
-fn set_number_sends_a_finite_number() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
-    let confirmed: Value = client.set_number(&path("audio/out/level"), 90.0).unwrap();
-    assert_eq!(confirmed, json!(90.0));
-}
-
 const SHORT_LINE: &str = "{\"x\":1}
 ";
 const BIG_LINE_BYTES: usize = 900 * 1024;

@@ -88,7 +88,7 @@ const READ_ONLY_COMMON: &[&str] = &[
 /// Refused with 405 on the KH 120 II in the hardware write tests; `ui/control_mode` follows
 /// the rear CONTROL switch.
 const READ_ONLY_KH_120_II: &[&str] = &[
-    "ui/control_mode",
+    CONTROL_MODE_PATH,
     "ui/input_gain",
     "ui/input_select",
     "ui/bass_gain",
@@ -101,7 +101,7 @@ const READ_ONLY_KH_120_II: &[&str] = &[
 /// `ui/auto_standby` follow rear switches), plus the sensors the integration models as
 /// read-only. `device/standby/enabled` is writable on the KH 120 II only.
 const READ_ONLY_KH_750: &[&str] = &[
-    "ui/control_mode",
+    CONTROL_MODE_PATH,
     "ui/auto_standby",
     "ui/bass_management",
     "ui/channel_b_input_mode",

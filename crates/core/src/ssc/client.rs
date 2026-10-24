@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 
 use crate::mask::mask_host;
 use crate::ssc::wire::{
-    device_error, extract, number, parse_line, reply_xid, request_line, DeviceError, SscPath,
+    device_error, extract, parse_line, reply_xid, request_line, DeviceError, SscPath,
 };
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -24,7 +24,7 @@ pub const MAX_RESPONSE_BYTES: usize = 4 * MAX_LINE_BYTES;
 pub const MAX_READ_DURATION: Duration = Duration::from_secs(10);
 
 const READ_CHUNK_BYTES: usize = 8192;
-const LINE_TERMINATOR: &str = "\r\n";
+pub const LINE_TERMINATOR: &str = "\r\n";
 const FIRST_XID: u64 = 1;
 const SCHEMA_PATH: &str = "osc/schema";
 const LIMITS_PATH: &str = "osc/limits";
@@ -227,12 +227,6 @@ impl Client {
     pub fn set(&mut self, path: &SscPath, value: Value) -> Result<Value, SscError> {
         let reply = self.exchange(path, value)?;
         confirmed_value(&reply, path)
-    }
-
-    /// Like `set` for a number; NaN and infinities have no JSON form and are never sent.
-    pub fn set_number(&mut self, path: &SscPath, value: f64) -> Result<Value, SscError> {
-        let value = number(value).map_err(|error| SscError::Protocol(error.to_string()))?;
-        self.set(path, value)
     }
 
     /// The children of `path` (the root for `None`) and whether each is a container.

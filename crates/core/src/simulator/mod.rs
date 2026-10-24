@@ -13,11 +13,10 @@ use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
+use crate::ssc::client::{LINE_TERMINATOR, MAX_LINE_BYTES};
 use crate::ssc::wire::parse_line;
 use device::{encode_line, SimulatedDevice};
 
-const LINE_TERMINATOR: &str = "\r\n";
-const LINE_LIMIT_BYTES: usize = 1_048_576;
 const FOREIGN_XID_OFFSET: u64 = 1000;
 const FILLER_BYTE: char = 'a';
 // Windows does not wake a blocked read when another handle of the socket is shut down, so
@@ -185,7 +184,7 @@ fn is_poll_timeout(error: &io::Error) -> bool {
 }
 
 fn overlong_line() -> String {
-    FILLER_BYTE.to_string().repeat(LINE_LIMIT_BYTES + 1)
+    FILLER_BYTE.to_string().repeat(MAX_LINE_BYTES + 1)
 }
 
 fn accept_loop(shared: Arc<Shared>, listener: TcpListener) {
