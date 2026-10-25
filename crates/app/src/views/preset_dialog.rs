@@ -36,6 +36,7 @@ pub fn in_window<R>(
         context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
     }
     context.show_viewport_immediate(viewport, builder, |ui, class| {
+        super::note_repaint_causes(ui);
         let result = match class {
             ViewportClass::EmbeddedWindow => body(ui),
             _ => egui::CentralPanel::default().show(ui, &mut body).inner,

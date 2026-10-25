@@ -401,8 +401,8 @@ it). It sets:
   [Keyboard shortcuts](#keyboard-shortcuts)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
   holds every write with its path and value (texts such as names left out), every failed request,
-  where windows open and every ten seconds how many frames the window drew and how long they
-  took, for troubleshooting,
+  where windows open and every ten seconds how many frames the window drew, how long they took
+  and what asked for them most, for troubleshooting,
 - whether the EQ crossovers are protected (off by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),

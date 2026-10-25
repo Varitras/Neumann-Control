@@ -984,12 +984,25 @@ pub fn window_geometry(
 impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
         let now = context.input(|input| input.time);
-        if let Some(summary) = self.frame_stats.record(now, frame.info().cpu_usage) {
+        let causes = match log::log_enabled!(log::Level::Debug) {
+            true => crate::views::take_repaint_causes(context),
+            false => Vec::new(),
+        };
+        if let Some(summary) = self
+            .frame_stats
+            .record(now, frame.info().cpu_usage, &causes)
+        {
+            let asked: Vec<String> = summary
+                .causes
+                .iter()
+                .map(|(cause, frames)| format!("{cause} ({frames})"))
+                .collect();
             log::debug!(
-                "frames: {:.1} per second, {:.2} ms on average, {:.2} ms at most",
+                "frames: {:.1} per second, {:.2} ms on average, {:.2} ms at most; asked most by {}",
                 summary.frames_per_second,
                 summary.average_milliseconds,
-                summary.longest_milliseconds
+                summary.longest_milliseconds,
+                asked.join(", ")
             );
         }
         self.drain_events(now);

@@ -108,6 +108,7 @@ pub fn show(
         .with_min_inner_size(PANEL_WINDOW_MIN_SIZE);
     let builder = placed(builder, opening, Vec2::from(PANEL_WINDOW_SIZE));
     context.show_viewport_immediate(viewport, builder, |ui, class| {
+        super::note_repaint_causes(ui);
         wheel::track_burst(ui.ctx());
         // Several panels can be open; their widgets must not share state.
         let mut response = ui

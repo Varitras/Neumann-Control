@@ -38,6 +38,7 @@ pub fn show(
     let builder = placed(builder, opening, Vec2::from(DEFAULT_WINDOW_SIZE));
     let mut commands = Vec::new();
     let close = context.show_viewport_immediate(viewport, builder, |ui, class| {
+        super::note_repaint_causes(ui);
         ui.push_id(viewport, |ui| match class {
             ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, &mut commands),
             _ => {

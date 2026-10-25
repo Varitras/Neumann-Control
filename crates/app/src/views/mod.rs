@@ -33,9 +33,12 @@ pub mod wheel;
 
 pub(crate) use meters::METER_FRAME;
 
-use eframe::egui::{self, Id, Key, Role, Ui, UiBuilder, ViewportBuilder};
+use eframe::egui::{self, Context, Id, Key, Role, Ui, UiBuilder, ViewportBuilder};
+
+use crate::frame_stats::cause_name;
 
 const BUSY_ID: &str = "escape_busy";
+const REPAINT_CAUSES_ID: &str = "repaint_causes";
 
 /// Whether Escape closes the window `window` (any id of it) in this frame. Escape first ends
 /// what is going on in the window: typing in a field, an open list, a drag. egui ends those on
@@ -50,6 +53,32 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
         || egui::Popup::is_any_open(context);
     ui.data_mut(|data| data.insert_temp(busy_id, busy));
     !was_busy && !busy && ui.input(|input| input.key_pressed(Key::Escape))
+}
+
+/// Notes what asked for this frame of the window `ui` draws, for the detailed log: egui keeps a
+/// window's causes apart from the main window's, which draws it.
+pub(crate) fn note_repaint_causes(ui: &Ui) {
+    if !log::log_enabled!(log::Level::Debug) {
+        return;
+    }
+    let causes: Vec<String> = ui.ctx().repaint_causes().iter().map(cause_name).collect();
+    if causes.is_empty() {
+        return;
+    }
+    let id = Id::unique(REPAINT_CAUSES_ID);
+    ui.ctx().data_mut(|data| {
+        data.get_temp_mut_or_default::<Vec<String>>(id)
+            .extend(causes)
+    });
+}
+
+/// What asked for this frame: the main window's causes and those its windows noted.
+pub(crate) fn take_repaint_causes(context: &Context) -> Vec<String> {
+    let mut causes: Vec<String> = context.repaint_causes().iter().map(cause_name).collect();
+    let id = Id::unique(REPAINT_CAUSES_ID);
+    let noted = context.data_mut(|data| data.remove_temp::<Vec<String>>(id));
+    causes.extend(noted.unwrap_or_default());
+    causes
 }
 
 /// `contents` as one region a screen reader names `name`: one strip's "Pegel" or "Stumm" is then

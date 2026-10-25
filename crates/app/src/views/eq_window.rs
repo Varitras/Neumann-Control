@@ -144,6 +144,7 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
         .with_min_inner_size(EQ_WINDOW_MIN_SIZE);
     let builder = placed(builder, view.opening, Vec2::from(EQ_WINDOW_SIZE));
     context.show_viewport_immediate(view.viewport, builder, |ui, class| {
+        super::note_repaint_causes(ui);
         wheel::track_burst(ui.ctx());
         let mut actions = match class {
             ViewportClass::EmbeddedWindow => contents(ui, view),

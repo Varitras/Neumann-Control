@@ -50,6 +50,7 @@ pub fn show(
         .with_min_inner_size(SETTINGS_WINDOW_MIN_SIZE);
     let builder = placed(builder, opening, Vec2::from(SETTINGS_WINDOW_SIZE));
     context.show_viewport_immediate(viewport(), builder, |ui, class| {
+        super::note_repaint_causes(ui);
         let mut scrolled = |ui: &mut Ui| {
             ScrollArea::vertical()
                 .auto_shrink([false, false])
