@@ -21,8 +21,8 @@ const SOURCE_FOLDER: &str = "src";
 #[derive(Clone, Copy, Debug, Default)]
 pub struct FrameSample<'a> {
     pub now: f64,
-    /// eframe's time for the previous frame (none on the very first): wall time, waiting for the
-    /// GPU included, so it is no measure of CPU use on its own.
+    /// eframe's time for the previous frame (none on the very first), without the frame limit's
+    /// pause: wall time, waiting for the GPU included, so it is no measure of CPU use on its own.
     pub frame_seconds: Option<f32>,
     /// What asked for this frame.
     pub causes: &'a [String],

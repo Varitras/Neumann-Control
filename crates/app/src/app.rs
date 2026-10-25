@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui::{
     self, Context, Id, Key, KeyboardShortcut, Modifiers, Ui, ViewportCommand, ViewportId,
@@ -23,6 +23,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
+use crate::frame_limit::FrameLimit;
 use crate::frame_stats::{FrameSample, FrameStats};
 use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
@@ -157,6 +158,10 @@ pub struct NeumannApp {
     /// Windows had none of the keys: not asked again until the setting is switched on anew.
     global_keys_taken: bool,
     frame_stats: FrameStats,
+    /// Off in tests, whose frames would only wait.
+    frame_limit: Option<FrameLimit>,
+    /// How long the frame limit held this frame back, so the frame time logged next leaves it out.
+    paused: Duration,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -237,6 +242,8 @@ impl NeumannApp {
             global_listener: None,
             global_keys_taken: false,
             frame_stats: FrameStats::default(),
+            frame_limit: None,
+            paused: Duration::ZERO,
             audio_devices: Vec::new(),
             system_language,
         };
@@ -252,6 +259,11 @@ impl NeumannApp {
     /// What opens the manual and web pages and asks GitHub; the tests' stand-in.
     pub fn set_help(&mut self, help: Arc<dyn Help>) {
         self.help = help;
+    }
+
+    /// Keeps frames at least `MIN_FRAME_INTERVAL` apart, for the real window.
+    pub fn limit_frame_rate(&mut self) {
+        self.frame_limit = Some(FrameLimit::default());
     }
 
     pub fn set_global_keys(&mut self, global_keys: Box<dyn GlobalKeys>) {
@@ -983,8 +995,17 @@ pub fn window_geometry(
 
 impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
+        let pause = self
+            .frame_limit
+            .as_mut()
+            .map_or(Duration::ZERO, |limit| limit.pause(Instant::now()));
+        if !pause.is_zero() {
+            thread::sleep(pause);
+        }
+        // eframe times a frame from its start, so the previous frame's time holds its pause.
+        let paused_before = std::mem::replace(&mut self.paused, pause);
         let now = context.input(|input| input.time);
-        self.log_frame(context, frame, now);
+        self.log_frame(context, frame, now, paused_before);
         self.drain_events(now);
         if !self.dim_returns.is_empty() {
             self.return_from_dim(Catalog::embedded(), now);
@@ -1046,14 +1067,17 @@ fn curve_labels() -> Vec<(String, String)> {
 impl NeumannApp {
     /// Counts the frame for the detailed log's summary; outside the detailed log nothing is
     /// asked of egui or Windows.
-    fn log_frame(&mut self, context: &Context, frame: &eframe::Frame, now: f64) {
+    fn log_frame(&mut self, context: &Context, frame: &eframe::Frame, now: f64, paused: Duration) {
         if !log::log_enabled!(log::Level::Debug) {
             return;
         }
         let causes = crate::views::take_repaint_causes(context);
         let sample = FrameSample {
             now,
-            frame_seconds: frame.info().cpu_usage,
+            frame_seconds: frame
+                .info()
+                .cpu_usage
+                .map(|seconds| (seconds - paused.as_secs_f32()).max(0.0)),
             causes: &causes,
             process_cpu_seconds: crate::process_time::cpu_seconds(),
         };

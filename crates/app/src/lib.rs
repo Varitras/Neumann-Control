@@ -7,6 +7,7 @@ pub mod eq_file;
 pub mod eq_response;
 pub mod fader;
 pub mod file_dialog;
+pub mod frame_limit;
 pub mod frame_stats;
 pub mod gesture;
 pub mod global_keys;

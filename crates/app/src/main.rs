@@ -114,8 +114,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             let spawner = Box::new(CoreSpawner::new(context.clone()));
             let language = system_language::detect();
             let audio = Box::new(CoreAudio::new());
-            let app =
+            let mut app =
                 NeumannApp::with_settings(&context, settings_path, saved, spawner, audio, language);
+            app.limit_frame_rate();
             Ok(Box::new(app))
         }),
     )?;

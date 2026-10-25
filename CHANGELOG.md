@@ -89,8 +89,9 @@
 ### Changed
 
 - The window draws far less often: news from the speakers at most twenty times a second together
-  instead of one frame per reading, the busy spinner at a bounded rate, and the Windows volume
-  meters half as often in silence. With several speakers this takes about half the CPU.
+  instead of one frame per reading, never more than sixty frames a second (animations such as a
+  scroll bar fading in ran at hundreds), and the Windows volume meters half as often in silence.
+  With several speakers this takes about half the CPU, at startup much less.
 - The master strip and its compact row are hidden unless **Show master strip** is on in
   **Settings**; a settings file that already holds the choice keeps it.
 - Deleting a group, a settings preset or an EQ preset asks first.
