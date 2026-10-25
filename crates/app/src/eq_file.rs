@@ -636,6 +636,36 @@ Filter: ON PK Fc 200 Hz Gain 1 dB Q 1
         Filter 19: ON  None   \r\nFilter 20: ON  None   \r\n\
         Filter  1: ON  None      \r\nFilter  2: ON  None      \r\n\r\n";
 
+    /// Exported by Room EQ Wizard 5.31.3 (2026-10-25) with a plain `HP`, which has no Q: its .req
+    /// stores that filter with Q 1/√2 and a cookbook high pass of that Q at 96 kHz.
+    const REW_PLAIN_HIGH_PASS: &str = "Filter Settings file
+
+Room EQ V5.31.3
+\
+        Dated: 25.10.2026 12:07:38
+
+Notes:test
+
+Equaliser: Generic
+\
+        No measurement
+\
+        Filter  1: ON  PK       Fc   20.00 Hz  Gain   1.10 dB  Q 10.000
+\
+        Filter  2: ON  HP       Fc   25.00 Hz 
+\
+        Filter  3: ON  None   
+";
+
+    /// The file used to be refused: "Line 11: Q is missing."
+    #[test]
+    fn a_rew_plain_high_pass_is_read_with_its_butterworth_q() {
+        let imported = parse(REW_PLAIN_HIGH_PASS).unwrap();
+        let high_pass = imported.bands[&1].as_ref().unwrap();
+        assert_eq!((high_pass.kind, high_pass.frequency), ("HIGHPASS", 25.0));
+        near(high_pass.q, std::f64::consts::FRAC_1_SQRT_2);
+    }
+
     fn near(actual: f64, expected: f64) {
         assert!((actual - expected).abs() < 1e-5, "{actual} vs {expected}");
     }
