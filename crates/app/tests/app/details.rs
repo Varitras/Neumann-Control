@@ -1073,14 +1073,14 @@ fn the_panel_opens_on_the_tab_chosen_last() {
     assert_eq!(mutes.count(), 1, "the outputs again");
 }
 
-/// The name is set on the overview and on the device tab alike.
+/// The name is set on the overview only; the device tab shows it as text.
 #[test]
-fn the_name_is_on_the_overview_and_the_device_tab() {
+fn the_name_is_edited_on_the_overview_and_shown_on_the_device_tab() {
     let (_simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
     harness.get_by_role(Role::TextInput);
     show_tab(&mut harness, PanelTab::Device);
-    harness.get_by_role(Role::TextInput);
-    show_tab(&mut harness, PanelTab::Standby);
     assert!(harness.query_by_role(Role::TextInput).is_none());
+    assert!(harness.query_by_label(texts::APPLY.get()).is_none());
+    assert_eq!(role_of(&harness, "Name"), Role::Label);
 }
