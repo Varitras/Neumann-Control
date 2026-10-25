@@ -1164,3 +1164,15 @@ fn the_detailed_log_is_switched_in_the_settings() {
             .detailed_log
     );
 }
+
+/// Each strip is a group named after its speaker or group, so a screen reader tells one strip's
+/// "Pegel" or "Stumm" from the others'.
+#[test]
+fn each_strip_is_a_group_named_after_what_it_shows() {
+    let (_kh120, _kh750, _directory, harness) = grouped(Vec::new());
+    for name in [KH120_DEVICE_NAME, KH750_DEVICE_NAME] {
+        let strip = harness.get_by_role_and_label(Role::Group, name);
+        strip.get_by_role_and_label(Role::CheckBox, texts::MUTE.get());
+    }
+    harness.get_by_role_and_label(Role::Group, GROUP_NAME);
+}

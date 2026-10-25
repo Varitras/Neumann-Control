@@ -1233,3 +1233,10 @@ fn an_eq_export_of_a_kh750_names_the_output() {
         "{suggested:?}"
     );
 }
+
+/// The type choice of each band is named by its band, as its column title says it.
+#[test]
+fn each_bands_type_choice_is_named() {
+    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    harness.get_by_role_and_label(Role::ComboBox, &texts::eq_band_leaf(1, "Typ"));
+}
