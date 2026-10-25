@@ -369,6 +369,13 @@ pub fn wait_for_level(harness: &mut Harness<'static, NeumannApp>, value: f64) {
 pub const BARRIER_REQUESTS: usize = 2;
 
 /// Waits without drawing frames, so the window sends nothing new meanwhile.
+/// The speaker answered every write sent so far and the app read the answers: a write only
+/// received when the speaker goes away counts as not written, and closes its change.
+pub fn writes_answered(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
+    barrier(simulator);
+    harness.run_steps(2);
+}
+
 pub fn barrier(simulator: &Simulator) {
     let start = simulator.requests().len();
     let deadline = Instant::now() + WAIT_LIMIT;

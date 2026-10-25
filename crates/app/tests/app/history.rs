@@ -162,7 +162,7 @@ fn a_speaker_left_out_of_a_take_back_is_named_once() {
     wait_until(&mut harness, "the preset written", |_| {
         level_sets(&simulator) == [90.0]
     });
-    harness.run_steps(2);
+    writes_answered(&mut harness, &simulator);
     let id = entries(&harness)[0].id;
     assert_eq!(entries(&harness)[0].changes.len(), 2);
     simulator.stop();
@@ -231,6 +231,7 @@ fn an_unreachable_speaker_stays_open() {
     wait_until(&mut harness, "group mute", |_| {
         !sets(&kh120, MUTE_POINTER).is_empty() && !sets(&kh750, MUTE_POINTER).is_empty()
     });
+    writes_answered(&mut harness, &kh750);
     kh750.stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     let id = entries(&harness)[0].id;
@@ -262,6 +263,9 @@ fn mute_change(before: bool, after: bool) -> String {
     )
 }
 
+/// Long enough that the answer to a write is still on its way when the request has arrived.
+const SLOW_ANSWER: std::time::Duration = std::time::Duration::from_millis(200);
+
 fn click_mute(
     harness: &mut Harness<'static, NeumannApp>,
     simulator: &neumann_control_core::simulator::Simulator,
@@ -271,7 +275,7 @@ fn click_mute(
     wait_until(harness, "mute", |_| {
         sets(simulator, MUTE_POINTER).len() == count
     });
-    harness.run_steps(2);
+    writes_answered(harness, simulator);
 }
 
 #[test]
@@ -356,6 +360,8 @@ fn ctrl_z_in_a_text_field_does_not_take_back() {
 #[test]
 fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    // A slow answer, as under load: the test must wait for it before the speaker goes away.
+    simulator.set_reply_delay(SLOW_ANSWER);
     click_mute(&mut harness, &simulator, 1);
     simulator.stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
