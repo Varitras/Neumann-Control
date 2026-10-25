@@ -652,3 +652,16 @@ fn every_settings_map_keeps_its_readable_entries() {
         assert_eq!(count(&load(&path)), 1, "{text}");
     }
 }
+
+/// Out of the box the master strip is hidden and the crossovers may be changed; a crossover value
+/// that cannot be read still falls back to protected.
+#[test]
+fn the_master_is_hidden_and_the_crossovers_open_by_default() {
+    let desk = DeskSettings::default();
+    assert!(!desk.show_master);
+    assert_eq!(desk.crossovers, CrossoverGuard::Open);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"desk": {"crossovers": 7}}"#).unwrap();
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
+}
