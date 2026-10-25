@@ -1100,3 +1100,16 @@ fn the_name_is_edited_on_the_overview_and_shown_on_the_device_tab() {
     assert!(harness.query_by_label(texts::APPLY.get()).is_none());
     assert_eq!(role_of(&harness, "Name"), Role::Label);
 }
+
+/// 184 samples are 3.8333… ms: the field shows two decimals, not the binary fraction.
+#[test]
+fn a_delay_field_shows_its_milliseconds_rounded() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value("audio/out/delay", json!(184));
+    wait_until(&mut harness, "the reported delay", |harness| {
+        numeric_value(harness, DELAY_LABEL) == Some(184.0)
+    });
+    let shown = number_field(&harness, DELAY_LABEL).value();
+    assert_eq!(shown.as_deref(), Some("3,83 ms"));
+}

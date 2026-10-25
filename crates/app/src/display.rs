@@ -65,16 +65,22 @@ pub fn capped(text: &str) -> String {
     format!("{kept}{ELLIPSIS}")
 }
 
-/// In the unit shown. The device reports whole kelvin, so tenths of a degree would only show
-/// rounding noise; a delay sample is about 0.02 ms (7 mm), so it needs two decimals.
+/// In the unit shown.
 pub fn converted(conversion: Conversion, number: f64) -> String {
-    let shown = conversion.apply(number);
     let unit = converted_unit(conversion);
+    format!("{} {unit}", converted_number(conversion, number))
+}
+
+/// The number of `converted`, without its unit. The device reports whole kelvin, so tenths of a
+/// degree would only show rounding noise; a delay sample is about 0.02 ms (7 mm), so it needs two
+/// decimals.
+pub fn converted_number(conversion: Conversion, number: f64) -> String {
+    let shown = conversion.apply(number);
     match conversion {
         // Adding zero turns the -0 of a slightly negative reading into 0.
-        Conversion::KelvinToCelsius => format!("{} {unit}", shown.round() + 0.0),
+        Conversion::KelvinToCelsius => (shown.round() + 0.0).to_string(),
         Conversion::SamplesToMilliseconds | Conversion::SamplesToMeters => {
-            format!("{} {unit}", texts::two_decimals(shown))
+            texts::two_decimals(shown)
         }
     }
 }
@@ -124,6 +130,24 @@ mod tests {
         assert!(shown.ends_with(ELLIPSIS));
         let exact = "x".repeat(VALUE_CHARACTER_LIMIT);
         assert_eq!(capped(&exact), exact);
+    }
+
+    /// A delay field shows its value rounded and reads that text back when it is left: the
+    /// text must land on the same sample, in milliseconds and in meters.
+    #[test]
+    fn every_shown_delay_reads_back_as_its_sample() {
+        for conversion in [
+            Conversion::SamplesToMilliseconds,
+            Conversion::SamplesToMeters,
+        ] {
+            for samples in 0..=10_000 {
+                let samples = f64::from(samples);
+                let text = converted_number(conversion, samples);
+                let typed = crate::gesture::typed_value(&text, Some(conversion)).unwrap();
+                let read_back = crate::gesture::on_grid(typed, 1.0);
+                assert_eq!(read_back, samples, "{conversion:?} {text}");
+            }
+        }
     }
 
     #[test]
