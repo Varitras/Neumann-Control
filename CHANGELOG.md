@@ -4,6 +4,8 @@
 
 ### Added
 
+- In the compact mode a group row offers **Delete group…** on a right click, and a speaker's row
+  is framed in its own strip colour.
 - **Load preset…** and **Load EQ preset…** compare each change side by side, now and to be
   written (an EQ preset per band and value); the device panel's preset dialogs open in a window
   of their own in front of it.

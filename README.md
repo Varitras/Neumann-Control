@@ -262,9 +262,11 @@ cancels.
 
 **Compact** in the toolbar (or Ctrl+K) switches to a compact window and back. It has one row per
 ungrouped speaker and per group, each with LEDs (a group: its colour), the name, a lying level
-fader with its value and the loudest input as a small meter, and a master row at the bottom. A
-speaker's row then has, by default, **Mute**, **EQ** and **Details** (the device panel); a group
-or the master row has **Mute**. A group row moves its members like the group strip. A **!** stands
+fader with its value and the loudest input as a small meter, and a master row at the bottom (with
+**Show master strip**). A speaker's row is framed in its own strip colour, if it has one, and has,
+by default, **Mute**, **EQ** and **Details** (the device panel); a group or the master row has
+**Mute**. A group row moves its members like the group strip; right-click it for **Delete
+group…**. A **!** stands
 for a speaker's message (on a group or the master row, a member's), which shows on hover.
 
 Right-click a button of a speaker's row to hide it, move it left or right, add another (a switch

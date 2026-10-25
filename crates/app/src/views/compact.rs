@@ -18,6 +18,7 @@ use serde_json::Value;
 use super::compact_menu;
 use super::fader::{self, Orientation, Scale};
 use super::group_strip::{mute_button, shared_readout, GroupStripResponse, MasterResponse};
+use super::layout_menu::{popup, right_clicked};
 use super::meters;
 use super::strip::{self, UNREACHABLE_OPACITY};
 use crate::compact_layout::CompactChange;
@@ -40,6 +41,7 @@ const ROW_HEIGHT: f32 = 22.0;
 const SWATCH_SIZE: f32 = 10.0;
 const SWATCH_RADIUS: u8 = 2;
 const MESSAGE_MARK: &str = "!";
+const GROUP_MENU_ID: &str = "compact_group_menu";
 
 pub struct SpeakerRowResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -51,12 +53,14 @@ pub struct SpeakerRowResponse {
     pub layout: Option<CompactChange>,
 }
 
+/// `color`: the speaker's own strip colour for the row's frame; without one the plain border.
 pub fn speaker(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     desk: &DeskSettings,
     buttons: &[CompactButton],
+    color: Option<Color32>,
 ) -> SpeakerRowResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
@@ -74,7 +78,7 @@ pub fn speaker(
         .then(|| compact_menu::offers(buttons, speaker.product(), catalog));
     let mut open_eq = false;
     let mut layout = None;
-    let open_panel = row(ui, tokens.border, |ui| {
+    let open_panel = row(ui, color.unwrap_or(tokens.border), |ui| {
         if speaker.status == Status::Unreachable {
             ui.multiply_opacity(UNREACHABLE_OPACITY);
         }
@@ -182,6 +186,12 @@ pub fn group(
             shared_controls(ui, &label, &texts::group_mute(&group.name), shown, &tokens);
         response.level = level;
         response.mute = mute;
+        // As on the group strip: the dialog asks before the group goes.
+        let menu = ui.scope_id().with(GROUP_MENU_ID);
+        let row_rect = ui.min_rect();
+        popup(ui, menu, right_clicked(ui, row_rect), |ui| {
+            response.delete = ui.button(texts::DELETE_GROUP_MENU).clicked();
+        });
     });
     response
 }

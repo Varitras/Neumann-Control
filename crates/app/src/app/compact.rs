@@ -8,7 +8,9 @@ use super::desk::{all_muted, layout_owner_of, levels, members_of, DeskAction};
 use super::{NeumannApp, COMPACT_SCROLL_ID};
 use crate::compact_layout;
 use crate::fader::output_level_range;
-use crate::groups::{compact_rows, group_tint, layout, reference_level, shared_level, CompactRow};
+use crate::groups::{
+    compact_rows, group_tint, layout, reference_level, shared_level, speaker_tint, CompactRow,
+};
 use crate::layout_owner::stored;
 use crate::texts;
 use crate::ui_kit::theme::tint_color;
@@ -37,6 +39,12 @@ impl NeumannApp {
                 for row in &rows {
                     match *row {
                         CompactRow::Speaker(index) => {
+                            let tint = speaker_tint(
+                                &self.settings.groups,
+                                &self.settings.strip_colors,
+                                &ids[index],
+                            );
+                            let color = tint_color(&tint);
                             let speaker = &mut self.speakers[index];
                             let key = speaker.state.key.clone();
                             let owner = layout_owner_of(&speaker.state, &ids[index]);
@@ -54,7 +62,7 @@ impl NeumannApp {
                             let state = &mut speaker.state;
                             let response = ui
                                 .push_id(&key, |ui| {
-                                    compact::speaker(ui, state, catalog, &desk, &buttons)
+                                    compact::speaker(ui, state, catalog, &desk, &buttons, color)
                                 })
                                 .inner;
                             actions.push(DeskAction::Commands(index, response.commands));
