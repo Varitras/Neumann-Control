@@ -123,6 +123,8 @@ fn contents(
     {
         desk.layouts_per_speaker = !per_model;
     }
+    ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
+        .on_hover_text(texts::DETAILED_LOG_HINT);
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
     if ui
         .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)

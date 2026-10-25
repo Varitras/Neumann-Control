@@ -246,6 +246,9 @@ pub struct DeskSettings {
     /// Each speaker keeps its own strip and compact layout instead of its model's.
     #[serde(deserialize_with = "or_default")]
     pub layouts_per_speaker: bool,
+    /// The log also takes the debug lines, for troubleshooting.
+    #[serde(deserialize_with = "or_default")]
+    pub detailed_log: bool,
     /// Like `strip_layouts`, per speaker identity, used with `layouts_per_speaker`.
     #[serde(
         deserialize_with = "readable_layouts",
@@ -346,6 +349,7 @@ impl Default for DeskSettings {
             strip_layouts: BTreeMap::new(),
             compact_layouts: BTreeMap::new(),
             layouts_per_speaker: false,
+            detailed_log: false,
             speaker_strip_layouts: BTreeMap::new(),
             speaker_compact_layouts: BTreeMap::new(),
         }

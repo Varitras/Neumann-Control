@@ -330,6 +330,14 @@ pub const LAYOUTS_PER_MODEL: Text = Text::new(
     "Anordnung gleich für alle Lautsprecher eines Modells",
     "Same layout for every speaker of a model",
 );
+pub const DETAILED_LOG: Text = Text::new(
+    "Ausführliches Protokoll (zur Fehlersuche)",
+    "Detailed log (for troubleshooting)",
+);
+pub const DETAILED_LOG_HINT: Text = Text::new(
+    "Schreibt jeden Schreibvorgang und jeden Fehler in neumann-control.log, ohne Namen und Kennungen",
+    "Writes every write and every failure to neumann-control.log, without names or identifiers",
+);
 pub const SHOW_MASTER: Text = Text::new("Master-Zug anzeigen", "Show master strip");
 pub const DELAY_SHOWN_IN: Text = Text::new("Verzögerung anzeigen in", "Show delays in");
 pub const DELAY_IN_MILLISECONDS: Text = Text::new("Millisekunden", "milliseconds");

@@ -54,7 +54,9 @@ fn start_log(directory: &Path) {
     let config = ConfigBuilder::new()
         .add_filter_allow_str(LOG_TARGET_PREFIX)
         .build();
-    let _ = WriteLogger::init(LevelFilter::Info, config, file);
+    // Up to debug: the app lowers the level to info unless the detailed log is on.
+    let _ = WriteLogger::init(LevelFilter::Debug, config, file);
+    log::info!("neumann-control {} started", env!("CARGO_PKG_VERSION"));
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

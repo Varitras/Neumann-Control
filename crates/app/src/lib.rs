@@ -13,6 +13,7 @@ pub mod help;
 pub mod history;
 pub mod input_source;
 pub mod layout_owner;
+pub mod log_detail;
 pub mod meter;
 pub mod paths;
 pub mod presets;

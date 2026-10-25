@@ -86,7 +86,13 @@ impl NeumannApp {
         let saved = self
             .saved_place(context, kind)
             .map_or(Opening::Default, Opening::At);
-        cascaded(saved, index)
+        let opening = cascaded(saved, index);
+        log::debug!(
+            "{} window {index} opens {opening:?} on monitors {:?}",
+            kind.key(),
+            self.monitors
+        );
+        opening
     }
 
     /// Where the last `kind` window was left, if one was.

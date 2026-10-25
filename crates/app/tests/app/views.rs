@@ -1148,7 +1148,11 @@ fn the_detailed_log_is_switched_in_the_settings() {
     let path = directory
         .path()
         .join(neumann_control_core::settings::SETTINGS_FILE);
-    assert!(neumann_control_core::settings::load(&path).desk.detailed_log);
+    assert!(
+        neumann_control_core::settings::load(&path)
+            .desk
+            .detailed_log
+    );
     scroll_to_and_click(&mut harness, texts::DETAILED_LOG.get());
     harness.run_steps(2);
     assert_eq!(log::max_level(), log::LevelFilter::Info);

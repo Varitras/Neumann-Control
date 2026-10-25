@@ -25,6 +25,7 @@ use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
 use crate::layout_owner::stored;
+use crate::log_detail;
 use crate::meter::MeterState;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
@@ -176,6 +177,7 @@ impl NeumannApp {
         fonts::install(context);
         theme::apply(context);
         context.set_theme(theme::preference(settings.desk.theme));
+        log_detail::apply(settings.desk.detailed_log);
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
@@ -792,6 +794,7 @@ impl NeumannApp {
             SettingsAction::Changed => {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));
+                log_detail::apply(self.settings.desk.detailed_log);
                 self.save_settings();
             }
             SettingsAction::Close => self.settings_open = false,

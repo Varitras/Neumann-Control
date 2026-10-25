@@ -357,6 +357,11 @@ it). It sets:
   in that time (343 m/s, at 20 °C); the speakers still get samples,
 - whether response times are shown,
 - whether the master strip (and its row in the compact mode) is shown,
+- whether every speaker of a model has the same strip and compact layout (on by default; see
+  [The desk](#the-desk)),
+- whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
+  holds every write with its path and value (texts such as names left out), every failed request
+  and where windows open, for troubleshooting,
 - whether the EQ crossovers are protected (on by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
@@ -427,7 +432,7 @@ place you choose:
 |------|---------|
 | `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values** and **Settings** (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
-| `neumann-control.log` | Log of the current run, replaced at each start |
+| `neumann-control.log` | Log of the current run, replaced at each start; more detailed with **Detailed log** in **Settings** |
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or

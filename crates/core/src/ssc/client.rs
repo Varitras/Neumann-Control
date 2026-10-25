@@ -183,6 +183,24 @@ enum Verdict {
     Skip,
 }
 
+/// What a text in a logged value becomes: a written name must not reach the log.
+const REDACTED_TEXT: &str = "…";
+
+/// `value` as the detailed log shows it: numbers and switches as they are, every text redacted.
+fn logged_value(value: &Value) -> Value {
+    match value {
+        Value::String(_) => Value::from(REDACTED_TEXT),
+        Value::Array(items) => Value::Array(items.iter().map(logged_value).collect()),
+        Value::Object(members) => Value::Object(
+            members
+                .iter()
+                .map(|(key, member)| (key.clone(), logged_value(member)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
 pub struct Client {
     connection: Connection,
     next_xid: u64,
@@ -225,8 +243,15 @@ impl Client {
 
     /// Sets a value and returns the value the device confirms (it may clamp).
     pub fn set(&mut self, path: &SscPath, value: Value) -> Result<Value, SscError> {
+        let logged = logged_value(&value);
         let reply = self.exchange(path, value)?;
-        confirmed_value(&reply, path)
+        let confirmed = confirmed_value(&reply, path)?;
+        log::debug!(
+            "{} set {path} = {logged}, confirmed {}",
+            self.connection.host,
+            logged_value(&confirmed)
+        );
+        Ok(confirmed)
     }
 
     /// The children of `path` (the root for `None`) and whether each is a container.
@@ -279,6 +304,9 @@ impl Client {
             )));
         }
         let result = self.transact(path, value);
+        if let Err(error) = &result {
+            log::debug!("{} {path} failed: {error}", self.connection.host);
+        }
         if matches!(&result, Err(error) if error.is_connection_lost()) {
             self.close();
         }

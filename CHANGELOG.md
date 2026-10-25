@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Detailed log** in **Settings**: the log also takes every write with its value (without
+  texts), every failed request and where windows open, for troubleshooting.
 - The group dialog lists the speakers to check: a new group gets its members right away.
 - An issue form for sending the **Full scan** of a model the app only reads.
 - **Same layout for every speaker of a model** in **Settings**: switched off, each speaker keeps
