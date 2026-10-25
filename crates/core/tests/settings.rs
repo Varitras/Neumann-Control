@@ -433,7 +433,7 @@ fn like_windows_follows_the_system_language() {
 fn crossovers_stay_protected_unless_opened_on_purpose() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
-    fs::write(&path, r#"{"manual":[],"desk":{}}"#).unwrap();
+    fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"Protected"}}"#).unwrap();
     assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
     fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"maybe"}}"#).unwrap();
     assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Protected);
@@ -522,11 +522,11 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
 
 /// A file from before the setting shows the master, as the app did then.
 #[test]
-fn an_older_file_shows_the_master() {
+fn a_file_without_the_master_choice_hides_it() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, r#"{"desk": {"show_response_times": false}}"#).unwrap();
-    assert!(load(&path).desk.show_master);
+    assert!(!load(&path).desk.show_master);
 }
 
 /// The lowest level a meter shows, in 10 dB steps from -120 to -30 dB.

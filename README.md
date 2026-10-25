@@ -251,7 +251,8 @@ and its own layouts are forgotten.
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
   coloured frame.
-- The master strip at the end moves and mutes all connected speakers the same way.
+- The master strip at the end (shown with **Show master strip** in **Settings**) moves and mutes
+  all connected speakers the same way.
 
 Drag a strip by the dots before its name to reorder: the other strips of its group (or the
 ungrouped ones) make room where it would land, and the order is remembered when you let go. Escape
@@ -338,9 +339,9 @@ input B ("Crossover A", "Crossover B").
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
   filters and inversion have no APO line; they are written as comments and listed after saving.
   Room EQ Wizard cannot load text filter files.
-- The crossovers are protected by default: no **Make flat**, no **Reset**, no EQ presets and no
-  **Import…** there. Switching off **Protect crossovers** in **Settings** allows them, with a
-  warning that the output then plays unfiltered.
+- With **Protect crossovers** on in **Settings** (off by default), the crossovers get no **Make
+  flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
+  the output then plays unfiltered.
 
 ### History and undo
 
@@ -367,13 +368,13 @@ it). It sets:
 - whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
   in that time (343 m/s, at 20 °C); the speakers still get samples,
 - whether response times are shown,
-- whether the master strip (and its row in the compact mode) is shown,
+- whether the master strip (and its row in the compact mode) is shown (off by default),
 - whether every speaker of a model has the same strip and compact layout (on by default; see
   [The desk](#the-desk)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
   holds every write with its path and value (texts such as names left out), every failed request
   and where windows open, for troubleshooting,
-- whether the EQ crossovers are protected (on by default),
+- whether the EQ crossovers are protected (off by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
 - whether the desk shows a strip with the Windows volume, and of which playback device (Windows'

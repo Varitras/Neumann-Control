@@ -31,7 +31,7 @@
   button hides it, moves it, adds another switch or goes back to the default, per model.
 - Without a saved window size, the window is made as large as the desk needs and grows with it
   until you size it yourself.
-- **Show master strip** in **Settings** hides the master strip and its compact row.
+- **Show master strip** in **Settings** shows the master strip and its compact row.
 - While an element is dragged in edit mode, its strip shows it where it would land and the
   other elements make room.
 - **Details** on each group strip opens the group's dialog (rename, delete), as its name does.
@@ -71,14 +71,16 @@
 - **Import…** and **Export…** in the EQ window: filter lines of Equalizer APO and of Room EQ
   Wizard's "Generic" export, with a preview and one history entry; export as APO lines. Shelving
   filters are converted between the files' Q and the speakers' slope.
-- **Protect crossovers** in the settings (on by default); off, "Make flat", "Reset", EQ presets
-  and the import work on the KH 750 crossovers too, with a warning.
+- **Protect crossovers** in the settings (off by default); on, "Make flat", "Reset", EQ presets
+  and the import leave the KH 750 crossovers alone. Off, they work there too, with a warning.
 - Strips you can customize per model: hide, swap and move what a strip shows besides its fader,
   put any setting of the device panel on it, from a context menu or in an edit mode (the pen in
   the toolbar). Mute and identify are listed in the device panel too.
 
 ### Changed
 
+- The master strip and its compact row are hidden unless **Show master strip** is on in
+  **Settings**; a settings file that already holds the choice keeps it.
 - Deleting a group, a settings preset or an EQ preset asks first.
 - **All values** opens in a window of its own like the EQ and the device panel; Escape closes it.
 - The temperature trend shows its highest, lowest and current value in °C at the line; models

@@ -23,8 +23,8 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, ColorChoice, DeskSettings, GroupSettings, Language, Linkable, ManualSpeaker, Settings,
-    SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
+    self, ColorChoice, CrossoverGuard, DeskSettings, GroupSettings, Language, Linkable,
+    ManualSpeaker, Settings, SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
@@ -122,6 +122,16 @@ pub const SAVED_WINDOW: WindowGeometry = WindowGeometry {
     maximized: false,
 };
 
+/// The desk the tests start from: the master strip shown and the crossovers protected, so both
+/// are there to be tested (out of the box both are off).
+pub fn test_desk() -> DeskSettings {
+    DeskSettings {
+        show_master: true,
+        crossovers: CrossoverGuard::Protected,
+        ..DeskSettings::default()
+    }
+}
+
 pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
     let path = directory.join(SETTINGS_FILE);
     let settings = Settings {
@@ -129,7 +139,7 @@ pub fn settings_file(directory: &Path, manual: Vec<ManualSpeaker>) -> PathBuf {
         window: Some(SAVED_WINDOW),
         desk: DeskSettings {
             strip_layouts: knob_strip_layouts(),
-            ..DeskSettings::default()
+            ..test_desk()
         },
         ..Settings::default()
     };
@@ -564,6 +574,7 @@ pub fn two_speakers(
         manual: vec![first, second],
         window: Some(SAVED_WINDOW),
         groups,
+        desk: test_desk(),
         ..Settings::default()
     };
     settings::save(&settings, &path).unwrap();
@@ -675,7 +686,7 @@ pub fn desk_prepared(
         window: Some(SAVED_WINDOW),
         desk: DeskSettings {
             strip_layouts,
-            ..DeskSettings::default()
+            ..test_desk()
         },
         ..Settings::default()
     };
