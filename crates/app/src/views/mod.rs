@@ -30,6 +30,8 @@ pub mod toolbar;
 pub mod trends;
 pub mod wheel;
 
+pub(crate) use meters::METER_FRAME;
+
 use eframe::egui::{self, Id, Key, Role, Ui, UiBuilder, ViewportBuilder};
 
 const BUSY_ID: &str = "escape_busy";

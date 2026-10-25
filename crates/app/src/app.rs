@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use eframe::egui::{
     self, Context, Id, Key, KeyboardShortcut, Modifiers, Ui, ViewportCommand, ViewportId,
@@ -22,6 +23,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
+use crate::frame_stats::FrameStats;
 use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
@@ -76,6 +78,8 @@ pub use history::TakeBackNotice;
 const DESK_SCROLL_ID: &str = "desk";
 const COMPACT_SCROLL_ID: &str = "compact";
 const PANEL_VIEWPORT_ID: &str = "device_panel";
+/// News from the workers is drawn at the meters' frame rate; drawing it sooner shows nothing more.
+const NEWS_FRAME: Duration = crate::views::METER_FRAME;
 const COMPACT_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
 
 struct Speaker {
@@ -150,6 +154,7 @@ pub struct NeumannApp {
     global_listener: Option<GlobalListener>,
     /// Windows had none of the keys: not asked again until the setting is switched on anew.
     global_keys_taken: bool,
+    frame_stats: FrameStats,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -199,7 +204,7 @@ impl NeumannApp {
             settings_path,
             settings,
             spawner,
-            wake: Arc::new(move || repaint_context.request_repaint()),
+            wake: news_wake(repaint_context),
             speakers: Vec::new(),
             found: Vec::new(),
             scan: None,
@@ -228,6 +233,7 @@ impl NeumannApp {
             global_keys: Box::new(WindowsGlobalKeys),
             global_listener: None,
             global_keys_taken: false,
+            frame_stats: FrameStats::default(),
             audio_devices: Vec::new(),
             system_language,
         };
@@ -803,7 +809,7 @@ impl NeumannApp {
         }
     }
 
-    fn average_response_time(&self) -> Option<std::time::Duration> {
+    fn average_response_time(&self) -> Option<Duration> {
         if !self.settings.desk.show_response_times {
             return None;
         }
@@ -972,8 +978,16 @@ pub fn window_geometry(
 }
 
 impl eframe::App for NeumannApp {
-    fn logic(&mut self, context: &Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
         let now = context.input(|input| input.time);
+        if let Some(summary) = self.frame_stats.record(now, frame.info().cpu_usage) {
+            log::debug!(
+                "frames: {:.1} per second, {:.2} ms on average, {:.2} ms at most",
+                summary.frames_per_second,
+                summary.average_milliseconds,
+                summary.longest_milliseconds
+            );
+        }
         self.drain_events(now);
         for shortcut in self.global_shortcuts() {
             self.apply_shortcut(shortcut, now);
@@ -1028,10 +1042,36 @@ fn curve_labels() -> Vec<(String, String)> {
         .collect()
 }
 
+/// What a worker runs when it has news: the window draws it with the next meter frame. A
+/// request before that frame is due does not move it, so news from all speakers shares a frame.
+fn news_wake(context: Context) -> Arc<dyn Fn() + Send + Sync> {
+    Arc::new(move || context.request_repaint_after(NEWS_FRAME))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use eframe::egui::{pos2, vec2, Rect};
+    use std::sync::Mutex;
+
+    /// Each speaker reports its meters ten times a second; drawing every report at once made the
+    /// frame rate grow with the number of speakers.
+    #[test]
+    fn worker_news_is_drawn_at_most_once_a_meter_frame() {
+        let context = Context::default();
+        let delays = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&delays);
+        context.set_request_repaint_callback(move |info| recorded.lock().unwrap().push(info.delay));
+        let wake = news_wake(context.clone());
+        wake();
+        wake();
+        let delays = delays.lock().unwrap();
+        assert!(!delays.is_empty());
+        assert!(
+            delays.iter().all(|delay| *delay == NEWS_FRAME),
+            "{delays:?}"
+        );
+    }
 
     fn viewport() -> ViewportInfo {
         ViewportInfo {

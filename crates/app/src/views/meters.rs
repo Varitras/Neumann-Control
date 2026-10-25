@@ -40,7 +40,7 @@ const BAR_HEIGHT: f32 = 6.0;
 const BAR_RADIUS: u8 = 2;
 /// How often a falling meter is drawn anew; the monitor's own rate would keep the GPU busy for
 /// a movement the eye does not resolve finer.
-const METER_FRAME: Duration = Duration::from_millis(50);
+pub(crate) const METER_FRAME: Duration = Duration::from_millis(50);
 
 /// One group of meters, side by side.
 pub struct Meters<'a> {
