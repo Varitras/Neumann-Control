@@ -1061,6 +1061,7 @@ impl NeumannApp {
     /// asked of egui or Windows.
     fn log_frame(&mut self, context: &Context, frame: &eframe::Frame, now: f64, paused: Duration) {
         if !log::log_enabled!(log::Level::Debug) {
+            self.frame_stats.pause();
             return;
         }
         let causes = crate::views::take_repaint_causes(context);

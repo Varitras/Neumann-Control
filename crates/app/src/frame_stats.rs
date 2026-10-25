@@ -54,6 +54,11 @@ pub struct FrameStats {
 }
 
 impl FrameStats {
+    /// Nothing is counted while the detailed log is off; the next frame begins a new period.
+    pub fn pause(&mut self) {
+        *self = Self::default();
+    }
+
     /// Counts one frame. A summary comes back once `SUMMARY_SECONDS` are over, and the next
     /// period begins.
     pub fn record(&mut self, sample: FrameSample) -> Option<FrameSummary> {
@@ -216,6 +221,20 @@ mod tests {
         let summary = stats.record(timed(2.0 * SUMMARY_SECONDS, 0.001)).unwrap();
         assert_eq!(summary.frames_per_second, 0.2);
         assert!((summary.longest_milliseconds - 1.0).abs() < 1e-6);
+    }
+
+    /// Switched on while the app runs, the detailed log's first summary covers only the frames
+    /// since then: it used to count from the last period before the log went off, and showed a
+    /// frame rate and CPU far too low.
+    #[test]
+    fn a_summary_after_a_pause_counts_from_where_counting_began_again() {
+        let mut stats = FrameStats::default();
+        stats.record(at(0.0));
+        stats.record(at(5.0));
+        stats.pause();
+        assert_eq!(stats.record(at(100.0)), None, "a new period begins");
+        let summary = stats.record(at(100.0 + SUMMARY_SECONDS)).unwrap();
+        assert_eq!(summary.frames_per_second, 0.2);
     }
 
     /// The frame time includes waiting for the GPU; what the process really used comes from its
