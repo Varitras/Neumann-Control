@@ -484,6 +484,16 @@ pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
     }
 }
 
+/// A strip as a screen reader names it: "Zug: KH750 Links".
+pub fn strip_region(name: &str) -> String {
+    pick(format!("Zug: {name}"), format!("Strip: {name}"))
+}
+
+/// A compact row as a screen reader names it: "Zeile: KH750 Links".
+pub fn row_region(name: &str) -> String {
+    pick(format!("Zeile: {name}"), format!("Row: {name}"))
+}
+
 /// Hover text of a speaker that checking would move out of `group`.
 pub fn in_other_group(group: &str) -> String {
     pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))

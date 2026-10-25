@@ -781,11 +781,10 @@ fn a_knobs_entry_field_is_named_like_the_knob() {
     let (_simulators, _directory, mut harness) =
         desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
     let knob = label(paths::DELAY);
-    // Two clicks in quick succession are a double click.
-    for _ in 0..2 {
-        harness.get_by_role_and_label(Role::Slider, knob).click();
-        harness.step();
-    }
-    harness.run_steps(2);
+    let position = harness
+        .get_by_role_and_label(Role::Slider, knob)
+        .rect()
+        .center();
+    double_click_at(&mut harness, position);
     harness.get_by_role_and_label(Role::TextInput, knob);
 }

@@ -30,7 +30,7 @@ pub mod toolbar;
 pub mod trends;
 pub mod wheel;
 
-use eframe::egui::{self, Id, Key, Ui, ViewportBuilder};
+use eframe::egui::{self, Id, Key, Role, Ui, UiBuilder, ViewportBuilder};
 
 const BUSY_ID: &str = "escape_busy";
 
@@ -47,6 +47,15 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
         || egui::Popup::is_any_open(context);
     ui.data_mut(|data| data.insert_temp(busy_id, busy));
     !was_busy && !busy && ui.input(|input| input.key_pressed(Key::Escape))
+}
+
+/// `contents` as one region a screen reader names `name`: one strip's "Pegel" or "Stumm" is then
+/// told from another's.
+pub(crate) fn named_region<R>(ui: &mut Ui, name: &str, contents: impl FnOnce(&mut Ui) -> R) -> R {
+    let region = UiBuilder::new()
+        .accessibility_role(Role::Group)
+        .accessibility_label(name);
+    ui.scope_builder(region, contents).inner
 }
 
 /// Where a window of its own opens, and how large; without a position the system places it.

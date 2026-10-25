@@ -10,6 +10,7 @@ use neumann_control_core::settings::{GroupSettings, Linkable};
 
 use super::fader::{self, Orientation};
 use super::layout_menu::{popup, right_clicked};
+use super::named_region;
 use super::strip::{BORDER_WIDTH, STRIP_MARGIN, STRIP_RADIUS};
 use crate::groups::{linkable_label, SharedLevel, LINKABLE};
 use crate::texts;
@@ -30,8 +31,22 @@ pub struct GroupStripResponse {
     pub delete: bool,
 }
 
-/// `level` follows the loudest connected member, `muted` says whether all of them are muted.
+/// `level` follows the loudest connected member, `muted` says whether all of them are muted. The
+/// strip is named after the group for screen readers.
 pub fn group(
+    ui: &mut Ui,
+    group: &GroupSettings,
+    color: Option<Color32>,
+    level: Option<&SharedLevel>,
+    muted: Option<bool>,
+    range: RangeInclusive<f64>,
+) -> GroupStripResponse {
+    named_region(ui, &texts::strip_region(&group.name), |ui| {
+        group_contents(ui, group, color, level, muted, range)
+    })
+}
+
+fn group_contents(
     ui: &mut Ui,
     group: &GroupSettings,
     color: Option<Color32>,

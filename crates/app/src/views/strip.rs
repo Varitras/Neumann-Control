@@ -16,6 +16,7 @@ use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
 use super::knob;
 use super::layout_menu::{self, Offer};
 use super::meters::{self, Meters};
+use super::named_region;
 use super::strip_drop::{self, Dragged, Geometry, Slot};
 use crate::display::shown_value;
 use crate::eq::has_eq;
@@ -98,7 +99,23 @@ pub struct StripView<'a> {
     pub layout_key: &'a str,
 }
 
+/// The strip, named after its speaker for screen readers.
 pub fn show(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    desk: &DeskSettings,
+    view: StripView,
+    group_color: Option<Color32>,
+    member: &str,
+) -> StripResponse {
+    let name = texts::strip_region(&speaker.display_name());
+    named_region(ui, &name, |ui| {
+        contents(ui, speaker, catalog, desk, view, group_color, member)
+    })
+}
+
+fn contents(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
@@ -671,7 +688,8 @@ fn level(
     let response = ui.add(label).on_hover_text(texts::CONTROL_HINT);
     let entry_id = response.id.with(LEVEL_ENTRY_ID);
     let open_now = response.double_clicked() && device.is_some();
-    if let Some(level) = knob::value_entry(ui, entry_id, open_now, shown, None) {
+    let label = texts::LEVEL.get();
+    if let Some(level) = knob::value_entry(ui, entry_id, open_now, shown, None, label) {
         // Outside the range the typed value stays as typed, so the write policy refuses it
         // instead of the grid pulling it in ("120,2" is not 120).
         let level = if output_level_range().contains(&level) {

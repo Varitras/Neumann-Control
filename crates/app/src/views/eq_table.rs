@@ -3,7 +3,9 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Checkbox, Color32, ComboBox, Grid, Id, RichText, ScrollArea, Ui};
+use eframe::egui::{
+    Checkbox, Color32, ComboBox, Grid, Id, RichText, Role, ScrollArea, Ui, WidgetInfo,
+};
 use serde_json::Value;
 
 use super::number_field::{self, NumberField};
@@ -178,8 +180,10 @@ fn type_cell(ui: &mut Ui, table: &Table, band: usize, row: &TableRow) -> Option<
     let known = table.limits.types.contains(&row.kind);
     let mut chosen = None;
     // A type the catalog does not know is shown as it is and left alone.
+    // Named by its band, as the column title says it: the table shows no label beside it.
+    let name = texts::eq_band_leaf(band + 1, header(table, Leaf::Type));
     ui.add_enabled_ui(table.editable && known, |ui| {
-        ComboBox::from_id_salt(table.id.with((band, Leaf::Type.name())))
+        let choice = ComboBox::from_id_salt(table.id.with((band, Leaf::Type.name())))
             .selected_text(&row.kind)
             .show_ui(ui, |ui| {
                 for option in &table.limits.types {
@@ -189,6 +193,10 @@ fn type_cell(ui: &mut Ui, table: &Table, band: usize, row: &TableRow) -> Option<
                     }
                 }
             });
+        let enabled = table.editable && known;
+        choice
+            .response
+            .widget_info(|| WidgetInfo::labeled(Role::ComboBox, enabled, &name));
     });
     chosen.map(|kind| write(band, Leaf::Type, Value::String(kind)))
 }

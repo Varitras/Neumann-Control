@@ -20,6 +20,7 @@ use super::fader::{self, Orientation, Scale};
 use super::group_strip::{mute_button, shared_readout, GroupStripResponse, MasterResponse};
 use super::layout_menu::{popup, right_clicked};
 use super::meters;
+use super::named_region;
 use super::strip::{self, UNREACHABLE_OPACITY};
 use crate::compact_layout::CompactChange;
 use crate::fader::output_level_range;
@@ -78,7 +79,8 @@ pub fn speaker(
         .then(|| compact_menu::offers(buttons, speaker.product(), catalog));
     let mut open_eq = false;
     let mut layout = None;
-    let open_panel = row(ui, color.unwrap_or(tokens.border), |ui| {
+    let name = speaker.display_name();
+    let open_panel = row(ui, &name, color.unwrap_or(tokens.border), |ui| {
         if speaker.status == Status::Unreachable {
             ui.multiply_opacity(UNREACHABLE_OPACITY);
         }
@@ -168,7 +170,7 @@ pub fn group(
 ) -> GroupStripResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut response = GroupStripResponse::default();
-    row(ui, color.unwrap_or(tokens.border), |ui| {
+    row(ui, &group.name, color.unwrap_or(tokens.border), |ui| {
         cell(ui, MARK_WIDTH, |ui| {
             if let Some(color) = color {
                 swatch(ui, color);
@@ -199,7 +201,7 @@ pub fn group(
 pub fn master(ui: &mut Ui, shown: SharedRow) -> MasterResponse {
     let tokens = Tokens::current(ui.ctx());
     let mut response = MasterResponse::default();
-    row(ui, tokens.accent, |ui| {
+    row(ui, texts::MASTER.get(), tokens.accent, |ui| {
         cell(ui, MARK_WIDTH, |_| {});
         cell(ui, NAME_WIDTH, |ui| {
             ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()))
@@ -244,7 +246,14 @@ fn shared_controls(
     (moved, mute)
 }
 
-fn row<R>(ui: &mut Ui, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> R {
+/// One row, named after what it shows (`name`) for screen readers.
+fn row<R>(ui: &mut Ui, name: &str, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> R {
+    named_region(ui, &texts::row_region(name), |ui| {
+        framed_row(ui, border, contents)
+    })
+}
+
+fn framed_row<R>(ui: &mut Ui, border: Color32, contents: impl FnOnce(&mut Ui) -> R) -> R {
     let tokens = Tokens::current(ui.ctx());
     egui::Frame::new()
         .fill(tokens.card)

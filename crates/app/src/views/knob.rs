@@ -205,7 +205,7 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
                 ui.add(Label::new(caption).truncate());
             }
             let open_now = response.double_clicked();
-            let edited = value_entry(ui, id, open_now, value, knob.conversion);
+            let edited = value_entry(ui, id, open_now, value, knob.conversion, knob.label);
             sent = sent.or(edited);
             if knob.caption && !value_entry_open(ui, id) {
                 let text = RichText::new((knob.format)(value)).small().monospace();
@@ -264,6 +264,7 @@ pub(super) fn value_entry(
     open_now: bool,
     value: f64,
     conversion: Option<Conversion>,
+    label: &str,
 ) -> Option<f64> {
     let text_id = id.with(EDIT_TEXT_ID);
     if open_now {
@@ -276,6 +277,12 @@ pub(super) fn value_entry(
             .id(text_id)
             .desired_width(EDIT_WIDTH),
     );
+    // Named like the control it types into: on its own the field has no name.
+    field.widget_info(|| {
+        let mut info = WidgetInfo::text_edit(true, &text, &text, "");
+        info.label = Some(label.to_owned());
+        info
+    });
     // Asked of the drawn field: a request before it exists is lost to the opening click.
     if open_now {
         field.request_focus();
