@@ -54,6 +54,14 @@ jobs:
         run: |
           $folder = "release/neumann-control-$env:VERSION"
           Compress-Archive -Path $folder -DestinationPath "release/neumann-control-$env:VERSION.zip"
-          gh release create '${{ github.ref_name }}' --draft --verify-tag `
-            --title "Neumann Control $env:VERSION" --notes-file "$env:RUNNER_TEMP/release-notes.md" `
-            "release/neumann-control-$env:VERSION.zip" "$folder/SHA256SUMS"
+          $arguments = @(
+            'release', 'create', '${{ github.ref_name }}', '--draft', '--verify-tag',
+            '--title', "Neumann Control $env:VERSION",
+            '--notes-file', "$env:RUNNER_TEMP/release-notes.md"
+          )
+          # Below 1.0 the app is an alpha, and a version with a suffix (-alpha.1) is a pre-release
+          # by its name: both are marked as a prerelease on GitHub.
+          if ($env:VERSION -match '^0\.|-') { $arguments += '--prerelease' }
+          $arguments += "release/neumann-control-$env:VERSION.zip", "$folder/SHA256SUMS"
+          gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
