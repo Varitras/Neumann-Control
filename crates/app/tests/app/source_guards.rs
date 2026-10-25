@@ -89,3 +89,23 @@ fn the_release_script_ships_the_manual_the_app_opens() {
         "{quoted} in build-release.ps1"
     );
 }
+
+/// egui's spinner asks for the next frame at once; without vsync (the app presents by Mailbox)
+/// that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
+#[test]
+fn no_view_draws_egui_s_own_spinner() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rust_files(&source, &mut files);
+    let mut found = Vec::new();
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        for call in [".spinner()", "Spinner::new"] {
+            for (start, _) in text.match_indices(call) {
+                let line = text[..start].lines().count();
+                found.push(format!("{}:{line}", file.display()));
+            }
+        }
+    }
+    assert!(found.is_empty(), "egui's spinner drawn at: {found:?}");
+}

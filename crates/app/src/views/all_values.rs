@@ -8,6 +8,7 @@ use eframe::egui::{
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
 
+use super::busy;
 use super::{escape_closes, placed, Opening};
 use crate::all_values::{rows, Row};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
@@ -78,7 +79,7 @@ fn contents(
         AllValuesState::Idle => {}
         AllValuesState::Loading => {
             ui.horizontal(|ui| {
-                ui.spinner();
+                busy::spinner(ui);
                 ui.label(texts::ALL_VALUES_LOADING);
             });
         }

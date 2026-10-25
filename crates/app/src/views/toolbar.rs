@@ -12,6 +12,7 @@ use eframe::egui::{
     TextStyle, TextWrapMode, Ui, WidgetInfo, WidgetText,
 };
 
+use super::busy;
 use crate::texts;
 
 const PANEL_ID: &str = "toolbar";
@@ -158,7 +159,7 @@ fn adding(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
         action = ToolbarAction::Scan;
     }
     if facts.scanning {
-        ui.spinner();
+        busy::spinner(ui);
     }
     if ui.button(texts::ADD_ADDRESS).clicked() {
         action = ToolbarAction::AddAddress;

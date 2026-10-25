@@ -3,6 +3,7 @@
 
 use eframe::egui::{Button, Id, Modal, RichText, Ui};
 
+use super::busy;
 use crate::help::{UpdateResult, REPOSITORY_URL};
 use crate::texts;
 
@@ -49,7 +50,7 @@ fn contents(ui: &mut Ui, update: &UpdateView) -> AboutAction {
             action = AboutAction::CheckForUpdates;
         }
         if checking {
-            ui.spinner();
+            busy::spinner(ui);
         }
     });
     if let UpdateView::Done(result) = update {

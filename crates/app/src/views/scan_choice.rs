@@ -4,6 +4,7 @@
 
 use eframe::egui::{Button, Checkbox, Grid, Id, Modal, Ui};
 
+use super::busy;
 use crate::scan_choice::{Offer, ScanChoice};
 use crate::texts;
 
@@ -33,7 +34,7 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
     ui.heading(texts::SCAN_CHOICE_TITLE);
     let mut action = match choice {
         ScanChoice::Scanning => {
-            ui.spinner();
+            busy::spinner(ui);
             ScanChoiceAction::None
         }
         ScanChoice::Failed => {
@@ -61,7 +62,7 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
         }
         // The rows stay while a new scan runs; the spinner says that more may come.
         if scanning && !matches!(choice, ScanChoice::Scanning) {
-            ui.spinner();
+            busy::spinner(ui);
         }
         if ui.button(texts::CANCEL).clicked() {
             action = ScanChoiceAction::Cancel;
