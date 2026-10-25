@@ -587,7 +587,12 @@ fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
         .get_by_label(&texts::eq_preset_entry("Warm", 10))
         .click();
     harness.run_steps(6);
-    harness.get_by_label(&texts::eq_preset_band(2));
+    // Side by side per band and value: only band 2's boost moved.
+    harness.get_by_label(texts::PRESET_WRITTEN.get());
+    harness.get_by_label(&format!("Band 2 · {BOOST_LABEL}"));
+    assert!(harness
+        .query_by_label_contains(&format!("Band 3 · "))
+        .is_none());
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the preset's boost written", |_| {
         sets(&simulator, BOOST_POINTER).len() == 2
