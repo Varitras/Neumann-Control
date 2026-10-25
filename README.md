@@ -303,8 +303,10 @@ input B ("Crossover A", "Crossover B").
 - A point stands at its band's own height; the curves add every band up, so a point can lie
   above or below them. Each band's own curve is drawn thin in its colour, the chosen band's
   stronger with its area to 0 dB.
-- The table below lists every band with on/off, type, frequency, Q, level and boost; numbers take
-  a comma or a point, and a value outside the allowed range is refused with the reason.
+- The table below lists every band with on/off, type, frequency, Q, level and boost; bands that do
+  not fit below each other continue in a column to the right while the window is wide enough,
+  else the table scrolls. Numbers take a comma or a point, and a value outside the allowed range
+  is refused with the reason.
 - A change is written when the gesture ends, and only for that one band, so the other bands
   stay as they are. Every change appears in the history and can be undone.
 - **Make flat** sets level and boost of every band of the chosen EQ to 0 dB, after a question;

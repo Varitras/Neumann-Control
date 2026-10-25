@@ -89,6 +89,8 @@
 
 ### Changed
 
+- The EQ table continues in a column to the right when its bands do not fit below each other
+  and the window is wide enough, instead of scrolling; the EQ window opens a little taller.
 - The window draws far less often: news from the speakers at most twenty times a second together
   instead of one frame per reading, never more than sixty frames a second (animations such as a
   scroll bar fading in ran at hundreds), and the Windows volume meters half as often in silence.

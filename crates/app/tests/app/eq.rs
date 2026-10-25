@@ -1242,3 +1242,23 @@ fn each_bands_type_choice_is_named() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
     harness.get_by_role_and_label(Role::ComboBox, &texts::eq_band_leaf(1, "Typ"));
 }
+
+/// Bands that do not fit below each other go into a column to the right while the window has
+/// room there, instead of all of them scrolling in one narrow column.
+#[test]
+fn bands_that_do_not_fit_below_go_into_a_column_to_the_right() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(4);
+    let type_of = |band: usize| {
+        harness
+            .get_by_role_and_label(Role::ComboBox, &texts::eq_band_leaf(band, "Typ"))
+            .rect()
+    };
+    let (first, last) = (type_of(1), type_of(20));
+    assert!(last.left() > first.right(), "{last:?} beside {first:?}");
+    assert!(
+        last.top() < first.top() + 300.0,
+        "{last:?} near the top, not scrolled below"
+    );
+}
