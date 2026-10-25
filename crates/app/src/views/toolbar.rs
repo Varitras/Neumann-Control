@@ -32,6 +32,8 @@ pub enum ToolbarAction {
     History,
     ToggleCompact,
     ToggleEditing,
+    /// Dim on or off (Ctrl+D).
+    Dim,
     Manual,
     Wiki,
     About,
@@ -46,6 +48,8 @@ pub struct ToolbarFacts {
     pub notice: Option<texts::Text>,
     /// None while no speaker has measured one or the settings hide it.
     pub average_response_time: Option<Duration>,
+    /// Every speaker lowered by dim.
+    pub dimmed: bool,
 }
 
 pub fn show(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
@@ -125,6 +129,10 @@ fn right_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     let compact = Button::new(texts::COMPACT).selected(facts.compact);
     if ui.add(compact).on_hover_text(texts::COMPACT_HINT).clicked() {
         action = ToolbarAction::ToggleCompact;
+    }
+    let dim = Button::new(texts::DIM).selected(facts.dimmed);
+    if ui.add(dim).on_hover_text(texts::DIM_HINT).clicked() {
+        action = ToolbarAction::Dim;
     }
     if !facts.compact && edit_button(ui, facts.editing) {
         action = ToolbarAction::ToggleEditing;

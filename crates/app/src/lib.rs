@@ -21,6 +21,7 @@ pub mod presets;
 pub mod rediscovery;
 pub mod scan_choice;
 pub mod scan_report;
+pub mod shortcuts;
 pub mod single_instance;
 pub mod spawner;
 pub mod state;

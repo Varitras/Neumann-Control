@@ -335,6 +335,10 @@ pub const LAYOUTS_PER_MODEL: Text = Text::new(
     "Same layout for every speaker of a model",
 );
 pub const DIM: Text = Text::new("Dim", "Dim");
+pub const DIM_HINT: Text = Text::new(
+    "Alle Lautsprecher 20 dB leiser, nochmals: zurück (Strg+D)",
+    "Every speaker 20 dB lower, again: back (Ctrl+D)",
+);
 pub const DETAILED_LOG: Text = Text::new(
     "Ausführliches Protokoll (zur Fehlersuche)",
     "Detailed log (for troubleshooting)",

@@ -317,7 +317,7 @@ impl NeumannApp {
     /// A group or master fader let go after moving by `moved` dB: every member that may write its
     /// level moves by that much from its own current level, within its own range; a mute switch sets mute on all
     /// of them.
-    fn apply_shared(
+    pub(super) fn apply_shared(
         &mut self,
         members: &[usize],
         moved: Option<f64>,
@@ -428,7 +428,13 @@ impl NeumannApp {
 
     /// A write on behalf of a gesture elsewhere (group, master, link, copy): a member that is
     /// not connected is left out, so its own message ("nicht erreichbar") stays.
-    fn request_and_send(&mut self, index: usize, intent: Intent, catalog: &Catalog, now: f64) {
+    pub(super) fn request_and_send(
+        &mut self,
+        index: usize,
+        intent: Intent,
+        catalog: &Catalog,
+        now: f64,
+    ) {
         let speaker = &mut self.speakers[index];
         if speaker.state.status != Status::Connected {
             return;
@@ -526,7 +532,7 @@ fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
 
 /// Only a member that may write its level follows a group or master fader, so only such a
 /// member counts for the fader's position and reach.
-fn level_of(state: &SpeakerState) -> Option<f64> {
+pub(super) fn level_of(state: &SpeakerState) -> Option<f64> {
     let path = paths::path(paths::OUTPUT_LEVEL);
     if !can_write(state, Catalog::embedded(), &path) {
         return None;

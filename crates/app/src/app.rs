@@ -30,6 +30,7 @@ use crate::meter::MeterState;
 use crate::panel_tabs::PanelTab;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
+use crate::shortcuts::{self, DeskShortcut};
 use crate::spawner::{ScanResult, SpeakerSpawner};
 use crate::state::{AllValuesState, SpeakerKey, SpeakerState, Status};
 use crate::status_leds::average_response_time;
@@ -56,6 +57,7 @@ use crate::window_placement::{monitor_areas, MonitorArea};
 
 mod compact;
 mod desk;
+mod desk_shortcuts;
 mod eq;
 mod eq_files;
 mod full_scan;
@@ -140,6 +142,8 @@ pub struct NeumannApp {
     system_meters: Vec<MeterState>,
     /// The monitors there are now, so a window of its own opens on one of them.
     monitors: Vec<MonitorArea>,
+    /// While dim is on: each speaker's level before.
+    dimmed: Option<desk_shortcuts::DimmedLevels>,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -214,6 +218,7 @@ impl NeumannApp {
             update_check: None,
             system_meters: Vec::new(),
             monitors: Vec::new(),
+            dimmed: None,
             audio_devices: Vec::new(),
             system_language,
         };
@@ -480,6 +485,7 @@ impl NeumannApp {
             speaker_count: self.speakers.len(),
             notice: self.notice,
             average_response_time: self.average_response_time(),
+            dimmed: self.is_dimmed(),
         };
         match toolbar::show(ui, &facts) {
             ToolbarAction::Scan => {
@@ -500,10 +506,22 @@ impl NeumannApp {
             ToolbarAction::Manual => self.open_manual(),
             ToolbarAction::Wiki => self.open_web(WIKI_URL),
             ToolbarAction::About => self.about = Some(UpdateView::NotAsked),
+            ToolbarAction::Dim => {
+                let now = ui.input(|input| input.time);
+                self.apply_shortcut(DeskShortcut::Dim, now);
+            }
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
             self.toggle_compact(frame);
+        }
+        // A field being edited keeps its keys (Ctrl+arrows, typed letters).
+        let editing_a_field = ui.ctx().memory(|memory| memory.focused().is_some());
+        if !editing_a_field {
+            let now = ui.input(|input| input.time);
+            for shortcut in ui.input_mut(shortcuts::pressed) {
+                self.apply_shortcut(shortcut, now);
+            }
         }
         egui::CentralPanel::default().show(ui, |ui| {
             if self.settings.desk.compact {
