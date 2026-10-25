@@ -4,12 +4,15 @@
 use std::time::Duration;
 
 use super::NeumannApp;
+use crate::meter::MeterState;
 use crate::system_audio::{channel_names, peak_db};
 use crate::texts;
 use crate::views::system_strip::SystemStripResponse;
 
 /// Windows' peak value is read every frame; this keeps frames coming for the meters.
 const METER_REFRESH: Duration = Duration::from_millis(50);
+/// In silence the peaks are read half as often: sound starting shows at most this late.
+const SILENT_REFRESH: Duration = Duration::from_millis(100);
 const PERCENT: f64 = 100.0;
 
 /// What the strip shows this frame; the meters stay in the app.
@@ -63,9 +66,50 @@ impl NeumannApp {
         }
     }
 
-    pub(super) fn keep_system_meters_moving(&self, context: &eframe::egui::Context) {
+    pub(super) fn keep_system_meters_moving(&self, context: &eframe::egui::Context, now: f64) {
         if self.settings.system_audio.shown {
-            context.request_repaint_after(METER_REFRESH);
+            let floor = self.settings.desk.meter_floor.db();
+            context.request_repaint_after(system_refresh(&self.system_meters, floor, now));
         }
+    }
+}
+
+/// How soon Windows' peaks are read again: often while there is sound or a bar still falls.
+fn system_refresh(meters: &[MeterState], floor: f64, now: f64) -> Duration {
+    let sounding = meters
+        .iter()
+        .any(|meter| meter.level() > floor || meter.is_moving(now));
+    if sounding {
+        METER_REFRESH
+    } else {
+        SILENT_REFRESH
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FLOOR: f64 = -60.0;
+
+    #[test]
+    fn silence_is_read_less_often_than_sound() {
+        let silent = [MeterState::default(); 2];
+        assert_eq!(system_refresh(&silent, FLOOR, 5.0), SILENT_REFRESH);
+        let mut sounding = silent;
+        sounding[1].update(-20.0, 5.0);
+        assert_eq!(system_refresh(&sounding, FLOOR, 5.0), METER_REFRESH);
+        assert_eq!(
+            system_refresh(&sounding, FLOOR, 60.0),
+            METER_REFRESH,
+            "a steady tone"
+        );
+        sounding[1].update(FLOOR, 60.0);
+        assert_eq!(
+            system_refresh(&sounding, FLOOR, 60.01),
+            METER_REFRESH,
+            "still falling"
+        );
+        assert_eq!(system_refresh(&sounding, FLOOR, 120.0), SILENT_REFRESH);
     }
 }

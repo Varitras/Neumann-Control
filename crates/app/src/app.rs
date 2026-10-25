@@ -1004,7 +1004,8 @@ impl eframe::App for NeumannApp {
         texts::set_language(self.settings.desk.language.resolve(self.system_language));
         display::set_delay_unit(self.settings.desk.delay_unit);
         wheel::track_burst(ui.ctx());
-        self.keep_system_meters_moving(ui.ctx());
+        let now = ui.input(|input| input.time);
+        self.keep_system_meters_moving(ui.ctx(), now);
         if let Some(window) = frame.winit_window() {
             self.monitors = monitor_areas(window);
         }

@@ -17,7 +17,8 @@
 - The device panel sorts its settings into tabs (overview, outputs, inputs, standby, device)
   instead of one long scrolling page; the outputs stand side by side.
 - **Detailed log** in **Settings**: the log also takes every write with its value (without
-  texts), every failed request and where windows open, for troubleshooting.
+  texts), every failed request, where windows open and the window's frame rate, for
+  troubleshooting.
 - The group dialog lists the speakers to check: a new group gets its members right away.
 - An issue form for sending the **Full scan** of a model the app only reads.
 - **Same layout for every speaker of a model** in **Settings**: switched off, each speaker keeps
@@ -87,6 +88,9 @@
 
 ### Changed
 
+- The window draws far less often: news from the speakers at most twenty times a second together
+  instead of one frame per reading, the busy spinner at a bounded rate, and the Windows volume
+  meters half as often in silence. With several speakers this takes about half the CPU.
 - The master strip and its compact row are hidden unless **Show master strip** is on in
   **Settings**; a settings file that already holds the choice keeps it.
 - Deleting a group, a settings preset or an EQ preset asks first.

@@ -399,8 +399,9 @@ it). It sets:
 - whether the keyboard shortcuts work from other programs too, with Ctrl+Alt (off by default; see
   [Keyboard shortcuts](#keyboard-shortcuts)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
-  holds every write with its path and value (texts such as names left out), every failed request
-  and where windows open, for troubleshooting,
+  holds every write with its path and value (texts such as names left out), every failed request,
+  where windows open and every ten seconds how many frames the window drew and how long they
+  took, for troubleshooting,
 - whether the EQ crossovers are protected (off by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
