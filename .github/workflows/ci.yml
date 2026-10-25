@@ -13,7 +13,16 @@ permissions:
 
 jobs:
   check:
-    runs-on: windows-latest
+    strategy:
+      # One system's failure must not hide the other's result.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            executable: neumann-control.exe
+          - runner: ubuntu-latest
+            executable: neumann-control
+    runs-on: ${{ matrix.runner }}
     # A cold cache once hit 45 minutes.
     timeout-minutes: 60
     steps:
@@ -37,5 +46,5 @@ jobs:
       - run: cargo build --release --locked -p neumann-control-app
       - uses: actions/upload-artifact@v7
         with:
-          name: neumann-control-exe
-          path: target/release/neumann-control.exe
+          name: ${{ matrix.executable }}
+          path: target/release/${{ matrix.executable }}
