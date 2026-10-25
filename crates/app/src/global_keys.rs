@@ -128,6 +128,19 @@ mod windows_keys {
     mod tests {
         use super::*;
 
+        /// Takes Ctrl+Alt keys of this machine for a moment, so it runs only when asked:
+        /// `cargo test -p neumann-control-app -- --ignored hot_keys`.
+        #[test]
+        #[ignore]
+        fn the_hot_keys_are_let_go_when_the_listener_goes() {
+            let wake: Wake = std::sync::Arc::new(|| {});
+            let first = WindowsGlobalKeys.listen(std::sync::Arc::clone(&wake));
+            assert!(first.is_some(), "the keys are free");
+            drop(first);
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            assert!(WindowsGlobalKeys.listen(wake).is_some(), "let go again");
+        }
+
         /// Windows names the letter keys by their capitals.
         #[test]
         fn the_keys_are_windows_virtual_keys() {

@@ -148,6 +148,8 @@ pub struct NeumannApp {
     /// Hears the shortcuts from other programs; listening while the settings ask for it.
     global_keys: Box<dyn GlobalKeys>,
     global_listener: Option<GlobalListener>,
+    /// Windows had none of the keys: not asked again until the setting is switched on anew.
+    global_keys_taken: bool,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -225,6 +227,7 @@ impl NeumannApp {
             dimmed: None,
             global_keys: Box::new(WindowsGlobalKeys),
             global_listener: None,
+            global_keys_taken: false,
             audio_devices: Vec::new(),
             system_language,
         };
@@ -972,6 +975,9 @@ impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, _frame: &mut eframe::Frame) {
         let now = context.input(|input| input.time);
         self.drain_events(now);
+        for shortcut in self.global_shortcuts() {
+            self.apply_shortcut(shortcut, now);
+        }
         self.write_scan_reports();
         self.rediscover(now);
         self.poll_scan();

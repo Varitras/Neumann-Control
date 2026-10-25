@@ -235,9 +235,12 @@ fn build_shared(
 
 /// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
 /// whether the app listens.
+/// Where a pressed shortcut goes, and how the app is woken for it.
+type Listening = Option<(mpsc::Sender<DeskShortcut>, Wake)>;
+
 #[derive(Clone, Default)]
 pub struct FakeGlobalKeys {
-    listening: Arc<Mutex<Option<(mpsc::Sender<DeskShortcut>, Wake)>>>,
+    listening: Arc<Mutex<Listening>>,
 }
 
 impl FakeGlobalKeys {

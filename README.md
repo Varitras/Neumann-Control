@@ -43,6 +43,7 @@ strips on a desk, with level faders, meters, groups and a master.
   group.
 - **EQ** in a window of its own: a computed response graph and a table of the bands.
 - **History and undo**: the writes of the session, each one revertible, Ctrl+Z for the newest.
+- **Keyboard shortcuts** for the master, mute all and dim, also from other programs if you like.
 - **Presets** of chosen settings and of EQs, and a comparison of EQ curves between speakers.
 - **Windows volume** of a playback device as a strip on the desk.
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
@@ -346,6 +347,23 @@ input B ("Crossover A", "Crossover B").
   flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
   the output then plays unfiltered.
 
+### Keyboard shortcuts
+
+In the app window:
+
+| Keys | What they do |
+|------|--------------|
+| Ctrl+↑ / Ctrl+↓ | Every speaker 1 dB louder / quieter, as the master fader moves them |
+| Ctrl+M | Mute every speaker; again: unmute them (all were muted) |
+| Ctrl+D | Dim: every speaker 20 dB quieter; again (or **Dim** in the toolbar): each back to its level before |
+| Ctrl+K | Compact mode on and off |
+| Ctrl+Z | Take back the newest write |
+
+While a text or number field is being edited, it keeps its keys. With **Shortcuts from other
+programs too** in **Settings** (off by default), Ctrl+Alt with the same keys (↑, ↓, M, D) works
+while another program is in front; a key another program already holds is left out (the log
+says which).
+
 ### History and undo
 
 **History** in the toolbar lists the settings the app wrote in this session (the newest 500),
@@ -374,6 +392,8 @@ it). It sets:
 - whether the master strip (and its row in the compact mode) is shown (off by default),
 - whether every speaker of a model has the same strip and compact layout (on by default; see
   [The desk](#the-desk)),
+- whether the keyboard shortcuts work from other programs too, with Ctrl+Alt (off by default; see
+  [Keyboard shortcuts](#keyboard-shortcuts)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
   holds every write with its path and value (texts such as names left out), every failed request
   and where windows open, for troubleshooting,

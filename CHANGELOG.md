@@ -4,6 +4,9 @@
 
 ### Added
 
+- Keyboard shortcuts: Ctrl+↑/↓ moves every speaker by 1 dB, Ctrl+M mutes or unmutes them all,
+  Ctrl+D dims them by 20 dB and restores their levels; with a setting also from other programs
+  (Ctrl+Alt).
 - In the compact mode a group row offers **Delete group…** on a right click, and a speaker's row
   is framed in its own strip colour.
 - **Load preset…** and **Load EQ preset…** compare each change side by side, now and to be

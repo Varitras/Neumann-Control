@@ -1,6 +1,8 @@
 //! What the desk's shortcuts do: the master moves every speaker, mute all mutes or unmutes them
 //! all, dim lowers them all and, pressed again, sets each back to the level it had.
 
+use std::sync::Arc;
+
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, level_of};
@@ -30,6 +32,23 @@ impl NeumannApp {
             }
             DeskShortcut::Dim => self.toggle_dim(&everyone, catalog, now),
         }
+    }
+
+    /// Listens while the settings ask for it, and hands out what was pressed in other programs.
+    pub(super) fn global_shortcuts(&mut self) -> Vec<DeskShortcut> {
+        if !self.settings.desk.global_shortcuts {
+            self.global_listener = None;
+            self.global_keys_taken = false;
+            return Vec::new();
+        }
+        if self.global_listener.is_none() && !self.global_keys_taken {
+            self.global_listener = self.global_keys.listen(Arc::clone(&self.wake));
+            self.global_keys_taken = self.global_listener.is_none();
+        }
+        self.global_listener
+            .as_ref()
+            .map(|listener| listener.pressed.try_iter().collect())
+            .unwrap_or_default()
     }
 
     pub fn is_dimmed(&self) -> bool {
