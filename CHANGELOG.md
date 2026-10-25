@@ -125,6 +125,8 @@
 
 ### Fixed
 
+- An EQ file line of a type that names its Q (`LPQ`, `HP Q`, `LSC`, `LS Q` and the like) but
+  has none is refused instead of taking a guessed Q.
 - A REW export with a plain low or high pass (`LP`, `HP` without Q) was refused ("Q is missing"),
   and one with an all pass (written `All pass`) as an unknown type; both are imported now, the
   plain passes with Q 0.707, as REW defines them.

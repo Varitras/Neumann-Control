@@ -108,12 +108,10 @@ pub enum Parameter {
 /// What a file type's Q means for the speaker.
 #[derive(Clone, Copy)]
 enum QRule {
-    /// The cookbook Q, taken as it is; a line without one is refused.
-    Required,
-    /// The cookbook Q of a shelf, converted to the speakers' slope; REW's plain shelf has none.
+    /// The cookbook Q, taken as it is.
+    Cookbook,
+    /// The cookbook Q of a shelf, converted to the speakers' slope.
     Shelf,
-    /// The cookbook Q, taken as it is; REW's plain low and high pass have none.
-    Pass,
     /// A first-order filter: no Q.
     Unused,
 }
@@ -123,20 +121,31 @@ struct FileType {
     kind: &'static str,
     gain: bool,
     q: QRule,
+    /// REW's plain `LP`, `HP`, `LS` and `HS` have no Q and mean `REW_PLAIN_Q`; any other type
+    /// without its Q is refused (APO does not say what it would use).
+    plain: bool,
 }
 
 fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
     let upper = name.to_ascii_uppercase();
-    let shaped = |kind, gain, q| Ok(Some(FileType { kind, gain, q }));
+    let plain = matches!(upper.as_str(), "LP" | "HP" | "LS" | "HS");
+    let shaped = |kind, gain, q| {
+        Ok(Some(FileType {
+            kind,
+            gain,
+            q,
+            plain,
+        }))
+    };
     match upper.as_str() {
-        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Required),
-        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Pass),
-        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Pass),
+        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Cookbook),
+        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Cookbook),
+        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
-        "BP" => shaped(eq_type::BANDPASS, false, QRule::Required),
-        "NO" => shaped(eq_type::NOTCH, false, QRule::Required),
-        "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Required),
+        "BP" => shaped(eq_type::BANDPASS, false, QRule::Cookbook),
+        "NO" => shaped(eq_type::NOTCH, false, QRule::Cookbook),
+        "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
         "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
         "HS" | "HSC" | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
         "NONE" => Ok(None),
@@ -276,10 +285,14 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
     if file_type.gain {
         boost = values.gain.ok_or(LineProblem::Missing(Parameter::Gain))?;
     }
+    let cookbook_q = match (values.q, file_type.plain) {
+        (Some(q), _) => Ok(q),
+        (None, true) => Ok(REW_PLAIN_Q),
+        (None, false) => Err(LineProblem::Missing(Parameter::Q)),
+    };
     let q = match file_type.q {
-        QRule::Required => values.q.ok_or(LineProblem::Missing(Parameter::Q))?,
-        QRule::Shelf => shelf_slope_of_q(values.q.unwrap_or(REW_PLAIN_Q), boost),
-        QRule::Pass => values.q.unwrap_or(REW_PLAIN_Q),
+        QRule::Cookbook => cookbook_q?,
+        QRule::Shelf => shelf_slope_of_q(cookbook_q?, boost),
         QRule::Unused => FIRST_ORDER_Q,
     };
     // A bandwidth of 0 octaves gives an infinite Q, which would reach the speaker as `null` and
@@ -786,6 +799,30 @@ Equaliser: Generic
                 problem: LineProblem::UnknownType("IIR".to_owned()),
             })
         );
+    }
+
+    /// Only REW's plain types are known to mean Q 1/√2 without one (read from its .req); every
+    /// type that names its Q (`LPQ`, `HP Q`, `LSC`, `LS Q` …) or always has one is refused
+    /// without it, since APO does not say what it would use.
+    #[test]
+    fn only_the_plain_types_take_a_q_they_were_not_given() {
+        for plain in ["LP", "HP", "LS", "HS"] {
+            let line = format!("Filter: ON {plain} Fc 100 Hz Gain 3 dB");
+            let gainless = format!("Filter: ON {plain} Fc 100 Hz");
+            let read = parse(&line).or_else(|_| parse(&gainless)).unwrap();
+            assert!(read.bands[&0].is_some(), "{plain}");
+        }
+        for named in [
+            "LPQ", "LP Q", "HPQ", "HP Q", "LSC", "LS Q", "HSC", "HS Q", "PK", "BP", "NO", "AP",
+            "All pass",
+        ] {
+            let line = format!("Filter: ON {named} Fc 100 Hz Gain 3 dB");
+            assert_eq!(
+                problem_of(&line),
+                LineProblem::Missing(Parameter::Q),
+                "{named}"
+            );
+        }
     }
 
     #[test]
