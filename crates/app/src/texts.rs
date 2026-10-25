@@ -935,6 +935,11 @@ pub fn eq_preset_entry(name: &str, bands: usize) -> String {
 }
 
 /// A band an EQ preset would change, in the load dialog's preview.
+/// A band's value in the EQ preset comparison: "Band 2 · Boost".
+pub fn eq_band_leaf(band: usize, leaf: &str) -> String {
+    format!("{} · {leaf}", eq_band(band))
+}
+
 pub fn eq_preset_band(number: usize) -> String {
     pick(
         format!("Band {number} ändert sich"),

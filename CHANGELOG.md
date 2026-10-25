@@ -4,8 +4,9 @@
 
 ### Added
 
-- **Load preset…** compares each setting side by side, now and to be written; both preset
-  dialogs open in a window of their own in front of the device panel.
+- **Load preset…** and **Load EQ preset…** compare each change side by side, now and to be
+  written (an EQ preset per band and value); the device panel's preset dialogs open in a window
+  of their own in front of it.
 - The device panel sorts its settings into tabs (overview, outputs, inputs, standby, device)
   instead of one long scrolling page; the outputs stand side by side.
 - **Detailed log** in **Settings**: the log also takes every write with its value (without

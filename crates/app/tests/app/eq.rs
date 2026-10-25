@@ -590,9 +590,7 @@ fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
     // Side by side per band and value: only band 2's boost moved.
     harness.get_by_label(texts::PRESET_WRITTEN.get());
     harness.get_by_label(&format!("Band 2 · {BOOST_LABEL}"));
-    assert!(harness
-        .query_by_label_contains(&format!("Band 3 · "))
-        .is_none());
+    assert!(harness.query_by_label_contains("Band 3 · ").is_none());
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the preset's boost written", |_| {
         sets(&simulator, BOOST_POINTER).len() == 2

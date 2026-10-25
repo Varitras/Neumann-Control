@@ -106,6 +106,19 @@ pub struct EqPlan {
     pub writes: Vec<(SscPath, Value)>,
     /// Zero-based.
     pub bands: Vec<usize>,
+    /// Each band's value that changes, in band order, for the comparison.
+    pub differences: Vec<EqDifference>,
+}
+
+/// One value of one band a preset changes: as the speaker has it, and as written.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EqDifference {
+    /// Zero-based.
+    pub band: usize,
+    pub leaf: Leaf,
+    /// `None` when the speaker has not reported it.
+    pub now: Option<Value>,
+    pub written: Value,
 }
 
 /// The container's six leaves as reported; `None` until the speaker reported all of them with
@@ -175,10 +188,17 @@ pub fn eq_plan(
             if !plan.bands.contains(&band) {
                 plan.bands.push(band);
             }
+            plan.differences.push(EqDifference {
+                band,
+                leaf,
+                now: held.and_then(|held| held.get(band)).cloned(),
+                written: wanted[band].clone(),
+            });
         }
         plan.writes.push((path, Value::Array(wanted.clone())));
     }
     plan.bands.sort_unstable();
+    plan.differences.sort_by_key(|difference| difference.band);
     plan
 }
 

@@ -10,7 +10,7 @@ use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
 use super::escape_closes;
 use super::history::UNDO_SHORTCUT;
-use super::preset_dialog::{self, Changes, LoadAction, LoadView, SaveAction};
+use super::preset_dialog::{self, Changes, ComparedChange, LoadAction, LoadView, SaveAction};
 use super::wheel;
 use super::{placed, Opening};
 use crate::eq::{self, ResetKind};
@@ -89,8 +89,8 @@ pub enum PresetDialogView<'a> {
         /// The presets that fit the container.
         names: &'a [String],
         selected: Option<usize>,
-        /// The bands that would change.
-        changes: &'a [String],
+        /// Each band's value that would change, now and as written.
+        changes: &'a [ComparedChange],
         /// The container is a crossover (protection off): loading warns.
         crossover: bool,
         /// The selected preset's name while its deletion is being confirmed.
@@ -277,7 +277,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
                 title: texts::EQ_PRESET_LOAD_TITLE.get(),
                 presets: names,
                 selected: *selected,
-                changes: Changes::Lines(changes),
+                changes: Changes::Compared(changes),
                 skipped: &[],
                 warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
                 refusal: None,

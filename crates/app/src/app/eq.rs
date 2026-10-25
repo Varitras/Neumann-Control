@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use super::window_places::WindowKind;
 use super::NeumannApp;
+use crate::display::shown_value;
 use crate::eq::{
     bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, Band, Leaf,
     ResetKind,
@@ -16,7 +17,7 @@ use crate::eq::{
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
-use crate::presets::{capture_eq, eq_plan, fitting};
+use crate::presets::{capture_eq, eq_plan, fitting, EqDifference};
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, curve_color, curve_key};
@@ -24,6 +25,7 @@ use crate::ui_kit::theme::group_color;
 use crate::views::eq_graph::{ComparedCurve, Graph, GraphAction, GraphCurve, GraphPoint, SumCurve};
 use crate::views::eq_table::{Limits, Table, TableAction, TableRow};
 use crate::views::eq_window::{self, EqAction, EqView, ImportView, PresetDialogView, ResetOffer};
+use crate::views::preset_dialog::ComparedChange;
 use crate::writes::{self, Intent};
 
 const EQ_VIEWPORT_ID: &str = "eq_window";
@@ -334,7 +336,7 @@ impl NeumannApp {
                 texts::eq_preset_entry(&preset.name, preset.bands)
             })
             .collect();
-        let preset_changes: Vec<String> = match (&window.preset, reshapable) {
+        let preset_changes: Vec<ComparedChange> = match (&window.preset, reshapable) {
             (
                 Some(EqPresetDialog::Load {
                     selected: Some(place),
@@ -346,10 +348,7 @@ impl NeumannApp {
                 .map(|place| {
                     let preset = &self.settings.eq_presets[*place];
                     let plan = eq_plan(preset, &speaker.values, &shown.container.path);
-                    plan.bands
-                        .iter()
-                        .map(|band| texts::eq_preset_band(band + 1))
-                        .collect()
+                    compared(catalog, &shown.container.path, &plan.differences)
                 })
                 .unwrap_or_default(),
             _ => Vec::new(),
@@ -852,6 +851,32 @@ fn limits_of(catalog: &Catalog, container: Option<&SscPath>) -> Limits {
         frequency_unit: unit(Leaf::Frequency),
         gain_unit: unit(Leaf::Gain),
     }
+}
+
+/// A preset's changes as the load dialog compares them: "Band 2 · Boost", now, as written.
+fn compared(
+    catalog: &Catalog,
+    container: &SscPath,
+    differences: &[EqDifference],
+) -> Vec<ComparedChange> {
+    differences
+        .iter()
+        .map(|difference| {
+            let entry = paths::catalog_entry(catalog, &difference.leaf.path(container));
+            let shown = |value: Option<&Value>| match (entry, value) {
+                (Some(entry), Some(value)) => shown_value(entry, value),
+                _ => texts::UNKNOWN_VALUE.to_owned(),
+            };
+            let leaf = entry.map_or(difference.leaf.name(), |entry| {
+                entry.label(texts::language())
+            });
+            ComparedChange {
+                label: texts::eq_band_leaf(difference.band + 1, leaf),
+                now: shown(difference.now.as_ref()),
+                written: shown(Some(&difference.written)),
+            }
+        })
+        .collect()
 }
 
 /// Column titles in `Leaf::ALL` order, from the catalog in the current language.

@@ -316,9 +316,9 @@ input B ("Crossover A", "Crossover B").
 - **Compare with** lists the other speakers with the same output; a checked one shows the sum of
   its EQs there as a dashed line.
 - **Save as EQ preset…** keeps all bands of the chosen EQ under a name; **Load EQ preset…** offers
-  the presets with the same number of bands, shows which bands change and writes them as one
-  history entry. Writing several settings of a band one after another can pass a short level
-  jump. A name already used by a preset of the same band count is replaced after the dialog says
+  the presets with the same number of bands, compares each band's value that changes, now and as
+  written, and writes them as one history entry. Writing several settings of a band one after
+  another can pass a short level jump. A name already used by a preset of the same band count is replaced after the dialog says
   so; deleting asks first.
 - **Import…** reads the filter lines of an Equalizer APO `config.txt` or of a filter file Room EQ
   Wizard exported for its "Generic" equaliser (`Filter 1: ON PK Fc 100 Hz Gain -3.0 dB Q 1.41`).
