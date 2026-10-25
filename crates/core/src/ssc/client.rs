@@ -385,3 +385,19 @@ fn node_kind(node: &Value) -> NodeKind {
         _ => NodeKind::Leaf,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// A written name or other text never reaches the log, numbers and switches do.
+    #[test]
+    fn a_logged_value_keeps_no_text() {
+        let value = json!({"name": "Kitchen left", "levels": [1.5, "A"], "mute": true});
+        assert_eq!(
+            logged_value(&value),
+            json!({"name": REDACTED_TEXT, "levels": [1.5, REDACTED_TEXT], "mute": true})
+        );
+    }
+}
