@@ -14,9 +14,11 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
+use neumann_control_app::global_keys::{GlobalKeys, GlobalListener, Wake};
 use neumann_control_app::help::{Help, LookupError, Release};
 use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
+use neumann_control_app::shortcuts::DeskShortcut;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
 use neumann_control_app::texts;
@@ -225,8 +227,42 @@ fn build_shared(
             app.set_file_dialog(Box::new(FakeFiles::default()));
             // Nor a browser or a question to GitHub.
             app.set_help(Arc::new(FakeHelp::default()));
+            // Nor Windows' hot keys, which would take Ctrl+Alt keys from the machine.
+            app.set_global_keys(Box::new(FakeGlobalKeys::default()));
             app
         })
+}
+
+/// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
+/// whether the app listens.
+#[derive(Clone, Default)]
+pub struct FakeGlobalKeys {
+    listening: Arc<Mutex<Option<(mpsc::Sender<DeskShortcut>, Wake)>>>,
+}
+
+impl FakeGlobalKeys {
+    pub fn press(&self, shortcut: DeskShortcut) {
+        let listening = self.listening.lock().unwrap();
+        let (sender, wake) = listening.as_ref().expect("the app listens");
+        sender.send(shortcut).unwrap();
+        wake();
+    }
+
+    pub fn is_listening(&self) -> bool {
+        self.listening.lock().unwrap().is_some()
+    }
+}
+
+impl GlobalKeys for FakeGlobalKeys {
+    fn listen(&self, wake: Wake) -> Option<GlobalListener> {
+        let (sender, pressed) = mpsc::channel();
+        *self.listening.lock().unwrap() = Some((sender, wake));
+        let listening = Arc::clone(&self.listening);
+        let stop = Box::new(move || {
+            *listening.lock().unwrap() = None;
+        });
+        Some(GlobalListener::new(pressed, stop))
+    }
 }
 
 /// Stands in for the file dialog: hands out the paths the test chose (`None` is a cancel) and

@@ -335,6 +335,10 @@ pub const LAYOUTS_PER_MODEL: Text = Text::new(
     "Same layout for every speaker of a model",
 );
 pub const DIM: Text = Text::new("Dim", "Dim");
+pub const GLOBAL_SHORTCUTS: Text = Text::new(
+    "Kürzel auch aus anderen Programmen (Strg+Alt+↑/↓/M/D)",
+    "Shortcuts from other programs too (Ctrl+Alt+↑/↓/M/D)",
+);
 pub const DIM_HINT: Text = Text::new(
     "Alle Lautsprecher sind 20 dB leiser; klicken oder Strg+D: zurück",
     "Every speaker is 20 dB lower; click or Ctrl+D: back",

@@ -8,6 +8,7 @@ pub mod eq_response;
 pub mod fader;
 pub mod file_dialog;
 pub mod gesture;
+pub mod global_keys;
 pub mod groups;
 pub mod help;
 pub mod history;

@@ -22,6 +22,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
+use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
 use crate::layout_owner::stored;
@@ -144,6 +145,9 @@ pub struct NeumannApp {
     monitors: Vec<MonitorArea>,
     /// While dim is on: each speaker's level before.
     dimmed: Option<desk_shortcuts::DimmedLevels>,
+    /// Hears the shortcuts from other programs; listening while the settings ask for it.
+    global_keys: Box<dyn GlobalKeys>,
+    global_listener: Option<GlobalListener>,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -219,6 +223,8 @@ impl NeumannApp {
             system_meters: Vec::new(),
             monitors: Vec::new(),
             dimmed: None,
+            global_keys: Box::new(WindowsGlobalKeys),
+            global_listener: None,
             audio_devices: Vec::new(),
             system_language,
         };
@@ -234,6 +240,11 @@ impl NeumannApp {
     /// What opens the manual and web pages and asks GitHub; the tests' stand-in.
     pub fn set_help(&mut self, help: Arc<dyn Help>) {
         self.help = help;
+    }
+
+    pub fn set_global_keys(&mut self, global_keys: Box<dyn GlobalKeys>) {
+        self.global_listener = None;
+        self.global_keys = global_keys;
     }
 
     /// Starts workers for remembered speakers not shown yet and moves speakers whose entry now

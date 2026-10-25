@@ -1,0 +1,139 @@
+//! The desk's shortcuts from other programs: Ctrl+Alt with the window's keys, as Windows hot
+//! keys on a thread of their own. Off unless chosen in the settings.
+
+use std::sync::mpsc::Receiver;
+use std::sync::Arc;
+
+use crate::shortcuts::DeskShortcut;
+
+/// Redraws the app; a press from another program arrives while it sleeps.
+pub type Wake = Arc<dyn Fn() + Send + Sync>;
+
+/// Listens for the shortcuts from other programs: Windows' hot keys in the app, a stand-in in
+/// tests.
+pub trait GlobalKeys {
+    /// Starts listening; `None` when not one of the keys could be had.
+    fn listen(&self, wake: Wake) -> Option<GlobalListener>;
+}
+
+/// The shortcuts pressed in other programs, while it lives.
+pub struct GlobalListener {
+    pub pressed: Receiver<DeskShortcut>,
+    stop: Option<Box<dyn FnOnce() + Send>>,
+}
+
+impl GlobalListener {
+    pub fn new(pressed: Receiver<DeskShortcut>, stop: Box<dyn FnOnce() + Send>) -> GlobalListener {
+        GlobalListener {
+            pressed,
+            stop: Some(stop),
+        }
+    }
+}
+
+impl Drop for GlobalListener {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            stop();
+        }
+    }
+}
+
+#[cfg(windows)]
+pub use windows_keys::WindowsGlobalKeys;
+
+#[cfg(windows)]
+mod windows_keys {
+    use std::sync::mpsc;
+    use std::thread;
+
+    use eframe::egui::Key;
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, VK_DOWN, VK_UP,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetMessageW, PostThreadMessageW, MSG, WM_HOTKEY, WM_QUIT,
+    };
+
+    use super::{GlobalKeys, GlobalListener, Wake};
+    use crate::shortcuts::SHORTCUT_KEYS;
+
+    pub struct WindowsGlobalKeys;
+
+    /// The virtual key of a shortcut's key; letters are their capital's code.
+    fn virtual_key(key: Key) -> u32 {
+        match key {
+            Key::ArrowUp => u32::from(VK_UP),
+            Key::ArrowDown => u32::from(VK_DOWN),
+            other => u32::from(other.name().as_bytes()[0]),
+        }
+    }
+
+    impl GlobalKeys for WindowsGlobalKeys {
+        fn listen(&self, wake: Wake) -> Option<GlobalListener> {
+            let (pressed, received) = mpsc::channel();
+            let (thread_id, told) = mpsc::channel();
+            thread::spawn(move || {
+                // A hot key belongs to the thread that registers it and arrives in its queue.
+                let modifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
+                let mut had = 0;
+                for (id, (shortcut, key)) in SHORTCUT_KEYS.iter().enumerate() {
+                    let registered = unsafe {
+                        RegisterHotKey(
+                            std::ptr::null_mut(),
+                            id as i32,
+                            modifiers,
+                            virtual_key(*key),
+                        )
+                    };
+                    if registered == 0 {
+                        log::warn!(
+                            "the global shortcut for {shortcut:?} is taken by another program"
+                        );
+                        continue;
+                    }
+                    had += 1;
+                }
+                let _ = thread_id.send((had > 0).then(|| unsafe { GetCurrentThreadId() }));
+                if had == 0 {
+                    return;
+                }
+                let mut message: MSG = unsafe { std::mem::zeroed() };
+                while unsafe { GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) } > 0 {
+                    if message.message != WM_HOTKEY {
+                        continue;
+                    }
+                    let Some((shortcut, _)) = SHORTCUT_KEYS.get(message.wParam) else {
+                        continue;
+                    };
+                    if pressed.send(*shortcut).is_err() {
+                        break;
+                    }
+                    wake();
+                }
+                for id in 0..SHORTCUT_KEYS.len() {
+                    unsafe { UnregisterHotKey(std::ptr::null_mut(), id as i32) };
+                }
+            });
+            let thread_id = told.recv().ok()??;
+            let stop = Box::new(move || {
+                unsafe { PostThreadMessageW(thread_id, WM_QUIT, 0, 0) };
+            });
+            Some(GlobalListener::new(received, stop))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// Windows names the letter keys by their capitals.
+        #[test]
+        fn the_keys_are_windows_virtual_keys() {
+            assert_eq!(virtual_key(Key::M), u32::from(b'M'));
+            assert_eq!(virtual_key(Key::D), u32::from(b'D'));
+            assert_eq!(virtual_key(Key::ArrowUp), u32::from(VK_UP));
+        }
+    }
+}

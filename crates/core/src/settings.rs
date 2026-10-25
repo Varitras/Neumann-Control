@@ -249,6 +249,9 @@ pub struct DeskSettings {
     /// The log also takes the debug lines, for troubleshooting.
     #[serde(deserialize_with = "or_default")]
     pub detailed_log: bool,
+    /// The desk's shortcuts work from other programs too, with Ctrl+Alt.
+    #[serde(deserialize_with = "or_default")]
+    pub global_shortcuts: bool,
     /// Like `strip_layouts`, per speaker identity, used with `layouts_per_speaker`.
     #[serde(
         deserialize_with = "readable_layouts",
@@ -350,6 +353,7 @@ impl Default for DeskSettings {
             compact_layouts: BTreeMap::new(),
             layouts_per_speaker: false,
             detailed_log: false,
+            global_shortcuts: false,
             speaker_strip_layouts: BTreeMap::new(),
             speaker_compact_layouts: BTreeMap::new(),
         }

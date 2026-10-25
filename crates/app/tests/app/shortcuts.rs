@@ -5,6 +5,7 @@ use eframe::egui::{self, Key, Modifiers};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::shortcuts::DeskShortcut;
 use neumann_control_app::texts;
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
@@ -74,4 +75,27 @@ fn a_shortcut_waits_while_a_field_is_edited() {
     harness.run_steps(5);
     barrier(&simulator);
     assert!(mute_sets(&simulator).is_empty());
+}
+
+/// Switched on in the settings, a shortcut pressed in another program reaches the desk;
+/// switched off, the app stops listening.
+#[test]
+fn a_global_shortcut_reaches_the_desk_once_switched_on() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let keys = FakeGlobalKeys::default();
+    harness.state_mut().set_global_keys(Box::new(keys.clone()));
+    harness.run_steps(2);
+    assert!(!keys.is_listening());
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::GLOBAL_SHORTCUTS.get());
+    harness.run_steps(2);
+    assert!(keys.is_listening());
+    keys.press(DeskShortcut::MuteAll);
+    wait_until(&mut harness, "all muted", |_| {
+        mute_sets(&simulator) == [Value::Bool(true)]
+    });
+    scroll_to_and_click(&mut harness, texts::GLOBAL_SHORTCUTS.get());
+    harness.run_steps(2);
+    assert!(!keys.is_listening());
 }
