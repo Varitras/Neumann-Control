@@ -1,0 +1,65 @@
+[package]
+name = "neumann-control-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "neumann-control"
+path = "src/main.rs"
+
+[lib]
+name = "neumann_control_app"
+path = "src/lib.rs"
+
+[dependencies]
+neumann-control-core = { path = "../core" }
+serde_json = "1"
+eframe = "0.37"
+log = "0.4"
+simplelog = "0.12"
+# Already in the tree through simplelog; the local clock time of the history's entries.
+time = { version = "0.3", features = ["local-offset"] }
+# Already in the tree through eframe; lists the monitors to place the window at the start.
+winit = "0.30"
+
+[target.'cfg(windows)'.dependencies]
+# Already in the tree through eframe and others; asks Windows for its display language, opens
+# the manual and web pages, and asks GitHub for the latest release over WinHTTP (no HTTP crate
+# needed).
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Networking_WinHttp",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+# Already in the tree through accesskit_windows; Core Audio (COM) for the Windows volume strip,
+# which windows-sys cannot call.
+windows = { version = "0.62", features = [
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
+
+# The Windows file dialog for the EQ import and export.
+rfd = { version = "0.17", default-features = false }
+
+[build-dependencies]
+# Puts the icon into the executable, for Explorer and the taskbar.
+winresource = "0.1"
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["eframe"] }
+neumann-control-core = { path = "../core", features = ["test-support"] }
+tempfile = "3"

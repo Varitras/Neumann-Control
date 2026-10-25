@@ -1,0 +1,41 @@
+# One pipeline: CI runs the same check.ps1 as the pre-push hook.
+# `branches` and `branches-ignore` must never both appear on one event.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    # A cold cache once hit 45 minutes.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+      # Prebuilt and checksum-verified: building cargo-audit from source took
+      # about 11 minutes per run and pushed cold-cache runs past the timeout.
+      # Only cargo-audit is unpinned: Dependabot does not update tool
+      # versions here, and an outdated cargo-audit can fail on a newer
+      # advisory database.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9,cargo-audit
+      - run: ./check.ps1
+        shell: pwsh
+      - run: cargo build --release --locked -p neumann-control-app
+      - uses: actions/upload-artifact@v7
+        with:
+          name: neumann-control-exe
+          path: target/release/neumann-control.exe

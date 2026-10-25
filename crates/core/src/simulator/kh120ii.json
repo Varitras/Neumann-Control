@@ -1,0 +1,88 @@
+{
+  "device": {
+    "auth": {
+      "exclusive": ""
+    },
+    "identification": {
+      "visual": false
+    },
+    "identity": {
+      "hw_version": 1,
+      "product": "KH 120 II",
+      "serial": "SIM0001234",
+      "vendor": "Georg Neumann GmbH",
+      "version": "1_7_3"
+    },
+    "name": "Simulated KH 120 II",
+    "network": {
+      "ether": {
+        "macs": "08:1b:2c:3d:4e:5f"
+      }
+    },
+    "restore": "",
+    "standby": {
+      "auto_standby_time": 60,
+      "countdown": 0,
+      "enabled": true,
+      "level": -65
+    },
+    "system": "",
+    "time": 0,
+    "timeprecision": 0,
+    "update": {
+      "enable": false,
+      "startover": false
+    }
+  },
+  "audio": {
+    "in": {
+      "current_input": "ANALOG INPUT",
+      "interface": "ANALOG ONLY"
+    },
+    "out": {
+      "delay": 0,
+      "level": 100.0,
+      "mixer": {
+        "levels": [0.0, -100.0]
+      },
+      "mute": false,
+      "mute_persist": false,
+      "eq2": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "eq3": {
+        "boost": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "enabled": [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+        "frequency": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+        "gain": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "q": [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7],
+        "type": ["PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC", "PARAMETRIC"]
+      },
+      "phaseinversion": false
+    }
+  },
+  "ui": {
+    "control_mode": "NETWORK",
+    "bass_gain": "0",
+    "input_gain": 0.0,
+    "input_select": "ANALOG",
+    "logo": {
+      "brightness": 30
+    },
+    "mid_gain": "0",
+    "output_level": "100",
+    "treble_gain": "0"
+  },
+  "m": {
+    "in": {
+      "clip": [false, false],
+      "level": [-40.0, -41.5]
+    }
+  },
+  "warnings": ["NO_WARNING"]
+}

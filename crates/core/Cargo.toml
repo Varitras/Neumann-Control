@@ -1,0 +1,35 @@
+[package]
+name = "neumann-control-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+log = "0.4"
+mdns-sd = "0.21"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+
+[[test]]
+name = "simulator"
+required-features = ["test-support"]
+
+[[test]]
+name = "client"
+required-features = ["test-support"]
+
+[[test]]
+name = "speaker"
+required-features = ["test-support"]
+
+[dev-dependencies]
+# The tests switch on the simulator themselves, so a test run needs no --features (and the
+# mutation runs, which build without it, do not rebuild for the test phase).
+neumann-control-core = { path = ".", features = ["test-support"] }
+tempfile = "3"

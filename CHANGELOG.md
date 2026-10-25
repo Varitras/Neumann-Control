@@ -1,0 +1,222 @@
+# Changelog
+
+## [Unreleased]
+
+### Added
+
+- Screen readers: each strip and compact row is a group named after its speaker or group; a
+  knob's entry field and each EQ band's type choice are named.
+- Keyboard shortcuts: Ctrl+↑/↓ moves every speaker by 1 dB, Ctrl+M mutes or unmutes them all,
+  Ctrl+D dims them by 20 dB and restores their levels; with a setting also from other programs
+  (Ctrl+Shift+Alt).
+- In the compact mode a group row offers **Delete group…** on a right click, and a speaker's row
+  is framed in its own strip colour.
+- **Load preset…** and **Load EQ preset…** compare each change side by side, now and to be
+  written (an EQ preset per band and value); the device panel's preset dialogs open in a window
+  of their own in front of it.
+- The device panel sorts its settings into tabs (overview, outputs, inputs, standby, device)
+  instead of one long scrolling page; the outputs stand side by side.
+- **Detailed log** in **Settings**: the log also takes every write with its value (without
+  texts), every failed request, where windows open, the window's frame rate and the app's CPU
+  use with what asked for the frames most, for troubleshooting.
+- The group dialog lists the speakers to check: a new group gets its members right away.
+- An issue form for sending the **Full scan** of a model the app only reads.
+- **Same layout for every speaker of a model** in **Settings**: switched off, each speaker keeps
+  its own strip and compact buttons, starting as its model's.
+- **Strip colour** for groups (group dialog) and speakers (device panel): the default, none, or
+  an own colour.
+- The device panel, the EQ window, **All values**, **Settings** and the preset dialogs open
+  where and as large as the last one of their kind was left, for every speaker, also after a
+  restart, and the first time over the middle of the main window; a further one opens a little
+  offset. A window left maximized, the main window too, opens maximized again.
+- **Settings** is a window of its own instead of a dialog over the desk.
+- The toolbar says when the settings file was set aside or only partly understood at the start.
+- Starting the app again in the same folder brings the running window to the front instead of
+  opening a second app, which would overwrite the first one's settings.
+- **?** in the toolbar: the **Manual** (an HTML file of this README next to the executable), the
+  **Wiki** on GitHub, and **About Neumann Control** with version, licence and **Check for
+  updates**, which asks GitHub for the newest release when clicked and links to it; it tells an
+  unreachable GitHub from an answer it cannot read.
+- Compact rows of speakers have **EQ** and **Details** next to **Mute**; a right click on a
+  button hides it, moves it, adds another switch or goes back to the default, per model.
+- Without a saved window size, the window is made as large as the desk needs and grows with it
+  until you size it yourself.
+- **Show master strip** in **Settings** shows the master strip and its compact row.
+- While an element is dragged in edit mode, its strip shows it where it would land and the
+  other elements make room.
+- **Details** on each group strip opens the group's dialog (rename, delete), as its name does.
+- A speaker that is off keeps the name and model it last reported, instead of its masked
+  address; removing the speaker forgets them.
+- **Scan again** in the dialog of found speakers: scans once more and adds what it finds, keeping
+  the list and the checks so far.
+- Delays in meters: **Settings** shows and takes every delay as the distance sound travels in it
+  (343 m/s, at 20 °C) instead of in milliseconds.
+- An EQ window per speaker: a computed response graph of every EQ and their sum, band points to
+  drag, and a table of the bands. Each change writes one band only and can be undone.
+- A history of the settings the app wrote in this session, the newest 500 (**History** in the
+  toolbar), with **Undo** on each entry and Ctrl+Z for the newest. A group or master move is one
+  entry. When a value changed since, the app asks before writing the old one back.
+- The held peak of each meter as a number under its channel.
+- An **EQ** button on each strip, opening the speaker's EQ window.
+- **Make flat** in the EQ window: level and boost of every band of an EQ to 0 dB, after a
+  question; not for the KH 750 crossovers.
+- **Reset** in the EQ window: every band of an EQ off and back to PARAMETRIC, 100 Hz, Q 0.7,
+  level and boost 0 dB, after a question; protected like "Make flat".
+- **Undo** in the EQ window and Ctrl+Z there: takes back the speaker's newest EQ change.
+- Trends of the temperature and the warnings over the last two hours of the session in the
+  device panel.
+- **Input mix** per output (input A and B, −100 to 0 dB) and **Mute persist** in the device
+  panel; the KH 750 also shows the position of its AUTO STANDBY switch.
+- **Compare with** in the EQ window: the EQ sum of other speakers on the same output as a dashed
+  line.
+- Settings presets (chosen settings under a name) and EQ presets (all bands of an EQ), each loaded
+  with a preview as one history entry.
+- **Full scan** in the device panel: a report of everything a speaker answers, without its
+  identifiers, next to the executable.
+- A strip with the Windows volume of a chosen playback device, with mute and peak meters named
+  after their speaker positions.
+- Each EQ band has its own colour and its number in its point; every band's own curve is drawn
+  thin, the chosen band's with its area. Colours and which band curves show are set in the
+  settings.
+- **Import…** and **Export…** in the EQ window: filter lines of Equalizer APO and of Room EQ
+  Wizard's "Generic" export, with a preview and one history entry; export as APO lines. Shelving
+  filters are converted between the files' Q and the speakers' slope.
+- **Protect crossovers** in the settings (off by default); on, "Make flat", "Reset", EQ presets
+  and the import leave the KH 750 crossovers alone. Off, they work there too, with a warning.
+- Strips you can customize per model: hide, swap and move what a strip shows besides its fader,
+  put any setting of the device panel on it, from a context menu or in an edit mode (the pen in
+  the toolbar). Mute and identify are listed in the device panel too.
+
+### Changed
+
+- The EQ table continues in a column to the right when its bands do not fit below each other
+  and the window is wide enough, instead of scrolling; the EQ window opens a little taller.
+- The window draws far less often: news from the speakers at most twenty times a second together
+  instead of one frame per reading, never more than sixty frames a second (animations such as a
+  scroll bar fading in ran at hundreds), and the Windows volume meters half as often in silence.
+  With several speakers this takes about half the CPU, at startup much less.
+- The master strip and its compact row are hidden unless **Show master strip** is on in
+  **Settings**; a settings file that already holds the choice keeps it.
+- Deleting a group, a settings preset or an EQ preset asks first.
+- **All values** opens in a window of its own like the EQ and the device panel; Escape closes it.
+- The temperature trend shows its highest, lowest and current value in °C at the line; models
+  without a temperature (KH 120 II) show no trend section.
+- The lowest level the meters show is chosen from a list in 10 dB steps (−120 to −30 dB) instead
+  of −120, −90 or −60 dB; a saved choice stays.
+- In each topic of the device panel what can be set comes before what is only shown.
+- On the KH 750 the outputs are named after what they drive: Subwoofer (its own woofer), Output A
+  and Output B (its two output sockets), formerly Output 1 and Output 2.
+- The language follows the Windows display language unless one is chosen in the settings.
+- Standby time and standby level can be set on the KH 750 too.
+- Wider meters; the held peak is a thin line instead of a lit segment.
+- Remembered speakers are looked for without asking: a silent scan at the start and when one stays
+  unreachable for 30 seconds (then at most every 5 minutes) follows them, by serial, to a changed
+  address or interface index.
+- Falling meters are drawn 20 times a second instead of at the monitor's rate, which kept the
+  graphics card busy while the window was idle.
+- A strip now shows by default what is used while working: the input interface, the current
+  input and the standby countdown above the fader; mute, identify and EQ below, on the KH 120 II
+  also auto standby, on the KH 750 the mutes of outputs A and B and the temperature. The delay and
+  standby time knobs moved to the device panel (they can be put back on the strip). A strip you
+  customized stays as it is.
+- The input interface and the current input are read every 2 seconds instead of every 30, so the
+  current input follows a switch of the interface right away.
+- The device panel opens in a window of its own, one per speaker, that can be moved anywhere
+  (also outside the main window); a click beside it no longer closes it. **Details** under each
+  strip opens it, as does the speaker's name.
+
+### Fixed
+
+- The first window was a scroll bar's width too small for the desk and kept its scroll bars
+  (strips cut off on the right and at the bottom), most visibly on a scaled screen; the compact
+  mode opened at a fixed size, cut off on the right. Both now fit their content until you size
+  the window yourself.
+- An EQ file line of a type that names its Q (`LPQ`, `HP Q`, `LSC`, `LS Q` and the like) but
+  has none is refused instead of taking a guessed Q.
+- A REW export with a plain low or high pass (`LP`, `HP` without Q) was refused ("Q is missing"),
+  and one with an all pass (written `All pass`) as an unknown type; both are imported now, the
+  plain passes with Q 0.707, as REW defines them.
+- A delay field showed its milliseconds with all their binary digits (3.8333333333333335 ms);
+  it shows two decimals now, and meters three, so a shown delay always reads back as its sample.
+- A change made just before the app closed or a speaker was removed could be lost, and after a
+  speaker moved to another address a write or **All values** still on the way could hang.
+- **All values** showed the network addresses below `device/network/` unmasked, and a speaker's
+  own name that holds its serial (as factory names do) was shown with the serial in full.
+- The clip, warning and LOCAL LEDs of an unreachable speaker kept showing its last report; they
+  now stay dark until it answers again.
+- A group or master fader moved a member whose level lay above its range down against the
+  fader, and members that may not write their level or mute shaped the group's fader and kept
+  its mute from ever offering to unmute.
+- A second click on a switch in the device panel before the speaker answered the first repeated
+  the first instead of undoing it; the same held for the input mix fields.
+- Copying a setting to the group right after changing it sent the old value.
+- Values of a newer version in `settings.json` were dropped on the next save without a copy, and
+  a settings file that could be neither read nor moved aside was written over with the defaults.
+- Scroll bars lay over the desk and covered the foot of a strip (**Details**); they now have room
+  of their own.
+- In edit mode a right-drag moved the element along; only the left button drags now, and the ×
+  beside each element is gone (right-click → **Hide** hides it).
+- A speaker not reached since the start showed no meters, and their caption lay over the scale;
+  it now shows two empty meters until the first reading.
+- Every write to the KH 120 II's 20-band EQ 3 was refused by the speaker ("code 413"): the
+  request was one value too long for it.
+- The EQ graph drew bands near the top too wide (a 14 kHz peak by up to 1.3 dB): it now draws
+  the speakers' digital filters at 48 kHz.
+- The EQ graph drew shelving filters too steep, with an overshoot the speaker does not have: their
+  Q is the shelf's slope.
+- A value that rounds to zero showed a minus ("-0 dB").
+- Number fields with a converted unit showed the device's unit as well ("0 1/48 kHz ms").
+- A second click on a switch before the speaker had answered the first repeated it (two quick
+  clicks on mute muted twice), and a fader or knob could jump back to its old value for a moment
+  after a write.
+- **Undo** right after a write asked whether the value had changed since, and wrote nothing.
+- The mouse wheel stepped a fader or knob from the level before the last drag, not from the shown
+  one.
+- The MAC addresses in **All values** showed only `…"]`; each address is now masked on its own.
+- A speaker name announced with the serial in other letter case showed the serial unmasked.
+- A speaker added by its address alone took on another unit that answered at that address
+  later, with its name, group and place on the desk; it now reports the other serial instead.
+- When a scan found a speaker where another remembered one used to be, the moved speaker stayed
+  unreachable at its old address, the scan dialog listed it as already shown, the other one was
+  shown under its name, and removing the other one removed it too.
+- With two network adapters on the speakers' segment, every scan could switch a speaker to the
+  other adapter and reconnect it.
+- A slow speaker, or a KH 750 while **All values** was read, got its meters read but not its
+  other settings, which then showed old values.
+- **All values** ended without any value when the speaker refused to list one part of its
+  settings; that part now shows the refusal on its own line.
+- **Reload** in **All values** of an unreachable speaker replaced the table with a failure.
+- Knobs of settings without a fixed step, such as the KH 750's output levels in the device panel,
+  wrote values like 5.279999999999999 dB; they now move in tenths.
+- A wheel turn on the fader of a speaker that had just gone away replaced "not reachable" with
+  "Not connected".
+- A meter the speaker no longer reported kept showing its last level.
+
+## [0.1.0] - 2026-10-18
+
+First version.
+
+### Added
+
+- Speaker discovery over mDNS with a dialog to choose which found speakers to add, and manual
+  entry by IPv6 address, with the interface index for link-local addresses.
+- Added speakers are remembered and reconnected at every start; a scan updates the stored
+  address of a remembered speaker that moved.
+- Removing a speaker from its device panel after a confirmation.
+- One channel strip per speaker with status LEDs, delay (in ms) and standby knobs, an output
+  level fader that shows its value while dragging, has a fine mode and takes typed values, input
+  meters (KH 750: also output meters) with clip lamps, response time, mute and identify.
+- A device panel per speaker with every setting of its model and a list of all values the
+  speaker reports.
+- A settings dialog for theme, language, meter range and response times.
+- German and English user interface, switched at once; German shows a decimal comma.
+- A compact window mode (Ctrl+K) with one row per ungrouped speaker and per group and a master
+  row, with its own window size and position.
+- Groups with a group strip (relative fader, mute, linked settings), a master strip, and strips
+  reordered by dragging.
+- Support for the KH 120 II and the KH 750 with writes; other models read-only.
+- An application icon for the window, the taskbar and the executable.
+- Portable settings and log next to the executable; a settings value this version does not
+  understand falls back to its default without losing the rest, and the file is copied aside.
+- A speaker simulator for both models used by the automated tests.
+- `check.ps1` quality gates and `build-release.ps1` for the release folder.
