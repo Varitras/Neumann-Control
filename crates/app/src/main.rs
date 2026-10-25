@@ -57,6 +57,12 @@ fn start_log(directory: &Path) {
     // Up to debug: the app lowers the level to info unless the detailed log is on.
     let _ = WriteLogger::init(LevelFilter::Debug, config, file);
     log::info!("neumann-control {} started", env!("CARGO_PKG_VERSION"));
+    // A window app has no console: a crash would leave no trace but in the log.
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("crashed: {info}");
+        report(info);
+    }));
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
