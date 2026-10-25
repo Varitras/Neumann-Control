@@ -15,6 +15,7 @@ use crate::layout_owner::stored;
 use crate::texts;
 use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
+use crate::window_fit::WindowFit;
 use crate::window_placement::{first_window_size, place_window, resize_window};
 
 impl NeumannApp {
@@ -32,7 +33,7 @@ impl NeumannApp {
         let now = ui.input(|input| input.time);
         let mut actions = Vec::new();
         // Both ways: below the rows' width the window scrolls instead of hiding mute.
-        ScrollArea::both()
+        let scroll = ScrollArea::both()
             .id_salt(COMPACT_SCROLL_ID)
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -96,6 +97,7 @@ impl NeumannApp {
                     actions.push(DeskAction::Master(compact::master(ui, shown)));
                 }
             });
+        self.fit_window(ui.ctx(), scroll.inner_rect, scroll.content_size);
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);
         }
@@ -123,7 +125,8 @@ impl NeumannApp {
     }
 
     /// Desk to compact or back: the window the new mode last had comes back, fitted onto the
-    /// monitors there are now, else the mode's first size.
+    /// monitors there are now, else the mode's first size, which then grows or shrinks to the
+    /// content.
     pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
         // Edit mode drags strip elements; compact buttons change by right click instead.
         self.editing = false;
@@ -132,6 +135,7 @@ impl NeumannApp {
         // Only a geometry of the new mode may be kept for it; a maximised window reports none
         // and would otherwise leave the old mode's geometry to be saved for the new one.
         self.window = target;
+        self.window_fit = target.is_none().then(WindowFit::default);
         // No real window under test.
         let Some(window) = frame.winit_window() else {
             return;

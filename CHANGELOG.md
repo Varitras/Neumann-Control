@@ -126,6 +126,10 @@
 
 ### Fixed
 
+- The first window was a scroll bar's width too small for the desk and kept its scroll bars
+  (strips cut off on the right and at the bottom), most visibly on a scaled screen; the compact
+  mode opened at a fixed size, cut off on the right. Both now fit their content until you size
+  the window yourself.
 - An EQ file line of a type that names its Q (`LPQ`, `HP Q`, `LSC`, `LS Q` and the like) but
   has none is refused instead of taking a guessed Q.
 - A REW export with a plain low or high pass (`LP`, `HP` without Q) was refused ("Q is missing"),

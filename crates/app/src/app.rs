@@ -206,8 +206,7 @@ impl NeumannApp {
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
-            window_fit: (settings.window.is_none() && !settings.desk.compact)
-                .then(WindowFit::default),
+            window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
             settings_path,
             settings,
             spawner,

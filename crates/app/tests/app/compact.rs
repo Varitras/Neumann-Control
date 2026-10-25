@@ -349,3 +349,22 @@ fn a_right_click_on_a_compact_group_row_deletes_the_group() {
         .groups
         .is_empty());
 }
+
+/// Compact without a saved window of its own is fitted to its rows, as the first desk is: it
+/// used to open at a fixed size, cut off on the right and with empty space below.
+#[test]
+fn compact_without_a_saved_window_fits_its_rows() {
+    let (_kh120, _kh750, _directory, mut harness) = two_speakers(Vec::new());
+    let before = harness.ctx.content_rect();
+    press_compact_shortcut(&mut harness);
+    harness.run_steps(6);
+    let window = harness.ctx.content_rect();
+    assert!(
+        window.width() < before.width() && window.height() < before.height(),
+        "{window:?} after {before:?}"
+    );
+    for button in harness.query_all_by_role(Role::Button) {
+        assert!(window.contains_rect(button.rect()), "{button:?} cut off");
+    }
+    assert_eq!(harness.query_all_by_role(Role::ScrollBar).count(), 0);
+}

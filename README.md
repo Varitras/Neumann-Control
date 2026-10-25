@@ -160,9 +160,10 @@ On the KH 120 II the input meters are captioned with the rear input switch (Anal
 AES3 R, Mono), and a dot marks the channels the speaker plays. That channel A is the left AES3
 channel is assumed, not measured.
 
-At the first start, and whenever no window size is saved, the window is made as large as the
-desk needs and grows with it (a speaker added, a strip that widens once its model is known)
-until you size it yourself; from then on the app keeps the size you chose.
+At the first start, and whenever no window size is saved for the mode (desk or compact), the
+window is made as large as the desk or the compact rows need and grows with them (a speaker
+added, a strip that widens once its model is known) until you size it yourself; from then on the
+app keeps the size you chose.
 
 The toolbar shows the number of speakers (not in the narrowest window) and the average response
 time of the connected ones.

@@ -28,6 +28,7 @@ use crate::ui_kit::theme::{group_color_count, tint_color};
 use crate::views::group_strip::{self, GroupStripResponse, MasterResponse};
 use crate::views::strip::{self, StripView};
 use crate::views::system_strip::{self, SystemStrip, SystemStripResponse};
+use crate::window_fit::wanted_size;
 use crate::writes::{can_write, Intent};
 
 const STRIP_CENTERS_ID: &str = "strip_centers";
@@ -66,21 +67,21 @@ pub(super) struct GroupDraft {
 }
 
 impl NeumannApp {
-    /// While the first window is fitted: as large as the desk's content with the margin it has
-    /// on the left and top also on the right and bottom.
-    fn fit_window(&mut self, context: &Context, desk: Rect, content: Vec2) {
+    /// While a window without a saved size is fitted: as large as the content (desk or compact
+    /// rows) needs, `visible` being what its scroll area shows of it now.
+    pub(super) fn fit_window(&mut self, context: &Context, visible: Rect, content: Vec2) {
         let Some(fit) = &mut self.window_fit else {
             return;
         };
-        let margin = desk.min.to_vec2();
-        let wanted = margin + content + Vec2::splat(margin.x);
         let (current, screen) = context.input(|input| {
             let viewport = input.viewport();
             let current = viewport.inner_rect.map(|inner| inner.size());
             (current, viewport.monitor_size)
         });
         let current = current.unwrap_or_else(|| context.content_rect().size());
-        if let Some(size) = fit.next(current, wanted, screen) {
+        let wanted = wanted_size(current, visible.size(), content);
+        let pixels_per_point = context.pixels_per_point();
+        if let Some(size) = fit.next(current, wanted, screen, pixels_per_point) {
             context.send_viewport_cmd(ViewportCommand::InnerSize(size));
         }
     }
