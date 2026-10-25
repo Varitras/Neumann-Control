@@ -332,3 +332,20 @@ fn compact_buttons_are_chosen_per_model() {
     assert!(stored_buttons(&directory, MONITOR).is_some());
     assert_eq!(stored_buttons(&directory, SUBWOOFER), None);
 }
+
+/// As on the desk, a right click on a group's compact row offers to delete it; the dialog asks.
+#[test]
+fn a_right_click_on_a_compact_group_row_deletes_the_group() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    press_compact_shortcut(&mut harness);
+    harness.get_by_label(GROUP_NAME).click_secondary();
+    harness.run_steps(2);
+    harness.get_by_label(texts::DELETE_GROUP_MENU.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(&texts::delete_question(GROUP_NAME));
+    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness.run_steps(2);
+    assert!(settings::load(&directory.path().join(SETTINGS_FILE))
+        .groups
+        .is_empty());
+}
