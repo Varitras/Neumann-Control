@@ -72,16 +72,15 @@ pub fn converted(conversion: Conversion, number: f64) -> String {
 }
 
 /// The number of `converted`, without its unit. The device reports whole kelvin, so tenths of a
-/// degree would only show rounding noise; a delay sample is about 0.02 ms (7 mm), so it needs two
-/// decimals.
+/// degree would only show rounding noise. A delay is shown fine enough that the text reads back
+/// as the same sample (about 0.02 ms or 7 mm): two decimals of a millisecond, three of a meter.
 pub fn converted_number(conversion: Conversion, number: f64) -> String {
     let shown = conversion.apply(number);
     match conversion {
         // Adding zero turns the -0 of a slightly negative reading into 0.
         Conversion::KelvinToCelsius => (shown.round() + 0.0).to_string(),
-        Conversion::SamplesToMilliseconds | Conversion::SamplesToMeters => {
-            texts::two_decimals(shown)
-        }
+        Conversion::SamplesToMilliseconds => texts::two_decimals(shown),
+        Conversion::SamplesToMeters => texts::three_decimals(shown),
     }
 }
 
@@ -157,7 +156,7 @@ mod tests {
         let shown = shown_value(delay, &json!(480));
         let typed = crate::gesture::typed_value("3,43", conversion_of(delay));
         set_delay_unit(DelayUnit::Milliseconds);
-        assert_eq!(shown, "3,43 m");
+        assert_eq!(shown, "3,430 m");
         assert!((typed.unwrap() - 480.0).abs() < 1e-9);
     }
 

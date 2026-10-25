@@ -113,6 +113,8 @@
 
 ### Fixed
 
+- A delay field showed its milliseconds with all their binary digits (3.8333333333333335 ms);
+  it shows two decimals now, and meters three, so a shown delay always reads back as its sample.
 - A change made just before the app closed or a speaker was removed could be lost, and after a
   speaker moved to another address a write or **All values** still on the way could hang.
 - **All values** showed the network addresses below `device/network/` unmasked, and a speaker's

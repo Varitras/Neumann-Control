@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 use eframe::egui::{DragValue, Event, Id, Key, Pos2, Response, Ui};
 use neumann_control_core::catalog::Conversion;
 
-use crate::display::converted_unit;
+use crate::display::{converted_number, converted_unit};
 use crate::gesture::{bounded_move, on_grid, released, typed_value};
 use crate::texts;
 
@@ -117,8 +117,10 @@ pub fn show(ui: &mut Ui, field: &NumberField) -> Option<f64> {
 }
 
 /// No range on the egui field: it would clamp typed text to it, and a typo would reach the
-/// speaker as the range's end. The field shows the value unrounded: egui parses the shown text
-/// when focus leaves and would otherwise report the rounded text as an edit.
+/// speaker as the range's end. A field of the device's unit shows the value unrounded: egui
+/// parses the shown text when focus leaves and would otherwise report the rounded text as an
+/// edit. A converted field shows it rounded as everywhere else; its text reads back onto the
+/// same grid point.
 fn drag_value(ui: &mut Ui, field: &NumberField, value: &mut f64) -> Response {
     let mut drag = DragValue::new(value)
         .custom_formatter(|number, _| texts::number(number))
@@ -135,7 +137,7 @@ fn drag_value(ui: &mut Ui, field: &NumberField, value: &mut f64) -> Response {
         // text parses to exactly the device value and a visit writes nothing.
         let step = field.drag_speed;
         drag = drag
-            .custom_formatter(move |number, _| texts::number(conversion.apply(number)))
+            .custom_formatter(move |number, _| converted_number(conversion, number))
             .custom_parser(move |text| {
                 typed_value(text, Some(conversion)).map(|typed| on_grid(typed, step))
             })

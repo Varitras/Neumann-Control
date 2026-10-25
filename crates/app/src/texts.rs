@@ -68,6 +68,10 @@ pub fn two_decimals(value: f64) -> String {
     number_text(format!("{value:.2}"))
 }
 
+pub fn three_decimals(value: f64) -> String {
+    number_text(format!("{value:.3}"))
+}
+
 /// The shortest text that reads back as exactly `value`.
 pub fn number(value: f64) -> String {
     number_text(value.to_string())

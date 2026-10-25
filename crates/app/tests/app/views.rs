@@ -754,7 +754,7 @@ fn the_delay_unit_switches_to_meters_and_is_saved() {
     scroll_to_and_click(&mut harness, texts::CLOSE.get());
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
-    harness.get_by_label("3,43 m");
+    harness.get_by_label("3,430 m");
     let path = directory
         .path()
         .join(neumann_control_core::settings::SETTINGS_FILE);
