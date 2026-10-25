@@ -279,3 +279,42 @@ fn changes(ui: &mut Ui, changes: Changes) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{RawInput, ViewportInfo};
+    use std::cell::Cell;
+
+    /// A native window runs its contents again when egui discards a pass (a new grid does, as
+    /// the load dialog's comparison): the second run used to find them gone and crash.
+    #[test]
+    fn a_window_drawn_twice_in_one_frame_draws_twice() {
+        // As eframe does: the window's own pass, here run twice like a discarded one.
+        Context::set_immediate_viewport_renderer(|context, viewport| {
+            let mut contents = viewport.viewport_ui_cb;
+            let mut input = RawInput {
+                viewport_id: viewport.ids.this,
+                ..RawInput::default()
+            };
+            input
+                .viewports
+                .insert(viewport.ids.this, ViewportInfo::default());
+            for _ in 0..2 {
+                let mut output = context.run_ui(input.clone(), |ui| contents(ui));
+                output.textures_delta.clear();
+            }
+        });
+        let context = Context::default();
+        context.set_embed_viewports(false);
+        let drawn = Cell::new(0);
+        let mut output = context.run_ui(RawInput::default(), |ui| {
+            let viewport = ViewportId::from_hash_of("dialog");
+            in_window(ui.ctx(), viewport, Opening::Default, "Dialog", |_| {
+                drawn.set(drawn.get() + 1);
+            });
+        });
+        output.textures_delta.clear();
+        assert_eq!(drawn.get(), 2);
+    }
+}
