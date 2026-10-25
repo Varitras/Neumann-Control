@@ -420,8 +420,9 @@ it). It sets:
 **?** in the toolbar opens the **Manual** (the file next to the executable, in your browser), the
 [**Wiki**](https://github.com/Varitras/Neumann-Control/wiki) with the SSC protocol reference and
 the speakers' measured behaviour, and **About Neumann Control**: version, licence and a link to
-the project page. **Check for updates** there asks GitHub once for the newest release and, if it
-is newer, links to its page; the app does not download or install anything itself.
+the project page. **Check for updates** there asks GitHub once for the newest release,
+pre-releases included, and, if it is newer, links to its page; the app does not download or
+install anything itself.
 
 ### Control mode
 
@@ -467,7 +468,7 @@ They hold no serial number, MAC address, name or network address.
 ## Files and privacy
 
 The app talks to the speakers on the local network. It goes to the internet only when you click
-**Check for updates**: then it asks `api.github.com` for the latest release of this project,
+**Check for updates**: then it asks `api.github.com` for the list of this project's releases,
 with the app's name and version as its user agent.
 
 The app is portable and writes only next to the executable, apart from an EQ **Export…** to the

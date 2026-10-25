@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Check for updates** counts pre-releases: with only a pre-release published it said there was
+  no release yet, and it would not have told of a newer pre-release.
+
 ## [0.1.17] - 2026-10-25
 
 First public version, an alpha: expect rough edges and changes between versions.
