@@ -32,7 +32,7 @@ pub enum ToolbarAction {
     History,
     ToggleCompact,
     ToggleEditing,
-    /// Dim on or off (Ctrl+D).
+    /// Dim off again (on with Ctrl+D).
     Dim,
     Manual,
     Wiki,
@@ -130,9 +130,13 @@ fn right_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     if ui.add(compact).on_hover_text(texts::COMPACT_HINT).clicked() {
         action = ToolbarAction::ToggleCompact;
     }
-    let dim = Button::new(texts::DIM).selected(facts.dimmed);
-    if ui.add(dim).on_hover_text(texts::DIM_HINT).clicked() {
-        action = ToolbarAction::Dim;
+    // Only while dim is on, to turn it off: Ctrl+D turns it on, and the narrowest toolbar has no
+    // room for one more button.
+    if facts.dimmed {
+        let dim = Button::new(texts::DIM).selected(true);
+        if ui.add(dim).on_hover_text(texts::DIM_HINT).clicked() {
+            action = ToolbarAction::Dim;
+        }
     }
     if !facts.compact && edit_button(ui, facts.editing) {
         action = ToolbarAction::ToggleEditing;
