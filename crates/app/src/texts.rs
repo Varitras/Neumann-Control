@@ -334,6 +334,7 @@ pub const LAYOUTS_PER_MODEL: Text = Text::new(
     "Anordnung gleich für alle Lautsprecher eines Modells",
     "Same layout for every speaker of a model",
 );
+pub const DIM: Text = Text::new("Dim", "Dim");
 pub const DETAILED_LOG: Text = Text::new(
     "Ausführliches Protokoll (zur Fehlersuche)",
     "Detailed log (for troubleshooting)",

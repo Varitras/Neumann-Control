@@ -9,6 +9,7 @@ mod eq;
 mod glyphs;
 mod groups;
 mod help;
+mod shortcuts;
 mod history;
 mod source_guards;
 mod speakers;
