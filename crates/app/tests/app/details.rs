@@ -181,10 +181,10 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
 fn the_history_is_shown_only_for_a_model_with_a_temperature() {
     let title = texts::trends_title(neumann_control_app::trend::TREND_WINDOW_SECONDS);
     let (_monitor, _directory, monitor_panel) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
     assert!(monitor_panel.query_by_label_contains(&title).is_none());
     let (_subwoofer, _directory, subwoofer_panel) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Overview);
+        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
     assert!(subwoofer_panel.query_by_label_contains(&title).is_some());
 }
 
@@ -642,7 +642,7 @@ fn eq_rows_are_not_in_the_device_panel() {
 #[test]
 fn the_panel_shows_the_temperature_trend_of_a_kh750() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Overview);
+        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
     simulator.set_value("device/temperature", json!(313));
     wait_until(&mut harness, "the trend at 40 °C", |harness| {
         harness
@@ -657,7 +657,7 @@ fn the_panel_shows_the_temperature_trend_of_a_kh750() {
 #[test]
 fn the_temperature_line_names_its_range() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Overview);
+        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
     // Below the simulator's 37 °C, so it is the lowest of the session.
     simulator.set_value("device/temperature", json!(300));
     wait_until(&mut harness, "27 °C", |harness| {
@@ -1058,9 +1058,9 @@ fn the_history_shows_a_delay_in_its_shown_unit() {
     assert!(line.ends_with("10,00 ms"), "{line}");
 }
 
-/// The tab chosen last stays for this run, also for the next panel opened.
+/// Another tab stays while the panel is open; opened again, it starts on the overview.
 #[test]
-fn the_panel_opens_on_the_tab_chosen_last() {
+fn the_panel_opens_on_the_overview_again() {
     let (_simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
     harness.get_by_label(texts::REMOVE.get());
@@ -1070,8 +1070,7 @@ fn the_panel_opens_on_the_tab_chosen_last() {
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::TAB_OVERVIEW.get()).is_none());
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    let mutes = harness.query_all_by_role_and_label(Role::CheckBox, texts::MUTE.get());
-    assert_eq!(mutes.count(), 1, "the outputs again");
+    harness.get_by_label(texts::REMOVE.get());
 }
 
 /// The name is set on the overview only; the device tab shows it as text.
