@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "neumann-control-app"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "eframe",
  "egui_kittest",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "neumann-control-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "log",
  "mdns-sd",
@@ -2013,7 +2013,7 @@ dependencies = [
 
 [[package]]
 name = "neumann-control-manual"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "pulldown-cmark",
 ]
