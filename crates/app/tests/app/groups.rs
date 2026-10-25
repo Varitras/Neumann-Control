@@ -7,6 +7,7 @@ use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::groups::linkable_label;
+use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{
@@ -378,7 +379,7 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
 fn a_linked_setting_skips_a_model_that_may_not_write_it() {
     // The KH 750's auto standby follows its rear switch and refuses writes.
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Standby]);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
     harness
         .get_by_role_and_label(Role::CheckBox, "Auto-Standby")
         .click();
@@ -462,7 +463,7 @@ fn ungrouped_strips_can_be_reordered_too() {
 #[test]
 fn copy_to_group_right_after_a_change_sends_the_new_value() {
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Mute]);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Outputs);
     // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
     kh120.set_reply_delay(std::time::Duration::from_secs(2));
     harness
@@ -471,6 +472,7 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
     wait_until(&mut harness, "the member's mute sent", |_| {
         !sets(&kh120, MUTE_POINTER).is_empty()
     });
+    show_tab(&mut harness, PanelTab::Overview);
     let copy = texts::copy_to_group(linkable_label(Linkable::Mute));
     harness.get_by_label(&copy).click();
     harness.run_steps(5);

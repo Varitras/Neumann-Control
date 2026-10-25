@@ -27,6 +27,7 @@ use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
 use crate::layout_owner::stored;
 use crate::log_detail;
 use crate::meter::MeterState;
+use crate::panel_tabs::PanelTab;
 use crate::rediscovery::Rediscovery;
 use crate::scan_choice::ScanChoice;
 use crate::spawner::{ScanResult, SpeakerSpawner};
@@ -137,6 +138,8 @@ pub struct NeumannApp {
     system_meters: Vec<MeterState>,
     /// The monitors there are now, so a window of its own opens on one of them.
     monitors: Vec<MonitorArea>,
+    /// The device panel's tab last chosen in this run, for every panel.
+    panel_tab: PanelTab,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -211,6 +214,7 @@ impl NeumannApp {
             update_check: None,
             system_meters: Vec::new(),
             monitors: Vec::new(),
+            panel_tab: PanelTab::default(),
             audio_devices: Vec::new(),
             system_language,
         };
@@ -646,15 +650,15 @@ impl NeumannApp {
             .identity
             .is_some()
             .then(|| strip_layout::resolve(stored, &owner.product, catalog));
-        let response = panel::show(
-            context,
-            viewport,
-            opening,
-            state,
-            catalog,
-            &choice,
-            layout.as_ref(),
-        );
+        let view = panel::PanelView {
+            groups: &choice,
+            layout: layout.as_ref(),
+            tab: self.panel_tab,
+        };
+        let response = panel::show(context, viewport, opening, state, catalog, &view);
+        if let Some(tab) = response.tab {
+            self.panel_tab = tab;
+        }
         self.remember_place(context, viewport, WindowKind::Panel);
         if let Some(change) = &response.layout {
             self.change_layout(&owner, change, catalog);

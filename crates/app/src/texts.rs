@@ -338,6 +338,11 @@ pub const DETAILED_LOG_HINT: Text = Text::new(
     "Schreibt jeden Schreibvorgang und jeden Fehler in neumann-control.log, ohne Namen und Kennungen",
     "Writes every write and every failure to neumann-control.log, without names or identifiers",
 );
+pub const TAB_OVERVIEW: Text = Text::new("Übersicht", "Overview");
+pub const TAB_OUTPUTS: Text = Text::new("Ausgänge", "Outputs");
+pub const TAB_INPUTS: Text = Text::new("Eingänge", "Inputs");
+pub const TAB_STANDBY: Text = Text::new("Standby", "Standby");
+pub const TAB_DEVICE: Text = Text::new("Gerät", "Device");
 pub const SHOW_MASTER: Text = Text::new("Master-Zug anzeigen", "Show master strip");
 pub const DELAY_SHOWN_IN: Text = Text::new("Verzögerung anzeigen in", "Show delays in");
 pub const DELAY_IN_MILLISECONDS: Text = Text::new("Millisekunden", "milliseconds");

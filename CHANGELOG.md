@@ -4,6 +4,8 @@
 
 ### Added
 
+- The device panel sorts its settings into tabs (overview, outputs, inputs, standby, device)
+  instead of one long scrolling page; the outputs stand side by side.
 - **Detailed log** in **Settings**: the log also takes every write with its value (without
   texts), every failed request and where windows open, for troubleshooting.
 - The group dialog lists the speakers to check: a new group gets its members right away.

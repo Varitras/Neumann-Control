@@ -7,6 +7,7 @@ use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
@@ -99,7 +100,7 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
 #[test]
 fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
     // The panel scrolls: a wheel the standby time knob did not take would bring the standby
     // level knob below it under the pointer.
     let label = texts::knob_label("Standby-Zeit");
@@ -174,7 +175,7 @@ fn a_group_raises_its_quieter_members_when_the_loudest_is_at_its_limit() {
 #[test]
 fn scrolling_the_panel_from_a_gap_never_turns_a_knob() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Device);
     harness.set_size(egui::vec2(1200.0, 420.0));
     harness.run_steps(2);
     let knob = slider_center(&harness, &texts::knob_label("Logo-Helligkeit"));

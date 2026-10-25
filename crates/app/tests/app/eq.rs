@@ -52,17 +52,23 @@ fn open_eq_with(
     (simulator, directory, harness)
 }
 
-/// The panel's EQ button, the lowest one (the strip has one too), at the panel's foot.
-fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>) {
-    fn lowest<'h>(harness: &'h Harness<'static, NeumannApp>) -> egui_kittest::Node<'h> {
+/// The panel's EQ button (the strip has one too): the one inside the panel's window.
+fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>, name: &str) {
+    fn in_panel<'h>(
+        harness: &'h Harness<'static, NeumannApp>,
+        name: &str,
+    ) -> egui_kittest::Node<'h> {
+        let window = harness
+            .get_by_label(&texts::panel_window_title(name))
+            .rect();
         harness
             .query_all_by_role_and_label(Role::Button, texts::EQ.get())
-            .max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y))
-            .expect("an EQ button")
+            .find(|button| window.contains_rect(button.rect()))
+            .expect("an EQ button in the panel")
     }
-    lowest(harness).scroll_to_me();
+    in_panel(harness, name).scroll_to_me();
     harness.run_steps(SCROLL_FRAMES);
-    lowest(harness).click();
+    in_panel(harness, name).click();
 }
 
 fn drag(harness: &mut Harness<'static, NeumannApp>, from: egui::Pos2, by: egui::Vec2) {
@@ -86,7 +92,7 @@ fn gain_fields(harness: &Harness<'static, NeumannApp>) -> Vec<bool> {
 fn the_panels_eq_button_opens_the_window_with_both_containers() {
     let (_simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, spread);
     open_panel(&mut harness, device_name(SimModel::Kh120Ii));
-    click_panel_eq(&mut harness);
+    click_panel_eq(&mut harness, device_name(SimModel::Kh120Ii));
     wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness.get_by_label("EQ 2");
     harness.get_by_label("EQ 3");

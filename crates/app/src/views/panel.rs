@@ -19,6 +19,7 @@ use super::{placed, Opening, WindowPlace};
 use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
+use crate::panel_tabs::{shown_tab, PanelTab};
 use crate::paths;
 use crate::state::SpeakerState;
 use crate::strip_layout::{LayoutChange, StripLayout};
@@ -26,7 +27,7 @@ use crate::texts;
 
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
-const PANEL_WINDOW_SIZE: [f32; 2] = [600.0, 760.0];
+const PANEL_WINDOW_SIZE: [f32; 2] = [780.0, 760.0];
 const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 /// From the main window's top left, so the panel is seen to belong to it.
 const PANEL_OFFSET: Vec2 = Vec2::new(40.0, 40.0);
@@ -54,6 +55,7 @@ pub fn first_place(main: Option<Rect>, monitor: Option<Vec2>) -> WindowPlace {
     }
 }
 
+#[derive(Default)]
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
     pub commands: Vec<Command>,
@@ -70,6 +72,16 @@ pub struct PanelResponse {
     pub layout: Option<LayoutChange>,
     /// The strip's colour as the user changed it.
     pub color: Option<ColorChoice>,
+    /// The tab the user switched to.
+    pub tab: Option<PanelTab>,
+}
+
+/// What the panel offers besides the speaker's own state: its group, the model's strip layout
+/// (once the model is known) and the tab last chosen.
+pub struct PanelView<'a> {
+    pub groups: &'a GroupChoice<'a>,
+    pub layout: Option<&'a StripLayout>,
+    pub tab: PanelTab,
 }
 
 /// The groups the speaker could be in, which one it is in, and what that group links; the
@@ -89,8 +101,7 @@ pub fn show(
     opening: Opening,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
-    groups: &GroupChoice,
-    layout: Option<&StripLayout>,
+    view: &PanelView,
 ) -> PanelResponse {
     let builder = ViewportBuilder::default()
         .with_title(texts::panel_window_title(&speaker.display_name()))
@@ -101,10 +112,10 @@ pub fn show(
         // Several panels can be open; their widgets must not share state.
         let mut response = ui
             .push_id(viewport, |ui| match class {
-                ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, groups, layout),
+                ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, view),
                 _ => {
                     egui::CentralPanel::default()
-                        .show(ui, |ui| contents(ui, speaker, catalog, groups, layout))
+                        .show(ui, |ui| contents(ui, speaker, catalog, view))
                         .inner
                 }
             })
@@ -116,59 +127,88 @@ pub fn show(
     })
 }
 
-/// Everything the panel shows, scrolling when the window is shorter.
+/// The header and the tab bar stay; the tab's contents scroll when the window is shorter.
 fn contents(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
-    groups: &GroupChoice,
-    layout: Option<&StripLayout>,
+    view: &PanelView,
 ) -> PanelResponse {
-    let has_eq = has_eq(catalog, speaker);
-    ScrollArea::vertical()
+    header(ui, speaker);
+    let available = details::tabs(speaker, catalog);
+    let mut tab = shown_tab(view.tab, &available);
+    let before = tab;
+    ui.horizontal(|ui| {
+        for offered in available {
+            ui.selectable_value(&mut tab, offered, offered.title());
+        }
+    });
+    ui.separator();
+    let mut response = ScrollArea::vertical()
         .auto_shrink([false, false])
-        .show(ui, |ui| {
-            header(ui, speaker);
-            let group = group_choice(ui, groups);
-            let mut color = groups.color.clone();
-            let color_changed = color_choice::edit(
-                ui,
-                texts::COLOR_LIKE_GROUP.get(),
-                &mut color,
-                groups.start_color,
-            );
-            let copy_to_group = copy_buttons(ui, groups);
-            let details = details::show(ui, speaker, catalog, layout);
-            ui.separator();
-            // Without a temperature only the warnings would be left, which the LEDs show.
-            let trends = trends_of(ui, speaker, catalog);
-            if trends.temperature.is_some() {
-                trends::show(ui, &trends);
-                ui.separator();
-            }
-            let (save_preset, load_preset) = ui
-                .horizontal(|ui| {
-                    let save = ui.button(texts::SAVE_PRESET).clicked();
-                    let load = ui.button(texts::LOAD_PRESET).clicked();
-                    (save, load)
-                })
-                .inner;
-            let open_eq = has_eq && ui.button(texts::EQ).clicked();
-            let remove = ui.button(texts::REMOVE).clicked();
-            PanelResponse {
-                commands: details.commands,
-                layout: details.layout,
-                close: false,
-                remove,
-                group,
-                copy_to_group,
-                open_eq,
-                save_preset,
-                load_preset,
-                color: color_changed.then_some(color),
+        .show(ui, |ui| match tab {
+            PanelTab::Overview => overview(ui, speaker, catalog, view),
+            other => {
+                let details = details::show(ui, speaker, catalog, view.layout, other);
+                PanelResponse {
+                    commands: details.commands,
+                    layout: details.layout,
+                    ..PanelResponse::default()
+                }
             }
         })
-        .inner
+        .inner;
+    response.tab = (tab != before).then_some(tab);
+    response
+}
+
+/// The panel's own controls, the device name and the trend.
+fn overview(
+    ui: &mut Ui,
+    speaker: &mut SpeakerState,
+    catalog: &Catalog,
+    view: &PanelView,
+) -> PanelResponse {
+    let groups = view.groups;
+    let has_eq = has_eq(catalog, speaker);
+    let group = group_choice(ui, groups);
+    let mut color = groups.color.clone();
+    let color_changed = color_choice::edit(
+        ui,
+        texts::COLOR_LIKE_GROUP.get(),
+        &mut color,
+        groups.start_color,
+    );
+    let copy_to_group = copy_buttons(ui, groups);
+    let details = details::show(ui, speaker, catalog, view.layout, PanelTab::Overview);
+    ui.separator();
+    // Without a temperature only the warnings would be left, which the LEDs show.
+    let trends = trends_of(ui, speaker, catalog);
+    if trends.temperature.is_some() {
+        trends::show(ui, &trends);
+        ui.separator();
+    }
+    let (save_preset, load_preset) = ui
+        .horizontal(|ui| {
+            let save = ui.button(texts::SAVE_PRESET).clicked();
+            let load = ui.button(texts::LOAD_PRESET).clicked();
+            (save, load)
+        })
+        .inner;
+    let open_eq = has_eq && ui.button(texts::EQ).clicked();
+    let remove = ui.button(texts::REMOVE).clicked();
+    PanelResponse {
+        commands: details.commands,
+        layout: details.layout,
+        remove,
+        group,
+        copy_to_group,
+        open_eq,
+        save_preset,
+        load_preset,
+        color: color_changed.then_some(color),
+        ..PanelResponse::default()
+    }
 }
 
 /// The speaker's trends; the temperature only where the catalog lists it for the model.

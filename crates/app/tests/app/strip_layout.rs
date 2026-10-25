@@ -10,6 +10,7 @@ use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::display::shown_value;
+use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::strip_layout;
 use neumann_control_app::texts;
@@ -124,7 +125,7 @@ fn open_first_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     harness.run_steps(2);
     harness.query_all_by_label(name).next().unwrap().click();
     wait_until(harness, "the device panel", |harness| {
-        harness.query_by_label(texts::ALL_VALUES.get()).is_some()
+        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
     });
     harness.run_steps(1);
 }
@@ -151,6 +152,7 @@ fn add_to_strip_from_the_panel_reaches_both_monitors() {
     let models = [SimModel::Kh120Ii, SimModel::Kh120Ii, SimModel::Kh750];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
     open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    show_tab(&mut harness, PanelTab::Outputs);
     let phase = label(paths::PHASE_INVERSION);
     harness
         .get_by_role_and_label(Role::CheckBox, phase)
@@ -172,11 +174,15 @@ fn hide_from_the_strip_menu() {
     let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
     assert!(identify.is_none());
     open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    show_tab(&mut harness, PanelTab::Device);
     harness
         .get_by_role_and_label(Role::CheckBox, label(paths::IDENTIFY))
         .click_secondary();
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::ADD_TO_STRIP.get()).is_some());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    show_tab(&mut harness, PanelTab::Outputs);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click_secondary();

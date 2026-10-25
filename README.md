@@ -184,12 +184,20 @@ Click a speaker's name or **Details** under its strip. The panel opens in a wind
 one per speaker, where the last panel was left (the first time at the top left of the main
 window and no taller than the screen leaves below it; a further open panel a little offset),
 which you can move anywhere, also beside the main window or onto another screen;
-opening it again brings it to the front. It lists every setting the catalog knows for that model
-by topic in two columns: the outputs first and together (on the KH 750 its own,
-then A and B), then input, standby, device and rear panel; in each topic what can be set comes
-before what is only shown. Settings the model may write get a
-control; the rest are shown greyed. The panel also shows model, firmware and the masked serial
-number. Escape or the window's close button closes it.
+opening it again brings it to the front. Its header shows name, model, firmware and the masked
+serial number; below it, tabs sort every setting the catalog knows for that model:
+
+- **Overview**: group, strip colour, **Apply to group**, the device name, the temperature trend,
+  presets, **EQ** and **Remove**,
+- **Outputs**: one column per output, side by side (on the KH 750 its own woofer, then A and B),
+- **Inputs**: the input settings and what the rear panel reports,
+- **Standby**: standby time, level and the countdown,
+- **Device**: name, identify, the device's own facts, **All values…** and **Full scan**.
+
+A tab without anything for that model is left out. The panel opens on the tab chosen last in
+this run, for every speaker. In each topic what can be set comes before what is only shown.
+Settings the model may write get a control; the rest are shown greyed. Escape or the window's
+close button closes it.
 
 ![The device panel of a KH 750: its outputs on the left, standby, device and rear panel on the right](docs/images/panel.png)
 
@@ -414,8 +422,8 @@ listed there for a path is read-only, so models whose behaviour is unknown never
 Settings that only exist on some models (subwoofer outputs, logo brightness) appear only for those
 models.
 
-To bring another model to writing, its reported values are needed: in its device panel open
-**All values…**, press **Full scan** and attach both files to a
+To bring another model to writing, its reported values are needed: on the **Device** tab of its
+device panel press **Full scan** and attach both files to a
 [new-model issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml).
 They hold no serial number, MAC address, name or network address.
 

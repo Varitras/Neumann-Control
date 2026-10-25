@@ -15,6 +15,7 @@ pub mod input_source;
 pub mod layout_owner;
 pub mod log_detail;
 pub mod meter;
+pub mod panel_tabs;
 pub mod paths;
 pub mod presets;
 pub mod rediscovery;

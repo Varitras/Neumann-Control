@@ -251,7 +251,7 @@ fn a_compact_row_opens_the_details() {
         .get_by_role_and_label(Role::Button, texts::DETAILS.get())
         .click();
     wait_until(&mut harness, "the device panel", |harness| {
-        harness.query_by_label(texts::ALL_VALUES.get()).is_some()
+        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
     });
 }
 

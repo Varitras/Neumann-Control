@@ -15,6 +15,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
 use neumann_control_app::help::{Help, LookupError, Release};
+use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::spawner::{ScanResult, SpeakerSpawner};
 use neumann_control_app::system_audio::{AudioDevice, AudioState, SystemAudio};
@@ -497,9 +498,21 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     harness.run_steps(2);
     harness.get_by_label(name).click();
     wait_until(harness, "the device panel", |harness| {
-        harness.query_by_label(texts::ALL_VALUES.get()).is_some()
+        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
     });
     harness.run_steps(1);
+}
+
+/// Opens the panel of `name` on `tab`.
+pub fn open_panel_on(harness: &mut Harness<'static, NeumannApp>, name: &str, tab: PanelTab) {
+    open_panel(harness, name);
+    show_tab(harness, tab);
+}
+
+/// Switches the open panel to `tab`.
+pub fn show_tab(harness: &mut Harness<'static, NeumannApp>, tab: PanelTab) {
+    harness.get_by_label(tab.title().get()).click();
+    harness.run_steps(2);
 }
 
 /// The settings keys of `SIMULATED_SERIAL` and `KH750_SERIAL` (a const cannot be built from

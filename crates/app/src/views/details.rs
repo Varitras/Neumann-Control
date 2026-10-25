@@ -1,7 +1,7 @@
-//! The device panel's settings: every catalog entry for the speaker's model, by topic (the
-//! outputs first and together). Entries the model may write get a control (numbers also a knob), the rest a
-//! greyed value; what the strip or the panel header shows and what the speaker does not have
-//! are left out.
+//! The device panel's settings: the catalog entries for the speaker's model on one tab, by
+//! topic; the outputs side by side, one column each. Entries the model may write get a control
+//! (numbers also a knob), the rest a greyed value; what the strip or the panel header shows and
+//! what the speaker does not have are left out.
 
 use eframe::egui::{self, Button, RichText, Ui};
 use neumann_control_core::catalog::{Catalog, Entry, Group, Kind};
@@ -12,12 +12,12 @@ use super::details_fields::Fields;
 use super::knob;
 use super::layout_menu;
 use crate::display::shown_value;
+use crate::panel_tabs::{also_in_overview, tab_of, tabs_for, PanelTab};
 use crate::paths;
 use crate::state::{FullScanState, SpeakerState, Status};
 use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
-const COLUMNS: usize = 2;
 /// The panel's topics in the order they are listed.
 const GROUP_ORDER: [Group; 9] = [
     Group::Output,
@@ -51,14 +51,54 @@ pub struct DetailsResponse {
     pub layout: Option<LayoutChange>,
 }
 
-/// Draws the area; `layout` is the model's strip layout once the speaker reported its model.
+/// The tabs the speaker's panel has.
+pub fn tabs(speaker: &SpeakerState, catalog: &Catalog) -> Vec<PanelTab> {
+    let groups = groups(catalog.entries_for(speaker.product()), speaker);
+    tabs_for(groups.into_iter().map(|(group, _)| group))
+}
+
+/// Draws the entries of `tab`; `layout` is the model's strip layout once the speaker reported
+/// its model.
 pub fn show(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     layout: Option<&StripLayout>,
+    tab: PanelTab,
 ) -> DetailsResponse {
-    ui.vertical(|ui| rows(ui, speaker, catalog, layout)).inner
+    ui.vertical(|ui| rows(ui, speaker, catalog, layout, tab))
+        .inner
+}
+
+/// The columns of `tab`, each a list of topics: the outputs one each, the overview one without
+/// headings, the others split in two.
+fn columns_of(groups: Groups<'_>, tab: PanelTab) -> Vec<Groups<'_>> {
+    match tab {
+        PanelTab::Overview => {
+            let entries: Vec<&Entry> = groups
+                .into_iter()
+                .flat_map(|(_, entries)| entries)
+                .filter(|entry| also_in_overview(entry))
+                .collect();
+            vec![entries
+                .into_iter()
+                .map(|entry| (entry.group, vec![entry]))
+                .collect()]
+        }
+        PanelTab::Outputs => groups
+            .into_iter()
+            .filter(|(group, _)| tab_of(*group) == tab)
+            .map(|group| vec![group])
+            .collect(),
+        _ => {
+            let on_tab = groups
+                .into_iter()
+                .filter(|(group, _)| tab_of(*group) == tab)
+                .collect();
+            let (left, right) = split_in_columns(on_tab);
+            vec![left, right]
+        }
+    }
 }
 
 fn rows(
@@ -66,6 +106,7 @@ fn rows(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     layout: Option<&StripLayout>,
+    tab: PanelTab,
 ) -> DetailsResponse {
     let product = speaker.product().to_owned();
     let groups = groups(catalog.entries_for(&product), speaker);
@@ -77,12 +118,15 @@ fn rows(
         catalog,
         commands: &mut commands,
     };
-    let (left, right) = split_in_columns(groups);
-    ui.columns(COLUMNS, |columns| {
-        for (column, groups) in columns.iter_mut().zip([left, right]) {
+    let lists = columns_of(groups, tab);
+    let headed = tab != PanelTab::Overview;
+    ui.columns(lists.len().max(1), |columns| {
+        for (column, groups) in columns.iter_mut().zip(lists) {
             for (group, entries) in groups {
                 column.push_id(group.title(texts::language()), |ui| {
-                    ui.label(RichText::new(group.title(texts::language())).strong());
+                    if headed {
+                        ui.label(RichText::new(group.title(texts::language())).strong());
+                    }
                     for entry in entries {
                         let rect = ui.scope(|ui| row(ui, &mut fields, entry)).response.rect;
                         let (Some(layout), Some(addable)) = (layout, &addable) else {
@@ -102,12 +146,14 @@ fn rows(
             }
         }
     });
-    ui.separator();
-    ui.horizontal(|ui| {
-        all_values_button(ui, fields.speaker, fields.commands);
-        full_scan_button(ui, fields.speaker, fields.commands);
-    });
-    full_scan_outcome(ui, fields.speaker);
+    if tab == PanelTab::Device {
+        ui.separator();
+        ui.horizontal(|ui| {
+            all_values_button(ui, fields.speaker, fields.commands);
+            full_scan_button(ui, fields.speaker, fields.commands);
+        });
+        full_scan_outcome(ui, fields.speaker);
+    }
     DetailsResponse {
         commands,
         layout: change,

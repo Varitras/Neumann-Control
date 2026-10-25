@@ -5,6 +5,7 @@ use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::state::{SpeakerKey, SpeakerState};
 use neumann_control_app::texts;
@@ -210,7 +211,7 @@ fn panel_opens_from_strip_name_and_closes_on_escape() {
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
-    assert!(harness.query_by_label(texts::ALL_VALUES.get()).is_none());
+    assert!(harness.query_by_label(texts::TAB_OVERVIEW.get()).is_none());
     // The window's own ✕ closes it; the panel has no second close button.
     open_panel(&mut harness, KH120_DEVICE_NAME);
     assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
@@ -252,7 +253,7 @@ fn the_details_button_opens_the_panel() {
     harness
         .get_by_role_and_label(Role::Button, texts::DETAILS.get())
         .click();
-    wait_for_label(&mut harness, texts::ALL_VALUES.get());
+    wait_for_label(&mut harness, texts::TAB_OVERVIEW.get());
 }
 
 /// Each speaker's panel is a window of its own; opening a second leaves the first open.
@@ -271,7 +272,10 @@ fn two_panels_stay_open_side_by_side() {
     drag_from_to(&mut harness, title, title + egui::vec2(PANEL_MOVE, 0.0));
     harness.get_by_label(KH750_DEVICE_NAME).click();
     wait_until(&mut harness, "two panels", |harness| {
-        harness.query_all_by_label(texts::ALL_VALUES.get()).count() == 2
+        harness
+            .query_all_by_label(texts::TAB_OVERVIEW.get())
+            .count()
+            == 2
     });
 }
 
@@ -291,7 +295,7 @@ fn a_click_on_the_desk_keeps_the_panel_open() {
         });
     }
     harness.run_steps(2);
-    harness.get_by_label(texts::ALL_VALUES.get());
+    harness.get_by_label(texts::TAB_OVERVIEW.get());
 }
 
 #[test]
@@ -300,7 +304,7 @@ fn panel_closes_when_its_speaker_goes_away() {
     open_panel(&mut harness, KH120_DEVICE_NAME);
     simulator.stop();
     wait_until(&mut harness, "the panel to close", |harness| {
-        harness.query_by_label(texts::ALL_VALUES.get()).is_none()
+        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_none()
     });
 }
 
@@ -371,7 +375,7 @@ fn all_values_window(
     model: SimModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker(model);
-    open_panel(&mut harness, device_name(model));
+    open_panel_on(&mut harness, device_name(model), PanelTab::Device);
     scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     wait_until(&mut harness, "the loaded table", |harness| {
         harness

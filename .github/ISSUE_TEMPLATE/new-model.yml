@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        In the device panel of the speaker, open **All values…** and press **Full scan**. It
+        On the **Device** tab of the speaker's device panel, press **Full scan**. It
         writes `scan-<model>-<firmware>-<date>-<time>.json` and `.txt` next to the executable,
         without serial number, MAC address, the speaker's name or any network address.
   - type: input
