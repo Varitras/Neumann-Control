@@ -431,6 +431,8 @@ fn copy_to_group_sends_the_members_value_to_the_others() {
         sets(&kh750, "/audio/out/level"),
         vec![serde_json::json!(90.0)]
     );
+    // Anything sent to the member copied from has arrived before "nothing" is asserted.
+    barrier(&kh120);
     assert!(sets(&kh120, "/audio/out/level").is_empty());
 }
 

@@ -108,6 +108,8 @@ fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
         !sets(&simulator, BOOST_POINTER).is_empty()
             && !sets(&simulator, FREQUENCY_POINTER).is_empty()
     });
+    // Whatever the drag sent has arrived before "no gain" is asserted.
+    barrier(&simulator);
     // The flat gain stays: dragging a point shapes the filter, not the level of everything.
     assert!(sets(&simulator, GAIN_POINTER).is_empty());
     let boost = sets(&simulator, BOOST_POINTER)[0].clone();
@@ -305,6 +307,7 @@ fn reset_asks_then_flattens_gain_and_boost() {
     wait_until(&mut harness, "both arrays written", |_| {
         !sets(&simulator, GAIN_POINTER).is_empty() && !sets(&simulator, BOOST_POINTER).is_empty()
     });
+    barrier(&simulator);
     assert_eq!(sets(&simulator, GAIN_POINTER), vec![json!(vec![0.0; 10])]);
     assert_eq!(sets(&simulator, BOOST_POINTER), vec![json!(vec![0.0; 10])]);
     assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
@@ -822,12 +825,16 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     harness.get_by_label(&texts::eq_preset_band(10));
     barrier(&simulator);
     assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    // Slow answers space the import's writes as a loaded CI runner did: the boost had arrived,
+    // the frequency not yet.
+    simulator.set_reply_delay(std::time::Duration::from_millis(200));
     harness
         .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
         .click();
     wait_until(&mut harness, "the import written", |_| {
         !sets(&simulator, BOOST_POINTER).is_empty()
     });
+    barrier(&simulator);
     let mut enabled = vec![false; 10];
     enabled[0] = true;
     assert_eq!(
