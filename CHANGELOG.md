@@ -103,8 +103,7 @@
   without a temperature (KH 120 II) show no trend section.
 - The lowest level the meters show is chosen from a list in 10 dB steps (−120 to −30 dB) instead
   of −120, −90 or −60 dB; a saved choice stays.
-- The device panel lists its settings by topic, the outputs first and together, and in each topic
-  what can be set before what is only shown.
+- In each topic of the device panel what can be set comes before what is only shown.
 - On the KH 750 the outputs are named after what they drive: Subwoofer (its own woofer), Output A
   and Output B (its two output sockets), formerly Output 1 and Output 2.
 - The language follows the Windows display language unless one is chosen in the settings.
@@ -124,8 +123,7 @@
   current input follows a switch of the interface right away.
 - The device panel opens in a window of its own, one per speaker, that can be moved anywhere
   (also outside the main window); a click beside it no longer closes it. **Details** under each
-  strip opens it, as does the speaker's name. It opens at the main window and no taller than the
-  screen leaves, so its foot stays visible.
+  strip opens it, as does the speaker's name.
 
 ### Fixed
 

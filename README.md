@@ -59,9 +59,8 @@ them. This README uses the English names.
 Alpha, below version 1.0 (**?** > **About Neumann Control** shows which one). The protocol
 layer, the polling and the interface are covered by automated tests against a built-in speaker
 simulator for the KH 120 II and the KH 750. On real KH 120 II and KH 750 speakers the app was
-checked for scanning, reading, metering and writing level, mute, identify and standby time.
-Groups, the compact mode and the English interface are so far covered by the simulator tests
-only.
+checked for scanning, reading, metering and writing level, mute, identify and standby time, and
+for groups, the compact mode and the English interface.
 
 ## Requirements
 
@@ -219,10 +218,10 @@ same and writes it next to the executable as `scan-<model>-<firmware>-<date>-<ti
 and any network address are left out. It is meant for collecting what other models report.
 
 **Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
-offered, the name unchecked). Both open in a window of their own in front of the panel. **Load
-preset…** compares each setting the preset would change, as it is **Now** and as it would be
-written, and writes it as one history entry; settings this model may not write are listed as
-skipped. A preset belongs to its model: saving under a name this model already has replaces that
+offered, the name unchecked). **Load preset…** compares each setting the preset would change, as
+it is **Now** and as it would be written, and writes it as one history entry; settings this model
+may not write are listed as skipped. Both dialogs open in a window of their own in front of the
+panel. A preset belongs to its model: saving under a name this model already has replaces that
 preset, and the dialog says so (**Replace**). **Delete** in the load dialog asks before the preset
 goes.
 
@@ -476,7 +475,7 @@ place you choose:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values** and **Settings** (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values**, **Settings** and the preset dialogs (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start; more detailed with **Detailed log** in **Settings** |
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
