@@ -202,7 +202,9 @@ stays while it is open. In each topic what can be set comes before what is only 
 Settings the model may write get a control; the rest are shown greyed. Escape or the window's
 close button closes it.
 
-![The device panel of a KH 750: its outputs on the left, standby, device and rear panel on the right](docs/images/panel.png)
+![The device panel of a KH 750 on the Outputs tab: the woofer's output and outputs A and B side by side](docs/images/panel-outputs.png)
+
+![The device panel of a KH 750 on the Inputs tab: the input interface and the rear panel switches](docs/images/panel-inputs.png)
 
 Each output also has **Input mix**, one field per input (Input A, Input B, −100 to 0 dB): how
 much of each input that output plays. By default the KH 750 plays input A on output A, input B
