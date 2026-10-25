@@ -114,6 +114,8 @@
 
 ### Fixed
 
+- A REW export with a plain high pass (`HP` without Q) was refused ("Q is missing"); it is
+  imported with Q 0.707, as REW defines it.
 - A delay field showed its milliseconds with all their binary digits (3.8333333333333335 ms);
   it shows two decimals now, and meters three, so a shown delay always reads back as its sample.
 - A change made just before the app closed or a speaker was removed could be lost, and after a
