@@ -360,9 +360,10 @@ In the app window:
 | Ctrl+Z | Take back the newest write |
 
 While a text or number field is being edited, it keeps its keys. With **Shortcuts from other
-programs too** in **Settings** (off by default), Ctrl+Alt with the same keys (↑, ↓, M, D) works
-while another program is in front; a key another program already holds is left out (the log
-says which).
+programs too** in **Settings** (off by default), Ctrl+Shift+Alt with the same keys (↑, ↓, M, D)
+works while another program is in front; a key another program already holds is left out (the
+log says which). Shift is part of it because Windows takes AltGr for Ctrl+Alt: AltGr+M (µ) would
+otherwise mute every speaker.
 
 For screen readers each strip and each compact row is a group named after its speaker or group
 ("Strip: KH750 Links"), so its controls are told from the same ones on the other strips; the
@@ -396,7 +397,7 @@ it). It sets:
 - whether the master strip (and its row in the compact mode) is shown (off by default),
 - whether every speaker of a model has the same strip and compact layout (on by default; see
   [The desk](#the-desk)),
-- whether the keyboard shortcuts work from other programs too, with Ctrl+Alt (off by default; see
+- whether the keyboard shortcuts work from other programs too, with Ctrl+Shift+Alt (off by default; see
   [Keyboard shortcuts](#keyboard-shortcuts)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
   holds every write with its path and value (texts such as names left out), every failed request,

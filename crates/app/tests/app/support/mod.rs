@@ -227,7 +227,7 @@ fn build_shared(
             app.set_file_dialog(Box::new(FakeFiles::default()));
             // Nor a browser or a question to GitHub.
             app.set_help(Arc::new(FakeHelp::default()));
-            // Nor Windows' hot keys, which would take Ctrl+Alt keys from the machine.
+            // Nor Windows' hot keys, which would take Ctrl+Shift+Alt keys from the machine.
             app.set_global_keys(Box::new(FakeGlobalKeys::default()));
             app
         })

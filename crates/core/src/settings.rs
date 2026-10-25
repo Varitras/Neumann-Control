@@ -249,7 +249,7 @@ pub struct DeskSettings {
     /// The log also takes the debug lines, for troubleshooting.
     #[serde(deserialize_with = "or_default")]
     pub detailed_log: bool,
-    /// The desk's shortcuts work from other programs too, with Ctrl+Alt.
+    /// The desk's shortcuts work from other programs too, with Ctrl+Shift+Alt.
     #[serde(deserialize_with = "or_default")]
     pub global_shortcuts: bool,
     /// Like `strip_layouts`, per speaker identity, used with `layouts_per_speaker`.

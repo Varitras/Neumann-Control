@@ -336,8 +336,8 @@ pub const LAYOUTS_PER_MODEL: Text = Text::new(
 );
 pub const DIM: Text = Text::new("Dim", "Dim");
 pub const GLOBAL_SHORTCUTS: Text = Text::new(
-    "Kürzel auch aus anderen Programmen (Strg+Alt+↑/↓/M/D)",
-    "Shortcuts from other programs too (Ctrl+Alt+↑/↓/M/D)",
+    "Kürzel auch aus anderen Programmen (Strg+Umschalt+Alt+↑/↓/M/D)",
+    "Shortcuts from other programs too (Ctrl+Shift+Alt+↑/↓/M/D)",
 );
 pub const DIM_HINT: Text = Text::new(
     "Alle Lautsprecher sind 20 dB leiser; klicken oder Strg+D: zurück",

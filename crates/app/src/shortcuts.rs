@@ -1,5 +1,6 @@
 //! The desk's keyboard shortcuts: in the window with Ctrl, and (when switched on) from any
-//! program with Ctrl+Alt, so the global ones do not take Ctrl+arrow from other programs.
+//! program with Ctrl+Shift+Alt, so the global ones take neither Ctrl+arrow nor an AltGr character
+//! (Windows reports AltGr as Ctrl+Alt) from other programs.
 
 use eframe::egui::{InputState, Key, KeyboardShortcut, Modifiers};
 

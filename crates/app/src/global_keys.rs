@@ -1,4 +1,4 @@
-//! The desk's shortcuts from other programs: Ctrl+Alt with the window's keys, as Windows hot
+//! The desk's shortcuts from other programs: Ctrl+Shift+Alt with the window's keys, as Windows hot
 //! keys on a thread of their own. Off unless chosen in the settings.
 
 use std::sync::mpsc::Receiver;
@@ -50,7 +50,8 @@ mod windows_keys {
     use eframe::egui::Key;
     use windows_sys::Win32::System::Threading::GetCurrentThreadId;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, VK_DOWN, VK_UP,
+        RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, VK_DOWN,
+        VK_UP,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetMessageW, PostThreadMessageW, MSG, WM_HOTKEY, WM_QUIT,
@@ -60,6 +61,9 @@ mod windows_keys {
     use crate::shortcuts::SHORTCUT_KEYS;
 
     pub struct WindowsGlobalKeys;
+
+    /// With Shift: Windows reports AltGr as Ctrl+Alt, so Ctrl+Alt+M took a German keyboard's µ.
+    const GLOBAL_MODIFIERS: u32 = MOD_CONTROL | MOD_SHIFT | MOD_ALT | MOD_NOREPEAT;
 
     /// The virtual key of a shortcut's key; letters are their capital's code.
     fn virtual_key(key: Key) -> u32 {
@@ -76,14 +80,13 @@ mod windows_keys {
             let (thread_id, told) = mpsc::channel();
             thread::spawn(move || {
                 // A hot key belongs to the thread that registers it and arrives in its queue.
-                let modifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
                 let mut had = 0;
                 for (id, (shortcut, key)) in SHORTCUT_KEYS.iter().enumerate() {
                     let registered = unsafe {
                         RegisterHotKey(
                             std::ptr::null_mut(),
                             id as i32,
-                            modifiers,
+                            GLOBAL_MODIFIERS,
                             virtual_key(*key),
                         )
                     };
@@ -128,7 +131,7 @@ mod windows_keys {
     mod tests {
         use super::*;
 
-        /// Takes Ctrl+Alt keys of this machine for a moment, so it runs only when asked:
+        /// Takes Ctrl+Shift+Alt keys of this machine for a moment, so it runs only when asked:
         /// `cargo test -p neumann-control-app -- --ignored hot_keys`.
         #[test]
         #[ignore]
@@ -139,6 +142,14 @@ mod windows_keys {
             drop(first);
             std::thread::sleep(std::time::Duration::from_millis(200));
             assert!(WindowsGlobalKeys.listen(wake).is_some(), "let go again");
+        }
+
+        /// Windows reports AltGr as Ctrl+Alt: with Ctrl+Alt+M a German keyboard's AltGr+M (µ)
+        /// muted every speaker instead of typing.
+        #[test]
+        fn the_global_keys_are_not_an_altgr_combination() {
+            assert_ne!(GLOBAL_MODIFIERS & !MOD_NOREPEAT, MOD_CONTROL | MOD_ALT);
+            assert_ne!(GLOBAL_MODIFIERS & MOD_SHIFT, 0);
         }
 
         /// Windows names the letter keys by their capitals.
