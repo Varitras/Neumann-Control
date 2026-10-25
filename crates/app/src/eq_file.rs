@@ -671,6 +671,46 @@ Equaliser: Generic
         near(high_pass.q, std::f64::consts::FRAC_1_SQRT_2);
     }
 
+    /// Exported by Room EQ Wizard 5.31.3 (2026-10-25): a plain `LP` (its .req stores Q 1/√2 and
+    /// a cookbook low pass of that Q), and the all pass written as two words, `All pass`.
+    const REW_PLAIN_LOW_PASS_AND_ALL_PASS: &str = "Filter Settings file
+
+Room EQ V5.31.3
+\
+        Dated: 25.10.2026 12:19:06
+
+Notes:Test3
+
+Equaliser: Generic
+\
+        No measurement
+\
+        Filter  1: ON  LP       Fc   20.00 Hz 
+\
+        Filter  2: ON  LP1      Fc   25.00 Hz 
+\
+        Filter  3: ON  LS       Fc   100.0 Hz  Gain   0.20 dB
+\
+        Filter  4: ON  All pass  Fc   40.00 Hz  Q  0.707
+\
+        Filter  5: ON  HP Q     Fc   50.00 Hz  Q  0.707
+\
+        Filter  6: ON  None   
+";
+
+    #[test]
+    fn a_rew_plain_low_pass_and_its_all_pass_are_read() {
+        let imported = parse(REW_PLAIN_LOW_PASS_AND_ALL_PASS).unwrap();
+        let low_pass = imported.bands[&0].as_ref().unwrap();
+        assert_eq!((low_pass.kind, low_pass.frequency), ("LOWPASS", 20.0));
+        near(low_pass.q, std::f64::consts::FRAC_1_SQRT_2);
+        let all_pass = imported.bands[&3].as_ref().unwrap();
+        assert_eq!((all_pass.kind, all_pass.frequency), ("ALLPASS", 40.0));
+        near(all_pass.q, 0.707);
+        let high_pass = imported.bands[&4].as_ref().unwrap();
+        assert_eq!((high_pass.kind, high_pass.frequency), ("HIGHPASS", 50.0));
+    }
+
     fn near(actual: f64, expected: f64) {
         assert!((actual - expected).abs() < 1e-5, "{actual} vs {expected}");
     }
