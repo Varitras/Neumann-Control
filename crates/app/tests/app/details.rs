@@ -98,7 +98,7 @@ fn the_test_pointers_are_their_paths() {
 #[test]
 fn name_field_shows_refusal() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -117,7 +117,7 @@ fn name_field_shows_refusal() {
         refusal.min.y > field.rect().max.y,
         "the reason is below the field"
     );
-    let next_row = harness.get_by_label(texts::ALL_VALUES.get()).rect();
+    let next_row = harness.get_by_label(texts::SAVE_PRESET.get()).rect();
     assert!(
         refusal.max.y < next_row.min.y,
         "the reason is not the speaker's message"
@@ -384,7 +384,8 @@ fn an_abandoned_name_draft_follows_the_device_again() {
         .value()
         .unwrap_or_default();
     assert!(typed.contains("draft"), "{typed}");
-    harness.get_by_label("Gerät").click();
+    // Somewhere else in the overview: the field loses its focus.
+    harness.get_by_label(texts::STRIP_COLOR.get()).click();
     harness.run_steps(2);
     let shown = harness.get_by_role(Role::TextInput).value();
     assert_eq!(shown.as_deref(), Some("Simulated KH 120 II"));

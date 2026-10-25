@@ -128,7 +128,10 @@ fn rows(
                         ui.label(RichText::new(group.title(texts::language())).strong());
                     }
                     for entry in entries {
-                        let rect = ui.scope(|ui| row(ui, &mut fields, entry)).response.rect;
+                        let rect = ui
+                            .scope(|ui| row_on(ui, &mut fields, entry, tab))
+                            .response
+                            .rect;
                         let (Some(layout), Some(addable)) = (layout, &addable) else {
                             continue;
                         };
@@ -221,6 +224,16 @@ fn is_shown(entry: &Entry, speaker: &SpeakerState) -> bool {
     let absent = speaker.absent.contains(&entry.path);
     let drawable = !matches!(entry.kind, Kind::Clip | Kind::Meter) && !entry.bands;
     drawable && !on_strip && !absent
+}
+
+/// An entry the overview edits (the name) is only shown on its own tab: one place to change it.
+fn row_on(ui: &mut Ui, fields: &mut Fields, entry: &Entry, tab: PanelTab) {
+    let edited_elsewhere = tab != PanelTab::Overview && also_in_overview(entry);
+    if edited_elsewhere {
+        display(ui, fields.speaker, entry);
+        return;
+    }
+    row(ui, fields, entry);
 }
 
 fn row(ui: &mut Ui, fields: &mut Fields, entry: &Entry) {

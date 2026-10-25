@@ -1,5 +1,6 @@
 //! The device panel's tabs: which catalog topic goes on which tab. The overview holds the
-//! panel's own controls (group, colour, presets, trend) and, again, the device name.
+//! panel's own controls (group, colour, presets, trend) and the device name to edit; the device
+//! tab shows the name as text.
 
 use neumann_control_core::catalog::{Entry, Group};
 
@@ -47,7 +48,7 @@ pub fn tab_of(group: Group) -> PanelTab {
     }
 }
 
-/// Entries the overview shows as well as their own tab: the name, the first thing one sets.
+/// Entries the overview edits; their own tab only shows them: the name, the first thing one sets.
 pub fn also_in_overview(entry: &Entry) -> bool {
     entry.path.to_string() == paths::DEVICE_NAME
 }
