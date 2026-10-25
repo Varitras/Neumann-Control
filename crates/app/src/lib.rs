@@ -20,6 +20,7 @@ pub mod meter;
 pub mod panel_tabs;
 pub mod paths;
 pub mod presets;
+pub mod process_time;
 pub mod rediscovery;
 pub mod scan_choice;
 pub mod scan_report;

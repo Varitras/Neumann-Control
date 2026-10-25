@@ -1,6 +1,6 @@
 //! How much goes into the log file: info lines always, with **Detailed log** also the debug
 //! lines (every write with its value, every failed exchange, where windows open, the frame
-//! rate and what asked for the frames), for troubleshooting.
+//! rate, the process's CPU use and what asked for the frames), for troubleshooting.
 
 use log::LevelFilter;
 

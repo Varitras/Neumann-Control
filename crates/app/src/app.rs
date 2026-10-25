@@ -23,7 +23,7 @@ use neumann_control_core::speaker::{Command, Event, Events, SpeakerHandle, Targe
 
 use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
-use crate::frame_stats::FrameStats;
+use crate::frame_stats::{FrameSample, FrameStats};
 use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
 use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
@@ -984,27 +984,7 @@ pub fn window_geometry(
 impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
         let now = context.input(|input| input.time);
-        let causes = match log::log_enabled!(log::Level::Debug) {
-            true => crate::views::take_repaint_causes(context),
-            false => Vec::new(),
-        };
-        if let Some(summary) = self
-            .frame_stats
-            .record(now, frame.info().cpu_usage, &causes)
-        {
-            let asked: Vec<String> = summary
-                .causes
-                .iter()
-                .map(|(cause, frames)| format!("{cause} ({frames})"))
-                .collect();
-            log::debug!(
-                "frames: {:.1} per second, {:.2} ms on average, {:.2} ms at most; asked most by {}",
-                summary.frames_per_second,
-                summary.average_milliseconds,
-                summary.longest_milliseconds,
-                asked.join(", ")
-            );
-        }
+        self.log_frame(context, frame, now);
         self.drain_events(now);
         if !self.dim_returns.is_empty() {
             self.return_from_dim(Catalog::embedded(), now);
@@ -1061,6 +1041,43 @@ fn curve_labels() -> Vec<(String, String)> {
             ))
         })
         .collect()
+}
+
+impl NeumannApp {
+    /// Counts the frame for the detailed log's summary; outside the detailed log nothing is
+    /// asked of egui or Windows.
+    fn log_frame(&mut self, context: &Context, frame: &eframe::Frame, now: f64) {
+        if !log::log_enabled!(log::Level::Debug) {
+            return;
+        }
+        let causes = crate::views::take_repaint_causes(context);
+        let sample = FrameSample {
+            now,
+            frame_seconds: frame.info().cpu_usage,
+            causes: &causes,
+            process_cpu_seconds: crate::process_time::cpu_seconds(),
+        };
+        let Some(summary) = self.frame_stats.record(sample) else {
+            return;
+        };
+        let asked: Vec<String> = summary
+            .causes
+            .iter()
+            .map(|(cause, frames)| format!("{cause} ({frames})"))
+            .collect();
+        let process = summary
+            .process_cpu_percent
+            .map_or_else(String::new, |percent| {
+                format!(", process {percent:.1} % of a core")
+            });
+        log::debug!(
+            "frames: {:.1} per second, frame time {:.2} ms on average, {:.2} ms at most{process}; asked most by {}",
+            summary.frames_per_second,
+            summary.average_milliseconds,
+            summary.longest_milliseconds,
+            asked.join(", ")
+        );
+    }
 }
 
 /// What a worker runs when it has news: the window draws it with the next meter frame. A

@@ -31,6 +31,7 @@ winit = "0.30"
 # the manual and web pages, and asks GitHub for the latest release over WinHTTP (no HTTP crate
 # needed).
 windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
     "Win32_Globalization",
     "Win32_Networking_WinHttp",
     "Win32_System_Threading",
