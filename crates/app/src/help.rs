@@ -15,14 +15,17 @@ pub const REPOSITORY_URL: &str = env!("CARGO_PKG_REPOSITORY");
 pub const RELEASES_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/releases");
 /// The SSC protocol reference and the speakers' measured behaviour.
 pub const WIKI_URL: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/wiki");
-/// GitHub's API for the newest release that is not a draft or a prerelease.
+/// GitHub's API, asked for this repository's releases.
 pub const API_HOST: &str = "api.github.com";
 const GITHUB_PAGES: &str = "https://github.com/";
+/// The newest releases GitHub lists first; an update lies among them.
+const RELEASES_ASKED: usize = 10;
 
-/// `/repos/<owner>/<name>/releases/latest` of this repository.
-pub fn latest_release_path() -> String {
+/// `/repos/<owner>/<name>/releases` of this repository. Not `/releases/latest`: that leaves
+/// pre-releases out and answered 404 while the only release was the 0.1.17 pre-release.
+pub fn releases_path() -> String {
     let repository = REPOSITORY_URL.trim_start_matches(GITHUB_PAGES);
-    format!("/repos/{repository}/releases/latest")
+    format!("/repos/{repository}/releases?per_page={RELEASES_ASKED}")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -99,20 +102,42 @@ fn version(text: &str) -> Option<([u64; 3], bool)> {
     parts.next().is_none().then_some((version, is_final))
 }
 
-/// GitHub's answer for the latest release. A page outside this repository is replaced by the
-/// list of releases: the app opens it in the browser.
-pub fn parse_release(body: &str) -> Result<Release, String> {
-    let json: Value = serde_json::from_str(body).map_err(|error| error.to_string())?;
+/// One release of GitHub's list. A page outside this repository is replaced by the list of
+/// releases: the app opens it in the browser.
+fn release_of(json: &Value) -> Result<Release, String> {
     let tag = json
         .get("tag_name")
         .and_then(Value::as_str)
-        .ok_or("the answer has no tag_name")?;
+        .ok_or("a release has no tag_name")?;
     let page = json.get("html_url").and_then(Value::as_str);
     let own = page.filter(|url| url.starts_with(&format!("{REPOSITORY_URL}/")));
     Ok(Release {
         tag: tag.to_owned(),
         url: own.unwrap_or(RELEASES_URL).to_owned(),
     })
+}
+
+/// The highest published version in GitHub's list of this repository's releases, pre-releases
+/// included; `None` while the list is empty. Drafts do not count.
+pub fn parse_releases(body: &str) -> Result<Option<Release>, String> {
+    let json: Value = serde_json::from_str(body).map_err(|error| error.to_string())?;
+    let entries = json.as_array().ok_or("the answer is no list of releases")?;
+    let published = entries
+        .iter()
+        .filter(|entry| !entry.get("draft").and_then(Value::as_bool).unwrap_or(false));
+    let mut releases = Vec::new();
+    for entry in published {
+        releases.push(release_of(entry)?);
+    }
+    if releases.is_empty() {
+        return Ok(None);
+    }
+    releases
+        .into_iter()
+        .filter_map(|release| version(&release.tag).map(|number| (number, release)))
+        .max_by(|(left, _), (right, _)| left.cmp(right))
+        .map(|(_, release)| Some(release))
+        .ok_or_else(|| "no release has a version as its tag".to_owned())
 }
 
 /// A check running on its own thread; the window is woken when it has an answer.
@@ -160,7 +185,7 @@ mod windows_help {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    use super::{latest_release_path, parse_release, Help, LookupError, Release, API_HOST};
+    use super::{parse_releases, releases_path, Help, LookupError, Release, API_HOST};
 
     /// GitHub refuses API calls without one.
     const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
@@ -168,8 +193,6 @@ mod windows_help {
     /// Per step (name lookup, connect, send, receive), in milliseconds: the dialog waits on it.
     const TIMEOUT_MS: i32 = 10_000;
     const STATUS_OK: u32 = 200;
-    /// The API's answer while a repository has no release.
-    const STATUS_NOT_FOUND: u32 = 404;
     const READ_CHUNK: usize = 16 * 1024;
     /// ShellExecute's success is any value above 32.
     const SHELL_ERROR_LIMIT: isize = 32;
@@ -196,12 +219,10 @@ mod windows_help {
 
         fn latest_release(&self) -> Result<Option<Release>, LookupError> {
             let (status, body) =
-                get(API_HOST, &latest_release_path()).map_err(LookupError::Unreachable)?;
+                get(API_HOST, &releases_path()).map_err(LookupError::Unreachable)?;
+            // A repository without releases lists none; anything but 200 is not an answer.
             match status {
-                STATUS_OK => parse_release(&body)
-                    .map(Some)
-                    .map_err(LookupError::Unusable),
-                STATUS_NOT_FOUND => Ok(None),
+                STATUS_OK => parse_releases(&body).map_err(LookupError::Unusable),
                 other => Err(LookupError::Unusable(format!("GitHub answered {other}"))),
             }
         }
@@ -343,10 +364,10 @@ mod tests {
     }
 
     #[test]
-    fn the_api_asks_for_this_repositorys_latest_release() {
+    fn the_api_asks_for_this_repositorys_releases() {
         assert_eq!(
-            latest_release_path(),
-            "/repos/Varitras/Neumann-Control/releases/latest"
+            releases_path(),
+            "/repos/Varitras/Neumann-Control/releases?per_page=10"
         );
         assert_eq!(WIKI_URL, "https://github.com/Varitras/Neumann-Control/wiki");
     }
@@ -387,18 +408,60 @@ mod tests {
         );
     }
 
+    fn listed(tag: &str, prerelease: bool, draft: bool) -> String {
+        format!(
+            r#"{{"tag_name": "{tag}", "html_url": "{REPOSITORY_URL}/releases/tag/{tag}", "prerelease": {prerelease}, "draft": {draft}}}"#
+        )
+    }
+
+    /// GitHub's "latest release" leaves pre-releases out and answered 404 while 0.1.17 was the
+    /// only, pre-release, version: the check said "no release yet" and would never have told
+    /// of a newer pre-release. The list counts them.
+    #[test]
+    fn the_newest_release_counts_pre_releases_too() {
+        let body = format!(
+            "[{}, {}]",
+            listed("v0.1.18", true, false),
+            listed("v0.1.17", true, false)
+        );
+        let newest = parse_releases(&body).unwrap().unwrap();
+        assert_eq!(newest.tag, "v0.1.18");
+        assert_eq!(newest.url, format!("{REPOSITORY_URL}/releases/tag/v0.1.18"));
+    }
+
+    /// The highest version counts, not the newest entry: a later fix of an older line is no
+    /// update. A draft is not published.
+    #[test]
+    fn the_highest_published_version_counts() {
+        let body = format!(
+            "[{}, {}, {}]",
+            listed("v0.3.0", false, true),
+            listed("v0.1.20", false, false),
+            listed("v0.2.0", true, false)
+        );
+        assert_eq!(parse_releases(&body).unwrap().unwrap().tag, "v0.2.0");
+    }
+
+    #[test]
+    fn an_empty_list_is_no_release_and_a_list_without_versions_is_unusable() {
+        assert_eq!(parse_releases("[]"), Ok(None));
+        let body = format!("[{}]", listed("nightly", true, false));
+        assert!(parse_releases(&body).is_err());
+        assert!(parse_releases(r#"{"tag_name": "v1.0.0"}"#).is_err());
+        assert!(parse_releases("not json").is_err());
+    }
+
     #[test]
     fn the_answer_gives_the_tag_and_only_a_page_of_this_repository() {
         let own = format!(
-            r#"{{"tag_name": "v0.2.0", "html_url": "{REPOSITORY_URL}/releases/tag/v0.2.0"}}"#
+            r#"[{{"tag_name": "v0.2.0", "html_url": "{REPOSITORY_URL}/releases/tag/v0.2.0"}}]"#
         );
-        let parsed = parse_release(&own).unwrap();
+        let parsed = parse_releases(&own).unwrap().unwrap();
         assert_eq!(parsed.tag, "v0.2.0");
         assert_eq!(parsed.url, format!("{REPOSITORY_URL}/releases/tag/v0.2.0"));
-        let foreign = r#"{"tag_name": "v0.2.0", "html_url": "https://example.com/x"}"#;
-        assert_eq!(parse_release(foreign).unwrap().url, RELEASES_URL);
-        assert!(parse_release(r#"{"name": "x"}"#).is_err());
-        assert!(parse_release("not json").is_err());
+        let foreign = r#"[{"tag_name": "v0.2.0", "html_url": "https://example.com/x"}]"#;
+        assert_eq!(parse_releases(foreign).unwrap().unwrap().url, RELEASES_URL);
+        assert!(parse_releases(r#"[{"name": "x"}]"#).is_err());
     }
 }
 
@@ -409,7 +472,7 @@ mod online {
 
     #[test]
     #[ignore = "asks GitHub"]
-    fn github_answers_the_latest_release_question() {
+    fn github_answers_the_newest_release_question() {
         let answer = WindowsHelp.latest_release();
         assert!(answer.is_ok(), "{answer:?}");
         println!("{answer:?}");
