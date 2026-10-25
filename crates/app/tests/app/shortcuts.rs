@@ -123,3 +123,18 @@ fn a_speaker_away_when_dim_goes_off_gets_its_level_back_on_return() {
         level_sets(&back) == [100.0]
     });
 }
+
+/// A button reached with Tab takes no keys: the shortcuts still work (keyboard and screen
+/// reader users move by Tab).
+#[test]
+fn a_shortcut_works_while_a_button_has_the_focus() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    let focused = harness.ctx.memory(|memory| memory.focused().is_some());
+    assert!(focused, "Tab gave a button the focus");
+    press(&mut harness, Key::M);
+    wait_until(&mut harness, "all muted", |_| {
+        mute_sets(&simulator) == [Value::Bool(true)]
+    });
+}
