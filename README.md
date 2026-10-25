@@ -532,8 +532,8 @@ cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
 A release is a tag `v<version>` on `main` whose version matches `Cargo.toml` and has its own
 section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml`: on a clean
 Windows runner it runs `build-release.ps1 -KeepVersion` and drafts a GitHub release with the
-folder as a ZIP, `SHA256SUMS` and that CHANGELOG section as its text; the draft is published by
-hand.
+folder as a ZIP, `SHA256SUMS` and that CHANGELOG section as its text, marked as a prerelease
+below 1.0 or with a version suffix (`-alpha.1`); the draft is published by hand.
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
 `.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into
