@@ -32,16 +32,23 @@ pub fn cpu_seconds() -> Option<f64> {
     Some((steps(kernel) + steps(user)) / STEPS_PER_SECOND)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub fn cpu_seconds() -> Option<f64> {
-    None
+    const MICROSECONDS_PER_SECOND: f64 = 1_000_000.0;
+    let seconds =
+        |time: libc::timeval| time.tv_sec as f64 + time.tv_usec as f64 / MICROSECONDS_PER_SECOND;
+    // SAFETY: getrusage only writes the struct it is given.
+    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) } != 0 {
+        return None;
+    }
+    Some(seconds(usage.ru_utime) + seconds(usage.ru_stime))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[cfg(windows)]
     #[test]
     fn work_shows_in_the_process_cpu_time() {
         let before = cpu_seconds().unwrap();

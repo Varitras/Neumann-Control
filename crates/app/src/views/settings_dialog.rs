@@ -37,11 +37,19 @@ pub fn viewport() -> ViewportId {
     ViewportId::from_hash_of(Id::unique(WINDOW_ID))
 }
 
+/// What the system has of the settings that depend on it (Linux has neither).
+#[derive(Clone, Copy)]
+pub struct Offered {
+    pub global_shortcuts: bool,
+    pub system_audio: bool,
+}
+
 /// `curve_labels`: each curve's settings key with its name, as the EQ window's tabs say it.
 pub fn show(
     context: &Context,
     opening: Opening,
     settings: &mut Settings,
+    offered: Offered,
     devices: &[AudioDevice],
     curve_labels: &[(String, String)],
 ) -> SettingsAction {
@@ -54,7 +62,9 @@ pub fn show(
         let mut scrolled = |ui: &mut Ui| {
             ScrollArea::vertical()
                 .auto_shrink([false, false])
-                .show(ui, |ui| contents(ui, settings, devices, curve_labels))
+                .show(ui, |ui| {
+                    contents(ui, settings, offered, devices, curve_labels)
+                })
                 .inner
         };
         let action = match class {
@@ -73,6 +83,7 @@ pub fn show(
 fn contents(
     ui: &mut Ui,
     settings: &mut Settings,
+    offered: Offered,
     devices: &[AudioDevice],
     curve_labels: &[(String, String)],
 ) -> SettingsAction {
@@ -84,14 +95,14 @@ fn contents(
     let desk = &mut settings.desk;
     ui.label(texts::THEME);
     ui.horizontal(|ui| {
-        ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::LIKE_WINDOWS);
+        ui.radio_value(&mut desk.theme, ThemeChoice::System, texts::LIKE_SYSTEM);
         ui.radio_value(&mut desk.theme, ThemeChoice::Light, texts::THEME_LIGHT);
         ui.radio_value(&mut desk.theme, ThemeChoice::Dark, texts::THEME_DARK);
     });
     ui.label(texts::LANGUAGE_LABEL);
     ui.horizontal(|ui| {
         let language = &mut desk.language;
-        ui.radio_value(language, LanguageChoice::System, texts::LIKE_WINDOWS);
+        ui.radio_value(language, LanguageChoice::System, texts::LIKE_SYSTEM);
         ui.radio_value(language, LanguageChoice::German, texts::LANGUAGE_GERMAN);
         ui.radio_value(language, LanguageChoice::English, texts::LANGUAGE_ENGLISH);
     });
@@ -123,7 +134,9 @@ fn contents(
     {
         desk.layouts_per_speaker = !per_model;
     }
-    ui.checkbox(&mut desk.global_shortcuts, texts::GLOBAL_SHORTCUTS);
+    if offered.global_shortcuts {
+        ui.checkbox(&mut desk.global_shortcuts, texts::GLOBAL_SHORTCUTS);
+    }
     ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
         .on_hover_text(texts::DETAILED_LOG_HINT);
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
@@ -137,7 +150,9 @@ fn contents(
             CrossoverGuard::Open
         };
     }
-    system_audio(ui, &mut settings.system_audio, devices);
+    if offered.system_audio {
+        system_audio(ui, &mut settings.system_audio, devices);
+    }
     ui.separator();
     eq_display(ui, &mut settings.eq_display, curve_labels);
     ui.separator();

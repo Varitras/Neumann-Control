@@ -25,9 +25,9 @@ use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::frame_limit::FrameLimit;
 use crate::frame_stats::{FrameSample, FrameStats};
-use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
+use crate::global_keys::{GlobalKeys, GlobalListener, SystemGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
-use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
+use crate::help::{Help, SystemHelp, UpdateCheck, MANUAL_FILE, WIKI_URL};
 use crate::layout_owner::stored;
 use crate::log_detail;
 use crate::meter::MeterState;
@@ -52,7 +52,7 @@ use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView, MemberChoice};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
-use crate::views::settings_dialog::{self, SettingsAction};
+use crate::views::settings_dialog::{self, Offered, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, panel, wheel};
 use crate::window_fit::WindowFit;
@@ -229,14 +229,14 @@ impl NeumannApp {
             preset_dialog: None,
             system_audio,
             file_dialog: Box::new(NativeFileDialog),
-            help: Arc::new(WindowsHelp),
+            help: Arc::new(SystemHelp),
             about: None,
             update_check: None,
             system_meters: Vec::new(),
             monitors: Vec::new(),
             dimmed: None,
             dim_returns: Vec::new(),
-            global_keys: Box::new(WindowsGlobalKeys),
+            global_keys: Box::new(SystemGlobalKeys),
             global_listener: None,
             global_keys_taken: false,
             frame_stats: FrameStats::default(),
@@ -832,10 +832,15 @@ impl NeumannApp {
         let viewport = settings_dialog::viewport();
         let size = Vec2::from(settings_dialog::SETTINGS_WINDOW_SIZE);
         let opening = self.opening(&context, viewport, WindowKind::Settings, 0, size);
+        let offered = Offered {
+            global_shortcuts: self.global_keys.offered(),
+            system_audio: self.system_audio.offered(),
+        };
         let action = settings_dialog::show(
             &context,
             opening,
             &mut self.settings,
+            offered,
             &self.audio_devices,
             &labels,
         );

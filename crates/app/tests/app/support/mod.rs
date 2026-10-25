@@ -241,6 +241,8 @@ type Listening = Option<(mpsc::Sender<DeskShortcut>, Wake)>;
 #[derive(Clone, Default)]
 pub struct FakeGlobalKeys {
     listening: Arc<Mutex<Listening>>,
+    /// A system without shortcuts from other programs, as Linux.
+    pub missing: bool,
 }
 
 impl FakeGlobalKeys {
@@ -257,6 +259,10 @@ impl FakeGlobalKeys {
 }
 
 impl GlobalKeys for FakeGlobalKeys {
+    fn offered(&self) -> bool {
+        !self.missing
+    }
+
     fn listen(&self, wake: Wake) -> Option<GlobalListener> {
         let (sender, pressed) = mpsc::channel();
         *self.listening.lock().unwrap() = Some((sender, wake));
@@ -319,12 +325,18 @@ pub struct FakeAudioState {
     pub asked: Vec<Option<String>>,
     /// The device each volume or mute change went to.
     pub set_on: Vec<Option<String>>,
+    /// A system without the volume strip, as Linux.
+    pub missing: bool,
 }
 
 #[derive(Clone, Default)]
 pub struct FakeAudio(pub Arc<Mutex<FakeAudioState>>);
 
 impl SystemAudio for FakeAudio {
+    fn offered(&self) -> bool {
+        !self.0.lock().unwrap().missing
+    }
+
     fn devices(&mut self) -> Vec<AudioDevice> {
         self.0.lock().unwrap().devices.clone()
     }

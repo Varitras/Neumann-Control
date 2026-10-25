@@ -320,8 +320,11 @@ pub const COMPACT: Text = Text::new("Kompakt", "Compact");
 pub const COMPACT_HINT: Text = Text::new("Strg+K", "Ctrl+K");
 pub const SETTINGS_TITLE: Text = Text::new("Einstellungen", "Settings");
 pub const THEME: Text = Text::new("Darstellung", "Appearance");
-/// Theme and language that follow Windows.
-pub const LIKE_WINDOWS: Text = Text::new("wie Windows", "like Windows");
+/// Theme and language that follow the system.
+#[cfg(windows)]
+pub const LIKE_SYSTEM: Text = Text::new("wie Windows", "like Windows");
+#[cfg(target_os = "linux")]
+pub const LIKE_SYSTEM: Text = Text::new("wie das System", "like the system");
 pub const THEME_LIGHT: Text = Text::new("Hell", "Light");
 pub const THEME_DARK: Text = Text::new("Dunkel", "Dark");
 pub const LANGUAGE_LABEL: Text = Text::new("Sprache", "Language");

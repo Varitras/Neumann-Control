@@ -12,6 +12,10 @@ pub type Wake = Arc<dyn Fn() + Send + Sync>;
 /// Listens for the shortcuts from other programs: Windows' hot keys in the app, a stand-in in
 /// tests.
 pub trait GlobalKeys {
+    /// Whether the system has them at all; without, the settings do not offer them.
+    fn offered(&self) -> bool {
+        true
+    }
     /// Starts listening; `None` when not one of the keys could be had.
     fn listen(&self, wake: Wake) -> Option<GlobalListener>;
 }
@@ -40,7 +44,22 @@ impl Drop for GlobalListener {
 }
 
 #[cfg(windows)]
-pub use windows_keys::WindowsGlobalKeys;
+pub use windows_keys::SystemGlobalKeys;
+
+/// Wayland gives no program the keys pressed in another one, so Linux has none.
+#[cfg(target_os = "linux")]
+pub struct SystemGlobalKeys;
+
+#[cfg(target_os = "linux")]
+impl GlobalKeys for SystemGlobalKeys {
+    fn offered(&self) -> bool {
+        false
+    }
+
+    fn listen(&self, _wake: Wake) -> Option<GlobalListener> {
+        None
+    }
+}
 
 #[cfg(windows)]
 mod windows_keys {
@@ -60,7 +79,7 @@ mod windows_keys {
     use super::{GlobalKeys, GlobalListener, Wake};
     use crate::shortcuts::SHORTCUT_KEYS;
 
-    pub struct WindowsGlobalKeys;
+    pub struct SystemGlobalKeys;
 
     /// With Shift: Windows reports AltGr as Ctrl+Alt, so Ctrl+Alt+M took a German keyboard's µ.
     const GLOBAL_MODIFIERS: u32 = MOD_CONTROL | MOD_SHIFT | MOD_ALT | MOD_NOREPEAT;
@@ -74,7 +93,7 @@ mod windows_keys {
         }
     }
 
-    impl GlobalKeys for WindowsGlobalKeys {
+    impl GlobalKeys for SystemGlobalKeys {
         fn listen(&self, wake: Wake) -> Option<GlobalListener> {
             let (pressed, received) = mpsc::channel();
             let (thread_id, told) = mpsc::channel();
@@ -137,11 +156,11 @@ mod windows_keys {
         #[ignore]
         fn the_hot_keys_are_let_go_when_the_listener_goes() {
             let wake: Wake = std::sync::Arc::new(|| {});
-            let first = WindowsGlobalKeys.listen(std::sync::Arc::clone(&wake));
+            let first = SystemGlobalKeys.listen(std::sync::Arc::clone(&wake));
             assert!(first.is_some(), "the keys are free");
             drop(first);
             std::thread::sleep(std::time::Duration::from_millis(200));
-            assert!(WindowsGlobalKeys.listen(wake).is_some(), "let go again");
+            assert!(SystemGlobalKeys.listen(wake).is_some(), "let go again");
         }
 
         /// Windows reports AltGr as Ctrl+Alt: with Ctrl+Alt+M a German keyboard's AltGr+M (µ)
