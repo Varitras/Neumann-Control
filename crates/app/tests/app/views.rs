@@ -1136,15 +1136,14 @@ fn an_untouchable_settings_file_is_not_written_over() {
     assert_eq!(std::fs::read(&path).unwrap(), before);
 }
 
-/// "Detailed log" switches the log to debug level at once and is kept; off again, it is info.
+/// "Detailed log" is kept in the settings; switched off again, it is gone. The log level it sets
+/// is process-wide, which tests running side by side share, so `log_detail` tests that part.
 #[test]
 fn the_detailed_log_is_switched_in_the_settings() {
     let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    assert_eq!(log::max_level(), log::LevelFilter::Info);
     open_settings(&mut harness);
     scroll_to_and_click(&mut harness, texts::DETAILED_LOG.get());
     harness.run_steps(2);
-    assert_eq!(log::max_level(), log::LevelFilter::Debug);
     let path = directory
         .path()
         .join(neumann_control_core::settings::SETTINGS_FILE);
@@ -1155,5 +1154,9 @@ fn the_detailed_log_is_switched_in_the_settings() {
     );
     scroll_to_and_click(&mut harness, texts::DETAILED_LOG.get());
     harness.run_steps(2);
-    assert_eq!(log::max_level(), log::LevelFilter::Info);
+    assert!(
+        !neumann_control_core::settings::load(&path)
+            .desk
+            .detailed_log
+    );
 }
