@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Linux**: a portable build for x86_64 Linux as a `.tar.gz`, with everything but the strip with
+  the system volume and the shortcuts from other programs, which Linux does not offer.
+
+### Changed
+
+- `SHA256SUMS` on the release page lists the checksums of the downloads (the ZIP and the
+  `.tar.gz`); each folder keeps its own list of its files.
+
 ### Fixed
 
 - **Check for updates** counts pre-releases: with only a pre-release published it said there was
