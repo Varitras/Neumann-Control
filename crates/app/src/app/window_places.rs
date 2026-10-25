@@ -1,6 +1,6 @@
-//! The windows of their own (device panel, EQ, all values, settings) open where the user last
-//! left one of their kind, for every speaker alike. Kept in the settings by kind, in screen
-//! pixels like the main window.
+//! The windows of their own (device panel, EQ, all values, settings, presets) open where the
+//! user last left one of their kind, for every speaker alike. Kept in the settings by kind, in
+//! screen pixels like the main window.
 
 use std::collections::BTreeMap;
 

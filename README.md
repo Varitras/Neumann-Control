@@ -349,7 +349,7 @@ input B ("Crossover A", "Crossover B").
 
 ### Keyboard shortcuts
 
-In the app window:
+In the main window:
 
 | Keys | What they do |
 |------|--------------|

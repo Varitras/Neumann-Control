@@ -165,7 +165,7 @@ fn contents(
     response
 }
 
-/// The temperature and warnings of the last hour, under the device's own facts.
+/// The temperature and warnings of the trend window, under the device's own facts.
 fn device_trend(ui: &mut Ui, speaker: &SpeakerState, catalog: &Catalog) {
     // Without a temperature only the warnings would be left, which the LEDs show.
     let trends = trends_of(ui, speaker, catalog);

@@ -1,7 +1,6 @@
-//! The settings behind the toolbar's "Einstellungen", in a window of their own: theme,
-//! language, meter range, response times, crossovers, the Windows strip and the EQ graph's
-//! display. Every change applies at once; the app saves it. Escape, **Close** or the window's
-//! close button close it.
+//! The settings behind the toolbar's "Einstellungen", in a window of their own: how the desk
+//! looks and behaves, the Windows strip and the EQ graph's display. Every change applies at
+//! once; the app saves it. Escape, **Close** or the window's close button close it.
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
 use eframe::egui::{
