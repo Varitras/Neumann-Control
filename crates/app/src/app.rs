@@ -149,6 +149,8 @@ pub struct NeumannApp {
     monitors: Vec<MonitorArea>,
     /// While dim is on: each speaker's level before.
     dimmed: Option<desk_shortcuts::DimmedLevels>,
+    /// Dim is off again, but these speakers were not reached: their level once they are.
+    dim_returns: desk_shortcuts::DimmedLevels,
     /// Hears the shortcuts from other programs; listening while the settings ask for it.
     global_keys: Box<dyn GlobalKeys>,
     global_listener: Option<GlobalListener>,
@@ -230,6 +232,7 @@ impl NeumannApp {
             system_meters: Vec::new(),
             monitors: Vec::new(),
             dimmed: None,
+            dim_returns: Vec::new(),
             global_keys: Box::new(WindowsGlobalKeys),
             global_listener: None,
             global_keys_taken: false,
@@ -989,6 +992,9 @@ impl eframe::App for NeumannApp {
             );
         }
         self.drain_events(now);
+        if !self.dim_returns.is_empty() {
+            self.return_from_dim(Catalog::embedded(), now);
+        }
         for shortcut in self.global_shortcuts() {
             self.apply_shortcut(shortcut, now);
         }

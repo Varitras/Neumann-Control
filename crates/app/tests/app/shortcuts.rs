@@ -99,3 +99,27 @@ fn a_global_shortcut_reaches_the_desk_once_switched_on() {
     harness.run_steps(2);
     assert!(!keys.is_listening());
 }
+
+/// A speaker cut off when dim goes off gets its level back once it is reached again, instead of
+/// staying 20 dB down.
+#[test]
+fn a_speaker_away_when_dim_goes_off_gets_its_level_back_on_return() {
+    let (kh120, kh750, _directory, mut harness) = two_speakers(Vec::new());
+    press(&mut harness, Key::D);
+    wait_until(&mut harness, "both dimmed", |_| {
+        level_sets(&kh120) == [80.0] && level_sets(&kh750) == [80.0]
+    });
+    writes_answered(&mut harness, &kh120);
+    writes_answered(&mut harness, &kh750);
+    let address = kh750.address();
+    kh750.stop();
+    wait_for_label(&mut harness, texts::UNREACHABLE.get());
+    press(&mut harness, Key::D);
+    wait_until(&mut harness, "the reachable one back", |_| {
+        level_sets(&kh120) == [80.0, 100.0]
+    });
+    let back = Simulator::start_on(SimModel::Kh750, address).unwrap();
+    wait_until(&mut harness, "the returned one back", |_| {
+        level_sets(&back) == [100.0]
+    });
+}

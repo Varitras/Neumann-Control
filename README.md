@@ -355,7 +355,7 @@ In the app window:
 |------|--------------|
 | Ctrl+↑ / Ctrl+↓ | Every speaker 1 dB louder / quieter, as the master fader moves them |
 | Ctrl+M | Mute every speaker; again: unmute them (all were muted) |
-| Ctrl+D | Dim: every speaker 20 dB quieter; again (or **Dim** in the toolbar): each back to its level before |
+| Ctrl+D | Dim: every speaker 20 dB quieter; again (or **Dim** in the toolbar): each back to its level before, a speaker not reached then once it is back |
 | Ctrl+K | Compact mode on and off |
 | Ctrl+Z | Take back the newest write |
 
