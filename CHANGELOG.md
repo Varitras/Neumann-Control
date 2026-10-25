@@ -25,9 +25,10 @@ First public version, an alpha: expect rough edges and changes between versions.
 - **Device panel** per speaker in a window of its own, with tabs (overview, outputs side by
   side, inputs, standby, device): every setting the catalog knows for the model, a control where
   the model may write it and the value greyed where not, the input mix and mute persist of each
-  output, a two-hour trend of the temperature and the warnings, **All values** with every value
-  the speaker reports, and **Full scan**, a report without serial, MAC address, name or network
-  address for collecting what other models report (with an issue form for sending it).
+  output, a two-hour trend of the temperature and the warnings (on models with a temperature),
+  **All values** with every value the speaker reports, and **Full scan**, a report without
+  serial, MAC address, name or network address for collecting what other models report (with an
+  issue form for sending it).
 - **Presets** of chosen settings and of EQs; loading one compares each change, now and as it
   would be written, and writes it as one history entry.
 - **Groups and master**: a group strip moves and mutes its members, links level, mute, auto
