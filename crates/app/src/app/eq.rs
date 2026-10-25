@@ -1,7 +1,7 @@
 //! The EQ windows on the app side: which are open, what they show, and the band writes they
 //! ask for, which go through the write policy like every other write.
 
-use eframe::egui::{Color32, Context, Id, ViewportId};
+use eframe::egui::{Color32, Context, Id, Vec2, ViewportId};
 use neumann_control_core::catalog::{Catalog, EqContainer, EQ_TYPES};
 use neumann_control_core::settings::{CrossoverGuard, EqPreset};
 use neumann_control_core::ssc::wire::SscPath;
@@ -403,7 +403,8 @@ impl NeumannApp {
             crossover: shown.container.crossover,
         });
         let viewport = ViewportId::from_hash_of(id);
-        let opening = self.opening(context, viewport, WindowKind::Eq, index);
+        let size = Vec2::from(eq_window::EQ_WINDOW_SIZE);
+        let opening = self.opening(context, viewport, WindowKind::Eq, index, size);
         let view = EqView {
             viewport,
             opening,

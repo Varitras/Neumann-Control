@@ -16,7 +16,7 @@ use crate::texts;
 use eframe::egui::Vec2;
 
 const WINDOW_ID: &str = "all_values";
-const DEFAULT_WINDOW_SIZE: [f32; 2] = [920.0, 480.0];
+pub(crate) const DEFAULT_WINDOW_SIZE: [f32; 2] = [920.0, 480.0];
 const PATH_WIDTH: f32 = 250.0;
 const VALUE_WIDTH: f32 = 280.0;
 const RANGE_WIDTH: f32 = 180.0;

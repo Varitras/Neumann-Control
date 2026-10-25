@@ -2,8 +2,8 @@
 //! anywhere, opened from its strip. It closes on Escape or the window's close button.
 
 use eframe::egui::{
-    self, Color32, ComboBox, Context, Id, Label, Rect, RichText, ScrollArea, Ui, Vec2,
-    ViewportBuilder, ViewportClass, ViewportId,
+    self, Color32, ComboBox, Context, Id, Label, RichText, ScrollArea, Ui, Vec2, ViewportBuilder,
+    ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
@@ -15,7 +15,7 @@ use super::details;
 use super::escape_closes;
 use super::trends::{self, TemperatureTrend, Trends};
 use super::wheel;
-use super::{placed, Opening, WindowPlace};
+use super::{placed, Opening};
 use crate::display::{conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
@@ -27,34 +27,8 @@ use crate::texts;
 
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
-const PANEL_WINDOW_SIZE: [f32; 2] = [780.0, 760.0];
+pub(crate) const PANEL_WINDOW_SIZE: [f32; 2] = [780.0, 760.0];
 const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
-/// From the main window's top left, so the panel is seen to belong to it.
-const PANEL_OFFSET: Vec2 = Vec2::new(40.0, 40.0);
-/// Kept free below the panel for the taskbar.
-const SCREEN_MARGIN: f32 = 60.0;
-
-/// Where a panel first opens, when it has no place of its own yet: at the main window's top
-/// left (`main`, screen points), only as tall as the screen (`monitor`) leaves below that: a
-/// fixed height let the panel's foot reach below the screen. Without them the system places the
-/// window. Fixed when it opens, so it does not follow the main window afterwards.
-pub fn first_place(main: Option<Rect>, monitor: Option<Vec2>) -> WindowPlace {
-    let full = Vec2::from(PANEL_WINDOW_SIZE);
-    let position = main.map(|main| main.min + PANEL_OFFSET);
-    let room = match (position, monitor) {
-        // The monitor's top is taken as 0: true for the main screen and for screens beside it.
-        (Some(position), Some(monitor)) => monitor.y - position.y - SCREEN_MARGIN,
-        (None, Some(monitor)) => monitor.y - SCREEN_MARGIN,
-        (_, None) => full.y,
-    };
-    let height = room.clamp(PANEL_WINDOW_MIN_SIZE[1], full.y);
-    WindowPlace {
-        position,
-        size: Vec2::new(full.x, height),
-        maximized: false,
-    }
-}
-
 #[derive(Default)]
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -297,45 +271,4 @@ fn copy_buttons(ui: &mut Ui, groups: &GroupChoice) -> Option<Linkable> {
         }
     });
     copy
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use eframe::egui::{pos2, vec2};
-
-    const SCREEN: Vec2 = Vec2::new(1920.0, 1080.0);
-
-    fn main_at(x: f32, y: f32) -> Option<Rect> {
-        Some(Rect::from_min_size(pos2(x, y), vec2(1200.0, 700.0)))
-    }
-
-    #[test]
-    fn the_panel_opens_at_the_main_windows_top_left_in_full_height() {
-        let placement = first_place(main_at(100.0, 50.0), Some(SCREEN));
-        assert_eq!(placement.position, Some(pos2(100.0, 50.0) + PANEL_OFFSET));
-        assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
-    }
-
-    /// The panel's foot used to reach below the screen.
-    #[test]
-    fn a_low_main_window_gives_a_shorter_panel_that_ends_on_the_screen() {
-        let placement = first_place(main_at(100.0, 600.0), Some(SCREEN));
-        let top = placement.position.unwrap().y;
-        assert!(top + placement.size.y <= SCREEN.y - SCREEN_MARGIN + 0.001);
-        assert_eq!(placement.size.x, PANEL_WINDOW_SIZE[0]);
-    }
-
-    #[test]
-    fn a_tiny_screen_still_gets_the_least_panel() {
-        let placement = first_place(main_at(0.0, 0.0), Some(vec2(800.0, 200.0)));
-        assert_eq!(placement.size.y, PANEL_WINDOW_MIN_SIZE[1]);
-    }
-
-    #[test]
-    fn without_window_or_screen_the_system_places_it() {
-        let placement = first_place(None, None);
-        assert_eq!(placement.position, None);
-        assert_eq!(placement.size, Vec2::from(PANEL_WINDOW_SIZE));
-    }
 }

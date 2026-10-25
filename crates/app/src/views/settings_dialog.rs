@@ -18,7 +18,7 @@ use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COLOR_COUNT};
 
 const WINDOW_ID: &str = "settings_window";
-const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
+pub(crate) const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
 const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
 const METER_FLOOR_ID: &str = "meter_floor";

@@ -8,8 +8,8 @@ use crate::window_placement::WINDOW_MIN_SIZE;
 
 /// A difference below this is rounding, not a size to ask for.
 const TOLERANCE: f32 = 1.0;
-/// Kept free around the window on the screen.
-const SCREEN_MARGIN: f32 = 60.0;
+/// Kept free around a window on the screen (points), for the taskbar.
+pub const SCREEN_MARGIN: f32 = 60.0;
 
 #[derive(Debug, Default)]
 pub struct WindowFit {

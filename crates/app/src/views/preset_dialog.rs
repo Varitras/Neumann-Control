@@ -14,7 +14,7 @@ const SAVE_ID: &str = "preset_save";
 const LOAD_ID: &str = "preset_load";
 const LIST_HEIGHT: f32 = 320.0;
 const CHANGES_GRID_ID: &str = "preset_changes";
-const WINDOW_SIZE: [f32; 2] = [560.0, 520.0];
+pub(crate) const WINDOW_SIZE: [f32; 2] = [560.0, 520.0];
 const WINDOW_MIN_SIZE: [f32; 2] = [360.0, 260.0];
 
 /// A dialog in a window of its own (`viewport`), drawn by `body`; true as well when the user

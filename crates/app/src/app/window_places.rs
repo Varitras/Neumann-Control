@@ -4,12 +4,13 @@
 
 use std::collections::BTreeMap;
 
-use eframe::egui::{pos2, vec2, Context, Vec2, ViewportId};
+use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
 use super::{window_geometry, NeumannApp};
 use crate::views::{Opening, WindowPlace};
-use crate::window_placement::{fit_into, WINDOW_MIN_SIZE};
+use crate::window_fit::SCREEN_MARGIN;
+use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WindowKind {
@@ -61,6 +62,43 @@ pub(super) fn cascaded(opening: Opening, index: usize) -> Opening {
     })
 }
 
+/// A window of `size` centred over the main window `main` (both in points), in screen pixels.
+fn centred(main: Rect, size: Vec2, pixels_per_point: f32) -> WindowGeometry {
+    let position = main.center() - size / 2.0;
+    WindowGeometry {
+        x: position.x * pixels_per_point,
+        y: position.y * pixels_per_point,
+        width: size.x * pixels_per_point,
+        height: size.y * pixels_per_point,
+        maximized: false,
+    }
+}
+
+/// `geometry` on a monitor, kept `SCREEN_MARGIN` above its bottom: a window's foot (the panel's,
+/// opened tall) once reached below the screen and the taskbar.
+fn above_the_taskbar(
+    geometry: WindowGeometry,
+    monitors: &[MonitorArea],
+    pixels_per_point: f32,
+) -> WindowGeometry {
+    let usable: Vec<MonitorArea> = monitors
+        .iter()
+        .map(|monitor| MonitorArea {
+            height: monitor.height - SCREEN_MARGIN * pixels_per_point,
+            ..*monitor
+        })
+        .collect();
+    fit_into(geometry, &usable, least_size(pixels_per_point))
+}
+
+/// The least window size in screen pixels.
+fn least_size(pixels_per_point: f32) -> (f32, f32) {
+    (
+        WINDOW_MIN_SIZE[0] * pixels_per_point,
+        WINDOW_MIN_SIZE[1] * pixels_per_point,
+    )
+}
+
 /// A saved geometry (screen pixels) as egui places a window (points).
 pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> WindowPlace {
     let points = |pixels: f32| pixels / pixels_per_point;
@@ -73,22 +111,24 @@ pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> Windo
 
 impl NeumannApp {
     /// How the `index`-th open window of `kind` (from 0) on `viewport` is drawn: left alone
-    /// while open, else where the last of its kind was left (or at its default).
+    /// while open, else where the last of its kind was left, else at `default_size` over the
+    /// middle of the main window.
     pub(super) fn opening(
         &self,
         context: &Context,
         viewport: ViewportId,
         kind: WindowKind,
         index: usize,
+        default_size: Vec2,
     ) -> Opening {
         let open = context.input_for(viewport, |input| input.viewport().outer_rect.is_some());
         if open {
             return Opening::Open;
         }
-        let saved = self
+        let place = self
             .saved_place(context, kind)
-            .map_or(Opening::Default, Opening::At);
-        let opening = cascaded(saved, index);
+            .or_else(|| self.centred_place(context, default_size));
+        let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
         log::debug!(
             "{} window {index} opens {opening:?} on monitors {:?}",
             kind.key(),
@@ -100,14 +140,25 @@ impl NeumannApp {
     /// Where the last `kind` window was left, if one was.
     fn saved_place(&self, context: &Context, kind: WindowKind) -> Option<WindowPlace> {
         let saved = self.settings.windows.get(kind.key())?;
-        let pixels_per_point = context.pixels_per_point();
-        let least = (
-            WINDOW_MIN_SIZE[0] * pixels_per_point,
-            WINDOW_MIN_SIZE[1] * pixels_per_point,
-        );
         // On a monitor there is now: the saved one may have been unplugged since.
-        let fitted = fit_into(*saved, &self.monitors, least);
-        Some(place_of(fitted, pixels_per_point))
+        Some(self.on_a_monitor(context, *saved))
+    }
+
+    /// A window of `size` over the middle of the main window, once the main window's place is
+    /// known.
+    fn centred_place(&self, context: &Context, size: Vec2) -> Option<WindowPlace> {
+        let main = context.input_for(ViewportId::ROOT, |input| input.viewport().outer_rect)?;
+        let pixels_per_point = context.pixels_per_point();
+        let geometry = centred(main, size, pixels_per_point);
+        let placed = above_the_taskbar(geometry, &self.monitors, pixels_per_point);
+        Some(place_of(placed, pixels_per_point))
+    }
+
+    /// `geometry` (screen pixels) moved and shrunk onto a monitor there is, as egui places it.
+    fn on_a_monitor(&self, context: &Context, geometry: WindowGeometry) -> WindowPlace {
+        let pixels_per_point = context.pixels_per_point();
+        let fitted = fit_into(geometry, &self.monitors, least_size(pixels_per_point));
+        place_of(fitted, pixels_per_point)
     }
 
     /// Notes where the `kind` window on `viewport` is now, as the place of its kind; a
@@ -132,6 +183,44 @@ impl NeumannApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tall window centred over a main window low on the screen ends above the taskbar (the
+    /// panel's foot once reached below the screen).
+    #[test]
+    fn a_centred_window_ends_above_the_taskbar() {
+        let screen = MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let main = Rect::from_min_size(pos2(100.0, 600.0), vec2(1200.0, 400.0));
+        let geometry = centred(main, vec2(780.0, 760.0), 1.0);
+        let placed = above_the_taskbar(geometry, &[screen], 1.0);
+        assert!(placed.y >= 0.0, "{placed:?}");
+        assert!(
+            placed.y + placed.height <= 1080.0 - SCREEN_MARGIN,
+            "{placed:?}"
+        );
+    }
+
+    /// A window never left anywhere opens over the middle of the main window, not where the
+    /// system puts new windows.
+    #[test]
+    fn a_window_without_a_place_is_centred_over_the_main_window() {
+        let main = Rect::from_min_size(pos2(100.0, 50.0), vec2(600.0, 400.0));
+        let geometry = centred(main, vec2(300.0, 200.0), 2.0);
+        assert_eq!(
+            geometry,
+            WindowGeometry {
+                x: 500.0,
+                y: 300.0,
+                width: 600.0,
+                height: 400.0,
+                maximized: false,
+            }
+        );
+    }
 
     /// At 150 % a saved 300 pixels are 200 points: the window opens where it was, as large.
     #[test]

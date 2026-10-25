@@ -1,7 +1,7 @@
 //! The settings presets on the app side: the open dialog, saving into the settings file, and
 //! writing a loaded preset in one frame, so the history files it as one entry.
 
-use eframe::egui::{Id, Ui, ViewportId};
+use eframe::egui::{Id, Ui, Vec2, ViewportId};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -77,7 +77,8 @@ impl NeumannApp {
         let context = ui.ctx().clone();
         let now = ui.input(|input| input.time);
         let viewport = preset_viewport();
-        let opening = self.opening(&context, viewport, WindowKind::Preset, 0);
+        let size = Vec2::from(preset_dialog::WINDOW_SIZE);
+        let opening = self.opening(&context, viewport, WindowKind::Preset, 0, size);
         let title = match dialog {
             PresetDialog::Save { .. } => texts::SAVE_PRESET_TITLE.get(),
             PresetDialog::Load { .. } => texts::LOAD_PRESET_TITLE.get(),

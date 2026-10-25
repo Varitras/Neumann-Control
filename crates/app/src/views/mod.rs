@@ -104,7 +104,8 @@ pub struct WindowPlace {
 pub enum Opening {
     /// Not open yet: it opens at this place.
     At(WindowPlace),
-    /// Not open yet and never left anywhere: the system places it at its default size.
+    /// Not open yet, never left anywhere and the main window's place unknown: the system places
+    /// it at its default size.
     Default,
     /// Already open: it stays where and as large as the user has it.
     Open,

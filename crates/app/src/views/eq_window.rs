@@ -19,7 +19,7 @@ use eframe::egui::Vec2;
 
 /// Keys the window's own memory (Escape).
 const EQ_WINDOW_ID: &str = "eq_window";
-const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
+pub(crate) const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 640.0];
 const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
 const SUM_SWATCH_LENGTH: f32 = 18.0;

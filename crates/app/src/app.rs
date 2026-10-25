@@ -9,7 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
-    self, Context, Id, Key, KeyboardShortcut, Modifiers, Ui, ViewportCommand, ViewportId,
+    self, Context, Id, Key, KeyboardShortcut, Modifiers, Ui, Vec2, ViewportCommand, ViewportId,
     ViewportInfo,
 };
 use neumann_control_core::address::parse_address;
@@ -54,7 +54,6 @@ use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
-use crate::views::Opening;
 use crate::views::{all_values, panel, wheel};
 use crate::window_fit::WindowFit;
 use crate::window_placement::{monitor_areas, MonitorArea};
@@ -72,7 +71,7 @@ mod preset_dialogs;
 mod system_volume;
 mod window_places;
 
-use window_places::{cascaded, WindowKind};
+use window_places::WindowKind;
 
 pub use history::TakeBackNotice;
 
@@ -595,7 +594,8 @@ impl NeumannApp {
                 .iter()
                 .filter(|speaker| speaker.state.all_values != AllValuesState::Idle)
                 .count();
-            let opening = self.opening(context, viewport, WindowKind::AllValues, open_before);
+            let size = Vec2::from(all_values::DEFAULT_WINDOW_SIZE);
+            let opening = self.opening(context, viewport, WindowKind::AllValues, open_before, size);
             let speaker = &mut self.speakers[index];
             for command in all_values::show(context, &mut speaker.state, catalog, opening) {
                 speaker.handle.send(command);
@@ -649,16 +649,8 @@ impl NeumannApp {
             return true;
         };
         let viewport = open.viewport;
-        let opening = match self.opening(context, viewport, WindowKind::Panel, panel) {
-            // Never left anywhere: at the main window, as tall as the screen allows.
-            Opening::Default => {
-                let (main, monitor) = context.input_for(ViewportId::ROOT, |input| {
-                    (input.viewport().outer_rect, input.viewport().monitor_size)
-                });
-                cascaded(Opening::At(panel::first_place(main, monitor)), panel)
-            }
-            other => other,
-        };
+        let size = Vec2::from(panel::PANEL_WINDOW_SIZE);
+        let opening = self.opening(context, viewport, WindowKind::Panel, panel, size);
         let open = &mut self.panels[panel];
         if std::mem::take(&mut open.focus) {
             context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
@@ -838,7 +830,8 @@ impl NeumannApp {
         let labels = curve_labels();
         let context = ui.ctx().clone();
         let viewport = settings_dialog::viewport();
-        let opening = self.opening(&context, viewport, WindowKind::Settings, 0);
+        let size = Vec2::from(settings_dialog::SETTINGS_WINDOW_SIZE);
+        let opening = self.opening(&context, viewport, WindowKind::Settings, 0, size);
         let action = settings_dialog::show(
             &context,
             opening,
