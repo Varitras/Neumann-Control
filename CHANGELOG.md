@@ -4,6 +4,8 @@
 
 ### Added
 
+- Screen readers: each strip and compact row is a group named after its speaker or group; a
+  knob's entry field and each EQ band's type choice are named.
 - Keyboard shortcuts: Ctrl+↑/↓ moves every speaker by 1 dB, Ctrl+M mutes or unmutes them all,
   Ctrl+D dims them by 20 dB and restores their levels; with a setting also from other programs
   (Ctrl+Alt).

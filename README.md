@@ -364,6 +364,10 @@ programs too** in **Settings** (off by default), Ctrl+Alt with the same keys (â†
 while another program is in front; a key another program already holds is left out (the log
 says which).
 
+For screen readers each strip and each compact row is a group named after its speaker or group
+("Strip: KH750 Links"), so its controls are told from the same ones on the other strips; the
+field a knob opens and the type choice of each EQ band carry names too.
+
 ### History and undo
 
 **History** in the toolbar lists the settings the app wrote in this session (the newest 500),
