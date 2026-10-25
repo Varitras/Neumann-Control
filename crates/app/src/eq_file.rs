@@ -24,8 +24,10 @@ const BYTE_ORDER_MARK: char = '\u{feff}';
 /// The second word of REW's two-word types (`LS Q`, `HP Q`): the variant with a Q.
 const Q_SUFFIX: &str = "Q";
 const FREQUENCY_KEY: &str = "FC";
-/// The Q of REW's plain shelf (`LS`, `HS`; slope 1) and plain high pass (`HP`), read from the
-/// biquads it stores in a .req: 1/√2.
+/// REW writes its all pass as two words (`All pass`), APO as `AP`.
+const REW_ALL_PASS: [&str; 2] = ["All", "pass"];
+/// The Q of REW's plain shelf (`LS`, `HS`; slope 1) and plain low and high pass (`LP`, `HP`),
+/// read from the biquads it stores in a .req: 1/√2.
 const REW_PLAIN_Q: f64 = FRAC_1_SQRT_2;
 /// First-order filters have no Q; the speakers still want one in their range.
 const FIRST_ORDER_Q: f64 = 0.7;
@@ -110,9 +112,8 @@ enum QRule {
     Required,
     /// The cookbook Q of a shelf, converted to the speakers' slope; REW's plain shelf has none.
     Shelf,
-    /// The cookbook Q, taken as it is; REW's plain high pass has none. Its plain low pass is not
-    /// measured, so a low pass without Q stays refused.
-    HighPass,
+    /// The cookbook Q, taken as it is; REW's plain low and high pass have none.
+    Pass,
     /// A first-order filter: no Q.
     Unused,
 }
@@ -129,13 +130,13 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
     let shaped = |kind, gain, q| Ok(Some(FileType { kind, gain, q }));
     match upper.as_str() {
         "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Required),
-        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Required),
-        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::HighPass),
+        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Pass),
+        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Pass),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
         "BP" => shaped(eq_type::BANDPASS, false, QRule::Required),
         "NO" => shaped(eq_type::NOTCH, false, QRule::Required),
-        "AP" => shaped(eq_type::ALLPASS, false, QRule::Required),
+        "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Required),
         "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
         "HS" | "HSC" | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
         "NONE" => Ok(None),
@@ -156,6 +157,10 @@ fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>),
         second.eq_ignore_ascii_case(Q_SUFFIX) && rest.get(1).is_some_and(|word| is_key(word));
     if with_q {
         return Ok((format!("{first} {Q_SUFFIX}"), rest[1..].to_vec()));
+    }
+    let [all, pass] = REW_ALL_PASS;
+    if first.eq_ignore_ascii_case(all) && second.eq_ignore_ascii_case(pass) {
+        return Ok((format!("{all} {pass}"), rest[1..].to_vec()));
     }
     let shelf = matches!(
         file_type(first),
@@ -274,7 +279,7 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
     let q = match file_type.q {
         QRule::Required => values.q.ok_or(LineProblem::Missing(Parameter::Q))?,
         QRule::Shelf => shelf_slope_of_q(values.q.unwrap_or(REW_PLAIN_Q), boost),
-        QRule::HighPass => values.q.unwrap_or(REW_PLAIN_Q),
+        QRule::Pass => values.q.unwrap_or(REW_PLAIN_Q),
         QRule::Unused => FIRST_ORDER_Q,
     };
     // A bandwidth of 0 octaves gives an infinite Q, which would reach the speaker as `null` and
@@ -786,7 +791,7 @@ Equaliser: Generic
     #[test]
     fn a_missing_q_or_gain_is_refused_rather_than_guessed() {
         assert_eq!(
-            problem_of("Filter: ON LP Fc 8000 Hz"),
+            problem_of("Filter: ON NO Fc 8000 Hz"),
             LineProblem::Missing(Parameter::Q)
         );
         assert_eq!(

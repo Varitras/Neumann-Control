@@ -328,13 +328,12 @@ input B ("Crossover A", "Crossover B").
   name are switched off; empty slots (`None`) are passed over. The file's `Gain` becomes the band's
   boost. Taken over: peaking (`PK`, `PEQ`, `Modal`), low and high pass with Q (`LP`/`LPQ`/`LP Q`,
   `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), band pass (`BP`), notch (`NO`),
-  all pass (`AP`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
+  all pass (`AP`, REW's `All pass`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
   instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1),
-  and so is a plain `HP` without Q (Q 0.707, both read from what REW stores). Refused: shelves by
-  slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, any other missing Q
-  (a plain `LP` too: what REW means by it is not measured), a Q or bandwidth that gives no Q
-  above 0, filters for more than one channel or under a condition (`Channel:` twice or after
+  and so is a plain `LP` or `HP` without Q (Q 0.707, both read from what REW stores). Refused:
+  shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, any other
+  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a condition (`Channel:` twice or after
   filters, `If:`), more filters than the EQ has
   bands and values the speaker would refuse: then nothing is written. `Preamp` and other APO
   commands are not taken over; the preview names them. The preview shows which bands change

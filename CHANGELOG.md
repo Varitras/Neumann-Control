@@ -116,8 +116,9 @@
 
 ### Fixed
 
-- A REW export with a plain high pass (`HP` without Q) was refused ("Q is missing"); it is
-  imported with Q 0.707, as REW defines it.
+- A REW export with a plain low or high pass (`LP`, `HP` without Q) was refused ("Q is missing"),
+  and one with an all pass (written `All pass`) as an unknown type; both are imported now, the
+  plain passes with Q 0.707, as REW defines them.
 - A delay field showed its milliseconds with all their binary digits (3.8333333333333335 ms);
   it shows two decimals now, and meters three, so a shown delay always reads back as its sample.
 - A change made just before the app closed or a speaker was removed could be lost, and after a
