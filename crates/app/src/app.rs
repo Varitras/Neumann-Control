@@ -88,6 +88,8 @@ struct OpenPanel {
     viewport: ViewportId,
     /// Opened again while open: the window comes to the front.
     focus: bool,
+    /// The tab it shows; a panel opens on the overview.
+    tab: PanelTab,
 }
 
 /// The speaker "Entfernen" was clicked for, while the confirmation is open. Key and address both,
@@ -138,8 +140,6 @@ pub struct NeumannApp {
     system_meters: Vec<MeterState>,
     /// The monitors there are now, so a window of its own opens on one of them.
     monitors: Vec<MonitorArea>,
-    /// The device panel's tab last chosen in this run, for every panel.
-    panel_tab: PanelTab,
     /// The playback devices for the settings dialog, listed when it opens.
     audio_devices: Vec<AudioDevice>,
     /// What "like Windows" means, asked of Windows at the start.
@@ -214,7 +214,6 @@ impl NeumannApp {
             update_check: None,
             system_meters: Vec::new(),
             monitors: Vec::new(),
-            panel_tab: PanelTab::default(),
             audio_devices: Vec::new(),
             system_language,
         };
@@ -563,6 +562,7 @@ impl NeumannApp {
             key,
             viewport,
             focus: false,
+            tab: PanelTab::default(),
         });
     }
 
@@ -653,11 +653,11 @@ impl NeumannApp {
         let view = panel::PanelView {
             groups: &choice,
             layout: layout.as_ref(),
-            tab: self.panel_tab,
+            tab: self.panels[panel].tab,
         };
         let response = panel::show(context, viewport, opening, state, catalog, &view);
         if let Some(tab) = response.tab {
-            self.panel_tab = tab;
+            self.panels[panel].tab = tab;
         }
         self.remember_place(context, viewport, WindowKind::Panel);
         if let Some(change) = &response.layout {

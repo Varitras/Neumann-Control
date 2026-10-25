@@ -72,12 +72,12 @@ pub struct PanelResponse {
     pub layout: Option<LayoutChange>,
     /// The strip's colour as the user changed it.
     pub color: Option<ColorChoice>,
-    /// The tab the user switched to.
+    /// The tab the user switched to, kept while this panel is open.
     pub tab: Option<PanelTab>,
 }
 
 /// What the panel offers besides the speaker's own state: its group, the model's strip layout
-/// (once the model is known) and the tab last chosen.
+/// (once the model is known) and the tab it shows.
 pub struct PanelView<'a> {
     pub groups: &'a GroupChoice<'a>,
     pub layout: Option<&'a StripLayout>,
@@ -150,6 +150,9 @@ fn contents(
             PanelTab::Overview => overview(ui, speaker, catalog, view),
             other => {
                 let details = details::show(ui, speaker, catalog, view.layout, other);
+                if other == PanelTab::Device {
+                    device_trend(ui, speaker, catalog);
+                }
                 PanelResponse {
                     commands: details.commands,
                     layout: details.layout,
@@ -162,7 +165,17 @@ fn contents(
     response
 }
 
-/// The panel's own controls, the device name and the trend.
+/// The temperature and warnings of the last hour, under the device's own facts.
+fn device_trend(ui: &mut Ui, speaker: &SpeakerState, catalog: &Catalog) {
+    // Without a temperature only the warnings would be left, which the LEDs show.
+    let trends = trends_of(ui, speaker, catalog);
+    if trends.temperature.is_some() {
+        ui.separator();
+        trends::show(ui, &trends);
+    }
+}
+
+/// The panel's own controls and the device name.
 fn overview(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
@@ -182,12 +195,6 @@ fn overview(
     let copy_to_group = copy_buttons(ui, groups);
     let details = details::show(ui, speaker, catalog, view.layout, PanelTab::Overview);
     ui.separator();
-    // Without a temperature only the warnings would be left, which the LEDs show.
-    let trends = trends_of(ui, speaker, catalog);
-    if trends.temperature.is_some() {
-        trends::show(ui, &trends);
-        ui.separator();
-    }
     let (save_preset, load_preset) = ui
         .horizontal(|ui| {
             let save = ui.button(texts::SAVE_PRESET).clicked();

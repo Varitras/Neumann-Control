@@ -63,7 +63,7 @@ pub fn tabs_for(groups: impl IntoIterator<Item = Group>) -> Vec<PanelTab> {
         .collect()
 }
 
-/// The tab to show: the one last chosen in this session, where the speaker has it.
+/// The tab to show: the one chosen in this panel, where the speaker has it.
 pub fn shown_tab(chosen: PanelTab, available: &[PanelTab]) -> PanelTab {
     if available.contains(&chosen) {
         chosen

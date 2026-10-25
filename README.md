@@ -187,16 +187,16 @@ which you can move anywhere, also beside the main window or onto another screen;
 opening it again brings it to the front. Its header shows name, model, firmware and the masked
 serial number; below it, tabs sort every setting the catalog knows for that model:
 
-- **Overview**: group, strip colour, **Apply to group**, the device name to change, the temperature trend,
-  presets, **EQ** and **Remove**,
+- **Overview**: group, strip colour, **Apply to group**, the device name to change, presets,
+  **EQ** and **Remove**,
 - **Outputs**: one column per output, side by side (on the KH 750 its own woofer, then A and B),
 - **Inputs**: the input settings and what the rear panel reports,
 - **Standby**: standby time, level and the countdown,
-- **Device**: the name (changed on **Overview**), identify, the device's own facts,
-  **All values…** and **Full scan**.
+- **Device**: the name (changed on **Overview**), identify, the device's own facts, the
+  temperature trend, **All values…** and **Full scan**.
 
-A tab without anything for that model is left out. The panel opens on the tab chosen last in
-this run, for every speaker. In each topic what can be set comes before what is only shown.
+A tab without anything for that model is left out. The panel opens on **Overview**; another tab
+stays while it is open. In each topic what can be set comes before what is only shown.
 Settings the model may write get a control; the rest are shown greyed. Escape or the window's
 close button closes it.
 
@@ -220,7 +220,7 @@ writes it as one history entry; settings this model may not write are listed as 
 belongs to its model: saving under a name this model already has replaces that preset, and the
 dialog says so (**Replace**). **Delete** in the load dialog asks before the preset goes.
 
-**Trend (2 h)** below the settings shows what the app read in this session, at most the last two
+**Trend (2 h)** on the **Device** tab shows what the app read in this session, at most the last two
 hours, on models with a temperature (KH 750): the temperature as a line, with its highest and
 lowest value at the left and the current one at its end in °C, and the warnings as a bar, red
 while a warning was active. Hover over them for the value and how long ago it was read.
