@@ -18,13 +18,14 @@ const WINDOW_SIZE: [f32; 2] = [560.0, 520.0];
 const WINDOW_MIN_SIZE: [f32; 2] = [360.0, 260.0];
 
 /// A dialog in a window of its own (`viewport`), drawn by `body`; true as well when the user
-/// closed the window (its close button or Escape).
+/// closed the window (its close button or Escape). `body` may run more than once in a frame: egui
+/// runs a window's pass again when it is discarded (a new grid asks for that).
 pub fn in_window<R>(
     context: &Context,
     viewport: ViewportId,
     opening: Opening,
     title: &str,
-    body: impl FnOnce(&mut Ui) -> R,
+    mut body: impl FnMut(&mut Ui) -> R,
 ) -> (R, bool) {
     let builder = ViewportBuilder::default()
         .with_title(title)
@@ -34,13 +35,10 @@ pub fn in_window<R>(
     if opening != Opening::Open {
         context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
     }
-    // egui takes an FnMut, but draws an immediate viewport exactly once per call.
-    let mut body = Some(body);
     context.show_viewport_immediate(viewport, builder, |ui, class| {
-        let body = body.take().expect("an immediate viewport is drawn once");
         let result = match class {
             ViewportClass::EmbeddedWindow => body(ui),
-            _ => egui::CentralPanel::default().show(ui, body).inner,
+            _ => egui::CentralPanel::default().show(ui, &mut body).inner,
         };
         let escape = escape_closes(ui, Id::unique(title).with(viewport));
         let close_requested = ui.input(|input| input.viewport().close_requested());

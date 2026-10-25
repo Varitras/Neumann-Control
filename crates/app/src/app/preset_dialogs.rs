@@ -82,17 +82,22 @@ impl NeumannApp {
             PresetDialog::Save { .. } => texts::SAVE_PRESET_TITLE.get(),
             PresetDialog::Load { .. } => texts::LOAD_PRESET_TITLE.get(),
         };
-        let (open, closed) =
-            preset_dialog::in_window(&context, viewport, opening, title, |ui| match dialog {
+        // A pass run again draws the dialog as the last one left it; once an action closed it,
+        // a further pass draws nothing.
+        let mut state = Some(dialog);
+        let (_, closed) = preset_dialog::in_window(&context, viewport, opening, title, |ui| {
+            state = match state.take()? {
                 PresetDialog::Save { key, name, chosen } => self.show_save(ui, key, name, chosen),
                 PresetDialog::Load {
                     key,
                     selected,
                     deleting,
                 } => self.show_load(ui, key, selected, deleting, now),
-            });
+            };
+            Some(())
+        });
         self.remember_place(&context, viewport, WindowKind::Preset);
-        self.preset_dialog = open.filter(|_| !closed);
+        self.preset_dialog = state.filter(|_| !closed);
     }
 
     /// Returns the dialog as it stays open, or `None` when it closed.
