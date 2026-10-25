@@ -10,7 +10,7 @@ use super::eq_graph::{self, Graph, GraphAction};
 use super::eq_table::{self, Table, TableAction};
 use super::escape_closes;
 use super::history::UNDO_SHORTCUT;
-use super::preset_dialog::{self, LoadAction, LoadView, SaveAction};
+use super::preset_dialog::{self, Changes, LoadAction, LoadView, SaveAction};
 use super::wheel;
 use super::{placed, Opening};
 use crate::eq::{self, ResetKind};
@@ -277,7 +277,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
                 title: texts::EQ_PRESET_LOAD_TITLE.get(),
                 presets: names,
                 selected: *selected,
-                changes,
+                changes: Changes::Lines(changes),
                 skipped: &[],
                 warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
                 refusal: None,

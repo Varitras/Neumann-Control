@@ -862,7 +862,23 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
         .click();
     // The preview grows the dialog, which centres itself again over a few frames.
     harness.run_steps(6);
-    harness.get_by_label_contains("Pegel: ");
+    // Side by side: what the speaker has now, what the preset writes.
+    harness.get_by_label(texts::PRESET_NOW.get());
+    harness.get_by_label(texts::PRESET_WRITTEN.get());
+    // A label's text is its accessible value.
+    let levels: Vec<String> = harness
+        .query_all_by_role(Role::Label)
+        .filter_map(|node| node.value())
+        .filter(|text| text.ends_with("dB SPL"))
+        .collect();
+    assert!(
+        levels.iter().any(|level| level.starts_with("70")),
+        "{levels:?}"
+    );
+    assert!(
+        levels.iter().any(|level| level.starts_with("100")),
+        "{levels:?}"
+    );
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the level written back", |_| {
         sets(&simulator, LEVEL_POINTER).contains(&json!(100.0))

@@ -215,10 +215,12 @@ same and writes it next to the executable as `scan-<model>-<firmware>-<date>-<ti
 and any network address are left out. It is meant for collecting what other models report.
 
 **Save as preset…** keeps chosen settings of the speaker under a name (all writable settings are
-offered, the name unchecked). **Load preset…** shows what a preset would change on this speaker and
-writes it as one history entry; settings this model may not write are listed as skipped. A preset
-belongs to its model: saving under a name this model already has replaces that preset, and the
-dialog says so (**Replace**). **Delete** in the load dialog asks before the preset goes.
+offered, the name unchecked). Both open in a window of their own in front of the panel. **Load
+preset…** compares each setting the preset would change, as it is **Now** and as it would be
+written, and writes it as one history entry; settings this model may not write are listed as
+skipped. A preset belongs to its model: saving under a name this model already has replaces that
+preset, and the dialog says so (**Replace**). **Delete** in the load dialog asks before the preset
+goes.
 
 **Trend (2 h)** on the **Device** tab shows what the app read in this session, at most the last two
 hours, on models with a temperature (KH 750): the temperature as a line, with its highest and

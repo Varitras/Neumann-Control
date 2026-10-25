@@ -1,13 +1,52 @@
-//! The two preset dialogs of the device panel: saving chosen settings under a name, and loading
-//! a preset with a preview of what it would change. They only draw and report.
+//! The two preset dialogs: saving chosen settings under a name, and loading a preset with a
+//! preview of what it would change. The device panel's open in a window of their own, in front
+//! of the panel; the EQ window's over its own contents. They only draw and report.
 
-use eframe::egui::{Button, Id, Modal, ScrollArea, TextEdit, Ui};
+use eframe::egui::{
+    self, Button, Context, Grid, Id, Modal, RichText, ScrollArea, TextEdit, Ui, Vec2,
+    ViewportBuilder, ViewportClass, ViewportCommand, ViewportId,
+};
 
+use super::{escape_closes, placed, Opening};
 use crate::texts;
 
 const SAVE_ID: &str = "preset_save";
 const LOAD_ID: &str = "preset_load";
 const LIST_HEIGHT: f32 = 320.0;
+const CHANGES_GRID_ID: &str = "preset_changes";
+const WINDOW_SIZE: [f32; 2] = [560.0, 520.0];
+const WINDOW_MIN_SIZE: [f32; 2] = [360.0, 260.0];
+
+/// A dialog in a window of its own (`viewport`), drawn by `body`; true as well when the user
+/// closed the window (its close button or Escape).
+pub fn in_window<R>(
+    context: &Context,
+    viewport: ViewportId,
+    opening: Opening,
+    title: &str,
+    body: impl FnOnce(&mut Ui) -> R,
+) -> (R, bool) {
+    let builder = ViewportBuilder::default()
+        .with_title(title)
+        .with_min_inner_size(WINDOW_MIN_SIZE);
+    let builder = placed(builder, opening, Vec2::from(WINDOW_SIZE));
+    // Opened from the panel, which has the focus: without it the new window can open behind.
+    if opening != Opening::Open {
+        context.send_viewport_cmd_to(viewport, ViewportCommand::Focus);
+    }
+    // egui takes an FnMut, but draws an immediate viewport exactly once per call.
+    let mut body = Some(body);
+    context.show_viewport_immediate(viewport, builder, |ui, class| {
+        let body = body.take().expect("an immediate viewport is drawn once");
+        let result = match class {
+            ViewportClass::EmbeddedWindow => body(ui),
+            _ => egui::CentralPanel::default().show(ui, body).inner,
+        };
+        let escape = escape_closes(ui, Id::unique(title).with(viewport));
+        let close_requested = ui.input(|input| input.viewport().close_requested());
+        (result, escape || close_requested)
+    })
+}
 
 /// A setting offered for the preset: its name, current value and whether it is chosen.
 pub struct SaveRow {
@@ -33,7 +72,23 @@ pub fn save(
     name: &mut String,
     replacing: bool,
 ) -> SaveAction {
-    let modal = Modal::new(Id::unique(SAVE_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(SAVE_ID))
+        .show(ui.ctx(), |ui| save_body(ui, title, rows, name, replacing));
+    if modal.should_close() {
+        return SaveAction::Cancel;
+    }
+    modal.inner
+}
+
+/// The save dialog's contents, wherever it is shown.
+pub fn save_body(
+    ui: &mut Ui,
+    title: &str,
+    rows: &[SaveRow],
+    name: &mut String,
+    replacing: bool,
+) -> SaveAction {
+    {
         ui.heading(title);
         let label = ui.label(texts::PRESET_NAME);
         ui.add(TextEdit::singleline(name)).labelled_by(label.id);
@@ -67,11 +122,32 @@ pub fn save(
             }
         });
         action
-    });
-    if modal.should_close() {
-        return SaveAction::Cancel;
     }
-    modal.inner
+}
+
+/// One setting a loaded preset would write: what it is now and what it becomes.
+pub struct ComparedChange {
+    pub label: String,
+    pub now: String,
+    pub written: String,
+}
+
+/// What loading the selected preset would write.
+#[derive(Clone, Copy)]
+pub enum Changes<'a> {
+    /// One line each (an EQ preset's bands).
+    Lines(&'a [String]),
+    /// Side by side, now and to be written.
+    Compared(&'a [ComparedChange]),
+}
+
+impl Changes<'_> {
+    fn is_empty(self) -> bool {
+        match self {
+            Changes::Lines(lines) => lines.is_empty(),
+            Changes::Compared(changes) => changes.is_empty(),
+        }
+    }
 }
 
 pub struct LoadView<'a> {
@@ -79,8 +155,7 @@ pub struct LoadView<'a> {
     /// "Name (product)" per preset.
     pub presets: &'a [String],
     pub selected: Option<usize>,
-    /// "Setting: current → preset" per write.
-    pub changes: &'a [String],
+    pub changes: Changes<'a>,
     pub skipped: &'a [String],
     /// A caution above the buttons (a crossover would lose its split).
     pub warning: Option<&'a str>,
@@ -103,7 +178,16 @@ pub enum LoadAction {
 }
 
 pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
-    let modal = Modal::new(Id::unique(LOAD_ID)).show(ui.ctx(), |ui| {
+    let modal = Modal::new(Id::unique(LOAD_ID)).show(ui.ctx(), |ui| load_body(ui, view));
+    if modal.should_close() {
+        return LoadAction::Close;
+    }
+    modal.inner
+}
+
+/// The load dialog's contents, wherever it is shown.
+pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
+    {
         ui.heading(view.title);
         let mut action = LoadAction::None;
         if view.presets.is_empty() {
@@ -124,11 +208,7 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
             }
             ScrollArea::vertical()
                 .max_height(LIST_HEIGHT)
-                .show(ui, |ui| {
-                    for change in view.changes {
-                        ui.label(change);
-                    }
-                });
+                .show(ui, |ui| changes(ui, view.changes));
             if !view.skipped.is_empty() {
                 ui.weak(texts::preset_skipped(view.skipped));
             }
@@ -173,9 +253,29 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
             }
         });
         action
-    });
-    if modal.should_close() {
-        return LoadAction::Close;
     }
-    modal.inner
+}
+
+fn changes(ui: &mut Ui, changes: Changes) {
+    match changes {
+        Changes::Lines(lines) => {
+            for line in lines {
+                ui.label(line);
+            }
+        }
+        Changes::Compared(compared) => {
+            Grid::new(CHANGES_GRID_ID).striped(true).show(ui, |ui| {
+                ui.label(RichText::new(texts::PRESET_SETTING).strong());
+                ui.label(RichText::new(texts::PRESET_NOW).strong());
+                ui.label(RichText::new(texts::PRESET_WRITTEN).strong());
+                ui.end_row();
+                for change in compared {
+                    ui.label(&change.label);
+                    ui.label(&change.now);
+                    ui.label(RichText::new(&change.written).strong());
+                    ui.end_row();
+                }
+            });
+        }
+    }
 }

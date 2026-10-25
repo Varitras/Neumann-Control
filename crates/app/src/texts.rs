@@ -343,6 +343,9 @@ pub const TAB_OUTPUTS: Text = Text::new("Ausgänge", "Outputs");
 pub const TAB_INPUTS: Text = Text::new("Eingänge", "Inputs");
 pub const TAB_STANDBY: Text = Text::new("Standby", "Standby");
 pub const TAB_DEVICE: Text = Text::new("Gerät", "Device");
+pub const PRESET_SETTING: Text = Text::new("Einstellung", "Setting");
+pub const PRESET_NOW: Text = Text::new("Jetzt", "Now");
+pub const PRESET_WRITTEN: Text = Text::new("Wird geschrieben", "To be written");
 pub const SHOW_MASTER: Text = Text::new("Master-Zug anzeigen", "Show master strip");
 pub const DELAY_SHOWN_IN: Text = Text::new("Verzögerung anzeigen in", "Show delays in");
 pub const DELAY_IN_MILLISECONDS: Text = Text::new("Millisekunden", "milliseconds");
@@ -840,11 +843,6 @@ pub fn preset_row(setting: &str, value: &str) -> String {
 /// A preset in the load dialog.
 pub fn preset_entry(name: &str, product: &str) -> String {
     format!("{name} ({product})")
-}
-
-/// One write of a loaded preset: "Pegel: 85 dB SPL → 90 dB SPL".
-pub fn preset_change(setting: &str, current: &str, preset: &str) -> String {
-    format!("{setting}: {current} → {preset}")
 }
 
 pub fn preset_skipped(paths: &[String]) -> String {

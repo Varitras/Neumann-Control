@@ -1,19 +1,29 @@
 //! The settings presets on the app side: the open dialog, saving into the settings file, and
 //! writing a loaded preset in one frame, so the history files it as one entry.
 
-use eframe::egui::Ui;
+use eframe::egui::{Id, Ui, ViewportId};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
+use super::window_places::WindowKind;
 use super::NeumannApp;
 use crate::display::shown_value;
 use crate::paths;
 use crate::presets::{capture, chosen_by_default, plan, presettable};
 use crate::state::SpeakerKey;
 use crate::texts;
-use crate::views::preset_dialog::{self, LoadAction, LoadView, SaveAction, SaveRow};
+use crate::views::preset_dialog::{
+    self, Changes, ComparedChange, LoadAction, LoadView, SaveAction, SaveRow,
+};
 use crate::writes::{self, Intent};
+
+const PRESET_WINDOW_ID: &str = "preset_window";
+
+/// The preset dialogs' window: one at a time, saving or loading.
+fn preset_viewport() -> ViewportId {
+    ViewportId::from_hash_of(Id::unique(PRESET_WINDOW_ID))
+}
 
 pub(super) enum PresetDialog {
     Save {
@@ -59,21 +69,30 @@ impl NeumannApp {
         });
     }
 
+    /// In a window of its own, so it opens in front of the panel it was asked from.
     pub(super) fn show_preset_dialog(&mut self, ui: &mut Ui) {
+        let Some(dialog) = self.preset_dialog.take() else {
+            return;
+        };
+        let context = ui.ctx().clone();
         let now = ui.input(|input| input.time);
-        match self.preset_dialog.take() {
-            None => {}
-            Some(PresetDialog::Save { key, name, chosen }) => {
-                self.preset_dialog = self.show_save(ui, key, name, chosen);
-            }
-            Some(PresetDialog::Load {
-                key,
-                selected,
-                deleting,
-            }) => {
-                self.preset_dialog = self.show_load(ui, key, selected, deleting, now);
-            }
-        }
+        let viewport = preset_viewport();
+        let opening = self.opening(&context, viewport, WindowKind::Preset, 0);
+        let title = match dialog {
+            PresetDialog::Save { .. } => texts::SAVE_PRESET_TITLE.get(),
+            PresetDialog::Load { .. } => texts::LOAD_PRESET_TITLE.get(),
+        };
+        let (open, closed) =
+            preset_dialog::in_window(&context, viewport, opening, title, |ui| match dialog {
+                PresetDialog::Save { key, name, chosen } => self.show_save(ui, key, name, chosen),
+                PresetDialog::Load {
+                    key,
+                    selected,
+                    deleting,
+                } => self.show_load(ui, key, selected, deleting, now),
+            });
+        self.remember_place(&context, viewport, WindowKind::Preset);
+        self.preset_dialog = open.filter(|_| !closed);
     }
 
     /// Returns the dialog as it stays open, or `None` when it closed.
@@ -109,7 +128,7 @@ impl NeumannApp {
             .iter()
             .any(|preset| preset.name == name.trim() && preset.product == product);
         let title = texts::SAVE_PRESET_TITLE.get();
-        match preset_dialog::save(ui, title, &rows, &mut name, replacing) {
+        match preset_dialog::save_body(ui, title, &rows, &mut name, replacing) {
             SaveAction::None => {}
             SaveAction::Toggle(place, on) => {
                 let path = entries[place].path.clone();
@@ -164,17 +183,16 @@ impl NeumannApp {
                 _ => texts::UNKNOWN_VALUE.to_owned(),
             }
         };
-        let changes: Vec<String> = loading
+        let changes: Vec<ComparedChange> = loading
             .changes
             .iter()
-            .map(|change| {
-                let label = paths::catalog_entry(catalog, &change.path).map_or_else(
+            .map(|change| ComparedChange {
+                label: paths::catalog_entry(catalog, &change.path).map_or_else(
                     || change.path.to_string(),
                     |entry| entry.label(texts::language()).to_owned(),
-                );
-                let current = shown(&change.path, change.current.as_ref());
-                let preset = shown(&change.path, Some(&change.preset));
-                texts::preset_change(&label, &current, &preset)
+                ),
+                now: shown(&change.path, change.current.as_ref()),
+                written: shown(&change.path, Some(&change.preset)),
             })
             .collect();
         // All or nothing, as for EQ presets: a refused value would otherwise leave the preset
@@ -194,7 +212,7 @@ impl NeumannApp {
             title: texts::LOAD_PRESET_TITLE.get(),
             presets: &names,
             selected,
-            changes: &changes,
+            changes: Changes::Compared(&changes),
             skipped: &loading.skipped,
             warning: None,
             refusal: refusal.as_deref(),
@@ -203,7 +221,7 @@ impl NeumannApp {
                 .and_then(|place| self.settings.presets.get(place))
                 .map(|preset| preset.name.as_str()),
         };
-        match preset_dialog::load(ui, &view) {
+        match preset_dialog::load_body(ui, &view) {
             LoadAction::None => {}
             LoadAction::Select(place) => {
                 selected = Some(place);
