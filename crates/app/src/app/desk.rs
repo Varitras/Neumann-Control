@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use eframe::egui::scroll_area::ScrollBarVisibility;
 use eframe::egui::{
     Align, Context, DragAndDrop, Id, Layout, ScrollArea, Ui, Vec2, ViewportCommand,
 };
@@ -114,9 +115,11 @@ impl NeumannApp {
         let mut actions = Vec::new();
         // auto_shrink off: the scroll area takes all of it.
         let room = ui.available_size();
+        let content_id = Id::unique(DESK_SCROLL_ID).with(CONTENT_ID);
         let scroll = ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
             .auto_shrink([false, false])
+            .scroll_bar_visibility(scroll_bars(ui, content_id, room))
             .show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
                     for item in &items {
@@ -220,6 +223,7 @@ impl NeumannApp {
                     }
                 });
             });
+        keep_content(ui, content_id, scroll.content_size);
         self.fit_window(ui.ctx(), room, scroll.content_size);
         ui.ctx()
             .data_mut(|data| data.insert_temp(Id::unique(STRIP_CENTERS_ID), centers));
@@ -522,6 +526,25 @@ fn previewed(
         return items;
     };
     with_moved(&items, dragged, &others, insertion_slot(&known, pointer.x))
+}
+
+/// Where the content of a scroll area is kept for the next frame's decision on its bars.
+pub(super) const CONTENT_ID: &str = "content";
+
+/// No scroll bars when the content of the last frame fits `room`, the scroll area's whole room;
+/// else as egui finds them needed. egui decides each bar by the other one of the frame before:
+/// at an exact fit it swapped them every frame and never came to none (four speakers at 125 %).
+pub(super) fn scroll_bars(ui: &Ui, content_id: Id, room: Vec2) -> ScrollBarVisibility {
+    let content = ui.data(|data| data.get_temp::<Vec2>(content_id));
+    let fits = content.is_some_and(|content| content.x <= room.x && content.y <= room.y);
+    if fits {
+        return ScrollBarVisibility::AlwaysHidden;
+    }
+    ScrollBarVisibility::VisibleWhenNeeded
+}
+
+pub(super) fn keep_content(ui: &Ui, content_id: Id, content: Vec2) {
+    ui.data_mut(|data| data.insert_temp(content_id, content));
 }
 
 pub(super) fn group_of(groups: &[GroupSettings], id: &str) -> Option<usize> {

@@ -1,10 +1,13 @@
 //! The compact mode: one row per ungrouped speaker and per group, the master at the bottom. The
 //! rows' gestures mean the same as on the desk and go the same way to the speakers.
 
-use eframe::egui::{Context, ScrollArea, Ui};
+use eframe::egui::{Context, Id, ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 
-use super::desk::{all_muted, layout_owner_of, levels, members_of, DeskAction};
+use super::desk::{
+    all_muted, keep_content, layout_owner_of, levels, members_of, scroll_bars, DeskAction,
+    CONTENT_ID,
+};
 use super::{NeumannApp, COMPACT_SCROLL_ID};
 use crate::compact_layout;
 use crate::fader::output_level_range;
@@ -33,10 +36,12 @@ impl NeumannApp {
         let mut actions = Vec::new();
         // auto_shrink off: the scroll area takes all of it.
         let room = ui.available_size();
+        let content_id = Id::unique(COMPACT_SCROLL_ID).with(CONTENT_ID);
         // Both ways: below the rows' width the window scrolls instead of hiding mute.
         let scroll = ScrollArea::both()
             .id_salt(COMPACT_SCROLL_ID)
             .auto_shrink([false, false])
+            .scroll_bar_visibility(scroll_bars(ui, content_id, room))
             .show(ui, |ui| {
                 for row in &rows {
                     match *row {
@@ -98,6 +103,7 @@ impl NeumannApp {
                     actions.push(DeskAction::Master(compact::master(ui, shown)));
                 }
             });
+        keep_content(ui, content_id, scroll.content_size);
         self.fit_window(ui.ctx(), room, scroll.content_size);
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);

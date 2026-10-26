@@ -727,6 +727,46 @@ fn a_first_window_comes_to_rest_with_four_speakers() {
     assert_eq!(sizes.len(), 1, "the window still moves: {sizes:?}");
 }
 
+/// At 125 % the first window of four speakers ended with scroll bars, a tick short of the desk,
+/// although the fit counted the content as fitting (Linux VM, 1.25 px/pt).
+#[test]
+fn a_first_window_at_125_percent_shows_the_desk_without_scroll_bars() {
+    let models = [
+        SimModel::Kh120Ii,
+        SimModel::Kh120Ii,
+        SimModel::Kh750,
+        SimModel::Kh750,
+    ];
+    let simulators: Vec<Simulator> = models
+        .iter()
+        .enumerate()
+        .map(|(index, model)| {
+            let simulator = Simulator::start(*model);
+            simulator.set_reply_delay(REPLY_DELAY);
+            simulator.set_value(paths::SERIAL, Value::from(format!("SIM000000{index}")));
+            simulator
+        })
+        .collect();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    let first_start = settings::Settings {
+        manual: simulators.iter().map(manual_for).collect(),
+        ..Default::default()
+    };
+    settings::save(&first_start, &path).unwrap();
+    let mut harness = harness_at_scale(path, 1.25);
+    wait_until(&mut harness, "four strips", |harness| {
+        harness.query_all_by_label(texts::DETAILS.get()).count() == models.len()
+    });
+    harness.run_steps(60);
+    assert_eq!(
+        harness.query_all_by_role(Role::ScrollBar).count(),
+        0,
+        "window {:?}",
+        harness.ctx.content_rect()
+    );
+}
+
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());
