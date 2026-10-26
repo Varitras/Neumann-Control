@@ -176,7 +176,12 @@ impl NeumannApp {
             context.send_viewport_cmd(ViewportCommand::OuterPosition(position));
         }
         context.send_viewport_cmd(ViewportCommand::InnerSize(place.size));
-        context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
+        // Only a change: under Wayland "not maximized" to a window that is not maximized brought
+        // the compositor's old size back over the one just asked for.
+        let maximized = context.input(|input| input.viewport().maximized == Some(true));
+        if place.maximized != maximized {
+            context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
+        }
     }
 
     /// `geometry` (screen pixels) moved and shrunk onto a monitor there is, as egui places it.

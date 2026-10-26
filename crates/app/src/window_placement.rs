@@ -47,7 +47,11 @@ pub fn place_window(window: &Window, saved: WindowGeometry) {
     window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
     // The size granted arrives as a resize event like any other.
     let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
-    window.set_maximized(geometry.maximized);
+    // A new window is not maximized: under Wayland "not maximized" told anyway brought the
+    // compositor's size back over the one just asked for.
+    if geometry.maximized {
+        window.set_maximized(true);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
