@@ -82,6 +82,11 @@ impl NeumannApp {
         let wanted = wanted_size(current, visible.size(), content);
         let pixels_per_point = context.pixels_per_point();
         if let Some(size) = fit.next(current, wanted, screen, pixels_per_point) {
+            log::debug!(
+                "window fit: asking {size:?} at {current:?}, visible {:?}, content {content:?}, \
+                 {pixels_per_point} px/pt",
+                visible.size()
+            );
             context.send_viewport_cmd(ViewportCommand::InnerSize(size));
         }
     }
