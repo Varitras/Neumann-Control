@@ -685,6 +685,48 @@ fn a_first_window_fits_the_desk() {
     assert!(window.contains_rect(details), "{details:?} in {window:?}");
 }
 
+/// On Linux the first window of two KH 120 II and two KH 750 swung between two sizes for good
+/// (720×658 and 726×655): the fit measured what the scroll area showed, which loses the room of
+/// a scroll bar while one shows or fades in, so each size asked for the other.
+#[test]
+fn a_first_window_comes_to_rest_with_four_speakers() {
+    let models = [
+        SimModel::Kh120Ii,
+        SimModel::Kh120Ii,
+        SimModel::Kh750,
+        SimModel::Kh750,
+    ];
+    let simulators: Vec<Simulator> = models
+        .iter()
+        .enumerate()
+        .map(|(index, model)| {
+            let simulator = Simulator::start(*model);
+            simulator.set_reply_delay(REPLY_DELAY);
+            simulator.set_value(paths::SERIAL, Value::from(format!("SIM000000{index}")));
+            simulator
+        })
+        .collect();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    let first_start = settings::Settings {
+        manual: simulators.iter().map(manual_for).collect(),
+        ..Default::default()
+    };
+    settings::save(&first_start, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_until(&mut harness, "four strips", |harness| {
+        harness.query_all_by_label(texts::DETAILS.get()).count() == models.len()
+    });
+    harness.run_steps(60);
+    let mut sizes = Vec::new();
+    for _ in 0..20 {
+        harness.step();
+        sizes.push(harness.ctx.content_rect().size());
+    }
+    sizes.dedup();
+    assert_eq!(sizes.len(), 1, "the window still moves: {sizes:?}");
+}
+
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());

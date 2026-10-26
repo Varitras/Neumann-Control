@@ -14,6 +14,9 @@
 
 ### Fixed
 
+- A window without a saved size no longer swings between two sizes for good while it is fitted
+  to the desk or the compact rows (seen as the strips grew one after another as they connected).
+
 - **Check for updates** counts pre-releases: with only a pre-release published it said there was
   no release yet, and it would not have told of a newer pre-release.
 

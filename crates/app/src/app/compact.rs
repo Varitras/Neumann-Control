@@ -32,6 +32,8 @@ impl NeumannApp {
         let floor = desk.meter_floor.db();
         let now = ui.input(|input| input.time);
         let mut actions = Vec::new();
+        // auto_shrink off: the scroll area takes all of it.
+        let room = ui.available_size();
         // Both ways: below the rows' width the window scrolls instead of hiding mute.
         let scroll = ScrollArea::both()
             .id_salt(COMPACT_SCROLL_ID)
@@ -97,7 +99,7 @@ impl NeumannApp {
                     actions.push(DeskAction::Master(compact::master(ui, shown)));
                 }
             });
-        self.fit_window(ui.ctx(), scroll.inner_rect, scroll.content_size);
+        self.fit_window(ui.ctx(), room, scroll.content_size);
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);
         }

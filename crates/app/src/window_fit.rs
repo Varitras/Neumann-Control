@@ -53,12 +53,12 @@ impl WindowFit {
     }
 }
 
-/// The window size at which `content` just fills the visible part of its scroll area: the
-/// window grown or shrunk by what the content lacks or leaves there. Everything else in the window
-/// (toolbar, margins, scroll bars being shown) stays as it is; once the content fits, the bars go
-/// and the next request takes their room back.
-pub fn wanted_size(window: Vec2, visible: Vec2, content: Vec2) -> Vec2 {
-    window + content - visible
+/// The window size at which `content` just fills `room`, the whole room its scroll area gets
+/// (scroll bars included): the window grown or shrunk by what the content lacks or leaves there,
+/// everything else in it (toolbar, margins) as it is. Not the part the scroll area shows: that
+/// loses a bar's room while one shows or fades in, so each size asked for another.
+pub fn wanted_size(window: Vec2, room: Vec2, content: Vec2) -> Vec2 {
+    window + content - room
 }
 
 fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
@@ -84,14 +84,16 @@ mod tests {
     use super::*;
     use eframe::egui::vec2;
 
-    /// Measured at 250 % on the first start: a scroll bar was showing, so the window was 22.9
-    /// points wider than its visible area, not the 16 of the margins alone. Content plus margins
-    /// asked for the size the window already had, and the bars stayed for good.
+    /// Measured on Linux: the window swung between 720×658 and 726×655 for good. Measured by
+    /// the room of the scroll area (16 and 45 points less than the window), both sizes want the
+    /// same window, whatever the scroll bars did there.
     #[test]
-    fn the_wanted_size_counts_scroll_bars_being_shown() {
-        let wanted = wanted_size(vec2(719.2, 654.8), vec2(696.3, 608.0), vec2(702.9, 609.6));
-        assert!((wanted.x - 725.8).abs() < 1e-3, "{wanted:?}");
-        assert!((wanted.y - 656.4).abs() < 1e-3, "{wanted:?}");
+    fn both_sizes_the_window_swung_between_want_the_same() {
+        let content = vec2(702.9, 610.0);
+        let narrow = wanted_size(vec2(720.0, 658.0), vec2(704.0, 613.0), content);
+        let wide = wanted_size(vec2(726.0, 655.0), vec2(710.0, 610.0), content);
+        assert!((narrow - wide).length() < 1e-3, "{narrow:?} {wide:?}");
+        assert!((narrow - vec2(718.9, 655.0)).length() < 1e-3, "{narrow:?}");
     }
 
     /// At 250 % the window takes whole pixels: 718.9 points became 1797 pixels, 718.8 points,
