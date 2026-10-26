@@ -6,8 +6,11 @@ use eframe::egui::Vec2;
 
 use crate::window_placement::WINDOW_MIN_SIZE;
 
-/// A difference below this is rounding, not a size to ask for.
+/// A difference below this is rounding, not a size to ask for, as long as the window is not
+/// short of the content: at 1.25 px/pt a whole pixel is less than this.
 const TOLERANCE: f32 = 1.0;
+/// Below this a window short of the content is float noise, not a pixel.
+const SHORT_BY: f32 = 0.01;
 /// Kept free around a window on the screen (points), for the taskbar.
 pub const SCREEN_MARGIN: f32 = 60.0;
 
@@ -19,6 +22,8 @@ pub struct WindowFit {
     /// The size the window had when there was nothing to ask; another one it was not asked for
     /// was given by the user (or the system).
     settled: Option<Vec2>,
+    /// A size asked for and granted a little smaller: not asked for again.
+    granted_short: Option<Vec2>,
     /// The user sized the window: the fit is over.
     done: bool,
 }
@@ -53,6 +58,7 @@ impl WindowFit {
                 return None;
             }
             self.pending = None;
+            self.granted_short = short_of(current, asked).then_some(asked);
         } else if let Some(settled) = self.settled {
             if !close(current, settled) {
                 log::debug!("window fit: over, the window went from {settled:?} to {current:?}");
@@ -61,7 +67,9 @@ impl WindowFit {
             }
         }
         let wanted = whole_pixels(bounded(wanted, screen), pixels_per_point);
-        if close(current, wanted) {
+        let fits = close(current, wanted) && !short_of(current, wanted);
+        // The system may grant a pixel less than asked; asking again would only repeat.
+        if fits || self.granted_short == Some(wanted) {
             if self.settled.is_none() {
                 log::debug!("window fit: {current:?} fits");
             }
@@ -94,6 +102,11 @@ fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
 /// content brings up scroll bars.
 fn whole_pixels(size: Vec2, pixels_per_point: f32) -> Vec2 {
     (size * pixels_per_point).ceil() / pixels_per_point
+}
+
+/// `current` smaller than `wanted` in either direction, by more than float noise.
+fn short_of(current: Vec2, wanted: Vec2) -> bool {
+    current.x < wanted.x - SHORT_BY || current.y < wanted.y - SHORT_BY
 }
 
 fn close(one: Vec2, other: Vec2) -> bool {
@@ -187,6 +200,30 @@ mod tests {
         let sized = vec2(844.0, 800.0);
         assert_eq!(fit.next(sized, wanted, SCREEN, 1.0), None);
         assert_eq!(fit.next(sized, vec2(900.0, 800.0), SCREEN, 1.0), None);
+    }
+
+    /// At 1.25 px/pt a pixel is 0.8 points, less than the rounding allowed: content that grew by
+    /// part of a pixel after the window fitted counted as fitting, and the window stayed a pixel
+    /// short with scroll bars (Linux VM). Short by any pixel asks again.
+    #[test]
+    fn a_window_a_pixel_short_of_the_content_is_asked_to_grow() {
+        let mut fit = WindowFit::default();
+        let fitted = vec2(719.2, 654.4);
+        assert_eq!(fit.next(fitted, fitted, SCREEN, 1.25), None, "fits");
+        assert_eq!(
+            fit.next(fitted, vec2(719.5, 654.4), SCREEN, 1.25),
+            Some(vec2(720.0, 654.4))
+        );
+    }
+
+    /// A system that grants a pixel less than asked is not asked again and again.
+    #[test]
+    fn a_pixel_less_than_asked_is_taken_as_granted() {
+        let mut fit = WindowFit::default();
+        let wanted = vec2(720.0, 654.4);
+        fit.next(START, wanted, SCREEN, 1.25);
+        assert_eq!(fit.next(vec2(719.2, 654.4), wanted, SCREEN, 1.25), None);
+        assert_eq!(fit.next(vec2(719.2, 654.4), wanted, SCREEN, 1.25), None);
     }
 
     #[test]
