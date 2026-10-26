@@ -1,6 +1,6 @@
 //! The device panel's tabs: which catalog topic goes on which tab. The overview holds the
-//! panel's own controls (group, colour, presets, trend) and the device name to edit; the device
-//! tab shows the name as text.
+//! panel's own controls (colour, presets, EQ, remove) and the device name to edit; the group tab
+//! the speaker's group; the device tab shows the name as text, with the trend.
 
 use neumann_control_core::catalog::{Entry, Group};
 

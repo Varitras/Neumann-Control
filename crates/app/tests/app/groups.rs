@@ -1,5 +1,5 @@
-//! Groups on the desk: group fader, group and master mute, linked settings, the group dialog
-//! and choosing a group in the device panel.
+//! Groups on the desk: group fader, group and master mute, linked settings, the groups window
+//! and the device panel's group tab.
 
 use crate::support::*;
 use eframe::egui::{self, accesskit::Role};

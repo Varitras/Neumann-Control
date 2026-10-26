@@ -506,7 +506,7 @@ pub fn in_other_group(group: &str) -> String {
     pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))
 }
 
-/// A member strip's context menu: its group's dialog, also while the group has no strip.
+/// A member strip's context menu: its group in the groups window, also while it has no strip.
 pub fn edit_group(group: &str) -> String {
     pick(
         format!("Gruppe „{group}“ bearbeiten…"),

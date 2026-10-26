@@ -283,7 +283,7 @@ pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<
     }
 }
 
-/// Deletes the group at `index`; an index from a dialog opened before the groups changed may
+/// Deletes the group at `index`; an index from a window opened before the groups changed may
 /// point past the end, and then nothing is deleted.
 pub fn delete_group(groups: &mut Vec<GroupSettings>, index: usize) {
     if index < groups.len() {

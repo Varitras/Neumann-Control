@@ -1002,16 +1002,16 @@ fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }
 
-/// Outer position and inner size in physical pixels, as `window_placement` takes them back.
-/// Minimized, the window stays as `last` had it; maximized, it keeps `last`'s normal place and
-/// size for when it is restored, marked maximized.
 /// A window exists: egui gives its scale with every frame, also where the system tells no
 /// position (Wayland), and none for a window not open (or one drawn inside another).
 fn is_open(viewport: &ViewportInfo) -> bool {
     viewport.native_pixels_per_point.is_some()
 }
 
-/// `size` is the window's own, in points, as egui gives it with every frame.
+/// Outer position and inner size in physical pixels, as `window_placement` takes them back.
+/// Minimized, the window stays as `last` had it; maximized, it keeps `last`'s normal place and
+/// size for when it is restored, marked maximized. `size` is the window's own, in points, as
+/// egui gives it with every frame.
 pub fn window_geometry(
     viewport: &ViewportInfo,
     size: Vec2,
@@ -1228,6 +1228,20 @@ mod tests {
         );
         let first = window_geometry(&wayland, SIZE, 1.0, None).unwrap();
         assert_eq!((first.width, first.height), (800.0, 500.0));
+    }
+
+    /// A window not open has no geometry: neither a size of its own nor the last one is kept
+    /// for it.
+    #[test]
+    fn a_window_not_open_has_no_geometry() {
+        assert_eq!(
+            window_geometry(&ViewportInfo::default(), SIZE, 1.0, None),
+            None
+        );
+        assert_eq!(
+            window_geometry(&ViewportInfo::default(), SIZE, 1.0, Some(LAST_NORMAL)),
+            None
+        );
     }
 
     fn viewport() -> ViewportInfo {

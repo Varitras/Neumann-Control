@@ -188,7 +188,7 @@ pub fn group(
             shared_controls(ui, &label, &texts::group_mute(&group.name), shown, &tokens);
         response.level = level;
         response.mute = mute;
-        // As on the group strip: the dialog asks before the group goes.
+        // As on the group strip: the groups window asks before the group goes.
         let menu = ui.scope_id().with(GROUP_MENU_ID);
         let row_rect = ui.min_rect();
         popup(ui, menu, right_clicked(ui, row_rect), |ui| {

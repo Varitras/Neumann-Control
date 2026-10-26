@@ -56,7 +56,7 @@ pub(super) enum DeskAction {
     Layout(LayoutOwner, LayoutChange),
     /// Like `Layout` for the compact buttons.
     CompactLayout(LayoutOwner, CompactChange),
-    /// A member strip asked for its group's dialog.
+    /// A member strip asked for its group in the groups window.
     EditGroup(usize),
 }
 

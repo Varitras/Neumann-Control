@@ -68,7 +68,7 @@ pub struct StripResponse {
     pub open_eq: bool,
     /// A change of the model's layout from an element's context menu.
     pub layout: Option<LayoutChange>,
-    /// From the name's context menu: the dialog of the speaker's group.
+    /// From the name's context menu: the speaker's group in the groups window.
     pub edit_group: bool,
 }
 
@@ -265,8 +265,8 @@ fn contents(
     }
 }
 
-/// A member strip's context menu on its name: the group's dialog, which the group strip opens
-/// too, also while the group has none.
+/// A member strip's context menu on its name: its group in the groups window, which the group
+/// strip opens too, also while the group has none.
 fn group_menu(ui: &Ui, rect: Rect, group: &str) -> bool {
     let id = ui.scope_id().with(GROUP_MENU_ID);
     let mut edit = false;
