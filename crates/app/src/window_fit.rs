@@ -42,18 +42,23 @@ impl WindowFit {
                 return None;
             }
             if !close(current, asked) {
+                log::debug!("window fit: over, asked {asked:?} and got {current:?}");
                 self.done = true;
                 return None;
             }
             self.pending = None;
         } else if let Some(settled) = self.settled {
             if !close(current, settled) {
+                log::debug!("window fit: over, the window went from {settled:?} to {current:?}");
                 self.done = true;
                 return None;
             }
         }
         let wanted = whole_pixels(bounded(wanted, screen), pixels_per_point);
         if close(current, wanted) {
+            if self.settled.is_none() {
+                log::debug!("window fit: {current:?} fits");
+            }
             self.settled = Some(current);
             return None;
         }
