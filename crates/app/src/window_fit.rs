@@ -24,6 +24,12 @@ pub struct WindowFit {
 }
 
 impl WindowFit {
+    /// The user sized the window (or the system gave it another size): from now on its size is
+    /// a choice.
+    pub fn is_over(&self) -> bool {
+        self.done
+    }
+
     /// The size to ask the window for this frame, if any. `current` is the window's inner size,
     /// `wanted` what the desk needs, `screen` the monitor's size when known, all in points of
     /// `pixels_per_point`.

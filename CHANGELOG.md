@@ -24,6 +24,9 @@
   to the desk or the compact rows (seen as the strips grew one after another as they connected).
 - On Linux under Wayland, windows of their own opened at their full default size and could reach
   past the bottom of the screen; they now open no larger than the screen.
+- A window that is still fitted to its content no longer keeps that size as if you had chosen
+  it: closed (or switched to the compact mode and back) before the speakers were added, it
+  stayed at its first size with scroll bars once they were.
 - On Linux under Wayland, a resized window is no longer set back: the main window returned to
   its fitted size and windows of their own to their default size, and no size was remembered.
   Sizes are kept now; where windows open is left to the desktop there.

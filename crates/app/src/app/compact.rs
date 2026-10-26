@@ -132,7 +132,7 @@ impl NeumannApp {
     pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
         // Edit mode drags strip elements; compact buttons change by right click instead.
         self.editing = false;
-        let left = self.window;
+        let left = self.chosen_window();
         let target = self.settings.switch_mode(left);
         log::debug!(
             "mode switch (compact {}): kept {left:?}, now {target:?}",

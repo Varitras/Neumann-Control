@@ -1057,10 +1057,19 @@ impl eframe::App for NeumannApp {
             speaker.handle.send(Command::Stop);
         }
         self.speakers.clear();
-        if let Some(window) = self.window {
+        if let Some(window) = self.chosen_window() {
             self.settings.remember_window(window);
             self.save_settings();
         }
+    }
+}
+
+impl NeumannApp {
+    /// The window as the user left it; none while it is still fitted to its content: a fitted
+    /// size is no choice, and kept it ended the fit at the next start or mode switch.
+    fn chosen_window(&self) -> Option<WindowGeometry> {
+        let fitting = self.window_fit.as_ref().is_some_and(|fit| !fit.is_over());
+        self.window.filter(|_| !fitting)
     }
 }
 

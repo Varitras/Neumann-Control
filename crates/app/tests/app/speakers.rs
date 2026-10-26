@@ -139,6 +139,45 @@ fn a_failed_scan_says_so_in_the_dialog() {
     assert!(harness.query_by_label(texts::SCAN_FAILED.get()).is_none());
 }
 
+/// A first start, compact mode and back before any speaker was added: the desk's first size was
+/// kept as if the user had chosen it, the fit was over, and the speakers added later did not fit
+/// (seen as scroll bars on the Linux VM; a first start closed without speakers did the same).
+#[test]
+fn a_size_the_fit_gave_is_not_kept_as_the_users() {
+    let kh120 = Simulator::start(SimModel::Kh120Ii);
+    let kh750 = Simulator::start(SimModel::Kh750);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    settings::save(&settings::Settings::default(), &path).unwrap();
+    let found = vec![kh120_found(&kh120), kh750_found(&kh750)];
+    let mut harness = harness(path.clone(), found);
+    harness.run_steps(5);
+    for _ in 0..2 {
+        harness.key_press_modifiers(eframe::egui::Modifiers::COMMAND, eframe::egui::Key::K);
+        harness.run_steps(5);
+    }
+    let first = harness.ctx.content_rect();
+    scan_and_add(&mut harness, &[KH120_NAME, KH750_NAME]);
+    wait_until(&mut harness, "both strips", |harness| {
+        harness.query_all_by_label(texts::DETAILS.get()).count() == 2
+    });
+    harness.run_steps(30);
+    let window = harness.ctx.content_rect();
+    assert_ne!(window, first, "the window was not fitted");
+    for details in harness.query_all_by_label(texts::DETAILS.get()) {
+        assert!(
+            window.contains_rect(details.rect()),
+            "{:?} in {window:?}",
+            details.rect()
+        );
+    }
+    assert_eq!(
+        settings::load(&path).window,
+        None,
+        "a fitted size is no choice"
+    );
+}
+
 #[test]
 fn only_checked_speakers_are_added() {
     let unchosen = Simulator::start(SimModel::Kh120Ii);
