@@ -12,8 +12,8 @@
 
 ### Changed
 
-- The EQ window has no **Close** button of its own any more; the X in its title bar and Escape
-  close it.
+- The EQ window, the settings and the preset load dialog have no **Close** button of their own
+  any more; the X in the title bar and Escape close them.
 
 - `SHA256SUMS` on the release page lists the checksums of the downloads (the ZIP and the
   `.tar.gz`); each folder keeps its own list of its files.

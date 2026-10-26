@@ -407,7 +407,7 @@ recorded.
 
 ### Settings
 
-**Settings** opens a window of its own (Escape, **Close** or the window's close button close
+**Settings** opens a window of its own (Escape or the window's close button close
 it). It sets:
 
 - the theme: like Windows (on Linux: like the system), light or dark,

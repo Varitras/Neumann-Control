@@ -57,6 +57,17 @@ fn close_eq(harness: &mut Harness<'static, NeumannApp>) {
     harness.key_press(egui::Key::Escape);
 }
 
+/// A window of its own, the preset load dialog closes by its X too: its Close button went.
+#[test]
+fn the_preset_load_dialog_has_no_close_button_of_its_own() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    wait_for_label(&mut harness, texts::EQ_PRESET_LOAD_TITLE.get());
+    assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
+}
+
 /// The window's X closes it already: a second, own Close button was one too many.
 #[test]
 fn the_eq_window_has_no_close_button_of_its_own() {

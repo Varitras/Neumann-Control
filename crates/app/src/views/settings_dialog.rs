@@ -155,10 +155,6 @@ fn contents(
     }
     ui.separator();
     eq_display(ui, &mut settings.eq_display, curve_labels);
-    ui.separator();
-    if ui.button(texts::CLOSE).clicked() {
-        return SettingsAction::Close;
-    }
     let after = (
         settings.desk.clone(),
         settings.system_audio.clone(),
