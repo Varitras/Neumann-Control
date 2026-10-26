@@ -16,6 +16,8 @@
 
 - A window without a saved size no longer swings between two sizes for good while it is fitted
   to the desk or the compact rows (seen as the strips grew one after another as they connected).
+- On Linux under Wayland, windows of their own opened at their full default size and could reach
+  past the bottom of the screen; they now open no larger than the screen.
 
 - **Check for updates** counts pre-releases: with only a pre-release published it said there was
   no release yet, and it would not have told of a newer pre-release.

@@ -99,6 +99,18 @@ fn least_size(pixels_per_point: f32) -> (f32, f32) {
     )
 }
 
+/// A window of `size` where the main window's place is unknown (Wayland tells no program where
+/// its windows are): the system places it, but no larger than `monitor` (the main window's, in
+/// points) less `SCREEN_MARGIN`. eframe keeps only the main window on its monitor.
+fn unplaced(size: Vec2, monitor: Option<Vec2>) -> Option<WindowPlace> {
+    let monitor = monitor?;
+    Some(WindowPlace {
+        position: None,
+        size: size.min(monitor - Vec2::splat(SCREEN_MARGIN)),
+        maximized: false,
+    })
+}
+
 /// A saved geometry (screen pixels) as egui places a window (points).
 pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> WindowPlace {
     let points = |pixels: f32| pixels / pixels_per_point;
@@ -125,9 +137,11 @@ impl NeumannApp {
         if open {
             return Opening::Open;
         }
+        let monitor = context.input_for(ViewportId::ROOT, |input| input.viewport().monitor_size);
         let place = self
             .saved_place(context, kind)
-            .or_else(|| self.centred_place(context, default_size));
+            .or_else(|| self.centred_place(context, default_size))
+            .or_else(|| unplaced(default_size, monitor));
         let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
         log::debug!(
             "{} window {index} opens {opening:?} on monitors {:?}",
@@ -261,6 +275,17 @@ mod tests {
         assert_eq!(windows.get("panel"), Some(&moved));
         assert!(!windows.contains_key("panel serial:SIM0001234"));
         assert!(windows.contains_key("eq serial:SIM0001234"));
+    }
+
+    /// Wayland tells no program where its windows are, so a window had no place to open at
+    /// and came at its full default size: the EQ window (900×700) hung below a small screen.
+    #[test]
+    fn a_window_without_the_main_windows_place_still_fits_its_monitor() {
+        let place = unplaced(vec2(900.0, 700.0), Some(vec2(1280.0, 720.0))).expect("a size");
+        assert_eq!(place.position, None);
+        assert_eq!(place.size, vec2(900.0, 720.0 - SCREEN_MARGIN));
+        assert!(!place.maximized);
+        assert_eq!(unplaced(vec2(900.0, 700.0), None), None);
     }
 
     #[test]
