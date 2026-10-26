@@ -352,6 +352,22 @@ fn a_right_click_on_a_compact_group_row_deletes_the_group() {
 
 /// Compact without a saved window of its own is fitted to its rows, as the first desk is: it
 /// used to open at a fixed size, cut off on the right and with empty space below.
+/// Back from the compact mode the desk has its own size again. The switch set the size on the
+/// winit window directly, beside egui's own size commands: under Wayland it came late or not at
+/// all, the desk stayed as small as the compact rows, and that size was then kept for the desk.
+#[test]
+fn back_from_compact_the_desk_has_its_size_again() {
+    let (_kh120, _kh750, _directory, mut harness) = two_speakers(Vec::new());
+    harness.run_steps(2);
+    let desk = harness.ctx.content_rect().size();
+    press_compact_shortcut(&mut harness);
+    harness.run_steps(6);
+    assert_ne!(harness.ctx.content_rect().size(), desk, "compact");
+    press_compact_shortcut(&mut harness);
+    harness.run_steps(6);
+    assert_eq!(harness.ctx.content_rect().size(), desk);
+}
+
 #[test]
 fn compact_without_a_saved_window_fits_its_rows() {
     let (_kh120, _kh750, _directory, mut harness) = two_speakers(Vec::new());

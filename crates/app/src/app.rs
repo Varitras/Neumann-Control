@@ -510,7 +510,7 @@ impl NeumannApp {
         }
     }
 
-    fn show(&mut self, ui: &mut Ui, frame: &eframe::Frame) {
+    fn show(&mut self, ui: &mut Ui) {
         let facts = ToolbarFacts {
             compact: self.settings.desk.compact,
             editing: self.editing,
@@ -534,7 +534,7 @@ impl NeumannApp {
                 self.audio_devices = self.system_audio.devices();
             }
             ToolbarAction::History => self.open_history(),
-            ToolbarAction::ToggleCompact => self.toggle_compact(frame),
+            ToolbarAction::ToggleCompact => self.toggle_compact(ui.ctx()),
             ToolbarAction::ToggleEditing => self.editing = !self.editing,
             ToolbarAction::Manual => self.open_manual(),
             ToolbarAction::Wiki => self.open_web(WIKI_URL),
@@ -546,7 +546,7 @@ impl NeumannApp {
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
-            self.toggle_compact(frame);
+            self.toggle_compact(ui.ctx());
         }
         // A field being edited keeps its keys (Ctrl+arrows, typed letters); a button reached with
         // Tab takes none.
@@ -1048,7 +1048,7 @@ impl eframe::App for NeumannApp {
         if let Some(window) = frame.winit_window() {
             self.monitors = monitor_areas(window);
         }
-        self.show(ui, frame);
+        self.show(ui);
     }
 
     fn on_exit(&mut self) {

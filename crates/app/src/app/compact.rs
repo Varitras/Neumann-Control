@@ -1,7 +1,7 @@
 //! The compact mode: one row per ungrouped speaker and per group, the master at the bottom. The
 //! rows' gestures mean the same as on the desk and go the same way to the speakers.
 
-use eframe::egui::{ScrollArea, Ui};
+use eframe::egui::{Context, ScrollArea, Ui, Vec2, ViewportCommand};
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, layout_owner_of, levels, members_of, DeskAction};
@@ -16,7 +16,7 @@ use crate::texts;
 use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
 use crate::window_fit::WindowFit;
-use crate::window_placement::{first_window_size, place_window, resize_window};
+use crate::window_placement::first_window_size;
 
 impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
@@ -129,7 +129,7 @@ impl NeumannApp {
     /// Desk to compact or back: the window the new mode last had comes back, fitted onto the
     /// monitors there are now, else the mode's first size, which then grows or shrinks to the
     /// content.
-    pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
+    pub(super) fn toggle_compact(&mut self, context: &Context) {
         // Edit mode drags strip elements; compact buttons change by right click instead.
         self.editing = false;
         let left = self.chosen_window();
@@ -143,13 +143,12 @@ impl NeumannApp {
         // and would otherwise leave the old mode's geometry to be saved for the new one.
         self.window = target;
         self.window_fit = target.is_none().then(WindowFit::default);
-        // No real window under test.
-        let Some(window) = frame.winit_window() else {
-            return;
-        };
         match target {
-            Some(geometry) => place_window(window, geometry),
-            None => resize_window(window, first_window_size(self.settings.desk.compact)),
+            Some(geometry) => self.restore_window(context, geometry),
+            None => {
+                let first = Vec2::from(first_window_size(self.settings.desk.compact));
+                context.send_viewport_cmd(ViewportCommand::InnerSize(first));
+            }
         }
     }
 }

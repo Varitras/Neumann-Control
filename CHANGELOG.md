@@ -27,6 +27,8 @@
 - A window that is still fitted to its content no longer keeps that size as if you had chosen
   it: closed (or switched to the compact mode and back) before the speakers were added, it
   stayed at its first size with scroll bars once they were.
+- Back from the compact mode, the desk gets its own size again; under Wayland it stayed as
+  small as the compact rows, and that size was then kept for the desk.
 - On Linux under Wayland, a resized window is no longer set back: the main window returned to
   its fitted size and windows of their own to their default size, and no size was remembered.
   Sizes are kept now; where windows open is left to the desktop there.

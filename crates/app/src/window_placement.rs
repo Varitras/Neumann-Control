@@ -3,7 +3,7 @@
 //! switches between desk and compact mode. All geometry values are physical pixels.
 
 use neumann_control_core::settings::WindowGeometry;
-use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::window::Window;
 
 /// The smallest window in points, in both modes.
@@ -48,11 +48,6 @@ pub fn place_window(window: &Window, saved: WindowGeometry) {
     // The size granted arrives as a resize event like any other.
     let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
     window.set_maximized(geometry.maximized);
-}
-
-/// Gives the window a mode's first size, where it is.
-pub fn resize_window(window: &Window, size: [f32; 2]) {
-    let _ = window.request_inner_size(LogicalSize::new(size[0], size[1]));
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
