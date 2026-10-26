@@ -24,6 +24,9 @@
   to the desk or the compact rows (seen as the strips grew one after another as they connected).
 - On Linux under Wayland, windows of their own opened at their full default size and could reach
   past the bottom of the screen; they now open no larger than the screen.
+- On Linux under Wayland, a resized window is no longer set back: the main window returned to
+  its fitted size and windows of their own to their default size, and no size was remembered.
+  Sizes are kept now; where windows open is left to the desktop there.
 - The held peak's line in a meter lies on the same pixels as the meter's segments; it could
   stand out beside them and look thicker or thinner from level to level.
 

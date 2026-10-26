@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
-use super::{window_geometry, NeumannApp};
+use super::{is_open, window_geometry, NeumannApp};
 use crate::views::{Opening, WindowPlace};
 use crate::window_fit::SCREEN_MARGIN;
 use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
@@ -133,7 +133,7 @@ impl NeumannApp {
         index: usize,
         default_size: Vec2,
     ) -> Opening {
-        let open = context.input_for(viewport, |input| input.viewport().outer_rect.is_some());
+        let open = context.input_for(viewport, |input| is_open(input.viewport()));
         if open {
             return Opening::Open;
         }
@@ -186,7 +186,8 @@ impl NeumannApp {
         let last = self.settings.windows.get(kind.key()).copied();
         // The window's own scale: on another monitor it may differ from the main window's.
         let geometry = context.input_for(viewport, |input| {
-            window_geometry(input.viewport(), input.pixels_per_point, last)
+            let size = input.viewport_rect().size();
+            window_geometry(input.viewport(), size, input.pixels_per_point, last)
         });
         if let Some(geometry) = geometry {
             keep_place(&mut self.settings.windows, kind, geometry);
@@ -197,6 +198,7 @@ impl NeumannApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eframe::egui::ViewportInfo;
 
     /// A tall window centred over a main window low on the screen ends above the taskbar (the
     /// panel's foot once reached below the screen).
@@ -286,6 +288,18 @@ mod tests {
         assert_eq!(place.size, vec2(900.0, 720.0 - SCREEN_MARGIN));
         assert!(!place.maximized);
         assert_eq!(unplaced(vec2(900.0, 700.0), None), None);
+    }
+
+    /// Without a position (Wayland) a window counted as never open: it was given its first
+    /// size again with every frame, and the user's resize was set back at once.
+    #[test]
+    fn a_window_is_open_once_it_exists_also_without_a_position() {
+        let wayland = ViewportInfo {
+            native_pixels_per_point: Some(1.25),
+            ..ViewportInfo::default()
+        };
+        assert!(is_open(&wayland));
+        assert!(!is_open(&ViewportInfo::default()));
     }
 
     #[test]

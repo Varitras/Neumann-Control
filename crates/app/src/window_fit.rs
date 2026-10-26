@@ -16,6 +16,9 @@ pub struct WindowFit {
     /// The size asked for and the size the window had then; until the window has one of them
     /// the request is under way.
     pending: Option<(Vec2, Vec2)>,
+    /// The size the window had when there was nothing to ask; another one it was not asked for
+    /// was given by the user (or the system).
+    settled: Option<Vec2>,
     /// The user sized the window: the fit is over.
     done: bool,
 }
@@ -43,11 +46,18 @@ impl WindowFit {
                 return None;
             }
             self.pending = None;
+        } else if let Some(settled) = self.settled {
+            if !close(current, settled) {
+                self.done = true;
+                return None;
+            }
         }
         let wanted = whole_pixels(bounded(wanted, screen), pixels_per_point);
         if close(current, wanted) {
+            self.settled = Some(current);
             return None;
         }
+        self.settled = None;
         self.pending = Some((wanted, current));
         Some(wanted)
     }
@@ -152,6 +162,20 @@ mod tests {
             fit.next(vec2(1000.0, 500.0), vec2(1200.0, 900.0), SCREEN, 1.0),
             None
         );
+    }
+
+    /// Under Wayland the app's own request won over the user's resize, so the fit never saw a
+    /// size it had not asked for while one was under way, and set the user's size back. A size
+    /// the window takes without being asked ends the fit just as well.
+    #[test]
+    fn a_window_sized_after_the_fit_settled_is_left_alone() {
+        let mut fit = WindowFit::default();
+        let wanted = vec2(700.0, 800.0);
+        fit.next(START, wanted, SCREEN, 1.0);
+        assert_eq!(fit.next(wanted, wanted, SCREEN, 1.0), None, "fits");
+        let sized = vec2(844.0, 800.0);
+        assert_eq!(fit.next(sized, wanted, SCREEN, 1.0), None);
+        assert_eq!(fit.next(sized, vec2(900.0, 800.0), SCREEN, 1.0), None);
     }
 
     #[test]

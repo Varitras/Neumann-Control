@@ -526,7 +526,8 @@ start.
   with its **Full scan** (see [Supported models](#supported-models)).
 - Only IPv6 link-local addressing is supported; IPv4 is not.
 - On Linux there is no strip with the system volume and no shortcuts from other programs, and
-  only x86_64 is built. macOS is not supported.
+  only x86_64 is built. Under Wayland the app learns no window positions: it keeps the windows'
+  sizes, and the desktop decides where they open. macOS is not supported.
 
 ## Building from source
 
