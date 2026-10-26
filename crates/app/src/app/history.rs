@@ -115,7 +115,6 @@ impl NeumannApp {
             || self.removal.is_some()
             || self.add_address.is_some()
             || self.scan_choice.is_some()
-            || self.group_draft.is_some()
             || self.history.question.is_some()
             || self.preset_dialog.is_some()
     }

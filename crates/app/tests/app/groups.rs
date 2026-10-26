@@ -106,41 +106,47 @@ fn link_buttons_toggle_and_are_saved() {
     assert!(settings::load(&path).groups[0].linked.is_empty());
 }
 
+/// The group strip's Details open the groups window on that group.
 #[test]
-fn the_group_strips_details_button_opens_its_dialog() {
+fn the_group_strips_details_button_opens_the_groups_window_on_its_group() {
     let (_kh120, _kh750, _directory, mut harness) = grouped(Vec::new());
     harness
         .get_by_label(&texts::group_details(GROUP_NAME))
         .click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    wait_for_label(&mut harness, texts::SHOW_GROUP_STRIP.get());
+    assert_eq!(
+        harness.get_by_role(Role::TextInput).value().as_deref(),
+        Some(GROUP_NAME)
+    );
 }
 
+/// A change in the groups window counts at once; deleting asks first.
 #[test]
-fn group_dialog_renames_and_deletes() {
+fn the_groups_window_renames_and_deletes() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
-    harness.get_by_label(GROUP_NAME).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    open_groups(&mut harness);
     harness.get_by_role(Role::TextInput).click();
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.get_by_role(Role::TextInput).type_text("Hinten");
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups[0].name, "Hinten");
-    harness.get_by_label("Hinten").click();
-    wait_for_label(&mut harness, texts::DELETE_GROUP.get());
-    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness
+        .get_by_role_and_label(Role::Button, texts::DELETE_GROUP.get())
+        .click();
     harness.run_steps(2);
-    // A group, its members and its links go at once: the dialog asks first.
+    // A group, its members and its links go at once: the window asks first.
     harness.get_by_label(&texts::delete_question("Hinten"));
     assert_eq!(settings::load(&path).groups.len(), 1);
-    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness
+        .get_by_role_and_label(Role::Button, texts::DELETE_GROUP.get())
+        .click();
     harness.run_steps(2);
     assert!(settings::load(&path).groups.is_empty());
 }
 
-/// A right click on the group strip offers to delete it; the delete is asked once more.
+/// A right click on the group strip offers to delete it; the groups window asks once more.
 #[test]
 fn a_right_click_on_the_group_strip_deletes_the_group() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
@@ -151,23 +157,25 @@ fn a_right_click_on_the_group_strip_deletes_the_group() {
     harness.get_by_label(&texts::delete_question(GROUP_NAME));
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups.len(), 1);
-    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness
+        .get_by_role_and_label(Role::Button, texts::DELETE_GROUP.get())
+        .click();
     harness.run_steps(2);
     assert!(settings::load(&path).groups.is_empty());
 }
 
-/// A group strip switched off in the group's dialog leaves the desk; the dialog stays in reach
+/// A group strip switched off in the groups window leaves the desk; the window stays in reach
 /// from a member strip's name, and switches the strip back on.
 #[test]
-fn a_group_strip_switched_off_leaves_its_dialog_in_reach() {
+fn a_group_strip_switched_off_leaves_its_settings_in_reach() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
     harness
         .get_by_label(&texts::group_details(GROUP_NAME))
         .click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    wait_for_label(&mut harness, texts::SHOW_GROUP_STRIP.get());
     harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
+    close_window(&mut harness);
     assert!(harness
         .query_by_label(&texts::group_details(GROUP_NAME))
         .is_none());
@@ -176,30 +184,32 @@ fn a_group_strip_switched_off_leaves_its_dialog_in_reach() {
     harness.get_by_label(KH120_DEVICE_NAME).click_secondary();
     harness.run_steps(2);
     harness.get_by_label(&texts::edit_group(GROUP_NAME)).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    wait_for_label(&mut harness, texts::SHOW_GROUP_STRIP.get());
     harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
+    close_window(&mut harness);
     harness.get_by_label(&texts::group_details(GROUP_NAME));
     assert_eq!(settings::load(&path).groups[0].strip, GroupStrip::Shown);
 }
 
-/// An emptied name field is no name: the group keeps the one it had.
+/// An emptied name field is no name: once the field is left, the group has the one it had.
 #[test]
-fn a_group_name_cleared_on_close_stays_the_old_one() {
+fn a_group_name_cleared_stays_the_old_one() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
-    harness.get_by_label(GROUP_NAME).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    open_groups(&mut harness);
     harness.get_by_role(Role::TextInput).click();
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
     harness.key_press(egui::Key::Backspace);
     harness.run_steps(1);
-    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.key_press(egui::Key::Tab);
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups[0].name, GROUP_NAME);
-    harness.get_by_label(GROUP_NAME);
+    assert_eq!(
+        harness.get_by_role(Role::TextInput).value().as_deref(),
+        Some(GROUP_NAME)
+    );
 }
 
 /// When the settings cannot be written (the folder went read only), the toolbar says so.
@@ -211,23 +221,23 @@ fn a_failed_save_is_told_in_the_toolbar() {
     std::fs::remove_file(&path).unwrap();
     std::fs::create_dir(&path).unwrap();
     std::fs::write(path.join("keep"), "").unwrap();
-    harness.get_by_label(GROUP_NAME).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
-    harness.get_by_label(texts::CLOSE.get()).click();
+    open_groups(&mut harness);
+    harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
     harness.run_steps(2);
     harness.get_by_label_contains(texts::SETTINGS_NOT_SAVED.get());
 }
 
 #[test]
-fn add_group_creates_one_and_the_panel_assigns_a_speaker() {
+fn a_group_added_in_the_window_takes_a_speaker_in_its_panel() {
     let (simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_groups(&mut harness);
+    harness.get_by_label(texts::NO_GROUPS.get());
     harness.get_by_label(texts::ADD_GROUP.get()).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(settings::load(&path).groups.len(), 1);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    close_window(&mut harness);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Group);
     harness
         .get_by_role_and_label(Role::ComboBox, texts::GROUP.get())
         .click();
@@ -381,22 +391,21 @@ fn group_mute_leaves_an_unreachable_member_alone() {
 fn a_new_group_never_repeats_the_name_or_colour_of_another() {
     let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
+    open_groups(&mut harness);
     for _ in 0..2 {
         harness.get_by_label(texts::ADD_GROUP.get()).click();
-        wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
-        harness.get_by_label(texts::CLOSE.get()).click();
         harness.run_steps(2);
     }
-    let first = settings::load(&path).groups[0].name.clone();
-    harness.get_by_label(&first).click();
-    wait_for_label(&mut harness, texts::DELETE_GROUP.get());
-    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    // The new one is chosen: delete it, then add another.
+    harness
+        .get_by_role_and_label(Role::Button, texts::DELETE_GROUP.get())
+        .click();
     harness.run_steps(2);
-    harness.get_by_label(texts::DELETE_GROUP.get()).click();
+    harness
+        .get_by_role_and_label(Role::Button, texts::DELETE_GROUP.get())
+        .click();
     harness.run_steps(2);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let groups = settings::load(&path).groups;
     assert_eq!(groups.len(), 2);
@@ -450,7 +459,7 @@ fn copy_to_group_sends_the_members_value_to_the_others() {
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Level]);
     kh120.set_value("audio/out/level", serde_json::json!(90.0));
     wait_for_level(&mut harness, 90.0);
-    open_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Group);
     let copy = texts::copy_to_group(linkable_label(Linkable::Level));
     harness.get_by_label(&copy).click();
     wait_until(&mut harness, "the copied level", |_| {
@@ -503,7 +512,7 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
     wait_until(&mut harness, "the member's mute sent", |_| {
         !sets(&kh120, MUTE_POINTER).is_empty()
     });
-    show_tab(&mut harness, PanelTab::Overview);
+    show_tab(&mut harness, PanelTab::Group);
     let copy = texts::copy_to_group(linkable_label(Linkable::Mute));
     harness.get_by_label(&copy).click();
     harness.run_steps(5);
@@ -546,15 +555,12 @@ fn a_settings_preset_of_another_model_keeps_its_name() {
     assert_eq!(models, vec!["KH 120 II", "KH 750"]);
 }
 
-/// "None" in the group dialog takes the colour off the group's strips, saved on close.
+/// "None" in the groups window takes the colour off the group's strips, saved at once.
 #[test]
 fn a_group_colour_switched_off_is_saved() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
-    harness.get_by_label(GROUP_NAME).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    open_groups(&mut harness);
     harness.get_by_label(texts::COLOR_OFF.get()).click();
-    harness.run_steps(1);
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(
@@ -580,17 +586,16 @@ fn a_speaker_colour_is_kept_until_it_follows_the_group_again() {
     assert!(settings::load(&path).strip_colors.is_empty());
 }
 
-/// A new group's dialog lists the speakers: the ones checked are its members at once.
+/// The groups window lists the speakers: the ones checked are the chosen group's members.
 #[test]
-fn a_new_group_takes_the_speakers_checked_in_its_dialog() {
+fn a_new_group_takes_the_speakers_checked_in_the_window() {
     let (_kh120, _kh750, directory, mut harness) = two_speakers(Vec::new());
+    open_groups(&mut harness);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.run_steps(2);
     harness
         .get_by_role_and_label(Role::CheckBox, KH120_DEVICE_NAME)
         .click();
-    harness.run_steps(1);
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let path = directory.path().join(SETTINGS_FILE);
     assert_eq!(
@@ -601,17 +606,33 @@ fn a_new_group_takes_the_speakers_checked_in_its_dialog() {
 
 /// Checking a speaker of another group moves it: a speaker is in one group at most.
 #[test]
-fn a_speaker_checked_in_another_groups_dialog_moves_there() {
+fn a_speaker_checked_for_another_group_moves_there() {
     let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    open_groups(&mut harness);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
-    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.run_steps(2);
     harness
         .get_by_role_and_label(Role::CheckBox, KH750_DEVICE_NAME)
         .click();
-    harness.run_steps(1);
-    harness.get_by_label(texts::CLOSE.get()).click();
     harness.run_steps(2);
     let groups = settings::load(&directory.path().join(SETTINGS_FILE)).groups;
     assert_eq!(groups[0].members, vec![KH120_ID.to_owned()]);
     assert_eq!(groups[1].members, vec![KH750_ID.to_owned()]);
+}
+
+/// The speaker's panel has a tab of its own for its group: the group's settings change there.
+#[test]
+fn the_panels_group_tab_edits_the_speakers_group() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    assert!(harness
+        .query_by_role_and_label(Role::ComboBox, texts::GROUP.get())
+        .is_none());
+    show_tab(&mut harness, PanelTab::Group);
+    harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
+    harness.run_steps(2);
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(settings::load(&path).groups[0].strip, GroupStrip::Hidden);
+    harness.get_by_label(texts::MANAGE_GROUPS.get()).click();
+    wait_for_label(&mut harness, texts::ADD_GROUP.get());
 }

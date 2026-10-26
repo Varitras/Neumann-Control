@@ -6,9 +6,14 @@
 
 - **Linux**: a portable build for x86_64 Linux as a `.tar.gz`, with everything but the strip with
   the system volume and the shortcuts from other programs, which Linux does not offer.
-- **Show group strip** in a group's dialog: a group can do without its strip on the desk; its
-  members then have their own rows in the compact mode. A member's name opens the group's dialog
-  from its context menu.
+- **Show group strip** in a group's settings: a group can do without its strip on the desk; its
+  members then have their own rows in the compact mode. A member's name opens its group from its
+  context menu.
+- **Groups** window, from the toolbar (instead of **+ Group**): every group in a list, adding,
+  deleting and each group's settings, including what it links; the group dialog is gone, and a
+  group strip's name and **Details** open this window.
+- **Group** tab in the device panel: the speaker's group, that group's settings and
+  **Apply to group**; the overview no longer has them.
 
 ### Changed
 

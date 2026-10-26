@@ -1184,6 +1184,7 @@ fn an_untouchable_settings_file_is_not_written_over() {
     let mut harness = harness(path.clone(), Vec::new());
     harness.run_steps(2);
     harness.get_by_label(texts::SETTINGS_UNTOUCHABLE.get());
+    open_groups(&mut harness);
     harness.get_by_label(texts::ADD_GROUP.get()).click();
     harness.run_steps(3);
     drop(held);

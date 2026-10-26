@@ -391,6 +391,20 @@ pub fn wait_for_label(harness: &mut Harness<'static, NeumannApp>, label: &str) {
     harness.run_steps(DIALOG_SETTLE_FRAMES);
 }
 
+/// The groups window, opened from the toolbar.
+pub fn open_groups(harness: &mut Harness<'static, NeumannApp>) {
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Button, texts::GROUPS.get())
+        .click();
+    wait_for_label(harness, texts::ADD_GROUP.get());
+}
+
+/// Closes the window in front by Escape, as the user would.
+pub fn close_window(harness: &mut Harness<'static, NeumannApp>) {
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+}
+
 /// Scans, checks the named speakers in the dialog and adds them.
 pub fn scan_and_add(harness: &mut Harness<'static, NeumannApp>, names: &[&str]) {
     harness.get_by_label(texts::SCAN.get()).click();

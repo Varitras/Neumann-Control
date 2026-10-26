@@ -17,7 +17,7 @@ use crate::compact_layout::{self, CompactChange};
 use crate::fader::output_level_range;
 use crate::groups::{
     group_tint, insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of,
-    shared_level, shifted_levels, speaker_tint, with_moved, DeskItem,
+    shared_level, shifted_levels, speaker_tint, toggle_link, with_moved, DeskItem,
 };
 use crate::layout_owner::{store, stored, LayoutMaps, LayoutOwner};
 use crate::paths;
@@ -60,11 +60,10 @@ pub(super) enum DeskAction {
     EditGroup(usize),
 }
 
-/// The group being renamed or deleted, and the name typed so far.
-pub(super) struct GroupDraft {
-    pub index: usize,
-    pub name: String,
-    /// While the delete is being confirmed.
+/// The groups window while it is open: the chosen group and whether its delete is being
+/// confirmed.
+pub(super) struct GroupsWindow {
+    pub selected: Option<usize>,
     pub deleting: bool,
 }
 
@@ -259,12 +258,7 @@ impl NeumannApp {
                     self.save_settings();
                 }
                 if response.open_settings || response.delete {
-                    let name = self.settings.groups[group].name.clone();
-                    self.group_draft = Some(GroupDraft {
-                        index: group,
-                        name,
-                        deleting: response.delete,
-                    });
+                    self.open_groups(Some(group), response.delete);
                 }
             }
             DeskAction::Master(response) => {
@@ -272,14 +266,7 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(key) => self.open_panel(key),
-            DeskAction::EditGroup(group) => {
-                let name = self.settings.groups[group].name.clone();
-                self.group_draft = Some(GroupDraft {
-                    index: group,
-                    name,
-                    deleting: false,
-                });
-            }
+            DeskAction::EditGroup(group) => self.open_groups(Some(group), false),
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(owner, change) => self.change_layout(&owner, &change, catalog),
@@ -475,20 +462,25 @@ impl NeumannApp {
             .collect()
     }
 
+    /// A new group, chosen in the groups window.
     pub(super) fn add_group(&mut self) {
         let group = new_group(
             &self.settings.groups,
             texts::NEW_GROUP_NAME.get(),
             group_color_count(),
         );
-        let name = group.name.clone();
         self.settings.groups.push(group);
         self.save_settings();
         let index = self.settings.groups.len() - 1;
-        self.group_draft = Some(GroupDraft {
-            index,
-            name,
-            deleting: false,
+        self.open_groups(Some(index), false);
+    }
+
+    /// The groups window on group `selected` (else on the first there is).
+    pub(super) fn open_groups(&mut self, selected: Option<usize>, deleting: bool) {
+        let first = (!self.settings.groups.is_empty()).then_some(0);
+        self.groups_window = Some(GroupsWindow {
+            selected: selected.or(first),
+            deleting,
         });
     }
 
@@ -544,14 +536,6 @@ pub(super) fn members_of(group: &GroupSettings, ids: &[String]) -> Vec<usize> {
         .filter(|(_, id)| group.members.contains(id))
         .map(|(index, _)| index)
         .collect()
-}
-
-fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
-    if group.linked.contains(&linkable) {
-        group.linked.retain(|linked| *linked != linkable);
-    } else {
-        group.linked.push(linkable);
-    }
 }
 
 /// Only a member that may write its level follows a group or master fader, so only such a

@@ -11,6 +11,7 @@ use crate::texts::{self, Text};
 pub enum PanelTab {
     #[default]
     Overview,
+    Group,
     Outputs,
     Inputs,
     Standby,
@@ -18,8 +19,9 @@ pub enum PanelTab {
 }
 
 /// In the order the tab bar shows them.
-pub const PANEL_TABS: [PanelTab; 5] = [
+pub const PANEL_TABS: [PanelTab; 6] = [
     PanelTab::Overview,
+    PanelTab::Group,
     PanelTab::Outputs,
     PanelTab::Inputs,
     PanelTab::Standby,
@@ -30,6 +32,7 @@ impl PanelTab {
     pub fn title(self) -> Text {
         match self {
             PanelTab::Overview => texts::TAB_OVERVIEW,
+            PanelTab::Group => texts::GROUP,
             PanelTab::Outputs => texts::TAB_OUTPUTS,
             PanelTab::Inputs => texts::TAB_INPUTS,
             PanelTab::Standby => texts::TAB_STANDBY,
@@ -53,13 +56,13 @@ pub fn also_in_overview(entry: &Entry) -> bool {
     entry.path.to_string() == paths::DEVICE_NAME
 }
 
-/// The tabs a speaker with entries of `groups` gets: the overview always, the others only
-/// with something on them.
+/// The tabs a speaker with entries of `groups` gets: the overview and the group always (a
+/// speaker joins a group there), the others only with something on them.
 pub fn tabs_for(groups: impl IntoIterator<Item = Group>) -> Vec<PanelTab> {
     let used: Vec<PanelTab> = groups.into_iter().map(tab_of).collect();
     PANEL_TABS
         .into_iter()
-        .filter(|tab| *tab == PanelTab::Overview || used.contains(tab))
+        .filter(|tab| matches!(tab, PanelTab::Overview | PanelTab::Group) || used.contains(tab))
         .collect()
 }
 
@@ -84,13 +87,18 @@ mod tests {
         assert_eq!(tab_of(Group::RearPanel), PanelTab::Inputs);
     }
 
-    /// A speaker that has not told its model yet has nothing but the overview.
+    /// A speaker that has not told its model yet has nothing but the overview and its group.
     #[test]
     fn a_tab_without_entries_is_left_out() {
-        assert_eq!(tabs_for([]), vec![PanelTab::Overview]);
+        assert_eq!(tabs_for([]), vec![PanelTab::Overview, PanelTab::Group]);
         assert_eq!(
             tabs_for([Group::Device, Group::Output]),
-            vec![PanelTab::Overview, PanelTab::Outputs, PanelTab::Device]
+            vec![
+                PanelTab::Overview,
+                PanelTab::Group,
+                PanelTab::Outputs,
+                PanelTab::Device
+            ]
         );
     }
 

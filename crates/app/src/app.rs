@@ -49,7 +49,8 @@ use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
 use crate::ui_kit::{fonts, theme};
 use crate::views::about::{self, AboutAction, UpdateView};
 use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
-use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView, MemberChoice};
+use crate::views::group_settings::{GroupEdit, MemberChoice};
+use crate::views::groups_window::{self, GroupsAction, GroupsView};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
 use crate::views::settings_dialog::{self, Offered, SettingsAction};
@@ -127,7 +128,7 @@ pub struct NeumannApp {
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panels: Vec<OpenPanel>,
-    group_draft: Option<desk::GroupDraft>,
+    groups_window: Option<desk::GroupsWindow>,
     settings_open: bool,
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
     editing: bool,
@@ -221,7 +222,7 @@ impl NeumannApp {
             add_address: None,
             removal: None,
             panels: Vec::new(),
-            group_draft: None,
+            groups_window: None,
             settings_open: false,
             editing: false,
             history: history::HistoryState::default(),
@@ -528,7 +529,7 @@ impl NeumannApp {
                 self.scan_choice = Some(ScanChoice::Scanning);
             }
             ToolbarAction::AddAddress => self.add_address = Some(AddAddressForm::default()),
-            ToolbarAction::AddGroup => self.add_group(),
+            ToolbarAction::Groups => self.open_groups(None, false),
             ToolbarAction::Settings => {
                 self.settings_open = true;
                 self.audio_devices = self.system_audio.devices();
@@ -571,7 +572,7 @@ impl NeumannApp {
         self.show_about(ui);
         self.show_preset_dialog(ui);
         self.show_settings(ui);
-        self.show_group_dialog(ui);
+        self.show_groups_window(ui);
         self.show_all_values(ui.ctx());
         self.show_eq_windows(ui.ctx());
         // After the EQ windows: where one is embedded in this window, its Ctrl+Z comes first.
@@ -682,6 +683,8 @@ impl NeumannApp {
             start_color: theme::tint_color(&group_tint)
                 .unwrap_or(theme::Tokens::current(context).accent),
         };
+        let group_copy = current.map(|group| self.settings.groups[group].clone());
+        let mut members = current.map_or_else(Vec::new, |group| self.member_choices(group, &ids));
         let state = &mut self.speakers[index].state;
         let owner = desk::layout_owner_of(state, &ids[index]);
         let desk_settings = &self.settings.desk;
@@ -700,7 +703,14 @@ impl NeumannApp {
             layout: layout.as_ref(),
             tab: self.panels[panel].tab,
         };
-        let response = panel::show(context, viewport, opening, state, catalog, &view);
+        // A copy: the speaker's state is borrowed meanwhile; it goes back when it changed.
+        let mut group = group_copy;
+        let edit = group.as_mut().map(|settings| GroupEdit {
+            palette: theme::group_color(settings.color),
+            settings,
+            members: &mut members,
+        });
+        let response = panel::show(context, viewport, opening, state, catalog, &view, edit);
         if let Some(tab) = response.tab {
             self.panels[panel].tab = tab;
         }
@@ -712,9 +722,17 @@ impl NeumannApp {
         for command in response.commands {
             self.send_with_links(index, command, catalog, &ids, now);
         }
+        if let (true, Some(current), Some(edited)) = (response.group_changed, current, group) {
+            self.settings.groups[current] = edited;
+            self.apply_members(current, &ids, &members);
+            self.save_settings();
+        }
         if let Some(group) = response.group {
             set_membership(&mut self.settings.groups, &ids[index], group);
             self.save_settings();
+        }
+        if response.manage_groups {
+            self.open_groups(current, false);
         }
         if let Some(color) = response.color {
             set_strip_color(&mut self.settings.strip_colors, &ids[index], color);
@@ -744,7 +762,7 @@ impl NeumannApp {
         response.close || response.remove
     }
 
-    /// Every speaker as the dialog of group `index` lists it, in desk order.
+    /// Every speaker as the settings of group `index` list it, in desk order.
     fn member_choices(&self, index: usize, ids: &[String]) -> Vec<MemberChoice> {
         let groups = &self.settings.groups;
         self.speakers
@@ -763,55 +781,78 @@ impl NeumannApp {
             .collect()
     }
 
-    fn show_group_dialog(&mut self, ui: &mut Ui) {
-        let Some(index) = self.group_draft.as_ref().map(|draft| draft.index) else {
-            return;
-        };
-        let ids = self.member_ids();
-        let mut members = self.member_choices(index, &ids);
-        let Some(draft) = &mut self.group_draft else {
-            return;
-        };
-        let Some(group) = self.settings.groups.get_mut(index) else {
-            self.group_draft = None;
-            return;
-        };
-        let view = GroupDraftView {
-            name: &mut draft.name,
-            palette: theme::group_color(group.color),
-            color: &mut group.color_choice,
-            members: &mut members,
-            strip: &mut group.strip,
-            deleting: draft.deleting,
-        };
-        let action = group_dialog::show(ui, view);
+    /// Puts the speakers checked for group `index` in it and the others out of it; true when
+    /// one moved.
+    fn apply_members(&mut self, index: usize, ids: &[String], members: &[MemberChoice]) -> bool {
         let groups = &mut self.settings.groups;
-        for (id, member) in ids.iter().zip(&members) {
+        let mut moved = false;
+        for (id, member) in ids.iter().zip(members) {
             let in_group = desk::group_of(groups, id) == Some(index);
             if member.checked != in_group {
                 set_membership(groups, id, member.checked.then_some(index));
+                moved = true;
             }
         }
-        match action {
-            GroupDialogAction::None => {}
-            GroupDialogAction::Close => {
-                let (index, name) = (draft.index, draft.name.trim().to_owned());
-                if let Some(group) = self
-                    .settings
-                    .groups
-                    .get_mut(index)
-                    .filter(|_| !name.is_empty())
-                {
-                    group.name = name;
-                }
-                self.group_draft = None;
-                self.save_settings();
+        moved
+    }
+
+    fn show_groups_window(&mut self, ui: &mut Ui) {
+        let Some(window) = &self.groups_window else {
+            return;
+        };
+        let count = self.settings.groups.len();
+        let selected = window.selected.filter(|index| *index < count);
+        let deleting = window.deleting;
+        let context = ui.ctx().clone();
+        let viewport = groups_window::viewport();
+        let size = Vec2::from(groups_window::GROUPS_WINDOW_SIZE);
+        let opening = self.opening(&context, viewport, WindowKind::Groups, 0, size);
+        let ids = self.member_ids();
+        let names: Vec<String> = self
+            .settings
+            .groups
+            .iter()
+            .map(|group| group.name.clone())
+            .collect();
+        let mut members = selected.map_or_else(Vec::new, |index| self.member_choices(index, &ids));
+        let edit = selected.map(|index| {
+            let settings = &mut self.settings.groups[index];
+            GroupEdit {
+                palette: theme::group_color(settings.color),
+                settings,
+                members: &mut members,
             }
-            GroupDialogAction::Delete => draft.deleting = true,
-            GroupDialogAction::CancelDelete => draft.deleting = false,
-            GroupDialogAction::ConfirmDelete => {
-                delete_group(&mut self.settings.groups, draft.index);
-                self.group_draft = None;
+        });
+        let view = GroupsView {
+            names: &names,
+            selected,
+            deleting,
+            edit,
+        };
+        let action = groups_window::show(&context, opening, view);
+        self.remember_place(&context, viewport, WindowKind::Groups);
+        if let Some(index) = selected {
+            self.apply_members(index, &ids, &members);
+        }
+        let Some(window) = &mut self.groups_window else {
+            return;
+        };
+        match action {
+            GroupsAction::None => {}
+            GroupsAction::Close => self.groups_window = None,
+            GroupsAction::Select(index) => {
+                window.selected = Some(index);
+                window.deleting = false;
+            }
+            GroupsAction::Add => self.add_group(),
+            GroupsAction::Changed => self.save_settings(),
+            GroupsAction::Delete => window.deleting = true,
+            GroupsAction::CancelDelete => window.deleting = false,
+            GroupsAction::ConfirmDelete => {
+                if let Some(index) = selected {
+                    delete_group(&mut self.settings.groups, index);
+                }
+                self.open_groups(None, false);
                 self.save_settings();
             }
         }

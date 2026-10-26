@@ -202,8 +202,9 @@ which you can move anywhere, also beside the main window or onto another screen;
 opening it again brings it to the front. Its header shows name, model, firmware and the masked
 serial number; below it, tabs sort every setting the catalog knows for that model:
 
-- **Overview**: group, strip colour, **Apply to group**, the device name to change, presets,
-  **EQ** and **Remove**,
+- **Overview**: strip colour, the device name to change, presets, **EQ** and **Remove**,
+- **Group**: which group the speaker is in; while it is in one, that group's settings (as in the
+  groups window, without deleting), **Apply to group** and **Manage groups…**,
 - **Outputs**: one column per output, side by side (on the KH 750 its own woofer, then A and B),
 - **Inputs**: the input settings and what the rear panel reports,
 - **Standby**: standby time, level and the countdown,
@@ -251,24 +252,28 @@ and its own layouts are forgotten.
 
 ### Groups and master
 
-- **+ Group** creates a group and opens its dialog, where you check the speakers it gets; a
-  speaker also joins one in its device panel (**Group**), and the dialog lists every speaker
-  again later. A speaker is in one group at most: checking one of another group moves it.
-  Members are framed in the group's colour and followed by a group strip.
+- **Groups** in the toolbar opens the groups window: the groups on the left, **+ Group** below
+  them, and the chosen group's settings on the right: name, strip colour, **Show group strip**,
+  what it links (**Linked**), the speakers it has, and **Delete group**, which asks first. A
+  change counts at once; an emptied name keeps the one the group had. A speaker also joins a
+  group on the **Group** tab of its device panel. A speaker is in one group at most: checking
+  one of another group moves it. Members are framed in the group's colour and followed by a
+  group strip.
 - The group fader moves every member by the same amount, each within its own range. With the
   loudest member at its maximum, the others still follow. **Mute** on the group strip mutes them
   all.
-- The buttons under **Linked** link level, mute, auto standby or input interface: a
-  change on one member goes to the others whose model may write it. Members that are not
+- **Linked** (on the group strip, in the groups window or on the panel's **Group** tab) links
+  level, mute, auto standby or input interface: a change on one member goes to the others whose
+  model may write it. Members that are not
   connected are left out. **Apply to group** in the panel copies a linked
   value to the other members.
-- Click the group's name or **Details** at the foot of the group strip to rename or delete it,
-  or right-click the group strip for **Delete group…**; deleting asks first.
-- **Show group strip** in the group's dialog (on by default) takes the group strip off the
-  desk; the members stay grouped and linked, and in the compact mode each gets its own row
-  instead of the group's. Right-click a member's name for **Edit group "…"…**, which opens the
-  same dialog, also while the group strip is off.
-- **Strip colour** in the group's dialog keeps the group's colour (**Default**), takes it off
+- The group's name or **Details** at the foot of the group strip open the groups window on that
+  group; right-click the group strip for **Delete group…**, which asks there first.
+- **Show group strip** (on by default) takes the group strip off the desk; the members stay
+  grouped and linked, and in the compact mode each gets its own row instead of the group's.
+  Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
+  group, also while the group strip is off.
+- **Strip colour** in the group's settings keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
   coloured frame.
@@ -495,7 +500,7 @@ place you choose:
 
 | File | Content |
 |------|---------|
-| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values**, **Settings** and the preset dialogs (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
+| `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values**, **Settings**, the groups window and the preset dialogs (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start; more detailed with **Detailed log** in **Settings** |
 | `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
