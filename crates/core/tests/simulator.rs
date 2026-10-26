@@ -428,6 +428,30 @@ fn stop_closes_connections_and_refuses_new_ones() {
     assert!(TcpStream::connect(address).is_err());
 }
 
+/// A stopped simulator's port went to a simulator another test started on port 0, and the
+/// restart failed with "address in use" (Linux hands out a freed port again soon). A simulator
+/// takes a port below every system's dynamic range (Linux 32768, Windows 49152), which the
+/// system gives no one else.
+#[test]
+fn a_simulator_takes_a_port_no_other_one_is_given() {
+    const LINUX_DYNAMIC_PORTS_FROM: u16 = 32_768;
+    let first = Simulator::start(SimModel::Kh120Ii);
+    let second = Simulator::start(SimModel::Kh120Ii);
+    for simulator in [&first, &second] {
+        assert!(
+            simulator.address().port() < LINUX_DYNAMIC_PORTS_FROM,
+            "{:?}",
+            simulator.address()
+        );
+    }
+    assert_ne!(first.address(), second.address());
+    let address = first.address();
+    first.stop();
+    let restarted = Simulator::start_on(SimModel::Kh120Ii, address).expect("still free");
+    let reply = Client::connect(&restarted).ask(&json!({"osc":{"ping":null}}));
+    assert_eq!(reply, json!({"osc":{"ping":null}}));
+}
+
 #[test]
 fn start_on_rebinds_the_same_address() {
     let first = start_kh120();
