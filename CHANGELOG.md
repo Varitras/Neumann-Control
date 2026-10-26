@@ -18,6 +18,8 @@
   to the desk or the compact rows (seen as the strips grew one after another as they connected).
 - On Linux under Wayland, windows of their own opened at their full default size and could reach
   past the bottom of the screen; they now open no larger than the screen.
+- The held peak's line in a meter lies on the same pixels as the meter's segments; it could
+  stand out beside them and look thicker or thinner from level to level.
 
 - **Check for updates** counts pre-releases: with only a pre-release published it said there was
   no release yet, and it would not have told of a newer pre-release.
