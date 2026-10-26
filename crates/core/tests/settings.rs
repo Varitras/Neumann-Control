@@ -1,8 +1,8 @@
 use neumann_control_core::settings::{
     load, load_checked, save, BandCurves, ColorChoice, CompactButton, CrossoverGuard, DelayUnit,
-    DeskSettings, EqPreset, GroupSettings, Language, LanguageChoice, Linkable, LoadOutcome,
-    ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout, StripElement,
-    SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    DeskSettings, EqPreset, GroupSettings, GroupStrip, Language, LanguageChoice, Linkable,
+    LoadOutcome, ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout,
+    StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -265,6 +265,7 @@ fn groups_and_order_round_trip() {
             color_choice: ColorChoice::Default,
             members: vec!["serial:SIM0001234".to_owned()],
             linked: vec![Linkable::Level, Linkable::Mute],
+            strip: GroupStrip::Hidden,
         }],
         order: vec![
             "serial:SIM0001234".to_owned(),
@@ -274,6 +275,22 @@ fn groups_and_order_round_trip() {
     };
     save(&settings, &path).unwrap();
     assert_eq!(load(&path), settings);
+}
+
+/// A group's strip is shown unless it was switched off: older files, without the key, keep it,
+/// and a shown one is not written at all.
+#[test]
+fn a_group_strip_is_shown_unless_switched_off() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"groups": [{"name": "Front", "members": []}]}"#).unwrap();
+    let mut settings = load(&path);
+    assert_eq!(settings.groups[0].strip, GroupStrip::Shown);
+    save(&settings, &path).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("strip"));
+    settings.groups[0].strip = GroupStrip::Hidden;
+    save(&settings, &path).unwrap();
+    assert_eq!(load(&path).groups[0].strip, GroupStrip::Hidden);
 }
 
 #[test]

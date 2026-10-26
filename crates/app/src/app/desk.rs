@@ -56,6 +56,8 @@ pub(super) enum DeskAction {
     Layout(LayoutOwner, LayoutChange),
     /// Like `Layout` for the compact buttons.
     CompactLayout(LayoutOwner, CompactChange),
+    /// A member strip asked for its group's dialog.
+    EditGroup(usize),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -127,6 +129,9 @@ impl NeumannApp {
                                     &ids[index],
                                 );
                                 let color = tint_color(&tint);
+                                let group = group_of(&self.settings.groups, &ids[index]);
+                                let group_name =
+                                    group.map(|group| self.settings.groups[group].name.as_str());
                                 let speaker = &mut self.speakers[index];
                                 let key = speaker.state.key.clone();
                                 let response = ui
@@ -153,6 +158,7 @@ impl NeumannApp {
                                                 layout: &layout,
                                                 editing,
                                                 layout_key: owner.key(desk.layouts_per_speaker),
+                                                group: group_name,
                                             },
                                             color,
                                             member,
@@ -170,6 +176,9 @@ impl NeumannApp {
                                 }
                                 if response.open_panel {
                                     actions.push(DeskAction::OpenPanel(key));
+                                }
+                                if let (true, Some(group)) = (response.edit_group, group) {
+                                    actions.push(DeskAction::EditGroup(group));
                                 }
                             }
                             DeskItem::GroupStrip(group) => {
@@ -263,6 +272,14 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(key) => self.open_panel(key),
+            DeskAction::EditGroup(group) => {
+                let name = self.settings.groups[group].name.clone();
+                self.group_draft = Some(GroupDraft {
+                    index: group,
+                    name,
+                    deleting: false,
+                });
+            }
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(owner, change) => self.change_layout(&owner, &change, catalog),

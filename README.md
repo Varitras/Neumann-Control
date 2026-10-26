@@ -264,6 +264,10 @@ and its own layouts are forgotten.
   value to the other members.
 - Click the group's name or **Details** at the foot of the group strip to rename or delete it,
   or right-click the group strip for **Delete group…**; deleting asks first.
+- **Show group strip** in the group's dialog (on by default) takes the group strip off the
+  desk; the members stay grouped and linked, and in the compact mode each gets its own row
+  instead of the group's. Right-click a member's name for **Edit group "…"…**, which opens the
+  same dialog, also while the group strip is off.
 - **Strip colour** in the group's dialog keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no

@@ -37,6 +37,7 @@ pub const STRIP_WIDTH: f32 = 140.0;
 pub(super) const STRIP_MARGIN: i8 = 6;
 pub(super) const STRIP_RADIUS: u8 = 6;
 const GRIP_ID: &str = "grip";
+const GROUP_MENU_ID: &str = "strip_group_menu";
 const GRIP_ROWS: usize = 3;
 const GRIP_COLUMNS: usize = 2;
 const GRIP_DOT_SPACING: f32 = 4.0;
@@ -67,6 +68,8 @@ pub struct StripResponse {
     pub open_eq: bool,
     /// A change of the model's layout from an element's context menu.
     pub layout: Option<LayoutChange>,
+    /// From the name's context menu: the dialog of the speaker's group.
+    pub edit_group: bool,
 }
 
 /// How one area is drawn: what it holds as stored, whether it is being edited, and what could
@@ -97,6 +100,8 @@ pub struct StripView<'a> {
     pub editing: bool,
     /// Whose layout it is (`LayoutOwner::key`).
     pub layout_key: &'a str,
+    /// The name of the speaker's group, if it is in one.
+    pub group: Option<&'a str>,
 }
 
 /// The strip, named after its speaker for screen readers.
@@ -128,6 +133,7 @@ fn contents(
         layout,
         editing,
         layout_key,
+        group,
     } = view;
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
@@ -177,6 +183,7 @@ fn contents(
         landing: landed,
     };
     let mut fader = Rect::NOTHING;
+    let mut edit_group = false;
     let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
     let frame = egui::Frame::new()
         .fill(tokens.card)
@@ -194,12 +201,14 @@ fn contents(
                 if speaker.status == Status::Unreachable {
                     ui.multiply_opacity(UNREACHABLE_OPACITY);
                 }
-                let open_panel = ui
-                    .horizontal(|ui| {
-                        grip(ui, member, &tokens);
-                        name(ui, speaker)
-                    })
-                    .inner;
+                let header = ui.horizontal(|ui| {
+                    grip(ui, member, &tokens);
+                    name(ui, speaker)
+                });
+                if let Some(group) = group {
+                    edit_group = group_menu(ui, header.response.rect, group);
+                }
+                let open_panel = header.inner;
                 leds(ui, speaker, &tokens);
                 elements(
                     ui,
@@ -252,7 +261,19 @@ fn contents(
         rect: frame.response.rect,
         open_eq: wishes.open_eq,
         layout: wishes.layout,
+        edit_group,
     }
+}
+
+/// A member strip's context menu on its name: the group's dialog, which the group strip opens
+/// too, also while the group has none.
+fn group_menu(ui: &Ui, rect: Rect, group: &str) -> bool {
+    let id = ui.scope_id().with(GROUP_MENU_ID);
+    let mut edit = false;
+    layout_menu::popup(ui, id, layout_menu::right_clicked(ui, rect), |ui| {
+        edit = ui.button(texts::edit_group(group)).clicked();
+    });
+    edit
 }
 
 /// The handle a strip is dragged by to another place on the desk; the payload is the speaker's

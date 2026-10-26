@@ -211,6 +211,7 @@ pub const COLOR_OWN: Text = Text::new("Eigene", "Own");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
 /// In the group strip's context menu; the dialog asks before it deletes.
 pub const DELETE_GROUP_MENU: Text = Text::new("Gruppe löschen…", "Delete group…");
+pub const SHOW_GROUP_STRIP: Text = Text::new("Gruppenzug zeigen", "Show group strip");
 pub const NEW_GROUP_NAME: Text = Text::new("Gruppe", "Group");
 pub const GROUP: Text = Text::new("Gruppe", "Group");
 pub const NO_GROUP: Text = Text::new("keine", "none");
@@ -500,6 +501,14 @@ pub fn row_region(name: &str) -> String {
 /// Hover text of a speaker that checking would move out of `group`.
 pub fn in_other_group(group: &str) -> String {
     pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))
+}
+
+/// A member strip's context menu: its group's dialog, also while the group has no strip.
+pub fn edit_group(group: &str) -> String {
+    pick(
+        format!("Gruppe „{group}“ bearbeiten…"),
+        format!("Edit group \"{group}\"…"),
+    )
 }
 
 /// Asked before a preset or a group is deleted.

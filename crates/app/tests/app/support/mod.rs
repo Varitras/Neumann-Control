@@ -25,7 +25,7 @@ use neumann_control_app::texts;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::{
-    self, ColorChoice, CrossoverGuard, DeskSettings, GroupSettings, Language, Linkable,
+    self, ColorChoice, CrossoverGuard, DeskSettings, GroupSettings, GroupStrip, Language, Linkable,
     ManualSpeaker, Settings, SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
@@ -604,6 +604,7 @@ pub fn grouped(
         color_choice: ColorChoice::Default,
         members: vec![KH120_ID.to_owned(), KH750_ID.to_owned()],
         linked,
+        strip: GroupStrip::Shown,
     };
     two_speakers(vec![group])
 }

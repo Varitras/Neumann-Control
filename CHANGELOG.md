@@ -6,6 +6,9 @@
 
 - **Linux**: a portable build for x86_64 Linux as a `.tar.gz`, with everything but the strip with
   the system volume and the shortcuts from other programs, which Linux does not offer.
+- **Show group strip** in a group's dialog: a group can do without its strip on the desk; its
+  members then have their own rows in the compact mode. A member's name opens the group's dialog
+  from its context menu.
 
 ### Changed
 

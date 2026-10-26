@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::ops::RangeInclusive;
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::settings::{ColorChoice, GroupSettings, Linkable};
+use neumann_control_core::settings::{ColorChoice, GroupSettings, GroupStrip, Linkable};
 use neumann_control_core::ssc::wire::SscPath;
 
 use crate::gesture::bounded_move;
@@ -66,8 +66,8 @@ pub enum DeskItem {
 }
 
 /// The strips from left to right: ungrouped speakers first, then each group's members followed
-/// by its group strip. Within each part the saved order decides; speakers it does not know yet
-/// follow in the app's order.
+/// by its group strip, if the group shows one. Within each part the saved order decides;
+/// speakers it does not know yet follow in the app's order.
 pub fn layout(order: &[String], groups: &[GroupSettings], speakers: &[String]) -> Vec<DeskItem> {
     let rank: HashMap<&str, usize> = order
         .iter()
@@ -94,13 +94,15 @@ pub fn layout(order: &[String], groups: &[GroupSettings], speakers: &[String]) -
         .filter(|index| group_of(*index).is_none())
         .map(DeskItem::Speaker)
         .collect();
-    for (group, _) in groups.iter().enumerate() {
+    for (group, settings) in groups.iter().enumerate() {
         let members = sorted
             .iter()
             .copied()
             .filter(|index| group_of(*index) == Some(group));
         items.extend(members.map(DeskItem::Speaker));
-        items.push(DeskItem::GroupStrip(group));
+        if settings.strip == GroupStrip::Shown {
+            items.push(DeskItem::GroupStrip(group));
+        }
     }
     items
 }
@@ -112,16 +114,17 @@ pub enum CompactRow {
     Group(usize),
 }
 
-/// The compact rows in the order of the desk: grouped speakers have no row of their own.
+/// The compact rows in the order of the desk: a speaker in a group with a strip has no row of
+/// its own, the group's row stands for it.
 pub fn compact_rows(
     items: &[DeskItem],
     groups: &[GroupSettings],
     speakers: &[String],
 ) -> Vec<CompactRow> {
     let grouped = |index: usize| {
-        groups
-            .iter()
-            .any(|group| group.members.contains(&speakers[index]))
+        groups.iter().any(|group| {
+            group.strip == GroupStrip::Shown && group.members.contains(&speakers[index])
+        })
     };
     items
         .iter()
@@ -257,6 +260,7 @@ pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSetti
         color_choice: ColorChoice::Default,
         members: Vec::new(),
         linked: Vec::new(),
+        strip: GroupStrip::Shown,
     }
 }
 
@@ -441,6 +445,7 @@ mod tests {
             color_choice: ColorChoice::Default,
             members: members.iter().map(|id| (*id).to_owned()).collect(),
             linked: Vec::new(),
+            strip: GroupStrip::Shown,
         }
     }
 
@@ -479,6 +484,27 @@ mod tests {
             vec![CompactRow::Speaker(1), CompactRow::Group(0)]
         );
         assert_eq!(items[0], Speaker(1));
+    }
+
+    /// A group without its strip: its members stand on the desk as they are, and in the compact
+    /// mode each has its own row instead of the group's.
+    #[test]
+    fn a_group_without_its_strip_leaves_its_members_on_their_own() {
+        use DeskItem::*;
+        let speakers = ids(&["a", "b", "c"]);
+        let mut front = group("Front", &["a", "c"]);
+        front.strip = neumann_control_core::settings::GroupStrip::Hidden;
+        let groups = [front];
+        let items = layout(&[], &groups, &speakers);
+        assert_eq!(items, vec![Speaker(1), Speaker(0), Speaker(2)]);
+        assert_eq!(
+            compact_rows(&items, &groups, &speakers),
+            vec![
+                CompactRow::Speaker(1),
+                CompactRow::Speaker(0),
+                CompactRow::Speaker(2)
+            ]
+        );
     }
 
     #[test]

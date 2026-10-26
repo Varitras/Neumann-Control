@@ -781,6 +781,7 @@ impl NeumannApp {
             palette: theme::group_color(group.color),
             color: &mut group.color_choice,
             members: &mut members,
+            strip: &mut group.strip,
             deleting: draft.deleting,
         };
         let action = group_dialog::show(ui, view);

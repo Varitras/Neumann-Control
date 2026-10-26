@@ -178,6 +178,21 @@ impl ColorChoice {
     }
 }
 
+/// Whether a group has its strip on the desk (and its row in the compact mode); without, its
+/// members stand on their own there.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GroupStrip {
+    #[default]
+    Shown,
+    Hidden,
+}
+
+impl GroupStrip {
+    pub fn is_default(&self) -> bool {
+        *self == GroupStrip::Shown
+    }
+}
+
 /// A group of speakers with a group strip; a speaker is in at most one group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupSettings {
@@ -198,6 +213,12 @@ pub struct GroupSettings {
     /// Settings a change on one member sends to all members.
     #[serde(default, deserialize_with = "readable_items")]
     pub linked: Vec<Linkable>,
+    #[serde(
+        default,
+        deserialize_with = "or_default",
+        skip_serializing_if = "GroupStrip::is_default"
+    )]
+    pub strip: GroupStrip,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

@@ -11,7 +11,7 @@ use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{
-    self, ColorChoice, GroupSettings, Linkable, Settings, SETTINGS_FILE,
+    self, ColorChoice, GroupSettings, GroupStrip, Linkable, Settings, SETTINGS_FILE,
 };
 use neumann_control_core::simulator::{SimModel, Simulator};
 use serde_json::Value;
@@ -154,6 +154,34 @@ fn a_right_click_on_the_group_strip_deletes_the_group() {
     harness.get_by_label(texts::DELETE_GROUP.get()).click();
     harness.run_steps(2);
     assert!(settings::load(&path).groups.is_empty());
+}
+
+/// A group strip switched off in the group's dialog leaves the desk; the dialog stays in reach
+/// from a member strip's name, and switches the strip back on.
+#[test]
+fn a_group_strip_switched_off_leaves_its_dialog_in_reach() {
+    let (_kh120, _kh750, directory, mut harness) = grouped(Vec::new());
+    harness
+        .get_by_label(&texts::group_details(GROUP_NAME))
+        .click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label(&texts::group_details(GROUP_NAME))
+        .is_none());
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(settings::load(&path).groups[0].strip, GroupStrip::Hidden);
+    harness.get_by_label(KH120_DEVICE_NAME).click_secondary();
+    harness.run_steps(2);
+    harness.get_by_label(&texts::edit_group(GROUP_NAME)).click();
+    wait_for_label(&mut harness, texts::GROUP_DIALOG_TITLE.get());
+    harness.get_by_label(texts::SHOW_GROUP_STRIP.get()).click();
+    harness.get_by_label(texts::CLOSE.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(&texts::group_details(GROUP_NAME));
+    assert_eq!(settings::load(&path).groups[0].strip, GroupStrip::Shown);
 }
 
 /// An emptied name field is no name: the group keeps the one it had.
@@ -303,6 +331,7 @@ fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
             color_choice: ColorChoice::Default,
             members: vec![address_id(&kh120)],
             linked: Vec::new(),
+            strip: GroupStrip::Shown,
         }],
         order: vec![address_id(&kh750), address_id(&kh120)],
         ..Settings::default()
