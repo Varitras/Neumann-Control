@@ -52,6 +52,18 @@ fn open_eq_with(
     (simulator, directory, harness)
 }
 
+/// The EQ window closes by its title bar's X or Escape; it has no button of its own for it.
+fn close_eq(harness: &mut Harness<'static, NeumannApp>) {
+    harness.key_press(egui::Key::Escape);
+}
+
+/// The window's X closes it already: a second, own Close button was one too many.
+#[test]
+fn the_eq_window_has_no_close_button_of_its_own() {
+    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
+}
+
 /// The panel's EQ button (the strip has one too): the one inside the panel's window.
 fn click_panel_eq(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     fn in_panel<'h>(
@@ -240,7 +252,7 @@ fn a_band_change_reads_as_one_band_in_the_history() {
     wait_until(&mut harness, "the gain write", |_| {
         !sets(&simulator, BOOST_POINTER).is_empty()
     });
-    harness.get_by_label(texts::CLOSE.get()).click();
+    close_eq(&mut harness);
     harness.run_steps(2);
     harness.get_by_label(texts::HISTORY.get()).click();
     harness.run_steps(2);
@@ -367,7 +379,7 @@ fn eq_change_then_mute(harness: &mut Harness<'static, NeumannApp>, simulator: &S
     wait_until(harness, "the band write", |_| {
         !sets(simulator, BOOST_POINTER).is_empty()
     });
-    harness.get_by_label(texts::CLOSE.get()).click();
+    close_eq(harness);
     harness.run_steps(2);
     harness
         .get_by_role_and_label(Role::Button, texts::MUTE.get())
@@ -442,7 +454,7 @@ fn a_reset_reads_as_all_bands_in_the_history() {
     wait_until(&mut harness, "both arrays written", |_| {
         !sets(&simulator, GAIN_POINTER).is_empty() && !sets(&simulator, BOOST_POINTER).is_empty()
     });
-    harness.get_by_label(texts::CLOSE.get()).click();
+    close_eq(&mut harness);
     harness.run_steps(2);
     harness.get_by_label(texts::HISTORY.get()).click();
     harness.run_steps(2);
@@ -1218,7 +1230,7 @@ fn the_history_names_the_output_of_a_kh750_eq_change() {
                 .is_some_and(|value| !value.is_null())
         })
     });
-    harness.get_by_label(texts::CLOSE.get()).click();
+    close_eq(&mut harness);
     harness.run_steps(2);
     harness.get_by_label(texts::HISTORY.get()).click();
     harness.run_steps(2);

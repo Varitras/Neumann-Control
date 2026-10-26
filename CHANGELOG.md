@@ -12,6 +12,9 @@
 
 ### Changed
 
+- The EQ window has no **Close** button of its own any more; the X in its title bar and Escape
+  close it.
+
 - `SHA256SUMS` on the release page lists the checksums of the downloads (the ZIP and the
   `.tar.gz`); each folder keeps its own list of its files.
 
