@@ -68,10 +68,10 @@ and reading real speakers and for the update check; its window not yet on a Linu
 ## Requirements
 
 - Windows 10 or 11 with a DirectX 12 capable graphics adapter, or
-- Linux on x86_64 with a Wayland or X11 desktop and Vulkan or OpenGL graphics drivers. Under X11
-  the library `libxkbcommon-x11` must be installed. The file dialog of the EQ import and export
-  needs the desktop's XDG portal (or `zenity`), **Check for updates** needs `curl`, and the manual
-  and links open with `xdg-open`.
+- Linux on x86_64 with glibc 2.39 or newer (Ubuntu 24.04, Debian 13 or later), a Wayland or X11
+  desktop and Vulkan or OpenGL graphics drivers. Under X11 the library `libxkbcommon-x11` must
+  be installed. The file dialog of the EQ import and export needs the desktop's XDG portal (or
+  `zenity`), **Check for updates** needs `curl`, and the manual and links open with `xdg-open`.
 - The computer and the speakers on the same layer 2 network segment (same switch or VLAN). The
   speakers are reached over IPv6 link-local addresses, which are not routed.
 - IPv6 enabled on the network adapter in use.
@@ -550,8 +550,9 @@ carriage returns, format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
 raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
 version as it is), and writes `release\neumann-control-<version>\` (on Linux
-`release/neumann-control-<version>-linux-x86_64/`; or `-OutputRoot <folder>`) with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The
-manual is this README as one HTML file with its pictures embedded, made by `crates/manual`:
+`release/neumann-control-<version>-linux-x86_64/`; or `-OutputRoot <folder>`) with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. On Linux
+it stops when the executable needs a glibc newer than 2.39, as one built on a newer system does.
+The manual is this README as one HTML file with its pictures embedded, made by `crates/manual`:
 
 ```powershell
 cargo run -p neumann-control-manual -- README.md neumann-control-manual.html

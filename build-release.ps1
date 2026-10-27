@@ -23,6 +23,9 @@ $executable = if ($onWindows) { 'neumann-control.exe' } else { 'neumann-control'
 $folderSuffix = if ($onWindows) { '' } else { '-linux-x86_64' }
 # The shipped licence list names this system's libraries only (about.toml checks both).
 $licenceTarget = if ($onWindows) { 'x86_64-pc-windows-msvc' } else { 'x86_64-unknown-linux-gnu' }
+# The newest glibc the Linux binary may ask for: Ubuntu 24.04's; Debian 13 has 2.41. Built on a
+# newer system, the floor rises unseen (Ubuntu 26.04 asked for 2.43) and the build does not start.
+$glibcFloor = [version]'2.39'
 # The one list of what a release folder holds; anything else in it fails the build.
 $releaseFiles = @($executable, 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
 # Only the version line of [workspace.package]: a plain match would also hit a dependency
@@ -85,6 +88,7 @@ function Set-WorkspaceVersion {
 }
 
 Assert-Tool 'cargo-about' 'Install with: cargo install cargo-about --locked'
+if (-not $onWindows) { Assert-Tool 'objdump' 'Install binutils.' }
 Assert-CleanTree
 
 $version = Get-WorkspaceVersion
@@ -122,6 +126,26 @@ if (-not $KeepVersion) {
 }
 
 Invoke-Step 'Build release binary' { cargo build --release --locked -p neumann-control-app }
+
+if (-not $onWindows) {
+    Invoke-Step "Check the binary needs no glibc newer than $glibcFloor" {
+        $binary = Join-Path (Join-Path 'target' 'release') $executable
+        $needed = objdump -T $binary |
+            Select-String -Pattern 'GLIBC_([0-9.]+)' -AllMatches |
+            ForEach-Object { $_.Matches } |
+            ForEach-Object { [version]$_.Groups[1].Value } |
+            Sort-Object |
+            Select-Object -Last 1
+        if ($LASTEXITCODE -ne 0) { return }
+        if (-not $needed) {
+            Write-Host 'objdump names no glibc version in the binary' -ForegroundColor Red
+            $global:LASTEXITCODE = 1
+            return
+        }
+        Write-Host "The binary needs glibc $needed"
+        if ($needed -gt $glibcFloor) { $global:LASTEXITCODE = 1 }
+    }
+}
 
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item (Join-Path (Join-Path 'target' 'release') $executable) $releaseDirectory
