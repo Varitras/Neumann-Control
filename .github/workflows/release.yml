@@ -42,7 +42,9 @@ jobs:
           - runner: windows-latest
             folder: neumann-control-${{ needs.version.outputs.version }}
             archive: neumann-control-${{ needs.version.outputs.version }}.zip
-          - runner: ubuntu-latest
+          # Not ubuntu-latest: the binary needs the runner's glibc, and build-release.ps1 refuses
+          # one newer than 2.39, so a moved ubuntu-latest would fail the release.
+          - runner: ubuntu-24.04
             folder: neumann-control-${{ needs.version.outputs.version }}-linux-x86_64
             archive: neumann-control-${{ needs.version.outputs.version }}-linux-x86_64.tar.gz
     runs-on: ${{ matrix.runner }}
