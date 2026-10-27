@@ -69,12 +69,14 @@ jobs:
         shell: pwsh
         run: |
           Set-Location release
+          # Compress-Archive is a cmdlet: it throws on failure and leaves $LASTEXITCODE unset, so
+          # only tar's exit code is asked.
           if ($IsWindows) {
             Compress-Archive -Path '${{ matrix.folder }}' -DestinationPath '${{ matrix.archive }}'
           } else {
             tar -czf '${{ matrix.archive }}' '${{ matrix.folder }}'
+            if ($LASTEXITCODE -ne 0) { throw "packing failed ($LASTEXITCODE)" }
           }
-          if ($LASTEXITCODE -ne 0) { throw "packing failed ($LASTEXITCODE)" }
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
