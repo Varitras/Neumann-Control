@@ -1,4 +1,4 @@
-//! Choosing a file for the EQ import and export: Windows' own dialog, a stand-in in the tests.
+//! Choosing a file for the EQ import and export: the system's own dialog, a stand-in in the tests.
 
 use std::path::PathBuf;
 
@@ -9,10 +9,10 @@ pub trait FileDialog {
     fn save(&mut self, suggested: &str) -> Option<PathBuf>;
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub use native::NativeFileDialog;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod native {
     use std::path::PathBuf;
 
@@ -37,21 +37,5 @@ mod native {
                 .set_file_name(suggested)
                 .save_file()
         }
-    }
-}
-
-/// Elsewhere there is no dialog: import and export find no file.
-#[cfg(not(windows))]
-#[derive(Default)]
-pub struct NativeFileDialog;
-
-#[cfg(not(windows))]
-impl FileDialog for NativeFileDialog {
-    fn open(&mut self) -> Option<PathBuf> {
-        None
-    }
-
-    fn save(&mut self, _suggested: &str) -> Option<PathBuf> {
-        None
     }
 }

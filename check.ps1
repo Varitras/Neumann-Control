@@ -96,7 +96,8 @@ Invoke-Gate 'cargo fmt (check)' { cargo fmt --all -- --check }
 # A dependency with an unaccepted licence (e.g. a GPL crate) fails generation, so this doubles
 # as the licence gate; build-release.ps1 generates the shipped file from the same config.
 Invoke-Gate 'licence gate (cargo about)' {
-    cargo about generate --workspace --locked --fail -c about.toml about.hbs -o "$env:TEMP\neumann-control-about-check.html"
+    $aboutCheck = Join-Path ([System.IO.Path]::GetTempPath()) 'neumann-control-about-check.html'
+    cargo about generate --workspace --locked --fail -c about.toml about.hbs -o $aboutCheck
 }
 Invoke-Gate 'cargo audit'  { cargo audit }
 Invoke-Gate 'cargo clippy' { cargo clippy --workspace --all-targets --all-features --locked -- -D warnings }

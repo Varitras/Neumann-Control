@@ -55,6 +55,12 @@ windows = { version = "0.62", features = [
 # The Windows file dialog for the EQ import and export.
 rfd = { version = "0.17", default-features = false }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# The desktop's file dialog over the XDG portal (zenity where there is none); no GTK to build.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+# Already in the tree through winit and others; the process' CPU time for the detailed log.
+libc = "0.2"
+
 [build-dependencies]
 # Puts the icon into the executable, for Explorer and the taskbar.
 winresource = "0.1"

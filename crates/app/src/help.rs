@@ -37,7 +37,7 @@ pub struct Release {
 }
 
 pub trait Help: Send + Sync {
-    /// Opens a file or web address as Explorer would; false when Windows could not.
+    /// Opens a file or web address as the desktop would; false when the system could not.
     fn open(&self, target: &str) -> bool;
     /// The newest release; `Ok(None)` while none is published.
     fn latest_release(&self) -> Result<Option<Release>, LookupError>;
@@ -140,6 +140,19 @@ pub fn parse_releases(body: &str) -> Result<Option<Release>, String> {
         .ok_or_else(|| "no release has a version as its tag".to_owned())
 }
 
+/// GitHub refuses API calls without one.
+const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
+
+/// GitHub's status and body for the list of releases. A repository without releases lists
+/// none; anything but 200 is not an answer.
+fn release_answer(status: u32, body: &str) -> Result<Option<Release>, LookupError> {
+    const STATUS_OK: u32 = 200;
+    match status {
+        STATUS_OK => parse_releases(body).map_err(LookupError::Unusable),
+        other => Err(LookupError::Unusable(format!("GitHub answered {other}"))),
+    }
+}
+
 /// A check running on its own thread; the window is woken when it has an answer.
 pub struct UpdateCheck {
     result: Arc<Mutex<Option<UpdateResult>>>,
@@ -168,8 +181,10 @@ impl UpdateCheck {
     }
 }
 
+#[cfg(target_os = "linux")]
+pub use linux_help::SystemHelp;
 #[cfg(windows)]
-pub use windows_help::WindowsHelp;
+pub use windows_help::SystemHelp;
 
 #[cfg(windows)]
 mod windows_help {
@@ -185,21 +200,18 @@ mod windows_help {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    use super::{parse_releases, releases_path, Help, LookupError, Release, API_HOST};
+    use super::{release_answer, releases_path, Help, LookupError, Release, API_HOST, USER_AGENT};
 
-    /// GitHub refuses API calls without one.
-    const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
     const HTTPS_PORT: u16 = 443;
     /// Per step (name lookup, connect, send, receive), in milliseconds: the dialog waits on it.
     const TIMEOUT_MS: i32 = 10_000;
-    const STATUS_OK: u32 = 200;
     const READ_CHUNK: usize = 16 * 1024;
     /// ShellExecute's success is any value above 32.
     const SHELL_ERROR_LIMIT: isize = 32;
 
-    pub struct WindowsHelp;
+    pub struct SystemHelp;
 
-    impl Help for WindowsHelp {
+    impl Help for SystemHelp {
         fn open(&self, target: &str) -> bool {
             let operation = wide("open");
             let file = wide(target);
@@ -220,11 +232,7 @@ mod windows_help {
         fn latest_release(&self) -> Result<Option<Release>, LookupError> {
             let (status, body) =
                 get(API_HOST, &releases_path()).map_err(LookupError::Unreachable)?;
-            // A repository without releases lists none; anything but 200 is not an answer.
-            match status {
-                STATUS_OK => parse_releases(&body).map_err(LookupError::Unusable),
-                other => Err(LookupError::Unusable(format!("GitHub answered {other}"))),
-            }
+            release_answer(status, &body)
         }
     }
 
@@ -334,9 +342,114 @@ mod windows_help {
     }
 }
 
+#[cfg(target_os = "linux")]
+mod linux_help {
+    use std::process::{Command, Stdio};
+    use std::thread;
+
+    use super::{release_answer, releases_path, Help, LookupError, Release, API_HOST, USER_AGENT};
+
+    /// Linux has no HTTP client of its own; curl comes with every desktop install and follows
+    /// the proxy variables, as WinHTTP follows Windows' proxy settings.
+    const CURL: &str = "curl";
+    const OPENER: &str = "xdg-open";
+    /// Seconds for the connection and for the whole request: the dialog waits on it.
+    const CONNECT_TIMEOUT_SECONDS: &str = "10";
+    const TOTAL_TIMEOUT_SECONDS: &str = "30";
+    /// The status after the body, on a line of its own.
+    const STATUS_FORMAT: &str = "\n%{http_code}";
+
+    pub struct SystemHelp;
+
+    impl Help for SystemHelp {
+        fn open(&self, target: &str) -> bool {
+            let started = Command::new(OPENER)
+                .arg(target)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+            match started {
+                Ok(mut child) => {
+                    // Reaped on its own thread: xdg-open may wait for the program it started.
+                    thread::spawn(move || child.wait());
+                    true
+                }
+                Err(error) => {
+                    log::warn!("{OPENER} could not be started: {error}");
+                    false
+                }
+            }
+        }
+
+        fn latest_release(&self) -> Result<Option<Release>, LookupError> {
+            let url = format!("https://{API_HOST}{}", releases_path());
+            let output = Command::new(CURL)
+                .args(["--silent", "--show-error"])
+                .args(["--connect-timeout", CONNECT_TIMEOUT_SECONDS])
+                .args(["--max-time", TOTAL_TIMEOUT_SECONDS])
+                .args(["--user-agent", USER_AGENT])
+                .args(["--write-out", STATUS_FORMAT])
+                .arg(&url)
+                .stdin(Stdio::null())
+                .output()
+                .map_err(|error| LookupError::Unreachable(format!("{CURL}: {error}")))?;
+            if !output.status.success() {
+                let reason = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+                return Err(LookupError::Unreachable(format!(
+                    "{CURL} {}: {reason}",
+                    output.status
+                )));
+            }
+            let output = String::from_utf8_lossy(&output.stdout);
+            let (status, body) = status_and_body(&output).map_err(LookupError::Unusable)?;
+            release_answer(status, body)
+        }
+    }
+
+    /// curl's output: the body, then the status on the last line.
+    fn status_and_body(output: &str) -> Result<(u32, &str), String> {
+        let (body, status) = output.rsplit_once('\n').ok_or("curl wrote no status")?;
+        let status = status
+            .trim()
+            .parse()
+            .map_err(|_| format!("curl wrote {status:?} as the status"))?;
+        Ok((status, body))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::status_and_body;
+
+        #[test]
+        fn curls_status_follows_the_body_on_a_line_of_its_own() {
+            assert_eq!(status_and_body("[]\n200"), Ok((200, "[]")));
+            assert_eq!(
+                status_and_body("{\"a\":\n1}\n403"),
+                Ok((403, "{\"a\":\n1}"))
+            );
+            assert!(status_and_body("200").is_err());
+            assert!(status_and_body("[]\nnone").is_err());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_answer_other_than_200_is_unusable_and_200_is_read() {
+        assert_eq!(release_answer(200, "[]"), Ok(None));
+        assert_eq!(
+            release_answer(403, "rate limit"),
+            Err(LookupError::Unusable("GitHub answered 403".to_owned()))
+        );
+        assert!(matches!(
+            release_answer(200, "not json"),
+            Err(LookupError::Unusable(_))
+        ));
+    }
 
     fn release(tag: &str) -> Release {
         Release {
@@ -466,14 +579,14 @@ mod tests {
 }
 
 /// Goes online, so only on request: `cargo test -p neumann-control-app --lib -- --ignored github`.
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod online {
     use super::*;
 
     #[test]
     #[ignore = "asks GitHub"]
     fn github_answers_the_newest_release_question() {
-        let answer = WindowsHelp.latest_release();
+        let answer = SystemHelp.latest_release();
         assert!(answer.is_ok(), "{answer:?}");
         println!("{answer:?}");
     }

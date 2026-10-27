@@ -25,9 +25,9 @@ use crate::display;
 use crate::file_dialog::{FileDialog, NativeFileDialog};
 use crate::frame_limit::FrameLimit;
 use crate::frame_stats::{FrameSample, FrameStats};
-use crate::global_keys::{GlobalKeys, GlobalListener, WindowsGlobalKeys};
+use crate::global_keys::{GlobalKeys, GlobalListener, SystemGlobalKeys};
 use crate::groups::{delete_group, group_tint, member_id, set_membership, set_strip_color, Tint};
-use crate::help::{Help, UpdateCheck, WindowsHelp, MANUAL_FILE, WIKI_URL};
+use crate::help::{Help, SystemHelp, UpdateCheck, MANUAL_FILE, WIKI_URL};
 use crate::layout_owner::stored;
 use crate::log_detail;
 use crate::meter::MeterState;
@@ -52,7 +52,7 @@ use crate::views::add_address::{self, AddAddressAction, AddAddressForm};
 use crate::views::group_dialog::{self, GroupDialogAction, GroupDraftView, MemberChoice};
 use crate::views::remove_speaker::{self, RemoveAction};
 use crate::views::scan_choice::{self as scan_choice_view, ScanChoiceAction};
-use crate::views::settings_dialog::{self, SettingsAction};
+use crate::views::settings_dialog::{self, Offered, SettingsAction};
 use crate::views::toolbar::{self, ToolbarAction, ToolbarFacts};
 use crate::views::{all_values, panel, wheel};
 use crate::window_fit::WindowFit;
@@ -229,14 +229,14 @@ impl NeumannApp {
             preset_dialog: None,
             system_audio,
             file_dialog: Box::new(NativeFileDialog),
-            help: Arc::new(WindowsHelp),
+            help: Arc::new(SystemHelp),
             about: None,
             update_check: None,
             system_meters: Vec::new(),
             monitors: Vec::new(),
             dimmed: None,
             dim_returns: Vec::new(),
-            global_keys: Box::new(WindowsGlobalKeys),
+            global_keys: Box::new(SystemGlobalKeys),
             global_listener: None,
             global_keys_taken: false,
             frame_stats: FrameStats::default(),
@@ -510,7 +510,7 @@ impl NeumannApp {
         }
     }
 
-    fn show(&mut self, ui: &mut Ui, frame: &eframe::Frame) {
+    fn show(&mut self, ui: &mut Ui) {
         let facts = ToolbarFacts {
             compact: self.settings.desk.compact,
             editing: self.editing,
@@ -534,7 +534,7 @@ impl NeumannApp {
                 self.audio_devices = self.system_audio.devices();
             }
             ToolbarAction::History => self.open_history(),
-            ToolbarAction::ToggleCompact => self.toggle_compact(frame),
+            ToolbarAction::ToggleCompact => self.toggle_compact(ui.ctx()),
             ToolbarAction::ToggleEditing => self.editing = !self.editing,
             ToolbarAction::Manual => self.open_manual(),
             ToolbarAction::Wiki => self.open_web(WIKI_URL),
@@ -546,7 +546,7 @@ impl NeumannApp {
             ToolbarAction::None => {}
         }
         if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
-            self.toggle_compact(frame);
+            self.toggle_compact(ui.ctx());
         }
         // A field being edited keeps its keys (Ctrl+arrows, typed letters); a button reached with
         // Tab takes none.
@@ -781,6 +781,7 @@ impl NeumannApp {
             palette: theme::group_color(group.color),
             color: &mut group.color_choice,
             members: &mut members,
+            strip: &mut group.strip,
             deleting: draft.deleting,
         };
         let action = group_dialog::show(ui, view);
@@ -832,10 +833,15 @@ impl NeumannApp {
         let viewport = settings_dialog::viewport();
         let size = Vec2::from(settings_dialog::SETTINGS_WINDOW_SIZE);
         let opening = self.opening(&context, viewport, WindowKind::Settings, 0, size);
+        let offered = Offered {
+            global_shortcuts: self.global_keys.offered(),
+            system_audio: self.system_audio.offered(),
+        };
         let action = settings_dialog::show(
             &context,
             opening,
             &mut self.settings,
+            offered,
             &self.audio_devices,
             &labels,
         );
@@ -958,8 +964,16 @@ fn retire(handle: SpeakerHandle) {
 /// Outer position and inner size in physical pixels, as `window_placement` takes them back.
 /// Minimized, the window stays as `last` had it; maximized, it keeps `last`'s normal place and
 /// size for when it is restored, marked maximized.
+/// A window exists: egui gives its scale with every frame, also where the system tells no
+/// position (Wayland), and none for a window not open (or one drawn inside another).
+fn is_open(viewport: &ViewportInfo) -> bool {
+    viewport.native_pixels_per_point.is_some()
+}
+
+/// `size` is the window's own, in points, as egui gives it with every frame.
 pub fn window_geometry(
     viewport: &ViewportInfo,
+    size: Vec2,
     pixels_per_point: f32,
     last: Option<WindowGeometry>,
 ) -> Option<WindowGeometry> {
@@ -973,9 +987,19 @@ pub fn window_geometry(
             ..normal
         });
     }
-    let outer = viewport.outer_rect?;
-    let inner = viewport.inner_rect?;
     let physical = |points: f32| (points * pixels_per_point).round();
+    let (Some(outer), Some(inner)) = (viewport.outer_rect, viewport.inner_rect) else {
+        // Wayland tells no program where its windows are and places them itself: the size is
+        // kept, at the last known position.
+        let (x, y) = last.map_or((0.0, 0.0), |last| (last.x, last.y));
+        return is_open(viewport).then_some(WindowGeometry {
+            x,
+            y,
+            width: physical(size.x),
+            height: physical(size.y),
+            maximized,
+        });
+    };
     Some(WindowGeometry {
         x: physical(outer.min.x),
         y: physical(outer.min.y),
@@ -1009,8 +1033,10 @@ impl eframe::App for NeumannApp {
         self.rediscover(now);
         self.poll_scan();
         let pixels_per_point = context.pixels_per_point();
-        self.window =
-            context.input(|input| window_geometry(input.viewport(), pixels_per_point, self.window));
+        self.window = context.input(|input| {
+            let size = input.viewport_rect().size();
+            window_geometry(input.viewport(), size, pixels_per_point, self.window)
+        });
     }
 
     fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
@@ -1022,7 +1048,7 @@ impl eframe::App for NeumannApp {
         if let Some(window) = frame.winit_window() {
             self.monitors = monitor_areas(window);
         }
-        self.show(ui, frame);
+        self.show(ui);
     }
 
     fn on_exit(&mut self) {
@@ -1031,10 +1057,19 @@ impl eframe::App for NeumannApp {
             speaker.handle.send(Command::Stop);
         }
         self.speakers.clear();
-        if let Some(window) = self.window {
+        if let Some(window) = self.chosen_window() {
             self.settings.remember_window(window);
             self.save_settings();
         }
+    }
+}
+
+impl NeumannApp {
+    /// The window as the user left it; none while it is still fitted to its content: a fitted
+    /// size is no choice, and kept it ended the fit at the next start or mode switch.
+    fn chosen_window(&self) -> Option<WindowGeometry> {
+        let fitting = self.window_fit.as_ref().is_some_and(|fit| !fit.is_over());
+        self.window.filter(|_| !fitting)
     }
 }
 
@@ -1128,6 +1163,32 @@ mod tests {
         );
     }
 
+    /// The window's size as egui gives it with every frame, also without a position.
+    const SIZE: Vec2 = Vec2::new(800.0, 500.0);
+
+    /// Wayland tells no program where its windows are: no geometry was kept, so every start
+    /// fitted the window anew and set the user's size back, and windows of their own opened at
+    /// their default size. The size is kept, at the last known position.
+    #[test]
+    fn a_window_without_a_position_keeps_its_size() {
+        let wayland = ViewportInfo {
+            native_pixels_per_point: Some(1.25),
+            maximized: Some(false),
+            minimized: Some(false),
+            ..ViewportInfo::default()
+        };
+        assert_eq!(
+            window_geometry(&wayland, SIZE, 1.25, Some(LAST_NORMAL)),
+            Some(WindowGeometry {
+                width: 1000.0,
+                height: 625.0,
+                ..LAST_NORMAL
+            })
+        );
+        let first = window_geometry(&wayland, SIZE, 1.0, None).unwrap();
+        assert_eq!((first.width, first.height), (800.0, 500.0));
+    }
+
     fn viewport() -> ViewportInfo {
         ViewportInfo {
             outer_rect: Some(Rect::from_min_size(pos2(-10.0, 20.0), vec2(812.0, 534.0))),
@@ -1139,7 +1200,7 @@ mod tests {
     #[test]
     fn geometry_is_outer_position_and_inner_size_in_physical_pixels() {
         assert_eq!(
-            window_geometry(&viewport(), 1.5, None),
+            window_geometry(&viewport(), SIZE, 1.5, None),
             Some(WindowGeometry {
                 x: -15.0,
                 y: 30.0,
@@ -1165,10 +1226,14 @@ mod tests {
             ..viewport()
         };
         assert_eq!(
-            window_geometry(&minimized, 1.0, Some(LAST_NORMAL)),
+            window_geometry(&minimized, SIZE, 1.0, Some(LAST_NORMAL)),
             Some(LAST_NORMAL)
         );
-        assert_eq!(window_geometry(&ViewportInfo::default(), 1.0, None), None);
+        let unknown = ViewportInfo {
+            minimized: Some(true),
+            ..ViewportInfo::default()
+        };
+        assert_eq!(window_geometry(&unknown, SIZE, 1.0, None), None);
     }
 
     /// Full screen used to be forgotten: the window opened at its normal size again.
@@ -1178,13 +1243,13 @@ mod tests {
             maximized: Some(true),
             ..viewport()
         };
-        let remembered = window_geometry(&maximized, 1.0, Some(LAST_NORMAL)).unwrap();
+        let remembered = window_geometry(&maximized, SIZE, 1.0, Some(LAST_NORMAL)).unwrap();
         assert!(remembered.maximized);
         assert_eq!(
             (remembered.x, remembered.width),
             (LAST_NORMAL.x, LAST_NORMAL.width)
         );
-        let first = window_geometry(&maximized, 1.0, None).unwrap();
+        let first = window_geometry(&maximized, SIZE, 1.0, None).unwrap();
         assert!(first.maximized);
         assert_eq!(first.width, 800.0);
     }

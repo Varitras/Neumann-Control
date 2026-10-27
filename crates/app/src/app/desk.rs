@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use eframe::egui::{
-    Align, Context, DragAndDrop, Id, Layout, Rect, ScrollArea, Ui, Vec2, ViewportCommand,
+    Align, Context, DragAndDrop, Id, Layout, ScrollArea, Ui, Vec2, ViewportCommand,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::{GroupSettings, Linkable};
@@ -56,6 +56,8 @@ pub(super) enum DeskAction {
     Layout(LayoutOwner, LayoutChange),
     /// Like `Layout` for the compact buttons.
     CompactLayout(LayoutOwner, CompactChange),
+    /// A member strip asked for its group's dialog.
+    EditGroup(usize),
 }
 
 /// The group being renamed or deleted, and the name typed so far.
@@ -68,8 +70,8 @@ pub(super) struct GroupDraft {
 
 impl NeumannApp {
     /// While a window without a saved size is fitted: as large as the content (desk or compact
-    /// rows) needs, `visible` being what its scroll area shows of it now.
-    pub(super) fn fit_window(&mut self, context: &Context, visible: Rect, content: Vec2) {
+    /// rows) needs, `room` being the whole room its scroll area gets.
+    pub(super) fn fit_window(&mut self, context: &Context, room: Vec2, content: Vec2) {
         let Some(fit) = &mut self.window_fit else {
             return;
         };
@@ -79,9 +81,13 @@ impl NeumannApp {
             (current, viewport.monitor_size)
         });
         let current = current.unwrap_or_else(|| context.content_rect().size());
-        let wanted = wanted_size(current, visible.size(), content);
+        let wanted = wanted_size(current, room, content);
         let pixels_per_point = context.pixels_per_point();
         if let Some(size) = fit.next(current, wanted, screen, pixels_per_point) {
+            log::debug!(
+                "window fit: asking {size:?} at {current:?}, room {room:?}, content {content:?}, \
+                 {pixels_per_point} px/pt"
+            );
             context.send_viewport_cmd(ViewportCommand::InnerSize(size));
         }
     }
@@ -107,6 +113,8 @@ impl NeumannApp {
         let now = ui.input(|input| input.time);
         let system = self.read_system_volume(now);
         let mut actions = Vec::new();
+        // auto_shrink off: the scroll area takes all of it.
+        let room = ui.available_size();
         let scroll = ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
             .auto_shrink([false, false])
@@ -121,6 +129,9 @@ impl NeumannApp {
                                     &ids[index],
                                 );
                                 let color = tint_color(&tint);
+                                let group = group_of(&self.settings.groups, &ids[index]);
+                                let group_name =
+                                    group.map(|group| self.settings.groups[group].name.as_str());
                                 let speaker = &mut self.speakers[index];
                                 let key = speaker.state.key.clone();
                                 let response = ui
@@ -147,6 +158,7 @@ impl NeumannApp {
                                                 layout: &layout,
                                                 editing,
                                                 layout_key: owner.key(desk.layouts_per_speaker),
+                                                group: group_name,
                                             },
                                             color,
                                             member,
@@ -164,6 +176,9 @@ impl NeumannApp {
                                 }
                                 if response.open_panel {
                                     actions.push(DeskAction::OpenPanel(key));
+                                }
+                                if let (true, Some(group)) = (response.edit_group, group) {
+                                    actions.push(DeskAction::EditGroup(group));
                                 }
                             }
                             DeskItem::GroupStrip(group) => {
@@ -206,7 +221,7 @@ impl NeumannApp {
                     }
                 });
             });
-        self.fit_window(ui.ctx(), scroll.inner_rect, scroll.content_size);
+        self.fit_window(ui.ctx(), room, scroll.content_size);
         ui.ctx()
             .data_mut(|data| data.insert_temp(Id::unique(STRIP_CENTERS_ID), centers));
         let dropped = dragged.is_some() && ui.input(|input| input.pointer.any_released());
@@ -257,6 +272,14 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(key) => self.open_panel(key),
+            DeskAction::EditGroup(group) => {
+                let name = self.settings.groups[group].name.clone();
+                self.group_draft = Some(GroupDraft {
+                    index: group,
+                    name,
+                    deleting: false,
+                });
+            }
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(owner, change) => self.change_layout(&owner, &change, catalog),

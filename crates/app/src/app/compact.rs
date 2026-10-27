@@ -1,7 +1,7 @@
 //! The compact mode: one row per ungrouped speaker and per group, the master at the bottom. The
 //! rows' gestures mean the same as on the desk and go the same way to the speakers.
 
-use eframe::egui::{ScrollArea, Ui};
+use eframe::egui::{Context, ScrollArea, Ui};
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{all_muted, layout_owner_of, levels, members_of, DeskAction};
@@ -16,7 +16,6 @@ use crate::texts;
 use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
 use crate::window_fit::WindowFit;
-use crate::window_placement::{first_window_size, place_window, resize_window};
 
 impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
@@ -32,6 +31,8 @@ impl NeumannApp {
         let floor = desk.meter_floor.db();
         let now = ui.input(|input| input.time);
         let mut actions = Vec::new();
+        // auto_shrink off: the scroll area takes all of it.
+        let room = ui.available_size();
         // Both ways: below the rows' width the window scrolls instead of hiding mute.
         let scroll = ScrollArea::both()
             .id_salt(COMPACT_SCROLL_ID)
@@ -97,7 +98,7 @@ impl NeumannApp {
                     actions.push(DeskAction::Master(compact::master(ui, shown)));
                 }
             });
-        self.fit_window(ui.ctx(), scroll.inner_rect, scroll.content_size);
+        self.fit_window(ui.ctx(), room, scroll.content_size);
         for action in actions {
             self.apply_desk_action(action, catalog, &ids, now);
         }
@@ -125,24 +126,25 @@ impl NeumannApp {
     }
 
     /// Desk to compact or back: the window the new mode last had comes back, fitted onto the
-    /// monitors there are now, else the mode's first size, which then grows or shrinks to the
-    /// content.
-    pub(super) fn toggle_compact(&mut self, frame: &eframe::Frame) {
+    /// monitors there are now, else it is fitted to the content.
+    pub(super) fn toggle_compact(&mut self, context: &Context) {
         // Edit mode drags strip elements; compact buttons change by right click instead.
         self.editing = false;
-        let target = self.settings.switch_mode(self.window);
+        let left = self.chosen_window();
+        let target = self.settings.switch_mode(left);
+        log::debug!(
+            "mode switch (compact {}): kept {left:?}, now {target:?}",
+            self.settings.desk.compact
+        );
         self.save_settings();
         // Only a geometry of the new mode may be kept for it; a maximised window reports none
         // and would otherwise leave the old mode's geometry to be saved for the new one.
         self.window = target;
         self.window_fit = target.is_none().then(WindowFit::default);
-        // No real window under test.
-        let Some(window) = frame.winit_window() else {
-            return;
-        };
-        match target {
-            Some(geometry) => place_window(window, geometry),
-            None => resize_window(window, first_window_size(self.settings.desk.compact)),
+        // Without a size of its own the fit sizes the window: a first size sent beside it looked
+        // like the user's and ended the fit.
+        if let Some(geometry) = target {
+            self.restore_window(context, geometry);
         }
     }
 }

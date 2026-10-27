@@ -202,7 +202,7 @@ fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, token
         };
         painter.rect_filled(rect, CornerRadius::same(SEGMENT_RADIUS), color);
     }
-    if let Some(line) = peak_line(track, level, peak) {
+    if let Some(line) = peak_line(track, level, peak, ui.ctx().pixels_per_point()) {
         let color = zone_color(zone(level_at(peak, floor)), tokens);
         // Round ends, so the line reads as a mark and not as a thin segment.
         let round = CornerRadius::same((PEAK_LINE_HEIGHT / 2.0) as u8);
@@ -210,19 +210,29 @@ fn paint_segments(ui: &Ui, track: Rect, level: f32, peak: f32, floor: f64, token
     }
 }
 
-/// The held peak as a thin line at its exact height, kept inside the track; none when the bar
-/// reaches it.
-fn peak_line(track: Rect, level: f32, peak: f32) -> Option<Rect> {
+/// The held peak as a thin line at its height, kept inside the track; none when the bar
+/// reaches it. On the segments' pixel grid: off it, the line stood out beside them and looked
+/// different at each level.
+fn peak_line(track: Rect, level: f32, peak: f32, pixels_per_point: f32) -> Option<Rect> {
     if peak <= level {
         return None;
     }
-    let center = track.bottom() - track.height() * peak;
-    let top = (center - PEAK_LINE_HEIGHT / 2.0).max(track.top());
-    let line = Rect::from_min_max(
-        pos2(track.left(), top),
-        pos2(track.right(), top + PEAK_LINE_HEIGHT),
-    );
-    Some(line)
+    let (left, right) = pixel_columns(track, pixels_per_point);
+    let height = (PEAK_LINE_HEIGHT * pixels_per_point).round().max(1.0);
+    let center = (track.bottom() - track.height() * peak) * pixels_per_point;
+    let top = (center - height / 2.0)
+        .round()
+        .max((track.top() * pixels_per_point).ceil());
+    Some(Rect::from_min_max(
+        pos2(left, top / pixels_per_point),
+        pos2(right, (top + height) / pixels_per_point),
+    ))
+}
+
+/// The track's left and right edges on whole physical pixels, in points.
+fn pixel_columns(track: Rect, pixels_per_point: f32) -> (f32, f32) {
+    let snapped = |points: f32| (points * pixels_per_point).round() / pixels_per_point;
+    (snapped(track.left()), snapped(track.right()))
 }
 
 /// The segments from the bottom up, each the same whole number of physical pixels high with the
@@ -233,8 +243,7 @@ fn segment_rects(track: Rect, pixels_per_point: f32) -> Vec<Rect> {
     let gap = (SEGMENT_GAP * pixels_per_point).round().max(1.0);
     let top = (track.top() * pixels_per_point).ceil();
     let bottom = (track.bottom() * pixels_per_point).floor();
-    let left = to_points((track.left() * pixels_per_point).round());
-    let right = to_points((track.right() * pixels_per_point).round());
+    let (left, right) = pixel_columns(track, pixels_per_point);
     let count = ((bottom - top + gap) / pitch).floor().max(0.0) as usize;
     (0..count)
         .map(|segment| {
@@ -310,14 +319,40 @@ mod tests {
     #[test]
     fn peak_line_sits_at_the_peak_and_vanishes_at_the_bar() {
         let track = Rect::from_min_max(pos2(10.0, 0.0), pos2(24.0, 100.0));
-        let line = peak_line(track, 0.2, 0.5).expect("a peak above the bar");
+        let line = peak_line(track, 0.2, 0.5, 1.0).expect("a peak above the bar");
         assert_eq!(line.center().y, 50.0);
         assert_eq!(line.height(), PEAK_LINE_HEIGHT);
         assert_eq!(line.x_range(), track.x_range());
-        assert_eq!(peak_line(track, 0.5, 0.5), None);
-        assert_eq!(peak_line(track, 0.6, 0.5), None);
-        let top = peak_line(track, 0.2, 1.0).expect("a peak at the top");
+        assert_eq!(peak_line(track, 0.5, 0.5, 1.0), None);
+        assert_eq!(peak_line(track, 0.6, 0.5, 1.0), None);
+        let top = peak_line(track, 0.2, 1.0, 1.0).expect("a peak at the top");
         assert_eq!(top.top(), track.top());
+    }
+
+    #[test]
+    fn the_peak_line_lies_on_the_segments_pixel_grid() {
+        // A meter centred in a column as wide as "−100" (21.1 points) starts on a fraction of a
+        // pixel. At 1 px/pt the segments were rounded onto whole pixels and the line was not: it
+        // stood half a pixel out to the right, blurred, and changed its look with the level.
+        let track = Rect::from_min_max(pos2(77.55, 20.3), pos2(91.55, 200.3));
+        for pixels_per_point in [1.0, 1.25, 2.5] {
+            let segment = segment_rects(track, pixels_per_point)[0];
+            for peak in [0.31, 0.5, 0.774] {
+                let line = peak_line(track, 0.1, peak, pixels_per_point).expect("a peak");
+                assert_eq!(
+                    line.x_range(),
+                    segment.x_range(),
+                    "{pixels_per_point} {peak}"
+                );
+                for edge in [line.top(), line.bottom()] {
+                    let pixels = edge * pixels_per_point;
+                    assert!(
+                        (pixels - pixels.round()).abs() < 1e-3,
+                        "{line:?} at {pixels_per_point}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

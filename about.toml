@@ -1,4 +1,5 @@
-targets = ["x86_64-pc-windows-msvc"]
+# Both shipped systems for the licence gate; build-release.ps1 names the one it builds for.
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 ignore-dev-dependencies = true
 ignore-build-dependencies = false
 
@@ -6,10 +7,12 @@ ignore-build-dependencies = false
 # found by running `cargo about generate` once with a permissive list and
 # tightening. OFL-1.1 and Ubuntu-font-1.0 come with egui's default fonts
 # (epaint_default_fonts), which stay as the emoji and symbol fallback.
+# BSD-2-Clause comes with arrayref, which winit's Wayland window frame needs on Linux.
 # GPL/LGPL/AGPL are deliberately not accepted; if one appears, the gate fails.
 accepted = [
     "MIT",
     "Apache-2.0",
+    "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
     "Zlib",

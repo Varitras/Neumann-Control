@@ -100,6 +100,21 @@ fn a_global_shortcut_reaches_the_desk_once_switched_on() {
     assert!(!keys.is_listening());
 }
 
+/// Linux has no shortcuts from other programs: the settings do not offer them.
+#[test]
+fn the_settings_offer_no_global_shortcuts_where_the_system_has_none() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let mut keys = FakeGlobalKeys::default();
+    keys.missing = true;
+    harness.state_mut().set_global_keys(Box::new(keys));
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::DETAILED_LOG.get());
+    assert!(harness
+        .query_by_label(texts::GLOBAL_SHORTCUTS.get())
+        .is_none());
+}
+
 /// A speaker cut off when dim goes off gets its level back once it is reached again, instead of
 /// staying 20 dB down.
 #[test]

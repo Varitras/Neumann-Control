@@ -211,6 +211,7 @@ pub const COLOR_OWN: Text = Text::new("Eigene", "Own");
 pub const DELETE_GROUP: Text = Text::new("Gruppe löschen", "Delete group");
 /// In the group strip's context menu; the dialog asks before it deletes.
 pub const DELETE_GROUP_MENU: Text = Text::new("Gruppe löschen…", "Delete group…");
+pub const SHOW_GROUP_STRIP: Text = Text::new("Gruppenzug zeigen", "Show group strip");
 pub const NEW_GROUP_NAME: Text = Text::new("Gruppe", "Group");
 pub const GROUP: Text = Text::new("Gruppe", "Group");
 pub const NO_GROUP: Text = Text::new("keine", "none");
@@ -320,8 +321,11 @@ pub const COMPACT: Text = Text::new("Kompakt", "Compact");
 pub const COMPACT_HINT: Text = Text::new("Strg+K", "Ctrl+K");
 pub const SETTINGS_TITLE: Text = Text::new("Einstellungen", "Settings");
 pub const THEME: Text = Text::new("Darstellung", "Appearance");
-/// Theme and language that follow Windows.
-pub const LIKE_WINDOWS: Text = Text::new("wie Windows", "like Windows");
+/// Theme and language that follow the system.
+#[cfg(windows)]
+pub const LIKE_SYSTEM: Text = Text::new("wie Windows", "like Windows");
+#[cfg(target_os = "linux")]
+pub const LIKE_SYSTEM: Text = Text::new("wie das System", "like the system");
 pub const THEME_LIGHT: Text = Text::new("Hell", "Light");
 pub const THEME_DARK: Text = Text::new("Dunkel", "Dark");
 pub const LANGUAGE_LABEL: Text = Text::new("Sprache", "Language");
@@ -497,6 +501,14 @@ pub fn row_region(name: &str) -> String {
 /// Hover text of a speaker that checking would move out of `group`.
 pub fn in_other_group(group: &str) -> String {
     pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))
+}
+
+/// A member strip's context menu: its group's dialog, also while the group has no strip.
+pub fn edit_group(group: &str) -> String {
+    pick(
+        format!("Gruppe „{group}“ bearbeiten…"),
+        format!("Edit group \"{group}\"…"),
+    )
 }
 
 /// Asked before a preset or a group is deleted.

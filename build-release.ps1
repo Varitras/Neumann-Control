@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\. Each
+    Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\ (on Linux
+    <OutputRoot>/neumann-control-<version>-linux-x86_64/). Each
     build raises the patch of the workspace version (0.1.0 -> 0.1.1) once the gate has passed
     and commits that alone; -KeepVersion builds the version as it is (a rebuild). OutputRoot
     defaults to release\ in the repository. A release folder that already holds files is refused
@@ -16,8 +17,14 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
+# $IsWindows does not exist in Windows PowerShell 5.1; this works in both.
+$onWindows = $env:OS -eq 'Windows_NT'
+$executable = if ($onWindows) { 'neumann-control.exe' } else { 'neumann-control' }
+$folderSuffix = if ($onWindows) { '' } else { '-linux-x86_64' }
+# The shipped licence list names this system's libraries only (about.toml checks both).
+$licenceTarget = if ($onWindows) { 'x86_64-pc-windows-msvc' } else { 'x86_64-unknown-linux-gnu' }
 # The one list of what a release folder holds; anything else in it fails the build.
-$releaseFiles = @('neumann-control.exe', 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
+$releaseFiles = @($executable, 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
 # Only the version line of [workspace.package]: a plain match would also hit a dependency
 # pinned with `version = "..."`.
 $workspaceVersionLine = [regex]'(\[workspace\.package\][^\[]*?\nversion = ")([^"]+)(")'
@@ -93,7 +100,7 @@ if (-not (Test-Path -LiteralPath $root -PathType Container)) {
     Write-Host "FAILED: output root $root does not exist" -ForegroundColor Red
     exit 1
 }
-$releaseDirectory = Join-Path (Resolve-Path -LiteralPath $root).Path "neumann-control-$version"
+$releaseDirectory = Join-Path (Resolve-Path -LiteralPath $root).Path "neumann-control-$version$folderSuffix"
 $holdsEarlierBuild = (Test-Path -LiteralPath $releaseDirectory) -and @(Get-ChildItem -LiteralPath $releaseDirectory -Force).Count -gt 0
 if ($holdsEarlierBuild -and -not $Force) {
     Write-Host "FAILED: $releaseDirectory already holds files; pass -Force to overwrite them" -ForegroundColor Red
@@ -117,7 +124,7 @@ if (-not $KeepVersion) {
 Invoke-Step 'Build release binary' { cargo build --release --locked -p neumann-control-app }
 
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
-Copy-Item 'target\release\neumann-control.exe' $releaseDirectory
+Copy-Item (Join-Path (Join-Path 'target' 'release') $executable) $releaseDirectory
 Copy-Item 'LICENSE' $releaseDirectory
 
 # The app opens this file from its own folder (help.rs names it the same).
@@ -129,7 +136,7 @@ Invoke-Step 'Generate the manual' {
 $licensesPath = Join-Path $releaseDirectory 'THIRD-PARTY-LICENSES.html'
 Invoke-Step 'Generate third-party licenses' {
     # The app's graph only: the manual generator is not part of what ships.
-    cargo about generate -m crates\app\Cargo.toml --locked --fail -c about.toml about.hbs -o $licensesPath
+    cargo about generate -m crates/app/Cargo.toml --target $licenceTarget --locked --fail -c about.toml about.hbs -o $licensesPath
 }
 
 $sumsPath = Join-Path $releaseDirectory 'SHA256SUMS'

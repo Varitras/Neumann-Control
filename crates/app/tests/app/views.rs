@@ -685,9 +685,59 @@ fn a_first_window_fits_the_desk() {
     assert!(window.contains_rect(details), "{details:?} in {window:?}");
 }
 
+/// On Linux the first window of two KH 120 II and two KH 750 swung between two sizes for good
+/// (720×658 and 726×655): the fit measured what the scroll area showed, which loses the room of
+/// a scroll bar while one shows or fades in, so each size asked for the other.
+#[test]
+fn a_first_window_comes_to_rest_with_four_speakers() {
+    let models = [
+        SimModel::Kh120Ii,
+        SimModel::Kh120Ii,
+        SimModel::Kh750,
+        SimModel::Kh750,
+    ];
+    let simulators: Vec<Simulator> = models
+        .iter()
+        .enumerate()
+        .map(|(index, model)| {
+            let simulator = Simulator::start(*model);
+            simulator.set_reply_delay(REPLY_DELAY);
+            simulator.set_value(paths::SERIAL, Value::from(format!("SIM000000{index}")));
+            simulator
+        })
+        .collect();
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    let first_start = settings::Settings {
+        manual: simulators.iter().map(manual_for).collect(),
+        ..Default::default()
+    };
+    settings::save(&first_start, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_until(&mut harness, "four strips", |harness| {
+        harness.query_all_by_label(texts::DETAILS.get()).count() == models.len()
+    });
+    harness.run_steps(60);
+    let mut sizes = Vec::new();
+    for _ in 0..20 {
+        harness.step();
+        sizes.push(harness.ctx.content_rect().size());
+    }
+    sizes.dedup();
+    assert_eq!(sizes.len(), 1, "the window still moves: {sizes:?}");
+}
+
 fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_label(texts::SETTINGS.get()).click();
     wait_for_label(harness, texts::THEME.get());
+}
+
+/// The window's X closes the settings already: a second, own Close button was one too many.
+#[test]
+fn the_settings_window_has_no_close_button_of_its_own() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_settings(&mut harness);
+    assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
 }
 
 /// A window of their own, the settings close on Escape as the other windows do.
@@ -717,7 +767,7 @@ fn settings_dialog_switches_theme_and_saves_on_change() {
         saved.desk.theme,
         neumann_control_core::settings::ThemeChoice::Light
     );
-    scroll_to_and_click(&mut harness, texts::CLOSE.get());
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
 }
@@ -751,7 +801,7 @@ fn the_delay_unit_switches_to_meters_and_is_saved() {
     open_settings(&mut harness);
     scroll_to_and_click(&mut harness, texts::DELAY_IN_METERS.get());
     harness.run_steps(2);
-    scroll_to_and_click(&mut harness, texts::CLOSE.get());
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::THEME.get()).is_none());
     harness.get_by_label("3,430 m");
@@ -792,7 +842,7 @@ fn the_master_can_be_hidden() {
     open_settings(&mut harness);
     scroll_to_and_click(&mut harness, texts::SHOW_MASTER.get());
     harness.run_steps(2);
-    scroll_to_and_click(&mut harness, texts::CLOSE.get());
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     assert!(harness.query_by_label(master).is_none());
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
@@ -814,7 +864,7 @@ fn english_applies_at_once_and_is_saved() {
     harness.get_by_label("Appearance");
     harness.get_by_label("Scan");
     harness.get_by_label("Mute");
-    harness.get_by_label("Close").click();
+    harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
     let path = directory
         .path()

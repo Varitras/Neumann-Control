@@ -4,10 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportId};
+use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportCommand, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
-use super::{window_geometry, NeumannApp};
+use super::{is_open, window_geometry, NeumannApp};
 use crate::views::{Opening, WindowPlace};
 use crate::window_fit::SCREEN_MARGIN;
 use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
@@ -99,6 +99,18 @@ fn least_size(pixels_per_point: f32) -> (f32, f32) {
     )
 }
 
+/// A window of `size` where the main window's place is unknown (Wayland tells no program where
+/// its windows are): the system places it, but no larger than `monitor` (the main window's, in
+/// points) less `SCREEN_MARGIN`. eframe keeps only the main window on its monitor.
+fn unplaced(size: Vec2, monitor: Option<Vec2>) -> Option<WindowPlace> {
+    let monitor = monitor?;
+    Some(WindowPlace {
+        position: None,
+        size: size.min(monitor - Vec2::splat(SCREEN_MARGIN)),
+        maximized: false,
+    })
+}
+
 /// A saved geometry (screen pixels) as egui places a window (points).
 pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> WindowPlace {
     let points = |pixels: f32| pixels / pixels_per_point;
@@ -121,13 +133,15 @@ impl NeumannApp {
         index: usize,
         default_size: Vec2,
     ) -> Opening {
-        let open = context.input_for(viewport, |input| input.viewport().outer_rect.is_some());
+        let open = context.input_for(viewport, |input| is_open(input.viewport()));
         if open {
             return Opening::Open;
         }
+        let monitor = context.input_for(ViewportId::ROOT, |input| input.viewport().monitor_size);
         let place = self
             .saved_place(context, kind)
-            .or_else(|| self.centred_place(context, default_size));
+            .or_else(|| self.centred_place(context, default_size))
+            .or_else(|| unplaced(default_size, monitor));
         let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
         log::debug!(
             "{} window {index} opens {opening:?} on monitors {:?}",
@@ -154,6 +168,22 @@ impl NeumannApp {
         Some(place_of(placed, pixels_per_point))
     }
 
+    /// The main window to `geometry`, through egui as every size the fit asks for: set on the
+    /// winit window directly, beside egui's commands, it came late or not at all under Wayland.
+    pub(super) fn restore_window(&self, context: &Context, geometry: WindowGeometry) {
+        let place = self.on_a_monitor(context, geometry);
+        if let Some(position) = place.position {
+            context.send_viewport_cmd(ViewportCommand::OuterPosition(position));
+        }
+        context.send_viewport_cmd(ViewportCommand::InnerSize(place.size));
+        // Only a change: under Wayland "not maximized" to a window that is not maximized brought
+        // the compositor's old size back over the one just asked for.
+        let maximized = context.input(|input| input.viewport().maximized == Some(true));
+        if place.maximized != maximized {
+            context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
+        }
+    }
+
     /// `geometry` (screen pixels) moved and shrunk onto a monitor there is, as egui places it.
     fn on_a_monitor(&self, context: &Context, geometry: WindowGeometry) -> WindowPlace {
         let pixels_per_point = context.pixels_per_point();
@@ -172,7 +202,8 @@ impl NeumannApp {
         let last = self.settings.windows.get(kind.key()).copied();
         // The window's own scale: on another monitor it may differ from the main window's.
         let geometry = context.input_for(viewport, |input| {
-            window_geometry(input.viewport(), input.pixels_per_point, last)
+            let size = input.viewport_rect().size();
+            window_geometry(input.viewport(), size, input.pixels_per_point, last)
         });
         if let Some(geometry) = geometry {
             keep_place(&mut self.settings.windows, kind, geometry);
@@ -183,6 +214,7 @@ impl NeumannApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eframe::egui::ViewportInfo;
 
     /// A tall window centred over a main window low on the screen ends above the taskbar (the
     /// panel's foot once reached below the screen).
@@ -261,6 +293,29 @@ mod tests {
         assert_eq!(windows.get("panel"), Some(&moved));
         assert!(!windows.contains_key("panel serial:SIM0001234"));
         assert!(windows.contains_key("eq serial:SIM0001234"));
+    }
+
+    /// Wayland tells no program where its windows are, so a window had no place to open at
+    /// and came at its full default size: the EQ window (900×700) hung below a small screen.
+    #[test]
+    fn a_window_without_the_main_windows_place_still_fits_its_monitor() {
+        let place = unplaced(vec2(900.0, 700.0), Some(vec2(1280.0, 720.0))).expect("a size");
+        assert_eq!(place.position, None);
+        assert_eq!(place.size, vec2(900.0, 720.0 - SCREEN_MARGIN));
+        assert!(!place.maximized);
+        assert_eq!(unplaced(vec2(900.0, 700.0), None), None);
+    }
+
+    /// Without a position (Wayland) a window counted as never open: it was given its first
+    /// size again with every frame, and the user's resize was set back at once.
+    #[test]
+    fn a_window_is_open_once_it_exists_also_without_a_position() {
+        let wayland = ViewportInfo {
+            native_pixels_per_point: Some(1.25),
+            ..ViewportInfo::default()
+        };
+        assert!(is_open(&wayland));
+        assert!(!is_open(&ViewportInfo::default()));
     }
 
     #[test]

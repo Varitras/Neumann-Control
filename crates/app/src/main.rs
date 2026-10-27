@@ -7,8 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use eframe::egui::ViewportBuilder;
-use eframe::egui_wgpu::{SurfaceConfig, WgpuConfiguration, WgpuSetup};
-use eframe::wgpu;
+use eframe::egui_wgpu::WgpuConfiguration;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::single_instance::{self, Claim};
 use neumann_control_app::spawner::CoreSpawner;
@@ -28,7 +27,11 @@ const LOG_TARGET_PREFIX: &str = "neumann_control";
 /// eframe's default (vsync via Fifo, two queued frames) waits on the remote display's vblank under
 /// Remote Desktop, which ticks at 10-30 Hz there; Mailbox never tears and does not wait. DX12 is
 /// pinned because it always offers Mailbox (wgpu-hal), and egui-wgpu does not check the mode.
+#[cfg(windows)]
 fn wgpu_options() -> WgpuConfiguration {
+    use eframe::egui_wgpu::{SurfaceConfig, WgpuSetup};
+    use eframe::wgpu;
+
     let mut options = WgpuConfiguration {
         surface: SurfaceConfig {
             present_mode: wgpu::PresentMode::Mailbox,
@@ -40,6 +43,13 @@ fn wgpu_options() -> WgpuConfiguration {
         setup.instance_descriptor.backends = wgpu::Backends::DX12;
     }
     options
+}
+
+/// Linux drivers need not offer Mailbox, and egui-wgpu would ask for it unchecked: wgpu's own
+/// choice of backend (Vulkan, else GL) with vsync.
+#[cfg(target_os = "linux")]
+fn wgpu_options() -> WgpuConfiguration {
+    WgpuConfiguration::default()
 }
 
 fn window_icon() -> Result<eframe::egui::IconData, Box<dyn Error>> {

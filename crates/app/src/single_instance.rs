@@ -68,6 +68,12 @@ pub fn show_running(title: &str) -> bool {
     }
 }
 
+/// Wayland lets no program bring another's window forward; the second start just ends.
+#[cfg(target_os = "linux")]
+pub fn show_running(_title: &str) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

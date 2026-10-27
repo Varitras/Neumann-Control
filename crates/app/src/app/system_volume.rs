@@ -27,11 +27,10 @@ pub(super) struct SystemView {
 impl NeumannApp {
     /// `None` while the strip is switched off.
     pub(super) fn read_system_volume(&mut self, now: f64) -> Option<SystemView> {
-        let settings = &self.settings.system_audio;
-        if !settings.shown {
+        if !self.system_strip_on() {
             return None;
         }
-        let device = settings.device.clone();
+        let device = self.settings.system_audio.device.clone();
         let Some(state) = self.system_audio.state(device.as_deref()) else {
             self.system_meters.clear();
             return Some(SystemView {
@@ -66,8 +65,13 @@ impl NeumannApp {
         }
     }
 
+    /// Chosen in the settings, on a system that has it.
+    fn system_strip_on(&self) -> bool {
+        self.settings.system_audio.shown && self.system_audio.offered()
+    }
+
     pub(super) fn keep_system_meters_moving(&self, context: &eframe::egui::Context, now: f64) {
-        if self.settings.system_audio.shown {
+        if self.system_strip_on() {
             let floor = self.settings.desk.meter_floor.db();
             context.request_repaint_after(system_refresh(&self.system_meters, floor, now));
         }

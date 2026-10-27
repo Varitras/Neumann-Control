@@ -2,7 +2,7 @@
 //! **Details**, from **Delete group…** in its context menu, and right after **+ Group**.
 
 use eframe::egui::{Color32, Id, Modal, TextEdit, Ui};
-use neumann_control_core::settings::ColorChoice;
+use neumann_control_core::settings::{ColorChoice, GroupStrip};
 
 use super::color_choice;
 use crate::texts;
@@ -34,6 +34,7 @@ pub struct GroupDraftView<'a> {
     pub color: &'a mut ColorChoice,
     pub palette: Color32,
     pub members: &'a mut [MemberChoice],
+    pub strip: &'a mut GroupStrip,
     /// The delete is being confirmed. A group goes with its members' places and links.
     pub deleting: bool,
 }
@@ -52,12 +53,14 @@ fn contents(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
         color,
         palette,
         members,
+        strip,
         deleting,
     } = draft;
     ui.heading(texts::GROUP_DIALOG_TITLE);
     let label = ui.label(texts::GROUP_NAME);
     ui.add(TextEdit::singleline(name)).labelled_by(label.id);
     color_choice::edit(ui, texts::COLOR_DEFAULT.get(), color, palette);
+    strip_check(ui, strip);
     member_checks(ui, members);
     if deleting {
         ui.label(texts::delete_question(name.trim()));
@@ -83,6 +86,18 @@ fn contents(ui: &mut Ui, draft: GroupDraftView) -> GroupDialogAction {
         GroupDialogAction::None
     })
     .inner
+}
+
+fn strip_check(ui: &mut Ui, strip: &mut GroupStrip) {
+    let mut shown = *strip == GroupStrip::Shown;
+    if !ui.checkbox(&mut shown, texts::SHOW_GROUP_STRIP).changed() {
+        return;
+    }
+    *strip = if shown {
+        GroupStrip::Shown
+    } else {
+        GroupStrip::Hidden
+    };
 }
 
 fn member_checks(ui: &mut Ui, members: &mut [MemberChoice]) {

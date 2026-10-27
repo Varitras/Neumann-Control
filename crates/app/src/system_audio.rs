@@ -24,6 +24,10 @@ pub struct AudioState {
 }
 
 pub trait SystemAudio {
+    /// Whether the system has the strip at all; without, it neither shows nor is offered.
+    fn offered(&self) -> bool {
+        true
+    }
     fn devices(&mut self) -> Vec<AudioDevice>;
     /// `device` `None` is Windows' default playback device; `None` back when it is gone.
     fn state(&mut self, device: Option<&str>) -> Option<AudioState>;
@@ -276,13 +280,23 @@ mod core_audio {
     }
 }
 
-/// Where Core Audio does not exist: no devices.
-#[cfg(not(windows))]
+/// Linux has no Core Audio; PipeWire and PulseAudio are not built in.
+#[cfg(target_os = "linux")]
 #[derive(Default)]
 pub struct CoreAudio;
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+impl CoreAudio {
+    pub fn new() -> CoreAudio {
+        CoreAudio
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl SystemAudio for CoreAudio {
+    fn offered(&self) -> bool {
+        false
+    }
     fn devices(&mut self) -> Vec<AudioDevice> {
         Vec::new()
     }

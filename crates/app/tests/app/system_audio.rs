@@ -75,6 +75,24 @@ fn the_strip_is_off_until_chosen() {
     assert!(audio.0.lock().unwrap().asked.is_empty());
 }
 
+/// Linux has no volume strip: switched on in a settings file from Windows it stays away, and
+/// the settings do not offer it.
+#[test]
+fn a_system_without_the_strip_neither_shows_nor_offers_it() {
+    let audio = fake(Some(playing()));
+    audio.0.lock().unwrap().missing = true;
+    let (_simulator, _directory, mut harness) = desk_with(true, audio.clone());
+    harness.run_steps(2);
+    assert!(harness.query_by_label(DEVICE_NAME).is_none());
+    assert!(audio.0.lock().unwrap().asked.is_empty());
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::DETAILED_LOG.get());
+    assert!(harness
+        .query_by_label(texts::SYSTEM_AUDIO_SHOW.get())
+        .is_none());
+}
+
 #[test]
 fn the_strip_shows_the_default_device() {
     let audio = fake(Some(playing()));

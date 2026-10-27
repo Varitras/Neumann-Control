@@ -2,7 +2,8 @@
 
 ![Neumann Control](crates/app/assets/brand/logo.png)
 
-A portable Windows app to find, read and control Neumann KH DSP speakers over the network, using
+A portable app for Windows and Linux to find, read and control Neumann KH DSP speakers over the
+network, using
 the Sennheiser Sound Control protocol (SSC). It shows your speakers side by side like channel
 strips on a desk, with level faders, meters, groups and a master.
 
@@ -45,13 +46,14 @@ strips on a desk, with level faders, meters, groups and a master.
 - **History and undo**: the writes of the session, each one revertible, Ctrl+Z for the newest.
 - **Keyboard shortcuts** for the master, mute all and dim, also from other programs if you like.
 - **Presets** of chosen settings and of EQs, and a comparison of EQ curves between speakers.
-- **Windows volume** of a playback device as a strip on the desk.
+- **Windows volume** of a playback device as a strip on the desk (Windows only).
 - **Compact mode** (Ctrl+K): one row per speaker or group in a small window.
 - **German and English** interface, light and dark theme.
 - **Portable**: one executable, settings and log next to it, no installer.
 
-The interface follows the Windows display language: German on a German Windows, English on any
-other. **Settings** → **Language** (in German: **Einstellungen** → **Sprache**) can fix one of
+The interface follows the system's display language: German on a German Windows, English on any
+other (on Linux: German when the locale is German, from `LANGUAGE`, `LC_ALL`, `LC_MESSAGES` or
+`LANG`, whichever is set first). **Settings** → **Language** (in German: **Einstellungen** → **Sprache**) can fix one of
 them. This README uses the English names.
 
 ## Status
@@ -60,11 +62,16 @@ Alpha, below version 1.0 (**?** > **About Neumann Control** shows which one). Th
 layer, the polling and the interface are covered by automated tests against a built-in speaker
 simulator for the KH 120 II and the KH 750. On real KH 120 II and KH 750 speakers the app was
 checked for scanning, reading, metering and writing level, mute, identify and standby time, and
-for groups, the compact mode and the English interface.
+for groups, the compact mode and the English interface. The Linux version was checked for scanning
+and reading real speakers and for the update check; its window not yet on a Linux desktop.
 
 ## Requirements
 
-- Windows 10 or 11 with a DirectX 12 capable graphics adapter.
+- Windows 10 or 11 with a DirectX 12 capable graphics adapter, or
+- Linux on x86_64 with a Wayland or X11 desktop and Vulkan or OpenGL graphics drivers. Under X11
+  the library `libxkbcommon-x11` must be installed. The file dialog of the EQ import and export
+  needs the desktop's XDG portal (or `zenity`), **Check for updates** needs `curl`, and the manual
+  and links open with `xdg-open`.
 - The computer and the speakers on the same layer 2 network segment (same switch or VLAN). The
   speakers are reached over IPv6 link-local addresses, which are not routed.
 - IPv6 enabled on the network adapter in use.
@@ -73,22 +80,28 @@ for groups, the compact mode and the English interface.
 
 ## Installation
 
-The app needs no installer. A release folder holds:
+The app needs no installer. A release is a ZIP for Windows and a `.tar.gz` for Linux; each holds
+one folder with:
 
 | File | Content |
 |------|---------|
-| `neumann-control.exe` | The app |
+| `neumann-control.exe` (Windows), `neumann-control` (Linux) | The app |
 | `neumann-control-manual.html` | This README as one HTML page, opened by **?** → **Manual** in the app |
 | `LICENSE` | The app's licence (MIT) |
 | `THIRD-PARTY-LICENSES.html` | The licences of the libraries and fonts built into it |
 | `SHA256SUMS` | Checksums of the files above |
 
 Put the folder anywhere you can write to, for example in your documents, and start
-`neumann-control.exe`. The app keeps its settings and log in that folder (see
+`neumann-control.exe`. On Linux, unpack it with `tar -xzf neumann-control-<version>-linux-x86_64.tar.gz`
+and start `./neumann-control` in the folder. The app keeps its settings and log in that folder (see
 [Files and privacy](#files-and-privacy)). To update, replace the five files above with those of
 the new release; settings and log stay. To remove the app, delete the folder.
 
-One app runs per folder: starting it again while it runs brings its window to the front.
+`SHA256SUMS` on the release page lists the checksums of both downloads; on Linux
+`sha256sum -c --ignore-missing SHA256SUMS` checks the one next to it.
+
+One app runs per folder: starting it again while it runs brings its window to the front (on
+Linux the second start just ends, as Wayland lets no program bring another's window forward).
 
 ## Getting started
 
@@ -105,7 +118,8 @@ One app runs per folder: starting it again while it runs brings its window to th
    Get-NetAdapter | Select-Object Name, ifIndex
    ```
 
-   or with `netsh interface ipv6 show interfaces` (column `Idx`).
+   or with `netsh interface ipv6 show interfaces` (column `Idx`). On Linux, `ip link` shows the
+   index before each adapter's name.
 
 Added speakers are remembered and reconnected at every start. When a scan finds a remembered
 speaker at a different address (link-local addresses and interface indexes can change), the
@@ -250,6 +264,10 @@ and its own layouts are forgotten.
   value to the other members.
 - Click the group's name or **Details** at the foot of the group strip to rename or delete it,
   or right-click the group strip for **Delete group…**; deleting asks first.
+- **Show group strip** in the group's dialog (on by default) takes the group strip off the
+  desk; the members stay grouped and linked, and in the compact mode each gets its own row
+  instead of the group's. Right-click a member's name for **Edit group "…"…**, which opens the
+  same dialog, also while the group strip is off.
 - **Strip colour** in the group's dialog keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
@@ -363,11 +381,12 @@ In the main window:
 | Ctrl+K | Compact mode on and off |
 | Ctrl+Z | Take back the newest write |
 
-While a text or number field is being edited, it keeps its keys. With **Shortcuts from other
-programs too** in **Settings** (off by default), Ctrl+Shift+Alt with the same keys (↑, ↓, M, D)
+While a text or number field is being edited, it keeps its keys. On Windows, with **Shortcuts
+from other programs too** in **Settings** (off by default), Ctrl+Shift+Alt with the same keys (↑, ↓, M, D)
 works while another program is in front; a key another program already holds is left out (the
 log says which). Shift is part of it because Windows takes AltGr for Ctrl+Alt: AltGr+M (µ) would
-otherwise mute every speaker.
+otherwise mute every speaker. Linux has no shortcuts from other programs: Wayland gives no program
+the keys pressed in another one.
 
 For screen readers each strip and each compact row is a group named after its speaker or group
 ("Strip: KH750 Links"), so its controls are told from the same ones on the other strips; the
@@ -388,11 +407,11 @@ recorded.
 
 ### Settings
 
-**Settings** opens a window of its own (Escape, **Close** or the window's close button close
+**Settings** opens a window of its own (Escape or the window's close button close
 it). It sets:
 
-- the theme: like Windows, light or dark,
-- the language: like Windows, German or English. It changes at once. German shows a decimal
+- the theme: like Windows (on Linux: like the system), light or dark,
+- the language: like Windows (on Linux: like the system), German or English. It changes at once. German shows a decimal
   comma; typed values take a comma or a point.
 - the lowest level the meters show: −120 to −30 dB in 10 dB steps,
 - whether delays are shown and typed in milliseconds or in meters, as the distance sound travels
@@ -401,8 +420,8 @@ it). It sets:
 - whether the master strip (and its row in the compact mode) is shown (off by default),
 - whether every speaker of a model has the same strip and compact layout (on by default; see
   [The desk](#the-desk)),
-- whether the keyboard shortcuts work from other programs too, with Ctrl+Shift+Alt (off by default; see
-  [Keyboard shortcuts](#keyboard-shortcuts)),
+- on Windows, whether the keyboard shortcuts work from other programs too, with Ctrl+Shift+Alt
+  (off by default; see [Keyboard shortcuts](#keyboard-shortcuts)),
 - whether the log is detailed (**Detailed log**, off by default): `neumann-control.log` then also
   holds every write with its path and value (texts such as names left out), every failed request,
   where windows open and every ten seconds how many frames the window drew, how long they took,
@@ -410,7 +429,7 @@ it). It sets:
 - whether the EQ crossovers are protected (off by default),
 - the EQ display: own curves of all bands, or only of the chosen band and the one under the
   pointer; the colour of each band number and of each EQ curve (**Default colours** resets them),
-- whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
+- on Windows, whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
   default device or a chosen one): a fader in percent, mute and a peak meter per channel, named
   after its speaker position (L, R, C, LFE, BL, BR, SL, SR …) as the device's format gives it. It
   sets Windows' own volume, like the volume slider in the taskbar.
@@ -506,24 +525,27 @@ start.
   [open an issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml)
   with its **Full scan** (see [Supported models](#supported-models)).
 - Only IPv6 link-local addressing is supported; IPv4 is not.
-- Windows only.
+- On Linux there is no strip with the system volume and no shortcuts from other programs, and
+  only x86_64 is built. Under Wayland the app learns no window positions: it keeps the windows'
+  sizes, and the desktop decides where they open. macOS is not supported.
 
 ## Building from source
 
-Needs Rust 1.95 or newer and the Windows SDK (its resource compiler embeds the app icon).
+Needs Rust 1.95 or newer, on Windows also the Windows SDK (its resource compiler embeds the app
+icon).
 
 ```powershell
 cargo build --release --locked -p neumann-control-app
 ```
 
-The executable is `target\release\neumann-control.exe`.
+The executable is `target\release\neumann-control.exe` (on Linux `target/release/neumann-control`).
 
 `check.ps1` runs the quality gates: guards against format widths taken at run time and stray
 carriage returns, format, licence check, `cargo audit`, clippy and the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
 raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
-version as it is), and writes `release\neumann-control-<version>\` (or `-OutputRoot <folder>`)
-with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The
+version as it is), and writes `release\neumann-control-<version>\` (on Linux
+`release/neumann-control-<version>-linux-x86_64/`; or `-OutputRoot <folder>`) with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. The
 manual is this README as one HTML file with its pictures embedded, made by `crates/manual`:
 
 ```powershell
@@ -531,10 +553,12 @@ cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
 ```
 
 A release is a tag `v<version>` on `main` whose version matches `Cargo.toml` and has its own
-section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml`: on a clean
-Windows runner it runs `build-release.ps1 -KeepVersion` and drafts a GitHub release with the
-folder as a ZIP, `SHA256SUMS` and that CHANGELOG section as its text, marked as a prerelease
-below 1.0 or with a version suffix (`-alpha.1`); the draft is published by hand.
+section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml`: on clean
+Windows and Linux runners it runs `build-release.ps1 -KeepVersion` (the scripts run in PowerShell 7
+on Linux too) and drafts a GitHub release with the Windows folder as a ZIP, the Linux folder as a
+`.tar.gz`, a `SHA256SUMS` of both and that CHANGELOG section as its text, marked as a prerelease
+below 1.0 or with a version suffix (`-alpha.1`); the draft is published by hand. CI runs
+`check.ps1` on Windows and on Linux.
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
 `.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into

@@ -247,9 +247,6 @@ pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
             {
                 action = LoadAction::Delete;
             }
-            if ui.button(texts::CLOSE).clicked() {
-                action = LoadAction::Close;
-            }
         });
         action
     }

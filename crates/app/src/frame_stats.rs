@@ -3,7 +3,6 @@
 //! with what asked for the frames most often.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path};
 
 use eframe::egui::RepaintCause;
 
@@ -16,6 +15,7 @@ const PERCENT: f64 = 100.0;
 pub const NAMED_CAUSES: usize = 3;
 /// A cause's file is named from the folder before its crate's `src` on.
 const SOURCE_FOLDER: &str = "src";
+const PATH_SEPARATORS: [char; 2] = ['/', '\\'];
 
 /// One frame as the app saw it.
 #[derive(Clone, Copy, Debug, Default)]
@@ -111,12 +111,11 @@ fn most_frequent(causes: BTreeMap<String, u32>) -> Vec<(String, u32)> {
 /// A cause as the log names it: its file from the crate folder on (`egui-0.37.0/src/...`), so no
 /// user folder of the build machine reaches the log, and its line.
 pub fn cause_name(cause: &RepaintCause) -> String {
-    let parts: Vec<&str> = Path::new(cause.file)
-        .components()
-        .filter_map(|part| match part {
-            Component::Normal(name) => name.to_str(),
-            _ => None,
-        })
+    // Not `Path`: on Linux it splits at `/` only, and a path can come from either system.
+    let parts: Vec<&str> = cause
+        .file
+        .split(PATH_SEPARATORS)
+        .filter(|part| !part.is_empty())
         .collect();
     let source = parts.iter().rposition(|part| *part == SOURCE_FOLDER);
     let from = source.map_or(parts.len().saturating_sub(1), |at| at.saturating_sub(1));
@@ -199,6 +198,22 @@ mod tests {
         );
         let own = cause(r"crates\app\src\views\meters.rs", 142);
         assert_eq!(cause_name(&own), "app/src/views/meters.rs:142");
+    }
+
+    /// On Linux a `Path` splits at `/` only: a Windows path was named whole, the build
+    /// machine's folders included. Either separator counts on either system.
+    #[test]
+    fn a_cause_from_either_systems_path_starts_at_its_crate() {
+        let linux = cause(
+            "/opt/build/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/egui-0.37.0/src/widgets/spinner.rs",
+            40,
+        );
+        assert_eq!(cause_name(&linux), "egui-0.37.0/src/widgets/spinner.rs:40");
+        let windows = cause(
+            r"C:\Users\someone\.cargo\registry\src\x\egui-0.37.0\src\lib.rs",
+            7,
+        );
+        assert_eq!(cause_name(&windows), "egui-0.37.0/src/lib.rs:7");
     }
 
     #[test]

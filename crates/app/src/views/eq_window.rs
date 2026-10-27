@@ -246,10 +246,6 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
             ui.weak(texts::EQ_NOT_REPORTED);
         }
     }
-    ui.separator();
-    if ui.button(texts::CLOSE).clicked() {
-        actions.push(EqAction::Close);
-    }
     actions
 }
 

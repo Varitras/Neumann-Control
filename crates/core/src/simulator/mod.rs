@@ -6,7 +6,7 @@ mod device;
 use std::collections::{HashMap, VecDeque};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{Ipv6Addr, Shutdown, SocketAddr, SocketAddrV6, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -18,6 +18,14 @@ use crate::ssc::wire::parse_line;
 use device::{encode_line, SimulatedDevice};
 
 const FOREIGN_XID_OFFSET: u64 = 1000;
+/// The simulators' ports: below every system's dynamic range (Linux from 32768, Windows from
+/// 49152). On port 0 the system handed a stopped simulator's port to the next one started (Linux
+/// soon), and a test that expected it unreachable, or restarted it there, met another.
+const SIMULATOR_PORTS: std::ops::Range<u16> = 20_000..32_000;
+/// Each test process starts this far from the others: nextest runs every test in a process of
+/// its own.
+const PORTS_PER_PROCESS: u16 = 100;
+static SIMULATORS_STARTED: AtomicU16 = AtomicU16::new(0);
 const FILLER_BYTE: char = 'a';
 // Windows does not wake a blocked read when another handle of the socket is shut down, so
 // connection threads wake up this often to look for the stop flag.
@@ -210,10 +218,22 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    /// Starts on a free port of the IPv6 loopback address.
+    /// Starts on a port of the IPv6 loopback address that no other simulator of this process
+    /// gets, also once this one is stopped: a test can restart it there with `start_on`.
     pub fn start(model: SimModel) -> Simulator {
-        let any_port = SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0);
-        Simulator::start_on(model, any_port).expect("IPv6 loopback is available")
+        let span = SIMULATOR_PORTS.end - SIMULATOR_PORTS.start;
+        let processes = u32::from(span / PORTS_PER_PROCESS);
+        let process_start = (std::process::id() % processes) as u16 * PORTS_PER_PROCESS;
+        for _ in 0..span {
+            let started = SIMULATORS_STARTED.fetch_add(1, Ordering::Relaxed);
+            let port = SIMULATOR_PORTS.start + process_start.wrapping_add(started) % span;
+            let address = SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0);
+            // Taken by another process, or barred by the system (Windows excludes port ranges).
+            if let Ok(simulator) = Simulator::start_on(model, address) {
+                return simulator;
+            }
+        }
+        panic!("no simulator port is free on the IPv6 loopback address");
     }
 
     /// Starts on `address`, e.g. the one a stopped simulator had, to model a restart.

@@ -3,7 +3,7 @@
 //! switches between desk and compact mode. All geometry values are physical pixels.
 
 use neumann_control_core::settings::WindowGeometry;
-use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::window::Window;
 
 /// The smallest window in points, in both modes.
@@ -43,15 +43,15 @@ pub fn place_window(window: &Window, saved: WindowGeometry) {
     let scale = window.scale_factor() as f32;
     let min_size = (WINDOW_MIN_SIZE[0] * scale, WINDOW_MIN_SIZE[1] * scale);
     let geometry = fit_into(saved, &monitor_areas(window), min_size);
+    log::debug!("placing the window: saved {saved:?}, asked {geometry:?} at scale {scale}");
     window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
     // The size granted arrives as a resize event like any other.
     let _ = window.request_inner_size(PhysicalSize::new(geometry.width, geometry.height));
-    window.set_maximized(geometry.maximized);
-}
-
-/// Gives the window a mode's first size, where it is.
-pub fn resize_window(window: &Window, size: [f32; 2]) {
-    let _ = window.request_inner_size(LogicalSize::new(size[0], size[1]));
+    // A new window is not maximized: under Wayland "not maximized" told anyway brought the
+    // compositor's size back over the one just asked for.
+    if geometry.maximized {
+        window.set_maximized(true);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
