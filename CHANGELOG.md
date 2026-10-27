@@ -6,9 +6,14 @@
 
 - **Linux**: a portable build for x86_64 Linux as a `.tar.gz`, with everything but the strip with
   the system volume and the shortcuts from other programs, which Linux does not offer.
-- **Show group strip** in a group's dialog: a group can do without its strip on the desk; its
-  members then have their own rows in the compact mode. A member's name opens the group's dialog
-  from its context menu.
+- **Show group strip** in a group's settings: a group can do without its strip on the desk; its
+  members then have their own rows in the compact mode. A member's name opens its group from its
+  context menu.
+- **Groups** window, from the toolbar (instead of **+ Group**): every group in a list, adding,
+  deleting and each group's settings, including what it links; the group dialog is gone, and a
+  group strip's name and **Details** open this window.
+- **Group** tab in the device panel: the speaker's group, that group's settings and
+  **Apply to group**; the overview no longer has them.
 
 ### Changed
 
@@ -26,6 +31,8 @@
   past the bottom of the screen; they now open no larger than the screen.
 - A window fitted to its content is no longer left a pixel short of it, with scroll bars, at
   display scales where a pixel is less than a point (125 %).
+- A desk or compact window that fits its content exactly shows no scroll bars; at 125 % the
+  first window of four speakers kept swapping a horizontal and a vertical one.
 - A window that is still fitted to its content no longer keeps that size as if you had chosen
   it: closed (or switched to the compact mode and back) before the speakers were added, it
   stayed at its first size with scroll bars once they were.

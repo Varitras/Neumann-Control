@@ -27,7 +27,7 @@ pub struct GroupStripResponse {
     pub mute: Option<bool>,
     pub toggled_link: Option<Linkable>,
     pub open_settings: bool,
-    /// From the strip's context menu: the group dialog asks before deleting.
+    /// From the strip's context menu: the groups window asks before deleting.
     pub delete: bool,
 }
 

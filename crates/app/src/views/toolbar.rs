@@ -28,7 +28,7 @@ pub enum ToolbarAction {
     None,
     Scan,
     AddAddress,
-    AddGroup,
+    Groups,
     Settings,
     History,
     ToggleCompact,
@@ -164,8 +164,8 @@ fn adding(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     if ui.button(texts::ADD_ADDRESS).clicked() {
         action = ToolbarAction::AddAddress;
     }
-    if ui.button(texts::ADD_GROUP).clicked() {
-        action = ToolbarAction::AddGroup;
+    if ui.button(texts::GROUPS).clicked() {
+        action = ToolbarAction::Groups;
     }
     action
 }

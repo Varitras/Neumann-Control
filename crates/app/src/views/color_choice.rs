@@ -1,4 +1,4 @@
-//! The colour of a strip, chosen in the group dialog and the device panel: its default, none,
+//! The colour of a strip, chosen in a group's settings and the device panel: its default, none,
 //! or one of the user's own.
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};

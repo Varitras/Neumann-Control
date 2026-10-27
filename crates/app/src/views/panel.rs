@@ -13,6 +13,7 @@ use neumann_control_core::speaker::Command;
 use super::color_choice;
 use super::details;
 use super::escape_closes;
+use super::group_settings::{self, GroupEdit};
 use super::trends::{self, TemperatureTrend, Trends};
 use super::wheel;
 use super::{placed, Opening};
@@ -48,6 +49,10 @@ pub struct PanelResponse {
     pub color: Option<ColorChoice>,
     /// The tab the user switched to, kept while this panel is open.
     pub tab: Option<PanelTab>,
+    /// The group's settings changed on the group tab.
+    pub group_changed: bool,
+    /// The groups window is asked for.
+    pub manage_groups: bool,
 }
 
 /// What the panel offers besides the speaker's own state: its group, the model's strip layout
@@ -68,7 +73,8 @@ pub struct GroupChoice<'a> {
     pub start_color: Color32,
 }
 
-/// The panel in its own window (`viewport`), one per speaker, opened as `opening` says.
+/// The panel in its own window (`viewport`), one per speaker, opened as `opening` says;
+/// `group` is the speaker's group as its tab edits it, if it is in one.
 pub fn show(
     context: &Context,
     viewport: ViewportId,
@@ -76,21 +82,27 @@ pub fn show(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     view: &PanelView,
+    group: Option<GroupEdit>,
 ) -> PanelResponse {
     let builder = ViewportBuilder::default()
         .with_title(texts::panel_window_title(&speaker.display_name()))
         .with_min_inner_size(PANEL_WINDOW_MIN_SIZE);
     let builder = placed(builder, opening, Vec2::from(PANEL_WINDOW_SIZE));
+    let mut group = group;
     context.show_viewport_immediate(viewport, builder, |ui, class| {
         super::note_repaint_causes(ui);
         wheel::track_burst(ui.ctx());
         // Several panels can be open; their widgets must not share state.
         let mut response = ui
             .push_id(viewport, |ui| match class {
-                ViewportClass::EmbeddedWindow => contents(ui, speaker, catalog, view),
+                ViewportClass::EmbeddedWindow => {
+                    contents(ui, speaker, catalog, view, group.as_mut())
+                }
                 _ => {
                     egui::CentralPanel::default()
-                        .show(ui, |ui| contents(ui, speaker, catalog, view))
+                        .show(ui, |ui| {
+                            contents(ui, speaker, catalog, view, group.as_mut())
+                        })
                         .inner
                 }
             })
@@ -108,6 +120,7 @@ fn contents(
     speaker: &mut SpeakerState,
     catalog: &Catalog,
     view: &PanelView,
+    group: Option<&mut GroupEdit>,
 ) -> PanelResponse {
     header(ui, speaker);
     let available = details::tabs(speaker, catalog);
@@ -123,6 +136,7 @@ fn contents(
         .auto_shrink([false, false])
         .show(ui, |ui| match tab {
             PanelTab::Overview => overview(ui, speaker, catalog, view),
+            PanelTab::Group => group_tab(ui, view.groups, group),
             other => {
                 let details = details::show(ui, speaker, catalog, view.layout, other);
                 if other == PanelTab::Device {
@@ -159,7 +173,6 @@ fn overview(
 ) -> PanelResponse {
     let groups = view.groups;
     let has_eq = has_eq(catalog, speaker);
-    let group = group_choice(ui, groups);
     let mut color = groups.color.clone();
     let color_changed = color_choice::edit(
         ui,
@@ -167,7 +180,6 @@ fn overview(
         &mut color,
         groups.start_color,
     );
-    let copy_to_group = copy_buttons(ui, groups);
     let details = details::show(ui, speaker, catalog, view.layout, PanelTab::Overview);
     ui.separator();
     let (save_preset, load_preset) = ui
@@ -183,8 +195,6 @@ fn overview(
         commands: details.commands,
         layout: details.layout,
         remove,
-        group,
-        copy_to_group,
         open_eq,
         save_preset,
         load_preset,
@@ -225,6 +235,28 @@ fn header(ui: &mut Ui, speaker: &SpeakerState) {
         );
         ui.add(Label::new(RichText::new(format!("{model} · {line}")).small().weak()).wrap());
     }
+}
+
+/// The speaker's group: which one it is in, that group's settings, copying a linked value to
+/// the other members, and the way to the groups window.
+fn group_tab(ui: &mut Ui, groups: &GroupChoice, edit: Option<&mut GroupEdit>) -> PanelResponse {
+    let mut response = PanelResponse {
+        group: group_choice(ui, groups),
+        ..PanelResponse::default()
+    };
+    if let Some(edit) = edit {
+        ui.separator();
+        let edit = GroupEdit {
+            settings: &mut *edit.settings,
+            palette: edit.palette,
+            members: &mut *edit.members,
+        };
+        response.group_changed = group_settings::edit(ui, edit);
+        response.copy_to_group = copy_buttons(ui, groups);
+    }
+    ui.separator();
+    response.manage_groups = ui.button(texts::MANAGE_GROUPS).clicked();
+    response
 }
 
 /// "Gruppe: keine / <name>"; returns a different choice.

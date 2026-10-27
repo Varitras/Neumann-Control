@@ -1033,11 +1033,11 @@ fn escape_in_the_all_values_filter_keeps_the_window() {
         .is_none());
 }
 
-/// Escape with a list open closes the list, not the panel.
+/// Escape with a list open closes the list, not the panel (the group tab's choice).
 #[test]
 fn escape_on_an_open_list_keeps_the_panel() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Group);
     harness
         .query_all_by_role(Role::ComboBox)
         .next()

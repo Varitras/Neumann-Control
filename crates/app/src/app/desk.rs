@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use eframe::egui::scroll_area::ScrollBarVisibility;
 use eframe::egui::{
     Align, Context, DragAndDrop, Id, Layout, ScrollArea, Ui, Vec2, ViewportCommand,
 };
@@ -17,7 +18,7 @@ use crate::compact_layout::{self, CompactChange};
 use crate::fader::output_level_range;
 use crate::groups::{
     group_tint, insertion_slot, layout, linkable_of, linked_path, member_id, new_group, order_of,
-    shared_level, shifted_levels, speaker_tint, with_moved, DeskItem,
+    shared_level, shifted_levels, speaker_tint, toggle_link, with_moved, DeskItem,
 };
 use crate::layout_owner::{store, stored, LayoutMaps, LayoutOwner};
 use crate::paths;
@@ -56,15 +57,14 @@ pub(super) enum DeskAction {
     Layout(LayoutOwner, LayoutChange),
     /// Like `Layout` for the compact buttons.
     CompactLayout(LayoutOwner, CompactChange),
-    /// A member strip asked for its group's dialog.
+    /// A member strip asked for its group in the groups window.
     EditGroup(usize),
 }
 
-/// The group being renamed or deleted, and the name typed so far.
-pub(super) struct GroupDraft {
-    pub index: usize,
-    pub name: String,
-    /// While the delete is being confirmed.
+/// The groups window while it is open: the chosen group and whether its delete is being
+/// confirmed.
+pub(super) struct GroupsWindow {
+    pub selected: Option<usize>,
     pub deleting: bool,
 }
 
@@ -115,9 +115,11 @@ impl NeumannApp {
         let mut actions = Vec::new();
         // auto_shrink off: the scroll area takes all of it.
         let room = ui.available_size();
+        let content_id = Id::unique(DESK_SCROLL_ID).with(CONTENT_ID);
         let scroll = ScrollArea::both()
             .id_salt(DESK_SCROLL_ID)
             .auto_shrink([false, false])
+            .scroll_bar_visibility(scroll_bars(ui, content_id, room))
             .show(ui, |ui| {
                 ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
                     for item in &items {
@@ -221,6 +223,7 @@ impl NeumannApp {
                     }
                 });
             });
+        keep_content(ui, content_id, scroll.content_size);
         self.fit_window(ui.ctx(), room, scroll.content_size);
         ui.ctx()
             .data_mut(|data| data.insert_temp(Id::unique(STRIP_CENTERS_ID), centers));
@@ -259,12 +262,7 @@ impl NeumannApp {
                     self.save_settings();
                 }
                 if response.open_settings || response.delete {
-                    let name = self.settings.groups[group].name.clone();
-                    self.group_draft = Some(GroupDraft {
-                        index: group,
-                        name,
-                        deleting: response.delete,
-                    });
+                    self.open_groups(Some(group), response.delete);
                 }
             }
             DeskAction::Master(response) => {
@@ -272,14 +270,7 @@ impl NeumannApp {
                 self.apply_shared(&everyone, response.level, response.mute, catalog, now);
             }
             DeskAction::OpenPanel(key) => self.open_panel(key),
-            DeskAction::EditGroup(group) => {
-                let name = self.settings.groups[group].name.clone();
-                self.group_draft = Some(GroupDraft {
-                    index: group,
-                    name,
-                    deleting: false,
-                });
-            }
+            DeskAction::EditGroup(group) => self.open_groups(Some(group), false),
             DeskAction::OpenEq(key) => self.open_eq(key),
             DeskAction::System(response) => self.apply_system_volume(response),
             DeskAction::Layout(owner, change) => self.change_layout(&owner, &change, catalog),
@@ -475,20 +466,25 @@ impl NeumannApp {
             .collect()
     }
 
+    /// A new group, chosen in the groups window.
     pub(super) fn add_group(&mut self) {
         let group = new_group(
             &self.settings.groups,
             texts::NEW_GROUP_NAME.get(),
             group_color_count(),
         );
-        let name = group.name.clone();
         self.settings.groups.push(group);
         self.save_settings();
         let index = self.settings.groups.len() - 1;
-        self.group_draft = Some(GroupDraft {
-            index,
-            name,
-            deleting: false,
+        self.open_groups(Some(index), false);
+    }
+
+    /// The groups window on group `selected` (else on the first there is).
+    pub(super) fn open_groups(&mut self, selected: Option<usize>, deleting: bool) {
+        let first = (!self.settings.groups.is_empty()).then_some(0);
+        self.groups_window = Some(GroupsWindow {
+            selected: selected.or(first),
+            deleting,
         });
     }
 
@@ -532,6 +528,25 @@ fn previewed(
     with_moved(&items, dragged, &others, insertion_slot(&known, pointer.x))
 }
 
+/// Where the content of a scroll area is kept for the next frame's decision on its bars.
+pub(super) const CONTENT_ID: &str = "content";
+
+/// No scroll bars when the content of the last frame fits `room`, the scroll area's whole room;
+/// else as egui finds them needed. egui decides each bar by the other one of the frame before:
+/// at an exact fit it swapped them every frame and never came to none (four speakers at 125 %).
+pub(super) fn scroll_bars(ui: &Ui, content_id: Id, room: Vec2) -> ScrollBarVisibility {
+    let content = ui.data(|data| data.get_temp::<Vec2>(content_id));
+    let fits = content.is_some_and(|content| content.x <= room.x && content.y <= room.y);
+    if fits {
+        return ScrollBarVisibility::AlwaysHidden;
+    }
+    ScrollBarVisibility::VisibleWhenNeeded
+}
+
+pub(super) fn keep_content(ui: &Ui, content_id: Id, content: Vec2) {
+    ui.data_mut(|data| data.insert_temp(content_id, content));
+}
+
 pub(super) fn group_of(groups: &[GroupSettings], id: &str) -> Option<usize> {
     groups
         .iter()
@@ -544,14 +559,6 @@ pub(super) fn members_of(group: &GroupSettings, ids: &[String]) -> Vec<usize> {
         .filter(|(_, id)| group.members.contains(id))
         .map(|(index, _)| index)
         .collect()
-}
-
-fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
-    if group.linked.contains(&linkable) {
-        group.linked.retain(|linked| *linked != linkable);
-    } else {
-        group.linked.push(linkable);
-    }
 }
 
 /// Only a member that may write its level follows a group or master fader, so only such a

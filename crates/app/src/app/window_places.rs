@@ -19,6 +19,7 @@ pub(super) enum WindowKind {
     AllValues,
     Settings,
     Preset,
+    Groups,
 }
 
 /// How far each further open window of a kind is set off from the one before, so they do not
@@ -34,6 +35,7 @@ impl WindowKind {
             WindowKind::AllValues => "all_values",
             WindowKind::Settings => "settings",
             WindowKind::Preset => "preset",
+            WindowKind::Groups => "groups",
         }
     }
 }

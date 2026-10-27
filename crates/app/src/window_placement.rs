@@ -1,6 +1,7 @@
-//! Where the window reopens: the saved geometry, moved onto a monitor that is still there
-//! (an undocked laptop would otherwise open it off screen). At the start and when the window
-//! switches between desk and compact mode. All geometry values are physical pixels.
+//! Where the window reopens at the start: the saved geometry, moved onto a monitor that is still
+//! there (an undocked laptop would otherwise open it off screen). A switch between desk and
+//! compact mode restores the window through egui instead (`restore_window`). All geometry values
+//! are physical pixels.
 
 use neumann_control_core::settings::WindowGeometry;
 use winit::dpi::{PhysicalPosition, PhysicalSize};

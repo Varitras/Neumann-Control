@@ -186,6 +186,10 @@ pub const UPDATE_CHECK_UNUSABLE: Text = Text::new(
 );
 pub const OPEN_RELEASE_PAGE: Text = Text::new("Release-Seite öffnen", "Open the release page");
 pub const ADD_GROUP: Text = Text::new("+ Gruppe", "+ Group");
+/// The toolbar button and the title of the window where groups are organised.
+pub const GROUPS: Text = Text::new("Gruppen", "Groups");
+pub const NO_GROUPS: Text = Text::new("Noch keine Gruppen.", "No groups yet.");
+pub const MANAGE_GROUPS: Text = Text::new("Gruppen verwalten…", "Manage groups…");
 pub const MOVE_STRIP: Text = Text::new("Verschieben", "Move");
 pub const HIDE: Text = Text::new("Ausblenden", "Hide");
 pub const SWAP_FOR: Text = Text::new("Tauschen gegen…", "Swap for…");
@@ -200,7 +204,6 @@ pub const CUSTOMIZE_STRIPS: Text = Text::new("Züge anpassen", "Customize strips
 pub const DONE: Text = Text::new("Fertig", "Done");
 pub const ADD_ELEMENT: Text = Text::new("+ hinzufügen", "+ Add");
 pub const DEFAULT_LAYOUT: Text = Text::new("Standard", "Default");
-pub const GROUP_DIALOG_TITLE: Text = Text::new("Gruppe", "Group");
 pub const GROUP_NAME: Text = Text::new("Name", "Name");
 pub const GROUP_MEMBERS: Text = Text::new("Lautsprecher", "Speakers");
 pub const STRIP_COLOR: Text = Text::new("Farbe des Zugs", "Strip colour");
@@ -503,7 +506,7 @@ pub fn in_other_group(group: &str) -> String {
     pick(format!("Jetzt in „{group}“"), format!("Now in \"{group}\""))
 }
 
-/// A member strip's context menu: its group's dialog, also while the group has no strip.
+/// A member strip's context menu: its group in the groups window, also while it has no strip.
 pub fn edit_group(group: &str) -> String {
     pick(
         format!("Gruppe „{group}“ bearbeiten…"),

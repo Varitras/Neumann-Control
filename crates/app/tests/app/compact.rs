@@ -68,11 +68,11 @@ fn drag_level(harness: &mut Harness<'static, NeumannApp>, label: &str, by: f32) 
 fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
     let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
-    harness.get_by_label(texts::ADD_GROUP.get());
+    harness.get_by_label(texts::GROUPS.get());
     press_compact_shortcut(&mut harness);
     assert!(settings::load(&path).desk.compact);
     assert!(
-        harness.query_by_label(texts::ADD_GROUP.get()).is_none(),
+        harness.query_by_label(texts::GROUPS.get()).is_none(),
         "the compact toolbar leaves adding to the desk"
     );
     harness.get_by_label(KH120_DEVICE_NAME);
@@ -80,7 +80,7 @@ fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
     harness.get_by_label(texts::COMPACT.get()).click();
     harness.run_steps(2);
     assert!(!settings::load(&path).desk.compact);
-    harness.get_by_label(texts::ADD_GROUP.get());
+    harness.get_by_label(texts::GROUPS.get());
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
     let toolbar = [
         texts::SCAN.get(),
         texts::ADD_ADDRESS.get(),
-        texts::ADD_GROUP.get(),
+        texts::GROUPS.get(),
         texts::CUSTOMIZE_STRIPS.get(),
         texts::COMPACT.get(),
         texts::SETTINGS.get(),

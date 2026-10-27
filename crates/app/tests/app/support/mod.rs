@@ -211,8 +211,33 @@ fn build_shared(
     system: Language,
     audio: FakeAudio,
 ) -> Harness<'static, NeumannApp> {
+    build_scaled(settings_path, shared, system, audio, 1.0)
+}
+
+/// The app on a display of `pixels_per_point` (1.25 for a 125 % screen).
+pub fn harness_at_scale(
+    settings_path: PathBuf,
+    pixels_per_point: f32,
+) -> Harness<'static, NeumannApp> {
+    build_scaled(
+        settings_path,
+        Arc::new(Mutex::new(Ok(Vec::new()))),
+        Language::German,
+        FakeAudio::default(),
+        pixels_per_point,
+    )
+}
+
+fn build_scaled(
+    settings_path: PathBuf,
+    shared: SharedScan,
+    system: Language,
+    audio: FakeAudio,
+    pixels_per_point: f32,
+) -> Harness<'static, NeumannApp> {
     Harness::builder()
         .with_size(WINDOW_SIZE)
+        .with_pixels_per_point(pixels_per_point)
         .build_eframe(move |creation_context| {
             let mut app = NeumannApp::new(
                 &creation_context.egui_ctx,
@@ -389,6 +414,20 @@ pub fn wait_for_label(harness: &mut Harness<'static, NeumannApp>, label: &str) {
         harness.query_by_label(label).is_some()
     });
     harness.run_steps(DIALOG_SETTLE_FRAMES);
+}
+
+/// The groups window, opened from the toolbar.
+pub fn open_groups(harness: &mut Harness<'static, NeumannApp>) {
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Button, texts::GROUPS.get())
+        .click();
+    wait_for_label(harness, texts::ADD_GROUP.get());
+}
+
+/// Closes the window in front by Escape, as the user would.
+pub fn close_window(harness: &mut Harness<'static, NeumannApp>) {
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
 }
 
 /// Scans, checks the named speakers in the dialog and adds them.
