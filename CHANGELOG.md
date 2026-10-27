@@ -1,34 +1,33 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-10-27
 
 ### Added
 
 - **Linux**: a portable build for x86_64 Linux as a `.tar.gz`, with everything but the strip with
-  the system volume and the shortcuts from other programs, which Linux does not offer.
-- **Show group strip** in a group's settings: a group can do without its strip on the desk; its
-  members then have their own rows in the compact mode. A member's name opens its group from its
-  context menu.
+  the system volume and the shortcuts from other programs, which Linux does not offer. Under
+  Wayland the app keeps the windows' sizes, and the desktop decides where they open.
 - **Groups** window, from the toolbar (instead of **+ Group**): every group in a list, adding,
   deleting and each group's settings, including what it links; the group dialog is gone, and a
   group strip's name and **Details** open this window.
 - **Group** tab in the device panel: the speaker's group, that group's settings and
   **Apply to group**; the overview no longer has them.
+- **Show group strip** in a group's settings: a group can do without its strip on the desk; its
+  members then have their own rows in the compact mode. A member's name opens its group from its
+  context menu.
 
 ### Changed
 
 - The EQ window, the settings and the preset load dialog have no **Close** button of their own
   any more; the X in the title bar and Escape close them.
-
 - `SHA256SUMS` on the release page lists the checksums of the downloads (the ZIP and the
   `.tar.gz`); each folder keeps its own list of its files.
+- Switched to a mode without a size of its own, the window is fitted to its content right away.
 
 ### Fixed
 
 - A window without a saved size no longer swings between two sizes for good while it is fitted
   to the desk or the compact rows (seen as the strips grew one after another as they connected).
-- On Linux under Wayland, windows of their own opened at their full default size and could reach
-  past the bottom of the screen; they now open no larger than the screen.
 - A window fitted to its content is no longer left a pixel short of it, with scroll bars, at
   display scales where a pixel is less than a point (125 %).
 - A desk or compact window that fits its content exactly shows no scroll bars; at 125 % the
@@ -36,15 +35,8 @@
 - A window that is still fitted to its content no longer keeps that size as if you had chosen
   it: closed (or switched to the compact mode and back) before the speakers were added, it
   stayed at its first size with scroll bars once they were.
-- Back from the compact mode, the desk gets its own size again; under Wayland it stayed as
-  small as the compact rows, and that size was then kept for the desk. Into a mode without a
-  size of its own, the window is fitted to the content right away.
-- On Linux under Wayland, a resized window is no longer set back: the main window returned to
-  its fitted size and windows of their own to their default size, and no size was remembered.
-  Sizes are kept now; where windows open is left to the desktop there.
 - The held peak's line in a meter lies on the same pixels as the meter's segments; it could
   stand out beside them and look thicker or thinner from level to level.
-
 - **Check for updates** counts pre-releases: with only a pre-release published it said there was
   no release yet, and it would not have told of a newer pre-release.
 

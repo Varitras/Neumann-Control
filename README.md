@@ -63,7 +63,8 @@ layer, the polling and the interface are covered by automated tests against a bu
 simulator for the KH 120 II and the KH 750. On real KH 120 II and KH 750 speakers the app was
 checked for scanning, reading, metering and writing level, mute, identify and standby time, and
 for groups, the compact mode and the English interface. The Linux version was checked for scanning
-and reading real speakers and for the update check; its window not yet on a Linux desktop.
+and reading real speakers, for the update check and on a KDE Plasma desktop under Wayland (Debian
+13, in a virtual machine without graphics passthrough); not yet under X11 or GNOME.
 
 ## Requirements
 
