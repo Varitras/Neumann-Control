@@ -381,8 +381,11 @@ impl SpeakerState {
                 }
             }
             Event::Absent(path) => {
-                // Every later write to the path is answered the same way, so none is awaited.
-                self.pending.remove(&path);
+                // Every later write to the path is answered the same way, so none is awaited:
+                // all of them are refused, not only the one answered.
+                if let Some(pending) = self.pending.remove(&path) {
+                    self.refused_writes.extend(pending.unanswered);
+                }
                 self.settle(&path);
                 self.values.remove(&path);
                 self.absent.insert(path);
@@ -718,7 +721,74 @@ mod tests {
         assert_eq!(speaker.output_meters[1].level(), -20.5);
     }
 
-    /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
+    /// Every answer the worker can give to a `Set`, and what it means for the writes still
+    /// awaited on the path: only a confirmation leaves them done, every other answer refuses
+    /// them all (a 404 is given to every later write as well, so none of them is awaited).
+    #[test]
+    fn every_answer_but_a_confirmation_refuses_the_writes_on_the_path() {
+        let mute = path(paths::MUTE);
+        let answers = [
+            ("absent", Event::Absent(mute.clone()), true),
+            (
+                "rejected",
+                Event::WriteRejected {
+                    path: mute.clone(),
+                    error: DeviceError {
+                        code: DeviceError::READ_ONLY,
+                        description: String::new(),
+                    },
+                },
+                true,
+            ),
+            (
+                "failed",
+                Event::WriteFailed {
+                    path: mute.clone(),
+                    message: "timeout".to_owned(),
+                },
+                true,
+            ),
+            (
+                "written",
+                Event::Written {
+                    path: mute.clone(),
+                    value: json!(true),
+                },
+                false,
+            ),
+        ];
+        for (name, answer, refuses) in answers {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            speaker.record_written(&mute, &json!(true));
+            let write = speaker.newest_write().unwrap();
+            speaker.apply(answer, 1.0);
+            assert_eq!(
+                speaker.refused_writes.contains(&write),
+                refuses,
+                "{name}: {:?}",
+                speaker.refused_writes
+            );
+            assert!(!speaker.awaits_write(write), "{name}");
+        }
+    }
+
+    /// A 404 to the first of two writes on a path: the second is answered the same way, so
+    /// both count as refused, not only the one answered.
+    #[test]
+    fn a_404_refuses_every_write_awaited_on_the_path() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let mute = path(paths::MUTE);
+        speaker.record_written(&mute, &json!(true));
+        let first = speaker.newest_write().unwrap();
+        speaker.record_written(&mute, &json!(false));
+        let second = speaker.newest_write().unwrap();
+        speaker.apply(Event::Absent(mute), 1.0);
+        assert!(speaker.refused_writes.contains(&first));
+        assert!(speaker.refused_writes.contains(&second));
+    }
+
     /// The connection went away with a write on its way: the worker fails it after reporting
     /// the outage, and that failure still counts for the write.
     #[test]
@@ -739,6 +809,7 @@ mod tests {
         assert!(speaker.refused_writes.contains(&write));
     }
 
+    /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
     #[test]
     fn a_shorter_meter_list_drops_the_meters_it_no_longer_reports() {
         let mut speaker = state();
