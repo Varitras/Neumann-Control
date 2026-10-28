@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- A setting the speaker answered as not found is no longer kept in the history as written, and
+  taking a change back that way no longer counts as done.
+- Loading or saving a preset right after a change, and a second click on a group's mute or a
+  move of its fader before the speakers answered the first, start from the new value instead
+  of the one before.
+- A click right after a speaker connects goes out at once instead of after all its values were
+  read (about two seconds on a KH 750).
+- A setting changed on the speaker while a file dialog was open for long is read again as soon
+  as the dialog closes, not up to half a minute later.
+
 ## [0.2.0] - 2026-10-27
 
 ### Added
