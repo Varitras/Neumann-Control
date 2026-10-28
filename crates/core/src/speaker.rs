@@ -27,6 +27,8 @@ const DEFAULT_SLOW_INTERVAL: Duration = Duration::from_secs(30);
 /// About half a minute of KH 750 meter events.
 const DEFAULT_UNREAD_EVENTS_LIMIT: usize = 1000;
 const DEFAULT_RECONNECT_INTERVAL: Duration = Duration::from_secs(10);
+/// How often a paused worker looks whether its events were read; whatever is due stays due.
+const PAUSE_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 
 const PRODUCT_PATH: &str = "device/identity/product";
 const VERSION_PATH: &str = "device/identity/version";
@@ -397,10 +399,9 @@ impl Worker {
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
         let paused = self.paused();
         let walking = session.walk.is_some() && !paused;
-        // Paused, what is due stays due (and is read first once the events are read again);
-        // the pause is checked again a meter tick later instead of at once.
+        // Paused, what is due stays due and goes first once the events are read again.
         let wait = if paused {
-            self.timing.meter
+            PAUSE_CHECK_INTERVAL
         } else if walking {
             Duration::ZERO
         } else {
