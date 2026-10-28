@@ -365,14 +365,30 @@ impl Worker {
     }
 
     fn serve(&self, session: &mut Session, entries: &[&Entry]) -> Interruption {
+        // Commands go before polling here too: a strip takes clicks once its first values are
+        // in, and the whole read takes about two seconds on a KH 750.
         for entry in entries {
-            if let Err(interruption) = self.read(session, &entry.path) {
+            let step = self
+                .run_waiting_commands(session)
+                .and_then(|()| self.read(session, &entry.path));
+            if let Err(interruption) = step {
                 return interruption;
             }
         }
         loop {
             if let Err(interruption) = self.step(session) {
                 return interruption;
+            }
+        }
+    }
+
+    /// Every command already sent, in order, without waiting for more.
+    fn run_waiting_commands(&self, session: &mut Session) -> Result<(), Interruption> {
+        loop {
+            match self.inbox.next(Duration::ZERO) {
+                Ok(command) => self.execute(session, command)?,
+                Err(RecvTimeoutError::Timeout) => return Ok(()),
+                Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
             }
         }
     }

@@ -1008,6 +1008,35 @@ fn read_all_stops_when_asked() {
     assert!(simulator.requests().is_empty());
 }
 
+/// A click right after the strip shows its first values goes out between two of the
+/// connect-time reads, not after all of them (about two seconds on a KH 750).
+#[test]
+fn a_command_during_the_connect_time_read_goes_out_before_its_end() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(SLOW_REPLY);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    let mute = path("audio/out/mute");
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    let written = Event::Written {
+        path: mute,
+        value: json!(true),
+    };
+    let seen = collect_until(&events, RECOVERY_DEADLINE, |event| *event == written);
+    let read_before = seen
+        .iter()
+        .filter(|event| matches!(event, Event::Value { .. }))
+        .count();
+    assert!(
+        read_before < KH_120_II_LEAVES / 2,
+        "the write waited for {read_before} connect-time reads"
+    );
+}
+
 #[test]
 fn commands_queued_during_long_work_keep_their_order() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
@@ -1015,7 +1044,7 @@ fn commands_queued_during_long_work_keep_their_order() {
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
-    // Sent while the connect-time read is still running, so the worker sets them aside.
+    // Sent while the connect-time read is still running; they go out between its reads.
     let level = path("audio/out/level");
     for value in [80.0, 90.0] {
         handle.send(Command::Set {
