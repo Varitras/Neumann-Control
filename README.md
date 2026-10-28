@@ -547,7 +547,8 @@ cargo build --release --locked -p neumann-control-app
 The executable is `target\release\neumann-control.exe` (on Linux `target/release/neumann-control`).
 
 `check.ps1` runs the quality gates: guards against format widths taken at run time and stray
-carriage returns, format, licence check, `cargo audit`, clippy and the tests.
+carriage returns, a test of `release-notes.ps1`, format, licence check, `cargo audit`, clippy and
+the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
 raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
 version as it is), and writes `release\neumann-control-<version>\` (on Linux
