@@ -298,6 +298,15 @@ impl SpeakerState {
         sent.or_else(|| self.values.get(path))
     }
 
+    /// Every path as `latest` gives it, for planning writes against what the speaker will hold.
+    pub fn latest_values(&self) -> BTreeMap<SscPath, Value> {
+        let mut values = self.values.clone();
+        for (path, pending) in &self.pending {
+            values.insert(path.clone(), pending.value.clone());
+        }
+        values
+    }
+
     /// Counts the oldest `Set` to `path` as answered and returns its number; when none is left,
     /// the sent value is no longer held. Whether the speaker took it, its next report says.
     fn settle(&mut self, path: &SscPath) -> Option<u64> {
@@ -719,6 +728,28 @@ mod tests {
         );
         assert_eq!(speaker.output_meters.len(), 2);
         assert_eq!(speaker.output_meters[1].level(), -20.5);
+    }
+
+    /// A band write still on its way counts merged into the reported array, as the speaker
+    /// will hold it; paths without a write stay as reported.
+    #[test]
+    fn the_latest_values_hold_writes_on_their_way_merged() {
+        let mut speaker = state();
+        let gain = path("audio/out/eq2/gain");
+        let mute = path(paths::MUTE);
+        for (path, value) in [(&gain, json!([0.0, 3.0])), (&mute, json!(false))] {
+            speaker.apply(
+                Event::Value {
+                    path: path.clone(),
+                    value,
+                },
+                0.0,
+            );
+        }
+        speaker.record_written(&gain, &json!([5.0, null]));
+        let latest = speaker.latest_values();
+        assert_eq!(latest.get(&gain), Some(&json!([5.0, 3.0])));
+        assert_eq!(latest.get(&mute), Some(&json!(false)));
     }
 
     /// Every answer the worker can give to a `Set`, and what it means for the writes still

@@ -109,3 +109,50 @@ fn no_view_draws_egui_s_own_spinner() {
     }
     assert!(found.is_empty(), "egui's spinner drawn at: {found:?}");
 }
+
+/// The arguments of the call whose name ends at `start` in `text`, up to its closing parenthesis.
+fn call_arguments(text: &str, start: usize) -> &str {
+    let open = start + 1;
+    let mut depth = 1;
+    for (offset, character) in text[open..].char_indices() {
+        depth += match character {
+            '(' => 1,
+            ')' => -1,
+            _ => 0,
+        };
+        if depth == 0 {
+            return &text[open..open + offset];
+        }
+    }
+    ""
+}
+
+/// An EQ preset is planned and saved from what the speaker will hold once its writes are
+/// through, not from its last report: a band write still on its way would otherwise be left
+/// out of a load or saved as it was.
+#[test]
+fn eq_presets_are_planned_from_the_latest_values() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rust_files(&source, &mut files);
+    let mut found = Vec::new();
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        // Unit tests hand the planners their own values.
+        let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+        for call in ["eq_plan(", "capture_eq("] {
+            for (start, _) in code.match_indices(call) {
+                let defined = code[..start].ends_with("fn ");
+                let arguments = call_arguments(code, start + call.len() - 1);
+                if !defined && !arguments.contains("latest_values()") {
+                    let line = code[..start].lines().count();
+                    found.push(format!("{}:{line}", file.display()));
+                }
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "planned from the reported values at: {found:?}"
+    );
+}

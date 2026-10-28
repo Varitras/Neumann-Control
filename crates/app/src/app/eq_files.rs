@@ -63,7 +63,7 @@ impl NeumannApp {
             .chosen_container(index)
             .and_then(|(container, _)| {
                 let speaker = self.eq_speaker(index)?;
-                bands_of(&speaker.values, &container)
+                bands_of(&speaker.latest_values(), &container)
             })
             .ok_or_else(|| texts::EQ_NOT_REPORTED.get().to_owned())?;
         let preset = eq_file::imported_preset(file, &imported, &current)
@@ -88,7 +88,7 @@ impl NeumannApp {
         let Some(speaker) = self.eq_speaker(index) else {
             return Vec::new();
         };
-        eq_plan(preset, &speaker.values, &container).writes
+        eq_plan(preset, &speaker.latest_values(), &container).writes
     }
 
     /// The previewed import as one history entry; the speaker's values are compared again, so
