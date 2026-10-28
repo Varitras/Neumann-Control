@@ -818,6 +818,37 @@ fn polling_pauses_while_nobody_reads_the_events() {
     }
 }
 
+/// A slow path that fell due while polling paused is read as soon as the events are read again,
+/// not one slow interval later: the pause must not use up its turn.
+#[test]
+fn a_path_due_during_the_pause_is_read_when_it_ends() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let slow = Duration::from_secs(2);
+    let timing = Timing {
+        meter: Duration::from_millis(20),
+        fast: LONG_INTERVAL,
+        slow,
+        unread_events_limit: 30,
+        ..short_timing()
+    };
+    let (_handle, events) = start_worker(simulator.address(), None, timing);
+    let name = path("device/name");
+    wait_for_requests(&simulator, &name, 1, EVENT_DEADLINE);
+
+    // Paused by the connect-time read's events, until well past the slow path's turn.
+    thread::sleep(slow + Duration::from_secs(1));
+    let read_at_connect = count_requests(&simulator, &name);
+    let resumed = Instant::now();
+    while count_requests(&simulator, &name) == read_at_connect {
+        assert!(
+            resumed.elapsed() < slow / 4,
+            "the overdue name was not read after the pause"
+        );
+        while events.try_recv().is_ok() {}
+        thread::sleep(REQUEST_POLL_INTERVAL);
+    }
+}
+
 #[test]
 fn response_time_is_reported_about_once_a_second() {
     let simulator = Simulator::start(SimModel::Kh120Ii);

@@ -379,8 +379,13 @@ impl Worker {
 
     /// A pending command, or else what the schedule has due; waits for whichever comes first.
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
-        let walking = session.walk.is_some() && !self.paused();
-        let wait = if walking {
+        let paused = self.paused();
+        let walking = session.walk.is_some() && !paused;
+        // Paused, what is due stays due (and is read first once the events are read again);
+        // the pause is checked again a meter tick later instead of at once.
+        let wait = if paused {
+            self.timing.meter
+        } else if walking {
             Duration::ZERO
         } else {
             session.schedule.time_until_due(Instant::now())
@@ -390,11 +395,10 @@ impl Worker {
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
         }
-        let due = session.schedule.take_due(Instant::now());
         if self.paused() {
             return Ok(());
         }
-        match due {
+        match session.schedule.take_due(Instant::now()) {
             Due::Meters(paths) => paths.iter().try_for_each(|path| self.read(session, path))?,
             Due::Path(path) => self.read(session, &path)?,
             Due::Nothing => {}
