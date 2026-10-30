@@ -135,6 +135,10 @@ pub const SETTINGS_SET_ASIDE: Text = Text::new(
     "Einstellungsdatei unlesbar, als .bad beiseitegelegt; Vorgaben genommen",
     "Settings file unreadable, moved aside as .bad; defaults taken",
 );
+pub const SETTINGS_NOT_LOCKED: Text = Text::new(
+    "Ordner nicht für diese App gesperrt; Änderungen werden nicht gespeichert",
+    "Folder not locked for this app; changes are not saved",
+);
 pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
     "Einstellungsdatei nicht lesbar; Änderungen werden nicht gespeichert",
     "Settings file cannot be read; changes are not saved",

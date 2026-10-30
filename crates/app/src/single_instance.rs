@@ -19,12 +19,20 @@ pub enum Claim {
     Ours(InstanceLock),
     /// Another app holds the folder.
     Taken,
-    /// No lock file could be made (a read-only folder): the app runs, and saving fails there
-    /// anyway, so it cannot overwrite another app's settings.
+    /// No lock file could be made: a read-only folder, or a folder of the lock's name in the
+    /// way. The app runs to show the speakers, but writes neither log nor settings, since
+    /// nothing keeps a second app off them.
     NoLockFile(io::Error),
     /// The file system takes the file but not the lock (none known on Windows' own drives):
     /// the app runs and saves, without keeping a second app on the folder out.
     Unlockable(io::Error),
+}
+
+impl Claim {
+    /// Whether this run may write the log and the settings in the folder.
+    pub fn may_write(&self) -> bool {
+        !matches!(self, Claim::NoLockFile(_) | Claim::Taken)
+    }
 }
 
 pub fn claim(directory: &Path) -> Claim {
@@ -106,5 +114,17 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let missing = directory.path().join("missing");
         assert!(matches!(claim(&missing), Claim::NoLockFile(_)));
+    }
+
+    /// The folder takes files, but the lock file cannot be made (a folder of its name is in the
+    /// way): without the lock nothing keeps a second app out, so this run must not write.
+    #[test]
+    fn without_a_lock_file_the_app_may_not_write() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::create_dir(directory.path().join(LOCK_FILE)).unwrap();
+        let claimed = claim(directory.path());
+        assert!(matches!(claimed, Claim::NoLockFile(_)));
+        assert!(!claimed.may_write());
+        assert!(claim(tempfile::tempdir().unwrap().path()).may_write());
     }
 }

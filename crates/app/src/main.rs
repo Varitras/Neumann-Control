@@ -86,18 +86,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         single_instance::show_running(texts::WINDOW_TITLE);
         return Ok(());
     }
-    start_log(directory);
-    match &lock {
-        Claim::NoLockFile(error) => {
-            log::warn!(
-                "no instance lock file next to the executable ({})",
-                error.kind()
-            );
-        }
-        Claim::Unlockable(error) => {
-            log::warn!("the instance lock is not supported here ({})", error.kind());
-        }
-        Claim::Ours(_) | Claim::Taken => {}
+    // Without the lock another app may be writing the same log and settings.
+    let may_write = lock.may_write();
+    if may_write {
+        start_log(directory);
+    }
+    if let Claim::Unlockable(error) = &lock {
+        log::warn!("the instance lock is not supported here ({})", error.kind());
     }
     let settings_path = directory.join(SETTINGS_FILE);
     let saved = settings::load_checked(&settings_path);
@@ -126,6 +121,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             let audio = Box::new(CoreAudio::new());
             let mut app =
                 NeumannApp::with_settings(&context, settings_path, saved, spawner, audio, language);
+            if !may_write {
+                app.save_nothing();
+            }
             app.limit_frame_rate();
             Ok(Box::new(app))
         }),

@@ -504,7 +504,7 @@ place you choose:
 | `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values**, **Settings**, the groups window and the preset dialogs (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start; more detailed with **Detailed log** in **Settings** |
-| `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
+| `neumann-control.lock` | Empty; marks the folder as in use while the app runs. If it cannot be made (a read-only folder, or a folder of that name in the way), the app still shows the speakers but writes neither log nor settings |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
 malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that name is
