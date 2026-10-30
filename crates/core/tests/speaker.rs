@@ -359,8 +359,10 @@ fn null_value_from_the_device_keeps_the_connection() {
     );
 }
 
+/// A `Set` to a path the speaker lacks is answered as a write, apart from the read that found
+/// the path missing, so the app can tell which of its writes the answer is for.
 #[test]
-fn set_on_absent_path_reports_absent_again() {
+fn set_on_absent_path_is_answered_as_a_write() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     simulator.remove_value("audio/out/mute");
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
@@ -374,7 +376,7 @@ fn set_on_absent_path_reports_absent_again() {
         value: json!(true),
     });
     collect_until(&events, EVENT_DEADLINE, |event| {
-        *event == Event::Absent(mute.clone())
+        *event == Event::WriteAbsent(mute.clone())
     });
 }
 

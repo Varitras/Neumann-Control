@@ -96,15 +96,18 @@ pub enum Event {
         value: Value,
     },
     /// The speaker's answer to one `Set`: the value it now holds. Each `Set` gets exactly one of
-    /// `Written`, `Absent`, `WriteRejected` or `WriteFailed`, so the app can tell its own write
-    /// confirmed from a read that was answered before the write arrived.
+    /// `Written`, `WriteAbsent`, `WriteRejected` or `WriteFailed`, so the app can tell its own
+    /// write confirmed from a read that was answered before the write arrived.
     Written {
         path: SscPath,
         value: Value,
     },
-    /// The speaker does not have the path; it is not polled again on this connection, and
-    /// every `Set` to it is answered with this again.
+    /// A read found that the speaker does not have the path; it is not polled again on this
+    /// connection.
     Absent(SscPath),
+    /// The answer to one `Set` to a path the speaker does not have (also when a read found it
+    /// missing before): nothing was written.
+    WriteAbsent(SscPath),
     /// The speaker refused the write; a re-read follows.
     WriteRejected {
         path: SscPath,
@@ -491,7 +494,7 @@ impl Worker {
             // Reported even when already known: the app waits for an answer to its write.
             SscError::Device(error) if error.code == DeviceError::NOT_FOUND => {
                 self.forget(session, &path);
-                self.outbox.emit(Event::Absent(path));
+                self.outbox.emit(Event::WriteAbsent(path));
                 Ok(())
             }
             // The device kept its old value (read-only, wrong type, ...); show that one again.

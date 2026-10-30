@@ -389,13 +389,14 @@ impl SpeakerState {
                     self.take_reported(path, value, now);
                 }
             }
+            // A write on its way gets its own answer, which may still be `Written`.
             Event::Absent(path) => {
-                // Every later write to the path is answered the same way, so none is awaited:
-                // all of them are refused, not only the one answered.
-                if let Some(pending) = self.pending.remove(&path) {
-                    self.refused_writes.extend(pending.unanswered);
-                }
-                self.settle(&path);
+                self.values.remove(&path);
+                self.absent.insert(path);
+            }
+            Event::WriteAbsent(path) => {
+                let refused = self.settle(&path);
+                self.refused_writes.extend(refused);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
@@ -752,14 +753,13 @@ mod tests {
         assert_eq!(latest.get(&mute), Some(&json!(false)));
     }
 
-    /// Every answer the worker can give to a `Set`, and what it means for the writes still
-    /// awaited on the path: only a confirmation leaves them done, every other answer refuses
-    /// them all (a 404 is given to every later write as well, so none of them is awaited).
+    /// Every answer the worker can give to a `Set`: each settles the one write it answers, and
+    /// only a confirmation leaves it done.
     #[test]
-    fn every_answer_but_a_confirmation_refuses_the_writes_on_the_path() {
+    fn every_answer_but_a_confirmation_refuses_its_write() {
         let mute = path(paths::MUTE);
         let answers = [
-            ("absent", Event::Absent(mute.clone()), true),
+            ("absent", Event::WriteAbsent(mute.clone()), true),
             (
                 "rejected",
                 Event::WriteRejected {
@@ -804,10 +804,9 @@ mod tests {
         }
     }
 
-    /// A 404 to the first of two writes on a path: the second is answered the same way, so
-    /// both count as refused, not only the one answered.
+    /// Two writes on a path the speaker lacks: each 404 refuses the one it answers.
     #[test]
-    fn a_404_refuses_every_write_awaited_on_the_path() {
+    fn a_404_to_a_write_refuses_only_that_write() {
         let mut speaker = state();
         speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
         let mute = path(paths::MUTE);
@@ -815,9 +814,33 @@ mod tests {
         let first = speaker.newest_write().unwrap();
         speaker.record_written(&mute, &json!(false));
         let second = speaker.newest_write().unwrap();
-        speaker.apply(Event::Absent(mute), 1.0);
-        assert!(speaker.refused_writes.contains(&first));
-        assert!(speaker.refused_writes.contains(&second));
+        speaker.apply(Event::WriteAbsent(mute.clone()), 1.0);
+        assert_eq!(speaker.refused_writes, vec![first]);
+        assert!(speaker.awaits_write(second));
+        speaker.apply(Event::WriteAbsent(mute), 1.1);
+        assert_eq!(speaker.refused_writes, vec![first, second]);
+    }
+
+    /// A read found the path missing just before a write went out, and the write then went
+    /// through: the read's 404 is no answer to the write, which stays written.
+    #[test]
+    fn a_404_to_a_read_leaves_a_write_on_its_way_alone() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let mute = path(paths::MUTE);
+        speaker.record_written(&mute, &json!(true));
+        let write = speaker.newest_write().unwrap();
+        speaker.apply(Event::Absent(mute.clone()), 1.0);
+        assert!(speaker.awaits_write(write));
+        speaker.apply(
+            Event::Written {
+                path: mute.clone(),
+                value: json!(true),
+            },
+            1.1,
+        );
+        assert!(speaker.refused_writes.is_empty());
+        assert_eq!(speaker.values.get(&mute), Some(&json!(true)));
     }
 
     /// The connection went away with a write on its way: the worker fails it after reporting
