@@ -84,6 +84,29 @@ fn entries_without_serial_are_kept_by_address() {
     );
 }
 
+/// The same speaker answered once before its TXT record named the serial and once after: one
+/// entry, the one with the serial, in either order. Two known serials at one address stay two.
+#[test]
+fn an_entry_without_serial_joins_the_one_with_it_at_its_address() {
+    for serial_first in [true, false] {
+        let without = found(None, SIMULATED_LINK_LOCAL, 7);
+        let with = found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 7);
+        let found = if serial_first {
+            vec![with, without]
+        } else {
+            vec![without, with]
+        };
+        let merged = merge_found(found);
+        assert_eq!(merged.len(), 1, "serial first: {serial_first}");
+        assert_eq!(merged[0].serial.as_deref(), Some("SIM0001234"));
+    }
+    let two = merge_found(vec![
+        found(Some("SIM0001234"), SIMULATED_LINK_LOCAL, 7),
+        found(Some("SIM0007500"), SIMULATED_LINK_LOCAL, 7),
+    ]);
+    assert_eq!(two.len(), 2);
+}
+
 /// A PC with two adapters on the speakers' segment hears each speaker on both, in no fixed
 /// order. The same one must win every scan, or the remembered entry and its connection would
 /// change with each scan.

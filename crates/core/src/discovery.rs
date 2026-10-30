@@ -45,10 +45,20 @@ pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAd
 
 /// One entry per serial (of two link-local addresses the lower scope stays, whichever came
 /// first; a global address never replaces a link-local one); entries without serial are
-/// deduplicated by address.
+/// deduplicated by address, and dropped where an entry with a serial has their address (the
+/// same speaker answered before its TXT record named the serial).
 pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
+    let (known, unknown): (Vec<Found>, Vec<Found>) =
+        found.into_iter().partition(|entry| entry.serial.is_some());
     let mut merged: Vec<Found> = Vec::new();
-    for candidate in found {
+    for candidate in known.into_iter().chain(unknown) {
+        let at_known_address = candidate.serial.is_none()
+            && merged
+                .iter()
+                .any(|entry| entry.address == candidate.address);
+        if at_known_address {
+            continue;
+        }
         let existing = merged
             .iter_mut()
             .find(|entry| same_speaker(entry, &candidate));
