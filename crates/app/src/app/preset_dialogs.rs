@@ -10,7 +10,7 @@ use super::window_places::WindowKind;
 use super::NeumannApp;
 use crate::display::shown_value;
 use crate::paths;
-use crate::presets::{capture, chosen_by_default, plan, presettable};
+use crate::presets::{capture, chosen_by_default, plan, presettable, saved_value};
 use crate::state::SpeakerKey;
 use crate::texts;
 use crate::views::preset_dialog::{
@@ -120,7 +120,7 @@ impl NeumannApp {
             .iter()
             .map(|entry| SaveRow {
                 label: entry.label(texts::language()).to_owned(),
-                value: speaker.values.get(&entry.path).map_or_else(
+                value: saved_value(speaker, &entry.path).map_or_else(
                     || texts::UNKNOWN_VALUE.to_owned(),
                     |value| shown_value(entry, value),
                 ),

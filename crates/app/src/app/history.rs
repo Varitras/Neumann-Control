@@ -8,7 +8,9 @@ use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
 use crate::eq::{container_of, output_group, several_outputs};
-use crate::history::{changed_since, is_open, Change, ClockTime, Entry, History};
+use crate::history::{
+    changed_since, closed_because, is_open, Change, ClockTime, Closed, Entry, History,
+};
 use crate::paths;
 use crate::state::{SpeakerKey, SpeakerState, Status};
 use crate::texts;
@@ -96,9 +98,9 @@ impl NeumannApp {
     }
 
     /// Ctrl+Z: takes back the newest open entry. Not while a text field has the keyboard (it
-    /// has its own undo) or a dialog waits for an answer.
+    /// has its own undo) or a dialog waits for an answer; a button reached with Tab takes none.
     pub(super) fn undo_shortcut(&mut self, ui: &mut Ui) {
-        let typing = ui.ctx().memory(|memory| memory.focused().is_some());
+        let typing = ui.ctx().text_edit_focused();
         if typing || self.dialog_open() {
             return;
         }
@@ -188,12 +190,11 @@ impl NeumannApp {
             None => text,
         };
         let open = entry.changes.iter().any(is_open);
-        let all_taken_back = entry.changes.iter().all(|change| change.taken_back);
-        let all_refused = entry.changes.iter().all(|change| change.refused);
-        let reason = match (all_taken_back, all_refused) {
-            (true, _) => texts::TAKEN_BACK.get(),
-            (false, true) => texts::NOT_WRITTEN.get(),
-            (false, false) => texts::BEFORE_UNKNOWN.get(),
+        let reason = match closed_because(&entry.changes) {
+            Closed::TakenBack => texts::TAKEN_BACK.get(),
+            Closed::NotWritten => texts::NOT_WRITTEN.get(),
+            Closed::PartlyNotWritten => texts::PARTLY_NOT_WRITTEN.get(),
+            Closed::BeforeUnknown => texts::BEFORE_UNKNOWN.get(),
         };
         HistoryRow {
             id: entry.id,

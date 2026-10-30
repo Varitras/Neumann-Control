@@ -27,6 +27,8 @@ const DEFAULT_SLOW_INTERVAL: Duration = Duration::from_secs(30);
 /// About half a minute of KH 750 meter events.
 const DEFAULT_UNREAD_EVENTS_LIMIT: usize = 1000;
 const DEFAULT_RECONNECT_INTERVAL: Duration = Duration::from_secs(10);
+/// How often a paused worker looks whether its events were read; whatever is due stays due.
+const PAUSE_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 
 const PRODUCT_PATH: &str = "device/identity/product";
 const VERSION_PATH: &str = "device/identity/version";
@@ -94,15 +96,18 @@ pub enum Event {
         value: Value,
     },
     /// The speaker's answer to one `Set`: the value it now holds. Each `Set` gets exactly one of
-    /// `Written`, `Absent`, `WriteRejected` or `WriteFailed`, so the app can tell its own write
-    /// confirmed from a read that was answered before the write arrived.
+    /// `Written`, `WriteAbsent`, `WriteRejected` or `WriteFailed`, so the app can tell its own
+    /// write confirmed from a read that was answered before the write arrived.
     Written {
         path: SscPath,
         value: Value,
     },
-    /// The speaker does not have the path; it is not polled again on this connection, and
-    /// every `Set` to it is answered with this again.
+    /// A read found that the speaker does not have the path; it is not polled again on this
+    /// connection.
     Absent(SscPath),
+    /// The answer to one `Set` to a path the speaker does not have (also when a read found it
+    /// missing before): nothing was written.
+    WriteAbsent(SscPath),
     /// The speaker refused the write; a re-read follows.
     WriteRejected {
         path: SscPath,
@@ -365,8 +370,13 @@ impl Worker {
     }
 
     fn serve(&self, session: &mut Session, entries: &[&Entry]) -> Interruption {
+        // Commands go before polling here too: a strip takes clicks once its first values are
+        // in, and the whole read takes about two seconds on a KH 750.
         for entry in entries {
-            if let Err(interruption) = self.read(session, &entry.path) {
+            let step = self
+                .run_waiting_commands(session)
+                .and_then(|()| self.read(session, &entry.path));
+            if let Err(interruption) = step {
                 return interruption;
             }
         }
@@ -377,10 +387,25 @@ impl Worker {
         }
     }
 
+    /// Every command already sent, in order, without waiting for more.
+    fn run_waiting_commands(&self, session: &mut Session) -> Result<(), Interruption> {
+        loop {
+            match self.inbox.next(Duration::ZERO) {
+                Ok(command) => self.execute(session, command)?,
+                Err(RecvTimeoutError::Timeout) => return Ok(()),
+                Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
+            }
+        }
+    }
+
     /// A pending command, or else what the schedule has due; waits for whichever comes first.
     fn step(&self, session: &mut Session) -> Result<(), Interruption> {
-        let walking = session.walk.is_some() && !self.paused();
-        let wait = if walking {
+        let paused = self.paused();
+        let walking = session.walk.is_some() && !paused;
+        // Paused, what is due stays due and goes first once the events are read again.
+        let wait = if paused {
+            PAUSE_CHECK_INTERVAL
+        } else if walking {
             Duration::ZERO
         } else {
             session.schedule.time_until_due(Instant::now())
@@ -390,11 +415,10 @@ impl Worker {
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(Interruption::Stopped),
         }
-        let due = session.schedule.take_due(Instant::now());
         if self.paused() {
             return Ok(());
         }
-        match due {
+        match session.schedule.take_due(Instant::now()) {
             Due::Meters(paths) => paths.iter().try_for_each(|path| self.read(session, path))?,
             Due::Path(path) => self.read(session, &path)?,
             Due::Nothing => {}
@@ -470,7 +494,7 @@ impl Worker {
             // Reported even when already known: the app waits for an answer to its write.
             SscError::Device(error) if error.code == DeviceError::NOT_FOUND => {
                 self.forget(session, &path);
-                self.outbox.emit(Event::Absent(path));
+                self.outbox.emit(Event::WriteAbsent(path));
                 Ok(())
             }
             // The device kept its old value (read-only, wrong type, ...); show that one again.
@@ -590,20 +614,37 @@ impl Worker {
         Ok(Identity {
             product: self.read_text(client, PRODUCT_PATH)?,
             version: self.read_text(client, VERSION_PATH)?,
-            serial: self.read_text(client, SERIAL_PATH)?,
+            serial: self.read_serial(client)?,
             name: self.read_text(client, NAME_PATH)?,
         })
     }
 
     /// A string value as it is; any other value in its JSON form.
     fn read_text(&self, client: &mut Client, path: &str) -> Result<String, Interruption> {
+        match self.read_identity_value(client, path)? {
+            Value::String(text) => Ok(text),
+            other => Ok(other.to_string()),
+        }
+    }
+
+    /// Empty, as for a speaker that reports none, unless it is text: the serial pins a speaker
+    /// added by address and is saved, so a value in another form would lock out the real one.
+    fn read_serial(&self, client: &mut Client) -> Result<String, Interruption> {
+        match self.read_identity_value(client, SERIAL_PATH)? {
+            Value::String(serial) => Ok(serial),
+            // Not logged as it came: serials are masked in the log.
+            _ => {
+                log::warn!("{} reports a serial that is no text", self.host);
+                Ok(String::new())
+            }
+        }
+    }
+
+    fn read_identity_value(&self, client: &mut Client, path: &str) -> Result<Value, Interruption> {
         if self.inbox.stop_requested() {
             return Err(Interruption::Stopped);
         }
         let path = SscPath::parse(path).expect("constant identity path is valid");
-        match client.get(&path).map_err(Interruption::Lost)? {
-            Value::String(text) => Ok(text),
-            other => Ok(other.to_string()),
-        }
+        client.get(&path).map_err(Interruption::Lost)
     }
 }

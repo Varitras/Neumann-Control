@@ -101,16 +101,19 @@ the new release; settings and log stay. To remove the app, delete the folder.
 `SHA256SUMS` on the release page lists the checksums of both downloads; on Linux
 `sha256sum -c --ignore-missing SHA256SUMS` checks the one next to it.
 
-One app runs per folder: starting it again while it runs brings its window to the front (on
-Linux the second start just ends, as Wayland lets no program bring another's window forward).
+One app runs per folder: starting it again while it runs brings the running app's window to the
+front. It is found by its title, so with copies from other folders running too, one of theirs
+may come forward instead. On Linux the second start just ends, as Wayland lets no program bring
+another's window forward.
 
 ## Getting started
 
-1. Start `neumann-control.exe` and press **Scan**. The scan takes 4 seconds. The dialog
-   "Speakers found" lists every speaker found with its name, model and masked address. Check the
-   ones you want and press **Add**; each gets a strip. Speakers that already have one are marked
-   "already added". **Scan again** looks once more, for a speaker that was still starting up;
-   the list and your checks stay, new speakers are added below. **Cancel** adds nothing.
+1. Start the app (`neumann-control.exe`, on Linux `./neumann-control`) and press **Scan**. The
+   scan takes 4 seconds. The dialog "Speakers found" lists every speaker found with its name,
+   model and masked address. Check the ones you want and press **Add**; each gets a strip.
+   Speakers that already have one are marked "already added". **Scan again** looks once more, for
+   a speaker that was still starting up; the list and your checks stay, new speakers are added
+   below. **Cancel** adds nothing.
 2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
    the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
@@ -504,7 +507,7 @@ place you choose:
 | `settings.json` | Remembered speakers (address, port, serial, and the name and model each last reported, shown while it is off), groups and the strip order, the window position, size and whether it was maximized for the desk and the compact mode and for the device panel, the EQ window, **All values**, **Settings**, the groups window and the preset dialogs (one place per kind of window, for every speaker), the choices from **Settings**, each model's strip layout and compact buttons (and each speaker's own, with own layouts), the strip colours, and the presets |
 | `scan-*.json`, `scan-*.txt` | Written by **Full scan**, without serial number, MAC address, name or network addresses |
 | `neumann-control.log` | Log of the current run, replaced at each start; more detailed with **Detailed log** in **Settings** |
-| `neumann-control.lock` | Empty; marks the folder as in use while the app runs |
+| `neumann-control.lock` | Empty; marks the folder as in use while the app runs. If it cannot be made (a read-only folder, or a folder of that name in the way), the app still shows the speakers but writes neither log nor settings |
 
 Speaker addresses and serial numbers are masked in the log and in the interface. An unreadable or
 malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that name is
@@ -547,7 +550,8 @@ cargo build --release --locked -p neumann-control-app
 The executable is `target\release\neumann-control.exe` (on Linux `target/release/neumann-control`).
 
 `check.ps1` runs the quality gates: guards against format widths taken at run time and stray
-carriage returns, format, licence check, `cargo audit`, clippy and the tests.
+carriage returns, a test of `release-notes.ps1`, format, licence check, `cargo audit`, clippy and
+the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
 raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
 version as it is), and writes `release\neumann-control-<version>\` (on Linux

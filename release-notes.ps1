@@ -7,13 +7,14 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string] $Version,
-    [Parameter(Mandatory)] [string] $OutFile
+    [Parameter(Mandatory)] [string] $OutFile,
+    [string] $Changelog = 'CHANGELOG.md'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-$lines = [System.IO.File]::ReadAllLines((Resolve-Path 'CHANGELOG.md'))
+$lines = [System.IO.File]::ReadAllLines((Resolve-Path $Changelog))
 $heading = "## [$Version]"
 $start = [Array]::FindIndex($lines, [Predicate[string]] { param($line) $line.StartsWith($heading) })
 if ($start -lt 0) {
@@ -22,7 +23,10 @@ if ($start -lt 0) {
 }
 $end = [Array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($line) $line.StartsWith('## [') })
 if ($end -lt 0) { $end = $lines.Length }
-$section = ($lines[($start + 1)..($end - 1)] -join "`n").Trim()
+# PowerShell counts a range down when its end lies before its start: without lines between, the
+# headings themselves would become the section.
+$body = if ($end -gt $start + 1) { $lines[($start + 1)..($end - 1)] } else { @() }
+$section = ($body -join "`n").Trim()
 if (-not $section) {
     Write-Host "FAILED: the CHANGELOG section $heading is empty" -ForegroundColor Red
     exit 1

@@ -135,6 +135,10 @@ pub const SETTINGS_SET_ASIDE: Text = Text::new(
     "Einstellungsdatei unlesbar, als .bad beiseitegelegt; Vorgaben genommen",
     "Settings file unreadable, moved aside as .bad; defaults taken",
 );
+pub const SETTINGS_NOT_LOCKED: Text = Text::new(
+    "Ordner nicht für diese App gesperrt; Änderungen werden nicht gespeichert",
+    "Folder not locked for this app; changes are not saved",
+);
 pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
     "Einstellungsdatei nicht lesbar; Änderungen werden nicht gespeichert",
     "Settings file cannot be read; changes are not saved",
@@ -164,9 +168,13 @@ pub const HELP_HINT: Text = Text::new("Hilfe", "Help");
 pub const MANUAL: Text = Text::new("Handbuch", "Manual");
 pub const WIKI: Text = Text::new("Wiki", "Wiki");
 pub const ABOUT: Text = Text::new("Über Neumann Control", "About Neumann Control");
+pub const MANUAL_NOT_OPENED: Text = Text::new(
+    "Handbuch konnte nicht geöffnet werden",
+    "The manual could not be opened",
+);
 pub const MANUAL_MISSING: Text = Text::new(
-    "Handbuch nicht gefunden (neben der Exe)",
-    "Manual not found (next to the exe)",
+    "Handbuch nicht gefunden (neben dem Programm)",
+    "Manual not found (next to the program)",
 );
 pub const LICENCE: Text = Text::new("MIT-Lizenz", "MIT licence");
 pub const PROJECT_PAGE: Text = Text::new("Projektseite auf GitHub", "Project page on GitHub");
@@ -234,6 +242,10 @@ pub const UNDO: Text = Text::new("Rückgängig", "Undo");
 /// A history entry the speaker refused or never got.
 pub const NOT_WRITTEN: Text = Text::new("Nicht geschrieben", "Not written");
 pub const TAKEN_BACK: Text = Text::new("Zurückgenommen", "Undone");
+pub const PARTLY_NOT_WRITTEN: Text = Text::new(
+    "Teils nicht geschrieben, sonst zurückgenommen",
+    "Partly not written, otherwise undone",
+);
 pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",
     "The value before is unknown",
@@ -905,7 +917,7 @@ pub fn scan_failed(failure: ScanFailure) -> &'static str {
             "Scan failed: the speaker did not answer completely.",
         ),
         ScanFailure::Writing => Text::new(
-            "Scan fehlgeschlagen: Der Bericht ließ sich neben der Exe nicht speichern.",
+            "Scan fehlgeschlagen: Der Bericht ließ sich neben dem Programm nicht speichern.",
             "Scan failed: the report could not be saved next to the executable.",
         ),
     };
@@ -1106,6 +1118,10 @@ fn line_problem(problem: &LineProblem) -> String {
         LineProblem::SameBand(band) => pick(
             format!("Band {band} steht schon in einer früheren Zeile."),
             format!("Band {band} is already in an earlier line."),
+        ),
+        LineProblem::NoNextBand => pick(
+            "Nach der höchsten Bandnummer gibt es kein weiteres Band.".to_owned(),
+            "There is no band after the highest band number.".to_owned(),
         ),
         LineProblem::BadQ => Text::new(
             "Q bzw. Bandbreite ergibt kein Q über 0.",

@@ -347,7 +347,7 @@ impl NeumannApp {
                 .get(*place)
                 .map(|place| {
                     let preset = &self.settings.eq_presets[*place];
-                    let plan = eq_plan(preset, &speaker.values, &shown.container.path);
+                    let plan = eq_plan(preset, &speaker.latest_values(), &shown.container.path);
                     compared(catalog, &shown.container.path, &plan.differences)
                 })
                 .unwrap_or_default(),
@@ -381,7 +381,7 @@ impl NeumannApp {
                 .preset
                 .as_ref()
                 .map(|preset| {
-                    eq_plan(preset, &speaker.values, &shown.container.path)
+                    eq_plan(preset, &speaker.latest_values(), &shown.container.path)
                         .bands
                         .iter()
                         .map(|band| texts::eq_preset_band(band + 1))
@@ -592,7 +592,7 @@ impl NeumannApp {
         let name = name.trim().to_owned();
         let preset = self.chosen_container(index).and_then(|(container, _)| {
             let speaker = self.eq_speaker(index)?;
-            capture_eq(&name, &speaker.values, &container)
+            capture_eq(&name, &speaker.latest_values(), &container)
         });
         if let Some(preset) = preset {
             // A preset of another band count is another preset, though named alike: the load
@@ -627,7 +627,7 @@ impl NeumannApp {
             let speaker = self.eq_speaker(index)?;
             Some(eq_plan(
                 &self.settings.eq_presets[place],
-                &speaker.values,
+                &speaker.latest_values(),
                 &container,
             ))
         });

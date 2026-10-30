@@ -325,12 +325,14 @@ impl FileDialog for FakeFiles {
 pub struct FakeHelp {
     pub opened: Arc<Mutex<Vec<String>>>,
     pub release: Option<Release>,
+    /// As without a program to open files with (no `xdg-open`).
+    pub cannot_open: bool,
 }
 
 impl Help for FakeHelp {
     fn open(&self, target: &str) -> bool {
         self.opened.lock().unwrap().push(target.to_owned());
-        true
+        !self.cannot_open
     }
 
     fn latest_release(&self) -> Result<Option<Release>, LookupError> {

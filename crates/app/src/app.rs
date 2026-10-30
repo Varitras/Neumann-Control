@@ -122,9 +122,10 @@ pub struct NeumannApp {
     rediscovery: Rediscovery,
     scan_choice: Option<ScanChoice>,
     notice: Option<texts::Text>,
-    /// False when the file at the start could be neither read nor set aside: saving would
-    /// overwrite it with what this run holds.
-    settings_writable: bool,
+    /// Why the settings are not saved in this run; `None` while they are. A file at the start
+    /// that could be neither read nor set aside would be overwritten with what this run holds;
+    /// without the folder's lock another app may hold the same file.
+    unsaved_because: Option<texts::Text>,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panels: Vec<OpenPanel>,
@@ -218,7 +219,8 @@ impl NeumannApp {
             rediscovery: Rediscovery::default(),
             scan_choice: None,
             notice: texts::settings_notice(outcome),
-            settings_writable: outcome != LoadOutcome::Untouchable,
+            unsaved_because: (outcome == LoadOutcome::Untouchable)
+                .then_some(texts::SETTINGS_UNTOUCHABLE),
             add_address: None,
             removal: None,
             panels: Vec::new(),
@@ -500,9 +502,15 @@ impl NeumannApp {
         }
     }
 
+    /// For a run without the folder's lock: another app may hold the same settings file.
+    pub fn save_nothing(&mut self) {
+        self.unsaved_because = Some(texts::SETTINGS_NOT_LOCKED);
+        self.notice = self.unsaved_because;
+    }
+
     fn save_settings(&mut self) {
-        if !self.settings_writable {
-            self.notice = Some(texts::SETTINGS_UNTOUCHABLE);
+        if let Some(reason) = self.unsaved_because {
+            self.notice = Some(reason);
             return;
         }
         if let Err(error) = settings::save(&self.settings, &self.settings_path) {
@@ -902,10 +910,14 @@ impl NeumannApp {
     /// From the exe's folder, where the release puts it next to the settings.
     fn open_manual(&mut self) {
         let manual = self.settings_path.with_file_name(MANUAL_FILE);
-        let opened = manual.is_file() && self.help.open(&manual.to_string_lossy());
-        if !opened {
-            log::warn!("the manual could not be opened");
+        if !manual.is_file() {
+            log::warn!("the manual is not next to the executable");
             self.notice = Some(texts::MANUAL_MISSING);
+            return;
+        }
+        if !self.help.open(&manual.to_string_lossy()) {
+            log::warn!("the manual could not be opened");
+            self.notice = Some(texts::MANUAL_NOT_OPENED);
         }
     }
 

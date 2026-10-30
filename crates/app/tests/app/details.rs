@@ -966,6 +966,52 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
     );
 }
 
+/// Saving right after a change: the save dialog shows what it saves, the value just sent, not
+/// the one the speaker reported before.
+#[test]
+fn the_save_dialog_shows_a_write_still_on_its_way() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+    // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
+    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    harness
+        .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
+        .click();
+    harness.run_steps(1);
+    harness.get_by_label(texts::TAB_OVERVIEW.get()).click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    let catalog = neumann_control_core::catalog::Catalog::embedded();
+    let mute = paths::catalog_entry(catalog, &paths::path(paths::MUTE)).unwrap();
+    let label = mute.label(texts::language());
+    harness.get_by_label(&texts::preset_row(label, texts::ON.get()));
+}
+
+/// Started without the folder's lock (`main` tells the app so): a save leaves the settings file
+/// as it was and says why.
+#[test]
+fn a_run_without_the_lock_saves_nothing() {
+    let (_simulator, directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+    harness.state_mut().save_nothing();
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .type_text("Evening");
+    harness.run_steps(1);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
+    assert!(saved.presets.is_empty());
+    harness.get_by_label(texts::SETTINGS_NOT_LOCKED.get());
+}
+
 #[test]
 fn deleting_a_settings_preset_asks_first() {
     let (_simulator, directory, mut harness) =

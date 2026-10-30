@@ -204,6 +204,34 @@ impl Drop for ClosingListener {
     }
 }
 
+/// A serial that is no text (measured: it always is) is no serial: a speaker added by address
+/// is not pinned to it, so its real serial is taken at the next connection.
+#[test]
+fn a_serial_of_the_wrong_type_is_not_taken() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_value("device/identity/serial", json!(7));
+    let (_handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let seen = collect_until(&events, EVENT_DEADLINE, is_connected);
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("no identity: {seen:?}");
+    };
+    assert_eq!(identity.serial, "");
+
+    simulator.set_value("device/identity/serial", json!(KH_120_II_SERIAL));
+    simulator.inject(Fault::CloseConnection);
+    let seen = collect_until(&events, RECOVERY_DEADLINE, is_connected);
+    assert!(
+        !seen
+            .iter()
+            .any(|event| matches!(event, Event::SerialMismatch { .. })),
+        "{seen:?}"
+    );
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("no identity: {seen:?}");
+    };
+    assert_eq!(identity.serial, KH_120_II_SERIAL);
+}
+
 #[test]
 fn worker_reports_identity_then_values() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
@@ -359,8 +387,10 @@ fn null_value_from_the_device_keeps_the_connection() {
     );
 }
 
+/// A `Set` to a path the speaker lacks is answered as a write, apart from the read that found
+/// the path missing, so the app can tell which of its writes the answer is for.
 #[test]
-fn set_on_absent_path_reports_absent_again() {
+fn set_on_absent_path_is_answered_as_a_write() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     simulator.remove_value("audio/out/mute");
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
@@ -374,7 +404,7 @@ fn set_on_absent_path_reports_absent_again() {
         value: json!(true),
     });
     collect_until(&events, EVENT_DEADLINE, |event| {
-        *event == Event::Absent(mute.clone())
+        *event == Event::WriteAbsent(mute.clone())
     });
 }
 
@@ -818,6 +848,37 @@ fn polling_pauses_while_nobody_reads_the_events() {
     }
 }
 
+/// A slow path that fell due while polling paused is read as soon as the events are read again,
+/// not one slow interval later: the pause must not use up its turn.
+#[test]
+fn a_path_due_during_the_pause_is_read_when_it_ends() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let slow = Duration::from_secs(2);
+    let timing = Timing {
+        meter: Duration::from_millis(20),
+        fast: LONG_INTERVAL,
+        slow,
+        unread_events_limit: 30,
+        ..short_timing()
+    };
+    let (_handle, events) = start_worker(simulator.address(), None, timing);
+    let name = path("device/name");
+    wait_for_requests(&simulator, &name, 1, EVENT_DEADLINE);
+
+    // Paused by the connect-time read's events, until well past the slow path's turn.
+    thread::sleep(slow + Duration::from_secs(1));
+    let read_at_connect = count_requests(&simulator, &name);
+    let resumed = Instant::now();
+    while count_requests(&simulator, &name) == read_at_connect {
+        assert!(
+            resumed.elapsed() < slow / 4,
+            "the overdue name was not read after the pause"
+        );
+        while events.try_recv().is_ok() {}
+        thread::sleep(REQUEST_POLL_INTERVAL);
+    }
+}
+
 #[test]
 fn response_time_is_reported_about_once_a_second() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
@@ -977,6 +1038,35 @@ fn read_all_stops_when_asked() {
     assert!(simulator.requests().is_empty());
 }
 
+/// A click right after the strip shows its first values goes out between two of the
+/// connect-time reads, not after all of them (about two seconds on a KH 750).
+#[test]
+fn a_command_during_the_connect_time_read_goes_out_before_its_end() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_reply_delay(SLOW_REPLY);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    collect_until(&events, EVENT_DEADLINE, is_connected);
+
+    let mute = path("audio/out/mute");
+    handle.send(Command::Set {
+        path: mute.clone(),
+        value: json!(true),
+    });
+    let written = Event::Written {
+        path: mute,
+        value: json!(true),
+    };
+    let seen = collect_until(&events, RECOVERY_DEADLINE, |event| *event == written);
+    let read_before = seen
+        .iter()
+        .filter(|event| matches!(event, Event::Value { .. }))
+        .count();
+    assert!(
+        read_before < KH_120_II_LEAVES / 2,
+        "the write waited for {read_before} connect-time reads"
+    );
+}
+
 #[test]
 fn commands_queued_during_long_work_keep_their_order() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
@@ -984,7 +1074,7 @@ fn commands_queued_during_long_work_keep_their_order() {
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
-    // Sent while the connect-time read is still running, so the worker sets them aside.
+    // Sent while the connect-time read is still running; they go out between its reads.
     let level = path("audio/out/level");
     for value in [80.0, 90.0] {
         handle.send(Command::Set {

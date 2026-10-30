@@ -92,6 +92,9 @@ Invoke-Forbid 'carriage returns inside lines of working files' {
     git grep -nIP --untracked '\r(?!$)'
 }
 
+Invoke-Gate 'release notes script' {
+    & (Get-Process -Id $PID).Path -NoProfile -File (Join-Path $PSScriptRoot 'release-notes.tests.ps1')
+}
 Invoke-Gate 'cargo fmt (check)' { cargo fmt --all -- --check }
 # A dependency with an unaccepted licence (e.g. a GPL crate) fails generation, so this doubles
 # as the licence gate; build-release.ps1 generates the shipped file from the same config.

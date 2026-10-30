@@ -96,6 +96,8 @@ pub enum LineProblem {
     SameBand(usize),
     /// A Q or bandwidth that gives no finite Q above 0.
     BadQ,
+    /// A line without a number after the highest band number there is.
+    NoNextBand,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -224,15 +226,18 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
             "" => next_band,
             given => band_number(given).map_err(failed)?,
         };
+        // Checked: after the highest number `band + 1` would count on from band 1.
+        next_band = band
+            .checked_add(1)
+            .ok_or_else(|| failed(LineProblem::NoNextBand))?;
         let filter = filter_of(rest).map_err(failed)?;
-        next_band = band + 1;
         match imported.bands.entry(band) {
             Entry::Vacant(slot) => {
                 slot.insert(filter);
             }
             // REW appends a second block of empty filters (`Filter 1: ON None` again).
             Entry::Occupied(_) if filter.is_none() => {}
-            Entry::Occupied(_) => return Err(failed(LineProblem::SameBand(band + 1))),
+            Entry::Occupied(_) => return Err(failed(LineProblem::SameBand(next_band))),
         }
     }
     if imported.bands.is_empty() {
@@ -845,6 +850,23 @@ Equaliser: Generic
         );
         let twice = "Filter 1: ON None\nFilter 1: ON PK Fc 100 Hz Gain 1 dB Q 1";
         assert_eq!(problem_of(twice), LineProblem::SameBand(1));
+    }
+
+    /// The highest band number there is, then a line without one: the band after it does not
+    /// exist, so the line is refused instead of counting on from band 1.
+    #[test]
+    fn a_band_after_the_highest_number_is_refused() {
+        let text = format!(
+            "Filter {}: OFF
+Filter: OFF
+Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
+            usize::MAX
+        );
+        assert!(
+            matches!(parse(&text), Err(ImportError::Line { line: 2, .. })),
+            "{:?}",
+            parse(&text)
+        );
     }
 
     #[test]

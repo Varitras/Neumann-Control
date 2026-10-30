@@ -160,7 +160,8 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
         if close_requested || escape {
             actions.push(EqAction::Close);
         }
-        let typing = ui.memory(|memory| memory.focused().is_some());
+        // A text field keeps its own undo; a button reached with Tab takes no keys.
+        let typing = ui.ctx().text_edit_focused();
         if !typing && ui.input_mut(|input| input.consume_shortcut(&UNDO_SHORTCUT)) {
             actions.push(EqAction::Undo);
         }

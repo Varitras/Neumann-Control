@@ -568,7 +568,7 @@ pub(super) fn level_of(state: &SpeakerState) -> Option<f64> {
     if !can_write(state, Catalog::embedded(), &path) {
         return None;
     }
-    state.values.get(&path).and_then(Value::as_f64)
+    state.latest(&path).and_then(Value::as_f64)
 }
 
 pub(super) fn levels(states: &[&SpeakerState]) -> Vec<f64> {
@@ -582,7 +582,7 @@ pub(super) fn all_muted(states: &[&SpeakerState]) -> Option<bool> {
     let mutes: Vec<bool> = states
         .iter()
         .filter(|state| can_write(state, Catalog::embedded(), &path))
-        .filter_map(|state| state.values.get(&path).and_then(Value::as_bool))
+        .filter_map(|state| state.latest(&path).and_then(Value::as_bool))
         .collect();
     (!mutes.is_empty()).then(|| mutes.iter().all(|muted| *muted))
 }
@@ -616,6 +616,21 @@ mod tests {
             speaker.apply(Event::Value { path, value }, 0.0);
         }
         speaker
+    }
+
+    /// A second click on the group mute before the first is answered: the members count as
+    /// they will be, so it unmutes instead of muting again; the fader likewise.
+    #[test]
+    fn the_group_controls_count_writes_still_on_their_way() {
+        let mut left = member("KH 120 II", 80.0, false);
+        let mut right = member("KH 120 II", 80.0, false);
+        for member in [&mut left, &mut right] {
+            member.record_written(&paths::path(paths::MUTE), &json!(true));
+            member.record_written(&paths::path(paths::OUTPUT_LEVEL), &json!(70.0));
+        }
+        let states = [&left, &right];
+        assert_eq!(all_muted(&states), Some(true));
+        assert_eq!(levels(&states), vec![70.0, 70.0]);
     }
 
     /// A member that may not write a setting cannot follow the group's control for it, so it

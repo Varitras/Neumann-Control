@@ -54,12 +54,18 @@ pub fn chosen_by_default(entry: &Entry) -> bool {
     entry.path != paths::path(paths::DEVICE_NAME)
 }
 
-/// The chosen settings as the speaker reports them now; one it has not reported is left out.
+/// What a preset saves of `path`, and what the save dialog shows for it: the speaker's value
+/// once its writes are through.
+pub fn saved_value<'a>(speaker: &'a SpeakerState, path: &SscPath) -> Option<&'a Value> {
+    speaker.latest(path)
+}
+
+/// The chosen settings as `saved_value` gives them; one the speaker has not reported is left out.
 pub fn capture(name: &str, speaker: &SpeakerState, chosen: &[SscPath]) -> SettingsPreset {
     let values = chosen
         .iter()
         .filter_map(|path| {
-            let value = speaker.values.get(path)?;
+            let value = saved_value(speaker, path)?;
             Some((path.to_string(), value.clone()))
         })
         .collect();
@@ -85,7 +91,7 @@ pub fn plan(preset: &SettingsPreset, speaker: &SpeakerState, catalog: &Catalog) 
             plan.skipped.push(text.clone());
             continue;
         };
-        let current = speaker.values.get(&entry.path).cloned();
+        let current = speaker.latest(&entry.path).cloned();
         let unchanged = current
             .as_ref()
             .is_some_and(|current| same_value(current, value, entry.step));
@@ -121,8 +127,8 @@ pub struct EqDifference {
     pub written: Value,
 }
 
-/// The container's six leaves as reported; `None` until the speaker reported all of them with
-/// the same band count.
+/// The container's six leaves in `values` (the speaker's latest, writes on their way
+/// included); `None` until all of them are there with the same band count.
 pub fn capture_eq(
     name: &str,
     values: &BTreeMap<SscPath, Value>,
@@ -162,7 +168,8 @@ fn is_whole(preset: &EqPreset) -> bool {
     })
 }
 
-/// The leaves whose arrays differ from what the speaker reports, written whole.
+/// The leaves whose arrays differ from `values` (the speaker's latest, writes on their way
+/// included), written whole.
 pub fn eq_plan(
     preset: &EqPreset,
     values: &BTreeMap<SscPath, Value>,
@@ -383,6 +390,31 @@ mod tests {
             }]
         );
         assert_eq!(plan.skipped, vec!["audio/out1/level", "no/such/path"]);
+    }
+
+    /// A write still on its way is what the speaker will hold: loading a preset that has the
+    /// value reported before must still write it, and saving takes the new value.
+    #[test]
+    fn a_preset_counts_a_write_still_on_its_way() {
+        let catalog = Catalog::embedded();
+        let mut monitor = speaker("KH 120 II", &[(paths::MUTE, json!(false))]);
+        monitor.record_written(&paths::path(paths::MUTE), &json!(true));
+        let preset = SettingsPreset {
+            name: "Open".to_owned(),
+            product: "KH 120 II".to_owned(),
+            values: [(paths::MUTE.to_owned(), json!(false))].into(),
+        };
+        let plan = plan(&preset, &monitor, catalog);
+        assert_eq!(
+            plan.changes,
+            vec![PresetChange {
+                path: paths::path(paths::MUTE),
+                current: Some(json!(true)),
+                preset: json!(false),
+            }]
+        );
+        let saved = capture("Now", &monitor, &[paths::path(paths::MUTE)]);
+        assert_eq!(saved.values, [(paths::MUTE.to_owned(), json!(true))].into());
     }
 
     /// A settings file written by hand may hold identify; loading it must not flash the logo.
