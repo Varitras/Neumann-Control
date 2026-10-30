@@ -146,6 +146,31 @@ pub fn changed_since(change: &Change, latest: Option<&Value>, step: Option<f64>)
     latest.is_some_and(|latest| !same_value(latest, &change.after, step))
 }
 
+/// Why an entry without an open change is closed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Closed {
+    TakenBack,
+    NotWritten,
+    /// Some changes were not written, the others are taken back.
+    PartlyNotWritten,
+    /// A change whose value before the speaker had not reported.
+    BeforeUnknown,
+}
+
+pub fn closed_because(changes: &[Change]) -> Closed {
+    let all = |test: fn(&Change) -> bool| changes.iter().all(test);
+    if all(|change| change.taken_back) {
+        return Closed::TakenBack;
+    }
+    if all(|change| change.refused) {
+        return Closed::NotWritten;
+    }
+    if all(|change| change.refused || change.taken_back) {
+        return Closed::PartlyNotWritten;
+    }
+    Closed::BeforeUnknown
+}
+
 pub fn is_open(change: &Change) -> bool {
     !change.taken_back && !change.refused && change.before.is_some()
 }
@@ -237,6 +262,34 @@ mod tests {
             taken_back: false,
             write: None,
             refused: false,
+        }
+    }
+
+    /// Why a closed entry cannot be taken back, from what became of each change: a group
+    /// action with one member refused and the other taken back since is closed with both
+    /// values before known.
+    #[test]
+    fn a_closed_entry_says_what_became_of_its_changes() {
+        let taken_back = Change {
+            taken_back: true,
+            ..change(Some(json!(1.0)), json!(2.0))
+        };
+        let refused = Change {
+            refused: true,
+            ..change(Some(json!(1.0)), json!(2.0))
+        };
+        let unknown = change(None, json!(2.0));
+        let cases = [
+            (vec![taken_back.clone()], Closed::TakenBack),
+            (vec![refused.clone()], Closed::NotWritten),
+            (
+                vec![refused.clone(), taken_back.clone()],
+                Closed::PartlyNotWritten,
+            ),
+            (vec![unknown, taken_back], Closed::BeforeUnknown),
+        ];
+        for (changes, expected) in cases {
+            assert_eq!(closed_because(&changes), expected, "{changes:?}");
         }
     }
 

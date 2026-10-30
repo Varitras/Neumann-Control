@@ -238,6 +238,10 @@ pub const UNDO: Text = Text::new("Rückgängig", "Undo");
 /// A history entry the speaker refused or never got.
 pub const NOT_WRITTEN: Text = Text::new("Nicht geschrieben", "Not written");
 pub const TAKEN_BACK: Text = Text::new("Zurückgenommen", "Undone");
+pub const PARTLY_NOT_WRITTEN: Text = Text::new(
+    "Teils nicht geschrieben, sonst zurückgenommen",
+    "Partly not written, otherwise undone",
+);
 pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",
     "The value before is unknown",
