@@ -910,10 +910,14 @@ impl NeumannApp {
     /// From the exe's folder, where the release puts it next to the settings.
     fn open_manual(&mut self) {
         let manual = self.settings_path.with_file_name(MANUAL_FILE);
-        let opened = manual.is_file() && self.help.open(&manual.to_string_lossy());
-        if !opened {
-            log::warn!("the manual could not be opened");
+        if !manual.is_file() {
+            log::warn!("the manual is not next to the executable");
             self.notice = Some(texts::MANUAL_MISSING);
+            return;
+        }
+        if !self.help.open(&manual.to_string_lossy()) {
+            log::warn!("the manual could not be opened");
+            self.notice = Some(texts::MANUAL_NOT_OPENED);
         }
     }
 

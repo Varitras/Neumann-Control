@@ -54,6 +54,19 @@ fn a_missing_manual_is_said_and_nothing_opened() {
     assert!(help.opened.lock().unwrap().is_empty());
 }
 
+/// The manual is there, but nothing opens it: that is said, not that it is missing.
+#[test]
+fn a_manual_that_does_not_open_is_not_called_missing() {
+    let help = FakeHelp {
+        cannot_open: true,
+        ..FakeHelp::default()
+    };
+    let (directory, mut harness) = app_with(&help);
+    std::fs::write(directory.path().join(MANUAL_FILE), "<html></html>").unwrap();
+    choose_from_help(&mut harness, texts::MANUAL.get());
+    harness.get_by_label(texts::MANUAL_NOT_OPENED.get());
+}
+
 #[test]
 fn about_tells_when_no_release_is_published() {
     let (_directory, mut harness) = app_with(&FakeHelp::default());
