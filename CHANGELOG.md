@@ -13,6 +13,22 @@
   read (about two seconds on a KH 750).
 - A setting changed on the speaker while a file dialog was open for long is read again as soon
   as the dialog closes, not up to half a minute later.
+- The preset save dialog shows the value just sent, which is what it saves.
+- **Ctrl+Z** takes back also while a button has the keyboard focus (reached with Tab), in the main
+  window and in the EQ window.
+- A speaker removed and added again in one session no longer closes an earlier change in the
+  history when one of its new writes is refused.
+- A history entry with some changes not written and the others taken back says so, not that the
+  value before is unknown.
+- Where the folder's lock file cannot be made (a folder of its name in the way, a read-only
+  folder), the app writes neither log nor settings, so a second app there cannot lose them.
+- A serial the speaker reports in another form than text is not taken, so it cannot lock out the
+  real one later.
+- An EQ file with a filter line after the highest band number is refused; it could count on
+  from band 1.
+- A band reported with Q 0 no longer turns the EQ curve into no numbers.
+- A speaker the scan heard once before and once after its serial was announced is offered once.
+- "Manual could not be opened" when it is there but nothing opens it, instead of "not found".
 
 ## [0.2.0] - 2026-10-27
 
