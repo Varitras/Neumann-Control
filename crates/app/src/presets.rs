@@ -54,13 +54,18 @@ pub fn chosen_by_default(entry: &Entry) -> bool {
     entry.path != paths::path(paths::DEVICE_NAME)
 }
 
-/// The chosen settings as the speaker will hold them once its writes are through; one it has
-/// not reported is left out.
+/// What a preset saves of `path`, and what the save dialog shows for it: the speaker's value
+/// once its writes are through.
+pub fn saved_value<'a>(speaker: &'a SpeakerState, path: &SscPath) -> Option<&'a Value> {
+    speaker.latest(path)
+}
+
+/// The chosen settings as `saved_value` gives them; one the speaker has not reported is left out.
 pub fn capture(name: &str, speaker: &SpeakerState, chosen: &[SscPath]) -> SettingsPreset {
     let values = chosen
         .iter()
         .filter_map(|path| {
-            let value = speaker.latest(path)?;
+            let value = saved_value(speaker, path)?;
             Some((path.to_string(), value.clone()))
         })
         .collect();

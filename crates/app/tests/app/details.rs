@@ -966,6 +966,28 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
     );
 }
 
+/// Saving right after a change: the save dialog shows what it saves, the value just sent, not
+/// the one the speaker reported before.
+#[test]
+fn the_save_dialog_shows_a_write_still_on_its_way() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+    // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
+    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    harness
+        .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
+        .click();
+    harness.run_steps(1);
+    harness.get_by_label(texts::TAB_OVERVIEW.get()).click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    let catalog = neumann_control_core::catalog::Catalog::embedded();
+    let mute = paths::catalog_entry(catalog, &paths::path(paths::MUTE)).unwrap();
+    let label = mute.label(texts::language());
+    harness.get_by_label(&texts::preset_row(label, texts::ON.get()));
+}
+
 #[test]
 fn deleting_a_settings_preset_asks_first() {
     let (_simulator, directory, mut harness) =
