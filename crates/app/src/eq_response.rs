@@ -44,8 +44,22 @@ pub fn band_db(band: &Band, frequency: f64) -> f64 {
 }
 
 /// The band's filter as the cookbook defines it; `None` for a type that changes the phase only,
-/// an unknown type, or a setting the cookbook form does not cover.
+/// an unknown type, or a setting the cookbook form does not cover: a Q (or slope) not above 0,
+/// as the speakers never take it, or one giving coefficients that are no numbers.
 fn biquad(band: &Band) -> Option<Biquad> {
+    if band.q <= 0.0 {
+        return None;
+    }
+    cookbook(band).filter(|filter| {
+        filter
+            .b
+            .iter()
+            .chain(&filter.a)
+            .all(|value| value.is_finite())
+    })
+}
+
+fn cookbook(band: &Band) -> Option<Biquad> {
     if band.frequency >= SAMPLE_RATE_HZ / 2.0 {
         // At half the rate the form is undefined; what the speakers do there is not measured.
         return None;
@@ -193,6 +207,23 @@ mod tests {
         off[1].enabled = false;
         assert!(band_curves(&off, &frequencies)[1].is_none());
         assert_eq!(band_curves(&bands, &frequencies).len(), 2);
+    }
+
+    /// The speakers take Q from 0.1 up; a report of 0 (or a height no filter reaches) gives no
+    /// cookbook filter, so the band adds only its flat gain instead of a curve of no numbers.
+    #[test]
+    fn a_band_the_cookbook_form_cannot_take_draws_no_shape() {
+        let unusable = [
+            band("PARAMETRIC", 6.0, 1000.0, 0.0),
+            band("HISHELF", 6.0, 1000.0, 0.0),
+            band("LOWPASS", 0.0, 1000.0, -1.0),
+            band("PARAMETRIC", 1.0e5, 1000.0, 1.0),
+        ];
+        for band in unusable {
+            for frequency in [20.0, 1000.0, 20000.0] {
+                assert_eq!(band_db(&band, frequency), 0.0, "{band:?} at {frequency} Hz");
+            }
+        }
     }
 
     #[test]
