@@ -1111,6 +1111,10 @@ fn line_problem(problem: &LineProblem) -> String {
             format!("Band {band} steht schon in einer früheren Zeile."),
             format!("Band {band} is already in an earlier line."),
         ),
+        LineProblem::NoNextBand => pick(
+            "Nach der höchsten Bandnummer gibt es kein weiteres Band.".to_owned(),
+            "There is no band after the highest band number.".to_owned(),
+        ),
         LineProblem::BadQ => Text::new(
             "Q bzw. Bandbreite ergibt kein Q über 0.",
             "Q or bandwidth gives no Q above 0.",
