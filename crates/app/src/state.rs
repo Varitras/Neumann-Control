@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::net::SocketAddrV6;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use neumann_control_core::discovery::Found;
@@ -96,6 +97,10 @@ pub enum Message {
     Refused(Refusal),
 }
 
+/// Write numbers for the whole session: the history keeps the changes of a speaker removed and
+/// added again, and a refusal is matched by speaker and number.
+static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
@@ -126,8 +131,8 @@ pub struct SpeakerState {
     pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
-    /// The number the next sent write gets.
-    next_write: u64,
+    /// The number of the write sent last.
+    newest_write: Option<u64>,
     /// The numbers of writes the speaker refused, that failed, or that will never be answered
     /// (the connection went away), since the app last took them.
     pub refused_writes: Vec<u64>,
@@ -179,7 +184,7 @@ impl SpeakerState {
             response_time: None,
             written: Vec::new(),
             pending: BTreeMap::new(),
-            next_write: 0,
+            newest_write: None,
             refused_writes: Vec::new(),
             temperature: Trend::default(),
             warnings: Trend::default(),
@@ -261,9 +266,9 @@ impl SpeakerState {
             .remove(path)
             .map(|pending| pending.unanswered)
             .unwrap_or_default();
-        let write = self.next_write;
+        let write = NEXT_WRITE.fetch_add(1, Ordering::Relaxed);
         unanswered.push_back(write);
-        self.next_write += 1;
+        self.newest_write = Some(write);
         self.written.push(Written {
             path: path.clone(),
             before,
@@ -279,7 +284,7 @@ impl SpeakerState {
 
     /// The number of the write sent last, to follow its answer.
     pub fn newest_write(&self) -> Option<u64> {
-        self.next_write.checked_sub(1)
+        self.newest_write
     }
 
     /// Whether the write numbered `write` is still unanswered. A write whose answer will not
@@ -861,6 +866,19 @@ mod tests {
             1.1,
         );
         assert!(speaker.refused_writes.contains(&write));
+    }
+
+    /// A speaker removed and added again is a new state, but its history stays: its writes are
+    /// numbered on from the old ones, so a refusal of a new write closes no old change.
+    #[test]
+    fn a_new_state_numbers_its_writes_on_from_the_old_ones() {
+        let mute = path(paths::MUTE);
+        let mut before = state();
+        before.record_written(&mute, &json!(true));
+        let old = before.newest_write().unwrap();
+        let mut after = state();
+        after.record_written(&mute, &json!(true));
+        assert_ne!(after.newest_write().unwrap(), old);
     }
 
     /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
