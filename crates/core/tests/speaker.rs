@@ -204,6 +204,34 @@ impl Drop for ClosingListener {
     }
 }
 
+/// A serial that is no text (measured: it always is) is no serial: a speaker added by address
+/// is not pinned to it, so its real serial is taken at the next connection.
+#[test]
+fn a_serial_of_the_wrong_type_is_not_taken() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_value("device/identity/serial", json!(7));
+    let (_handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let seen = collect_until(&events, EVENT_DEADLINE, is_connected);
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("no identity: {seen:?}");
+    };
+    assert_eq!(identity.serial, "");
+
+    simulator.set_value("device/identity/serial", json!(KH_120_II_SERIAL));
+    simulator.inject(Fault::CloseConnection);
+    let seen = collect_until(&events, RECOVERY_DEADLINE, is_connected);
+    assert!(
+        !seen
+            .iter()
+            .any(|event| matches!(event, Event::SerialMismatch { .. })),
+        "{seen:?}"
+    );
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("no identity: {seen:?}");
+    };
+    assert_eq!(identity.serial, KH_120_II_SERIAL);
+}
+
 #[test]
 fn worker_reports_identity_then_values() {
     let simulator = Simulator::start(SimModel::Kh120Ii);

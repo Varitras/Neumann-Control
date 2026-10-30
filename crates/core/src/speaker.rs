@@ -614,20 +614,37 @@ impl Worker {
         Ok(Identity {
             product: self.read_text(client, PRODUCT_PATH)?,
             version: self.read_text(client, VERSION_PATH)?,
-            serial: self.read_text(client, SERIAL_PATH)?,
+            serial: self.read_serial(client)?,
             name: self.read_text(client, NAME_PATH)?,
         })
     }
 
     /// A string value as it is; any other value in its JSON form.
     fn read_text(&self, client: &mut Client, path: &str) -> Result<String, Interruption> {
+        match self.read_identity_value(client, path)? {
+            Value::String(text) => Ok(text),
+            other => Ok(other.to_string()),
+        }
+    }
+
+    /// Empty, as for a speaker that reports none, unless it is text: the serial pins a speaker
+    /// added by address and is saved, so a value in another form would lock out the real one.
+    fn read_serial(&self, client: &mut Client) -> Result<String, Interruption> {
+        match self.read_identity_value(client, SERIAL_PATH)? {
+            Value::String(serial) => Ok(serial),
+            // Not logged as it came: serials are masked in the log.
+            _ => {
+                log::warn!("{} reports a serial that is no text", self.host);
+                Ok(String::new())
+            }
+        }
+    }
+
+    fn read_identity_value(&self, client: &mut Client, path: &str) -> Result<Value, Interruption> {
         if self.inbox.stop_requested() {
             return Err(Interruption::Stopped);
         }
         let path = SscPath::parse(path).expect("constant identity path is valid");
-        match client.get(&path).map_err(Interruption::Lost)? {
-            Value::String(text) => Ok(text),
-            other => Ok(other.to_string()),
-        }
+        client.get(&path).map_err(Interruption::Lost)
     }
 }
