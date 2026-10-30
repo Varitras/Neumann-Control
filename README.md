@@ -101,16 +101,19 @@ the new release; settings and log stay. To remove the app, delete the folder.
 `SHA256SUMS` on the release page lists the checksums of both downloads; on Linux
 `sha256sum -c --ignore-missing SHA256SUMS` checks the one next to it.
 
-One app runs per folder: starting it again while it runs brings its window to the front (on
-Linux the second start just ends, as Wayland lets no program bring another's window forward).
+One app runs per folder: starting it again while it runs brings the running app's window to the
+front. It is found by its title, so with copies from other folders running too, one of theirs
+may come forward instead. On Linux the second start just ends, as Wayland lets no program bring
+another's window forward.
 
 ## Getting started
 
-1. Start `neumann-control.exe` and press **Scan**. The scan takes 4 seconds. The dialog
-   "Speakers found" lists every speaker found with its name, model and masked address. Check the
-   ones you want and press **Add**; each gets a strip. Speakers that already have one are marked
-   "already added". **Scan again** looks once more, for a speaker that was still starting up;
-   the list and your checks stay, new speakers are added below. **Cancel** adds nothing.
+1. Start the app (`neumann-control.exe`, on Linux `./neumann-control`) and press **Scan**. The
+   scan takes 4 seconds. The dialog "Speakers found" lists every speaker found with its name,
+   model and masked address. Check the ones you want and press **Add**; each gets a strip.
+   Speakers that already have one are marked "already added". **Scan again** looks once more, for
+   a speaker that was still starting up; the list and your checks stay, new speakers are added
+   below. **Cancel** adds nothing.
 2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
    the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:

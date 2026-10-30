@@ -173,8 +173,8 @@ pub const MANUAL_NOT_OPENED: Text = Text::new(
     "The manual could not be opened",
 );
 pub const MANUAL_MISSING: Text = Text::new(
-    "Handbuch nicht gefunden (neben der Exe)",
-    "Manual not found (next to the exe)",
+    "Handbuch nicht gefunden (neben dem Programm)",
+    "Manual not found (next to the program)",
 );
 pub const LICENCE: Text = Text::new("MIT-Lizenz", "MIT licence");
 pub const PROJECT_PAGE: Text = Text::new("Projektseite auf GitHub", "Project page on GitHub");
@@ -917,7 +917,7 @@ pub fn scan_failed(failure: ScanFailure) -> &'static str {
             "Scan failed: the speaker did not answer completely.",
         ),
         ScanFailure::Writing => Text::new(
-            "Scan fehlgeschlagen: Der Bericht ließ sich neben der Exe nicht speichern.",
+            "Scan fehlgeschlagen: Der Bericht ließ sich neben dem Programm nicht speichern.",
             "Scan failed: the report could not be saved next to the executable.",
         ),
     };
