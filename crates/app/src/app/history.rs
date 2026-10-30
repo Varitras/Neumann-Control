@@ -96,9 +96,9 @@ impl NeumannApp {
     }
 
     /// Ctrl+Z: takes back the newest open entry. Not while a text field has the keyboard (it
-    /// has its own undo) or a dialog waits for an answer.
+    /// has its own undo) or a dialog waits for an answer; a button reached with Tab takes none.
     pub(super) fn undo_shortcut(&mut self, ui: &mut Ui) {
-        let typing = ui.ctx().memory(|memory| memory.focused().is_some());
+        let typing = ui.ctx().text_edit_focused();
         if typing || self.dialog_open() {
             return;
         }

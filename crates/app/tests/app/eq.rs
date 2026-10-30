@@ -440,6 +440,21 @@ fn ctrl_z_in_the_eq_window_undoes_eq_only() {
     assert_band_2_written_back(&simulator);
 }
 
+/// As in the main window: a button reached with Tab does not keep Ctrl+Z from the EQ window.
+#[test]
+fn ctrl_z_in_the_eq_window_works_while_a_button_has_the_focus() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    eq_change_then_mute(&mut harness, &simulator);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    let focused = harness.ctx.memory(|memory| memory.focused().is_some());
+    assert!(focused, "Tab gave a button the focus");
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "the band written back", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+}
+
 #[test]
 fn eq_undo_is_disabled_without_eq_changes() {
     let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);

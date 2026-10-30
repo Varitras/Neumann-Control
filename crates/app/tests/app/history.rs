@@ -339,6 +339,22 @@ fn a_take_back_before_the_speaker_confirmed_the_write_does_not_ask() {
     assert_eq!(entries[0].takes_back, Some(entries[1].id));
 }
 
+/// A button reached with Tab takes no keys: Ctrl+Z still takes back, as the other shortcuts
+/// work then (keyboard and screen reader users move by Tab).
+#[test]
+fn ctrl_z_takes_back_while_a_button_has_the_focus() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    click_mute(&mut harness, &simulator, 1);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    let focused = harness.ctx.memory(|memory| memory.focused().is_some());
+    assert!(focused, "Tab gave a button the focus");
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "unmute", |_| {
+        sets(&simulator, MUTE_POINTER) == [json!(true), json!(false)]
+    });
+}
+
 #[test]
 fn ctrl_z_in_a_text_field_does_not_take_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
