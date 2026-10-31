@@ -103,6 +103,14 @@ static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(0);
 
+/// A write the speaker refused while later writes to its path were on their way, oldest first:
+/// they took its value as their value before.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RefusedPredecessor {
+    pub write: u64,
+    pub later: Vec<u64>,
+}
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
@@ -145,6 +153,8 @@ pub struct SpeakerState {
     /// The numbers of writes the speaker refused, that failed, or that will never be answered
     /// (the connection went away), since the app last took them.
     pub refused_writes: Vec<u64>,
+    /// Refused writes later writes took their value before from, since the app last took them.
+    pub refused_predecessors: Vec<RefusedPredecessor>,
     /// `device/temperature` as reported (kelvin), for the device panel's trend.
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
@@ -198,6 +208,7 @@ impl SpeakerState {
             next_retired: 0,
             newest_write: None,
             refused_writes: Vec::new(),
+            refused_predecessors: Vec::new(),
             temperature: Trend::default(),
             warnings: Trend::default(),
             full_scan: FullScanState::Idle,
@@ -331,8 +342,12 @@ impl SpeakerState {
         let writes = self
             .retired
             .get_mut(&worker)
-            .and_then(|writes| writes.get_mut(path));
-        let write = writes.and_then(VecDeque::pop_front)?;
+            .and_then(|writes| writes.get_mut(path))?;
+        let write = writes.pop_front()?;
+        let later = writes.iter().copied().collect();
+        if matches!(event, Event::WriteRejected { .. }) {
+            self.note_predecessor(Some(write), later);
+        }
         if !done {
             self.refused_writes.push(write);
             return None;
@@ -394,6 +409,19 @@ impl SpeakerState {
             knob.confirmed();
         }
         answered
+    }
+
+    /// Only for an explicit refusal: a write that failed with the connection may have been
+    /// applied.
+    fn note_predecessor(&mut self, refused: Option<u64>, later: Vec<u64>) {
+        let Some(write) = refused else {
+            return;
+        };
+        if later.is_empty() {
+            return;
+        }
+        let predecessor = RefusedPredecessor { write, later };
+        self.refused_predecessors.push(predecessor);
     }
 
     /// No answer is coming for what is pending: those writes count as failed.
@@ -472,6 +500,11 @@ impl SpeakerState {
             // A re-read or, for a lost connection, the reconnect follows; it shows the real value.
             Event::WriteRejected { path, error } => {
                 let refused = self.settle(&path);
+                let later = self
+                    .pending
+                    .get(&path)
+                    .map(|pending| pending.unanswered.iter().copied().collect());
+                self.note_predecessor(refused, later.unwrap_or_default());
                 self.refused_writes.extend(refused);
                 let message = Message::Rejected(error.code);
                 self.set_message(Some(message), MessageSource::Write);
@@ -1025,6 +1058,52 @@ mod tests {
             message: String::new(),
         };
         assert_eq!(speaker.apply_retired(old, &refused), None);
+    }
+
+    /// A refusal names the writes sent after it to the same path, also from an old connection;
+    /// a write that failed with the connection is no refusal, it may have been applied.
+    #[test]
+    fn a_refused_write_names_the_writes_that_followed_it() {
+        let mute = path(paths::MUTE);
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        let failed = Event::WriteFailed {
+            path: mute.clone(),
+            message: String::new(),
+        };
+        for moved in [false, true] {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            let mut writes = Vec::new();
+            for value in [true, false, true] {
+                speaker.record_written(&mute, &json!(value));
+                writes.push(speaker.newest_write().unwrap());
+            }
+            let old = moved.then(|| speaker.retire_outstanding());
+            let answer = |speaker: &mut SpeakerState, event: &Event| match old {
+                Some(old) => {
+                    speaker.apply_retired(old, event);
+                }
+                None => speaker.apply(event.clone(), 0.0),
+            };
+            answer(&mut speaker, &failed);
+            assert!(speaker.refused_predecessors.is_empty(), "moved: {moved}");
+            answer(&mut speaker, &rejected);
+            let expected = RefusedPredecessor {
+                write: writes[1],
+                later: vec![writes[2]],
+            };
+            assert_eq!(
+                speaker.refused_predecessors,
+                vec![expected],
+                "moved: {moved}"
+            );
+        }
     }
 
     /// Moved twice before the first old worker answered: each old connection's answers count

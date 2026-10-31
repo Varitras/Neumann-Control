@@ -348,23 +348,7 @@ impl NeumannApp {
         let changes: Vec<Change> = self
             .speakers
             .iter_mut()
-            .flat_map(|speaker| {
-                let key = speaker.state.key.clone();
-                speaker
-                    .state
-                    .written
-                    .drain(..)
-                    .map(move |written| Change {
-                        speaker: key.clone(),
-                        path: written.path,
-                        before: written.before,
-                        after: written.after,
-                        taken_back: false,
-                        write: Some(written.write),
-                        refused: false,
-                    })
-                    .collect::<Vec<_>>()
-            })
+            .flat_map(|speaker| written_changes(&mut speaker.state))
             .collect();
         self.history.history.push(clock_now(), changes, takes_back);
     }
@@ -373,11 +357,8 @@ impl NeumannApp {
     /// take-back was; forgets the take-backs answered.
     fn settle_refused_writes(&mut self) {
         for speaker in &mut self.speakers {
-            let refused = std::mem::take(&mut speaker.state.refused_writes);
+            let refused = settle_speaker(&mut self.history.history, &mut speaker.state);
             let key = &speaker.state.key;
-            for write in &refused {
-                self.history.history.mark_refused(key, *write);
-            }
             let awaited = self.history.awaited.iter();
             for awaited in awaited.filter(|awaited| awaited.speaker == *key) {
                 if refused.contains(&awaited.write) {
@@ -457,6 +438,37 @@ impl NeumannApp {
     }
 }
 
+/// The writes the speaker was sent since the history last took them, as its changes.
+fn written_changes(speaker: &mut SpeakerState) -> Vec<Change> {
+    let key = speaker.key.clone();
+    speaker
+        .written
+        .drain(..)
+        .map(|written| Change {
+            speaker: key.clone(),
+            path: written.path,
+            before: written.before,
+            after: written.after,
+            taken_back: false,
+            write: Some(written.write),
+            refused: false,
+        })
+        .collect()
+}
+
+/// Closes the changes of the writes the speaker refused or never got, and gives later writes
+/// the value before of a refused one they took theirs from; returns the refused numbers.
+fn settle_speaker(history: &mut History, speaker: &mut SpeakerState) -> Vec<u64> {
+    for predecessor in std::mem::take(&mut speaker.refused_predecessors) {
+        history.pass_on_before(&speaker.key, predecessor.write, &predecessor.later);
+    }
+    let refused = std::mem::take(&mut speaker.refused_writes);
+    for write in &refused {
+        history.mark_refused(&speaker.key, *write);
+    }
+    refused
+}
+
 /// Each speaker once, however many of the entry's changes it left out.
 fn skip(skipped: &mut Vec<String>, name: String) {
     if !skipped.contains(&name) {
@@ -489,4 +501,68 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
+}
+
+#[cfg(test)]
+mod tests {
+    use neumann_control_core::speaker::{Event, Identity};
+    use neumann_control_core::ssc::wire::DeviceError;
+    use serde_json::json;
+
+    use super::*;
+
+    const NOON: ClockTime = ClockTime {
+        hour: 12,
+        minute: 0,
+        second: 0,
+    };
+
+    /// Mute on, then off again before the first answer: the speaker refuses the first and takes
+    /// the second. Taking the second back writes what the speaker held before both, not the
+    /// value it refused.
+    #[test]
+    fn a_take_back_does_not_restore_a_value_the_speaker_refused() {
+        let catalog = Catalog::embedded();
+        let mute = paths::path(paths::MUTE);
+        let address = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        let reported = Event::Value {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(reported, 0.0);
+        let mut history = History::default();
+        for value in [true, false] {
+            speaker.record_written(&mute, &json!(value));
+            history.push(NOON, written_changes(&mut speaker), None);
+        }
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        speaker.apply(rejected, 0.0);
+        let written = Event::Written {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(written, 0.0);
+        settle_speaker(&mut history, &mut speaker);
+        let second = history.newest(0).unwrap().changes[0].clone();
+        let command = send_before(&mut speaker, &second, catalog, 0.0);
+        let expected = Command::Set {
+            path: mute,
+            value: json!(false),
+        };
+        assert_eq!(command, Some(expected));
+    }
 }
