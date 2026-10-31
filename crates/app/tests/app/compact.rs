@@ -30,6 +30,19 @@ fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
     harness.run_steps(2);
 }
 
+/// A field being edited keeps its keys, Ctrl+K too (egui's text field uses it): the desk
+/// stays, and so does what was typed.
+#[test]
+fn ctrl_k_in_a_text_field_keeps_the_desk() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.get_by_role(Role::TextInput);
+    press_compact_shortcut(&mut harness);
+    harness.get_by_label(texts::GROUPS.get());
+    harness.get_by_role(Role::TextInput);
+}
+
 fn choose(harness: &mut Harness<'static, NeumannApp>, item: &str) {
     harness.get_by_label(item).click();
     harness.run_steps(3);

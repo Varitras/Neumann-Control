@@ -560,12 +560,12 @@ impl NeumannApp {
             }
             ToolbarAction::None => {}
         }
-        if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
+        // A field being edited keeps its keys (Ctrl+arrows, typed letters, Ctrl+K); a button
+        // reached with Tab takes none.
+        let editing_a_field = ui.ctx().text_edit_focused();
+        if !editing_a_field && ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
             self.toggle_compact(ui.ctx());
         }
-        // A field being edited keeps its keys (Ctrl+arrows, typed letters); a button reached with
-        // Tab takes none.
-        let editing_a_field = ui.ctx().text_edit_focused();
         if !editing_a_field {
             let now = ui.input(|input| input.time);
             for shortcut in ui.input_mut(shortcuts::pressed) {

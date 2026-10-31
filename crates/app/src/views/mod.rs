@@ -49,7 +49,8 @@ pub(crate) fn escape_closes(ui: &Ui, window: Id) -> bool {
     let busy_id = window.with(BUSY_ID);
     let was_busy = ui.data(|data| data.get_temp::<bool>(busy_id).unwrap_or(false));
     let context = ui.ctx();
-    let busy = ui.memory(|memory| memory.focused().is_some())
+    // A text field ends its edit on Escape; a button reached with Tab has nothing to end.
+    let busy = context.text_edit_focused()
         || context.dragged_id().is_some()
         || egui::Popup::is_any_open(context);
     ui.data_mut(|data| data.insert_temp(busy_id, busy));
