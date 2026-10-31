@@ -47,7 +47,7 @@ const SHOWN_ELSEWHERE: &[&str] = &[
 pub struct DetailsResponse {
     /// The writes the user asked for that the write policy allowed.
     pub commands: Vec<Command>,
-    /// A row put on the model's strips or taken off them.
+    /// A row put on the strip layout (the model's, or the speaker's own) or taken off it.
     pub layout: Option<LayoutChange>,
 }
 

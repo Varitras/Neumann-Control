@@ -66,7 +66,7 @@ pub struct StripResponse {
     /// The strip's area, where another strip can be dropped.
     pub rect: Rect,
     pub open_eq: bool,
-    /// A change of the model's layout from an element's context menu.
+    /// A change of the layout (the model's, or the speaker's own) from an element's context menu.
     pub layout: Option<LayoutChange>,
     /// From the name's context menu: the speaker's group in the groups window.
     pub edit_group: bool,
@@ -235,7 +235,11 @@ fn contents(
                     &mut wishes,
                 );
                 if let (true, Some(offers)) = (editing, offers) {
-                    edit_controls(ui, speaker.product(), offers, &mut wishes);
+                    let applies = match desk.layouts_per_speaker {
+                        true => texts::APPLIES_TO_THIS_SPEAKER.get().to_owned(),
+                        false => texts::applies_to_every(speaker.product()),
+                    };
+                    edit_controls(ui, &applies, offers, &mut wishes);
                 }
                 message(ui, speaker, &tokens);
                 let details = ui.button(texts::DETAILS).clicked();
@@ -480,9 +484,9 @@ fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, layout_key: &str
     }
 }
 
-/// Under the strip while editing: whose layout it is, "+ Add" and "Default".
-fn edit_controls(ui: &mut Ui, model: &str, offers: &[Offer], wishes: &mut Wishes) {
-    ui.label(RichText::new(texts::applies_to_every(model)).small().weak());
+/// Under the strip while editing: whose layout it is (`applies`), "+ Add" and "Default".
+fn edit_controls(ui: &mut Ui, applies: &str, offers: &[Offer], wishes: &mut Wishes) {
+    ui.label(RichText::new(applies).small().weak());
     ui.horizontal_wrapped(|ui| {
         ui.menu_button(texts::ADD_ELEMENT, |ui| {
             for offer in offers {

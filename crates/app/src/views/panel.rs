@@ -43,7 +43,7 @@ pub struct PanelResponse {
     pub open_eq: bool,
     pub save_preset: bool,
     pub load_preset: bool,
-    /// A row put on the model's strips or taken off them.
+    /// A row put on the strip layout (the model's, or the speaker's own) or taken off it.
     pub layout: Option<LayoutChange>,
     /// The strip's colour as the user changed it.
     pub color: Option<ColorChoice>,

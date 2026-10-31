@@ -167,7 +167,8 @@ speaker shows its model's layout; the own ones are kept for the next time.
 - The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**
   adds an element, dragging one with the left button moves it (also across the fader; while you
   drag, the strip already shows it where it would land, faded, and the others make room; it
-  goes to strips of the same model only), right-click hides it, and **Default** brings back the
+  goes to strips of the same model only, with own layouts to its own strip only; the note under
+  the strip says which), right-click hides it, and **Default** brings back the
   model's default strip. The controls write nothing while you edit; the pen again (**Done**) ends
   it.
 - Any number, switch, choice or read-only value of the device panel can go on a strip; the

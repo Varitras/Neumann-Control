@@ -1,6 +1,8 @@
 //! Blocking SSC v1 client: one TCP connection to one speaker, one request in flight.
 //!
-//! Replies are matched by the transaction id the client sends with every request. The reader
+//! Replies are matched by the transaction id the client sends with a request; a request that
+//! would pass the speaker's token limit with it (a whole 20-band EQ array) goes without, and
+//! its reply is matched by its path or error instead. The reader
 //! enforces every limit while reading, because the peer is a network device that can send
 //! anything; after any breach the connection is closed and the client is single-use.
 

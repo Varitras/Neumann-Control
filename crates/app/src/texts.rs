@@ -486,6 +486,12 @@ pub const UNREACHABLE: Text = Text::new(
 );
 pub const WRITE_FAILED: Text = Text::new("Schreiben fehlgeschlagen", "Write failed");
 
+/// The edit mode's note with own layouts: the change is this speaker's only.
+pub const APPLIES_TO_THIS_SPEAKER: Text = Text::new(
+    "gilt nur für diesen Lautsprecher",
+    "applies to this speaker only",
+);
+
 /// The edit mode's note that a strip layout belongs to the model, not to the one speaker.
 pub fn applies_to_every(model: &str) -> String {
     pick(
@@ -993,12 +999,12 @@ pub fn eq_preset_entry(name: &str, bands: usize) -> String {
     )
 }
 
-/// A band an EQ preset would change, in the load dialog's preview.
 /// A band's value in the EQ preset comparison: "Band 2 · Boost".
 pub fn eq_band_leaf(band: usize, leaf: &str) -> String {
     format!("{} · {leaf}", eq_band(band))
 }
 
+/// A band an EQ preset would change, in the load dialog's preview.
 pub fn eq_preset_band(number: usize) -> String {
     pick(
         format!("Band {number} ändert sich"),

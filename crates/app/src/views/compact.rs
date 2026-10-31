@@ -50,7 +50,7 @@ pub struct SpeakerRowResponse {
     /// The name or Details was clicked: the speaker's panel opens.
     pub open_panel: bool,
     pub open_eq: bool,
-    /// A change of the model's compact buttons.
+    /// A change of the compact buttons (the model's, or the speaker's own).
     pub layout: Option<CompactChange>,
 }
 
