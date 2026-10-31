@@ -363,11 +363,34 @@ impl NeumannApp {
         self.drop_duplicate_speakers();
     }
 
-    /// A speaker's key changed (its serial became known): its group, its place in the order and
-    /// its open panel go with it.
+    /// A speaker's key changed (its serial became known): everything that names the speaker by
+    /// its key goes with it — its group, its place in the order, its open windows, its history
+    /// and a dim waiting to go back.
     fn follow_key(&mut self, before: &SpeakerKey, after: &SpeakerKey) -> bool {
         for panel in self.panels.iter_mut().filter(|panel| panel.key == *before) {
             panel.key = after.clone();
+        }
+        for window in &mut self.eq_windows {
+            window.rename_speaker(before, after);
+        }
+        if let Some(dialog) = &mut self.preset_dialog {
+            dialog.rename_speaker(before, after);
+        }
+        if let Some(removal) = self
+            .removal
+            .as_mut()
+            .filter(|removal| removal.key == *before)
+        {
+            removal.key = after.clone();
+        }
+        self.history.rename_speaker(before, after);
+        let dim_levels = self
+            .dimmed
+            .iter_mut()
+            .flatten()
+            .chain(&mut self.dim_returns);
+        for (key, _) in dim_levels.filter(|(key, _)| *key == *before) {
+            *key = after.clone();
         }
         let (old, new) = (member_id(before), member_id(after));
         rename_member_settings(&mut self.settings, &old, &new)

@@ -42,6 +42,19 @@ pub(super) struct HistoryState {
     awaited: Vec<AwaitedTakeBack>,
 }
 
+impl HistoryState {
+    pub(super) fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        self.history.rename_speaker(before, after);
+        for awaited in self
+            .awaited
+            .iter_mut()
+            .filter(|awaited| awaited.speaker == *before)
+        {
+            awaited.speaker = after.clone();
+        }
+    }
+}
+
 /// A change marked taken back when its write was sent; refused, it is open again.
 #[derive(Debug)]
 struct AwaitedTakeBack {

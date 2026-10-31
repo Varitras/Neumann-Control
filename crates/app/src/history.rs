@@ -51,6 +51,14 @@ pub struct History {
 }
 
 impl History {
+    /// The speaker's key changed (its serial became known): its changes go with it.
+    pub fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        let changes = self.entries.iter_mut().flat_map(|entry| &mut entry.changes);
+        for change in changes.filter(|change| change.speaker == *before) {
+            change.speaker = after.clone();
+        }
+    }
+
     /// Adds the changes of one frame as an entry; a frame without writes adds nothing.
     pub fn push(
         &mut self,

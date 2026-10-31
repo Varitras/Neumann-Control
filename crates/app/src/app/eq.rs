@@ -48,6 +48,17 @@ impl EqWindow {
     }
 }
 
+impl EqWindow {
+    pub(super) fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        let keys = std::iter::once(&mut self.key)
+            .chain(&mut self.compared)
+            .chain(&mut self.candidates);
+        for key in keys.filter(|key| **key == *before) {
+            *key = after.clone();
+        }
+    }
+}
+
 /// An open EQ window and what is chosen in it.
 pub(super) struct EqWindow {
     key: SpeakerKey,
