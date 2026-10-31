@@ -48,10 +48,11 @@
 - "Manual could not be opened" when it is there but nothing opens it, instead of "not found";
   a wiki or release link that does not open is said too.
 - A speaker that gets its serial later (added by address) keeps its history, a dim waiting to go
-  back, and its EQ and **All values** windows as they are.
+  back, its strip with a value being typed or dragged, and its EQ and **All values** windows as
+  they are.
 - The writes of a speaker that moved to another address count by the answers of its old
-  connection: one that went through stays in the history as written and is read again from the
-  speaker, one still waiting there is not sent.
+  connection: one that went through stays in the history as written, one still waiting there is
+  not sent, and a setting such a write went through or may have gone through is read again.
 - A typed value left open when its tab, panel or mode went does not come back with old text.
 - **Ctrl+K** keeps to a text field being edited, and one **Escape** closes a window while a
   button has the keyboard focus.
@@ -59,7 +60,10 @@
 - The EQ import preview and preset load say why nothing can be written (not connected,
   protected crossover) instead of "already on the speaker", also when nothing would change.
 - Taking back a change sent right after another to the same setting writes the value before
-  both when the speaker refused the first, not the refused value.
+  both when the speaker refused the first, not the refused value; a refused EQ band no longer
+  counts as the band's value while other bands are still on their way.
+- A shortcut or a dim going back while the window is minimized is kept in the history as not
+  written when its write fails, not as a change to take back.
 - Windows of their own open at the size they were left, also below the main window's least
   size, and never below their own.
 - With own layouts, the edit note under a strip says the change is this speaker's only.
