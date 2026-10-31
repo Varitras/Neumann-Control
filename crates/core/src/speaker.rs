@@ -72,9 +72,15 @@ impl Default for Timing {
 /// The value of a `Set` is checked against the catalog by the app before it is sent.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
-    Set { path: SscPath, value: Value },
+    Set {
+        path: SscPath,
+        value: Value,
+    },
     ReadAll,
     Stop,
+    /// Stop without the commands still waiting: they were for a speaker that moved, and the
+    /// app no longer awaits their answers.
+    Abandon,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -138,6 +144,11 @@ impl SpeakerHandle {
         // After Stop or a panic the worker is gone and the command has no one to run it;
         // Drop logs a panic when joining.
         let _ = self.commands.send(command);
+    }
+
+    /// Ends the worker without sending what still waits (see `Command::Abandon`).
+    pub fn abandon(self) {
+        self.send(Command::Abandon);
     }
 }
 
@@ -449,7 +460,7 @@ impl Worker {
                 session.walk.get_or_insert_with(Walk::new);
                 Ok(())
             }
-            Command::Stop => Err(Interruption::Stopped),
+            Command::Stop | Command::Abandon => Err(Interruption::Stopped),
         }
     }
 
@@ -572,7 +583,9 @@ impl Worker {
                 Ok(Command::ReadAll) => self
                     .outbox
                     .emit(Event::AllValuesFailed(NOT_CONNECTED_MESSAGE.to_owned())),
-                Ok(Command::Stop) | Err(RecvTimeoutError::Disconnected) => return Err(Stopped),
+                Ok(Command::Stop | Command::Abandon) | Err(RecvTimeoutError::Disconnected) => {
+                    return Err(Stopped)
+                }
                 Err(RecvTimeoutError::Timeout) => return Ok(()),
             }
         }

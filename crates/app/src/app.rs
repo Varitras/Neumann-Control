@@ -328,7 +328,9 @@ impl NeumannApp {
         speaker.state.address = address;
         speaker.state.forget_outstanding();
         speaker.events = events;
-        retire(std::mem::replace(&mut speaker.handle, handle));
+        // Its waiting writes were just counted as not written, so they must not go out.
+        let old = std::mem::replace(&mut speaker.handle, handle);
+        thread::spawn(move || old.abandon());
     }
 
     fn drain_events(&mut self, now: f64) {
