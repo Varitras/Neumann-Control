@@ -1144,6 +1144,7 @@ impl eframe::App for NeumannApp {
         self.write_scan_reports();
         self.rediscover(now);
         self.poll_scan();
+        self.finish_logic_history();
         let pixels_per_point = context.pixels_per_point();
         self.window = context.input(|input| {
             let size = input.viewport_rect().size();

@@ -182,3 +182,43 @@ fn a_shortcut_works_while_a_button_has_the_focus() {
         mute_sets(&simulator) == [Value::Bool(true)]
     });
 }
+
+/// While the window is hidden only the app's logic runs, not its drawing: a shortcut written
+/// then, whose write fails before the window is drawn again, is filed as not written, not as a
+/// change to take back.
+#[test]
+fn a_shortcut_write_failed_while_hidden_is_filed_as_not_written() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let keys = FakeGlobalKeys::default();
+    harness.state_mut().set_global_keys(Box::new(keys.clone()));
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::GLOBAL_SHORTCUTS.get());
+    harness.run_steps(2);
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    keys.press(DeskShortcut::MuteAll);
+    let context = harness.ctx.clone();
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut hidden_frame = |harness: &mut Harness<'static, NeumannApp>| {
+        eframe::App::logic(harness.state_mut(), &context, &mut frame);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while mute_sets(&simulator).is_empty() {
+        assert!(std::time::Instant::now() < deadline, "no mute sent");
+        hidden_frame(&mut harness);
+    }
+    // The reconnect's first read comes after the failed write's answer.
+    let sent = simulator.requests().len();
+    while simulator.requests().len() == sent {
+        assert!(std::time::Instant::now() < deadline, "no reconnect");
+        hidden_frame(&mut harness);
+    }
+    hidden_frame(&mut harness);
+    harness.run_steps(1);
+    let entry = harness.state().history().newest(0).expect("the mute filed");
+    assert!(
+        entry.changes.iter().all(|change| change.refused),
+        "{entry:?}"
+    );
+}

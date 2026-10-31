@@ -337,6 +337,15 @@ impl NeumannApp {
         self.history.notice.as_ref()
     }
 
+    /// Last in `logic`: files what it wrote (a global shortcut, a dim going back) as its own
+    /// entry. `logic` also runs while the window is hidden and `ui` does not, so without this the
+    /// answers to those writes would be settled before the writes are filed, and missed.
+    pub(super) fn finish_logic_history(&mut self) {
+        self.settle_refused_writes();
+        let changes = self.written_changes();
+        self.history.history.push(clock_now(), changes, None);
+    }
+
     /// Last in the frame: runs a requested take-back, then files everything this frame wrote,
     /// the take-back's own writes included, as one entry.
     pub(super) fn finish_history_frame(&mut self, now: f64) {
@@ -345,12 +354,15 @@ impl NeumannApp {
         if let Some((id, confirmed)) = self.history.request.take() {
             takes_back = self.take_back(id, confirmed, now);
         }
-        let changes: Vec<Change> = self
-            .speakers
+        let changes = self.written_changes();
+        self.history.history.push(clock_now(), changes, takes_back);
+    }
+
+    fn written_changes(&mut self) -> Vec<Change> {
+        self.speakers
             .iter_mut()
             .flat_map(|speaker| written_changes(&mut speaker.state))
-            .collect();
-        self.history.history.push(clock_now(), changes, takes_back);
+            .collect()
     }
 
     /// Closes the changes the speaker refused or never got, and opens again the ones their
