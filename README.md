@@ -359,20 +359,22 @@ input B ("Crossover A", "Crossover B").
   A filter with a number goes to that band, one without to the next band; bands the file does not
   name are switched off; empty slots (`None`) are passed over. The file's `Gain` becomes the band's
   boost. Taken over: peaking (`PK`, `PEQ`, `Modal`), low and high pass with Q (`LP`/`LPQ`/`LP Q`,
-  `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), band pass (`BP`), notch (`NO`),
-  all pass (`AP`, REW's `All pass`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
+  `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), notch (`NO`), all pass (`AP`,
+  REW's `All pass`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
   instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1),
   and so is a plain `LP` or `HP` without Q (Q 0.707, both read from what REW stores). Refused:
-  shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, any other
-  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a condition (`Channel:` twice or after
-  filters, `If:`), more filters than the EQ has
-  bands and values the speaker would refuse: then nothing is written. `Preamp` and other APO
+  shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), band pass (`BP`: the
+  speakers' band pass peaks at its Q, and that APO's does too is not confirmed), other types, any
+  other missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel,
+  output device or processing stage or under a condition (`Channel:`, `Device:` or `Stage:` twice
+  or after filters, `If:`), more filters than the EQ has bands and values the speaker would
+  refuse: then nothing is written. `Preamp` and other APO
   commands are not taken over; the preview names them. The preview shows which bands change
   before **Write** sends them as one history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
-  filters and inversion have no APO line; they are written as comments and listed after saving.
+  filters, band passes and inversion have no APO line; they are written as comments and listed after saving.
   Room EQ Wizard cannot load text filter files.
 - With **Protect crossovers** on in **Settings** (off by default), the crossovers get no **Make
   flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
