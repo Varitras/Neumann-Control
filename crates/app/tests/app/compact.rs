@@ -43,6 +43,23 @@ fn ctrl_k_in_a_text_field_keeps_the_desk() {
     harness.get_by_role(Role::TextInput);
 }
 
+/// A typed value left open when its view went (to the compact mode and back) is gone with
+/// it: back on the desk the strip shows the level, not the old text to be entered by mistake.
+#[test]
+fn a_typed_value_does_not_come_back_with_its_view() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.get_by_role(Role::TextInput).type_text("5");
+    harness.run_steps(1);
+    for _ in 0..2 {
+        harness.get_by_label(texts::COMPACT.get()).click();
+        harness.run_steps(3);
+    }
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+    harness.get_by_label(&readout(100.0));
+}
+
 fn choose(harness: &mut Harness<'static, NeumannApp>, item: &str) {
     harness.get_by_label(item).click();
     harness.run_steps(3);

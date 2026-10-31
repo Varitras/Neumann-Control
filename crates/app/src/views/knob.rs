@@ -271,6 +271,13 @@ pub(super) fn value_entry(
         let shown = conversion.map_or(value, |conversion| conversion.apply(value));
         ui.data_mut(|data| data.insert_temp(text_id, texts::number(shown)));
     }
+    // A view gone meanwhile (another tab, the compact mode) took the focus without a
+    // `lost_focus`: the text left is stale and goes, so it is not entered by mistake later.
+    let focused = ui.memory(|memory| memory.has_focus(text_id));
+    if !open_now && !focused {
+        ui.data_mut(|data| data.remove::<String>(text_id));
+        return None;
+    }
     let mut text = ui.data(|data| data.get_temp::<String>(text_id))?;
     let field = ui.add(
         TextEdit::singleline(&mut text)
