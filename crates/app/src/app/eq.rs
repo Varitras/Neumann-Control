@@ -844,7 +844,8 @@ fn output_sums(
         .into_iter()
         .filter(|container| output_key(container) == key)
         .filter_map(|container| {
-            let bands = bands_of(&speaker.values, &container.path)?;
+            // As the speaker's own curves: a write on its way counts.
+            let bands = bands_of(&speaker.latest_values(), &container.path)?;
             Some((container.input.as_deref(), curve_db(&bands, frequencies)))
         })
         .collect();

@@ -127,7 +127,8 @@ fn call_arguments(text: &str, start: usize) -> &str {
     ""
 }
 
-/// Every read of the last report (`.values`) in the views and the app's window code, by file.
+/// Every read of the last report (`.values`) in the views, the app's window code and the
+/// modules that plan writes, by file.
 /// A gesture starts from `SpeakerState::latest` (a write on its way included); only what is
 /// shown as reported, never a base for a write, reads the report. A new read is a decision:
 /// add it here only if it is shown and never written from.
@@ -137,7 +138,9 @@ const REPORT_READS: &[(&str, usize)] = &[
     // `display`, the clip LEDs, and the mute button's look (its toggle starts from `latest`).
     ("views/strip.rs", 4),
     // A container's band count, which a write does not change.
-    ("app/eq.rs", 3),
+    ("app/eq.rs", 2),
+    // A stored preset's own values, not the speaker's.
+    ("presets.rs", 1),
     // The export writes what the speaker reports.
     ("app/eq_files.rs", 1),
     ("app/full_scan.rs", 1),
@@ -147,9 +150,15 @@ const REPORT_READS: &[(&str, usize)] = &[
 fn gestures_start_from_the_latest_values() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found = Vec::new();
-    for folder in ["views", "app"] {
+    // Folders whole, and the planning modules beside them (`writes.rs` has none).
+    let planners = ["presets.rs", "writes.rs"];
+    for folder in ["views", "app", ""] {
         let mut files = Vec::new();
-        rust_files(&source.join(folder), &mut files);
+        if folder.is_empty() {
+            files.extend(planners.iter().map(|planner| source.join(planner)));
+        } else {
+            rust_files(&source.join(folder), &mut files);
+        }
         for file in files {
             let text = fs::read_to_string(&file).unwrap();
             let code = text.split("#[cfg(test)]").next().unwrap_or_default();
