@@ -2,7 +2,7 @@
 //! identifiers masked and device text capped. No drawing here.
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::mask::mask_serial;
+use neumann_control_core::mask::{mask_serial, mask_serial_like};
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::Value;
 
@@ -67,7 +67,8 @@ fn row<'a>(report: &'a LeafReport, catalog: &Catalog) -> Row<'a> {
 fn value_text(report: &LeafReport, path: &str) -> String {
     match &report.value {
         Ok(value) if paths::is_identifier(path) => masked_identifier(value),
-        Ok(value) => plain_text(value),
+        // A factory name carries the serial; any text may.
+        Ok(value) => mask_serial_like(&plain_text(value)),
         Err(_) => texts::LEAF_REFUSED.get().to_owned(),
     }
 }
@@ -146,6 +147,19 @@ mod tests {
     fn one(report: LeafReport) -> Row<'static> {
         let leaked: &'static [LeafReport] = Box::leak(Box::new([report]));
         rows(leaked, "", Catalog::embedded()).remove(0)
+    }
+
+    /// A factory name holds the serial ("KH 120 II 3712345678"): any text that looks like a
+    /// serial is masked in the cell and in the copy, as in the device panel.
+    #[test]
+    fn a_serial_in_any_text_is_masked_in_the_cell_and_the_copy() {
+        let row = one(report(
+            "device/name",
+            Ok(json!("KH 120 II 3712345678")),
+            None,
+        ));
+        assert_eq!(row.value, "KH 120 II …678");
+        assert_eq!(row.copy_text(), "device/name = KH 120 II …678");
     }
 
     /// The interface promises masked addresses: every leaf below `device/network/` is one.
