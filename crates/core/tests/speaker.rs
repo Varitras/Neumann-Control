@@ -297,6 +297,24 @@ fn set_command_emits_confirmed_value() {
     assert_eq!(simulator.value("audio/out/mute"), Some(json!(true)));
 }
 
+/// A read asked for between polls reports the value the speaker holds now.
+#[test]
+fn a_read_command_reports_the_value_as_it_is_now() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
+    let mute = path("audio/out/mute");
+    collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &mute));
+    simulator.set_value("audio/out/mute", json!(true));
+    handle.send(Command::Read(mute.clone()));
+    collect_until(&events, EVENT_DEADLINE, |event| {
+        *event
+            == Event::Value {
+                path: mute.clone(),
+                value: json!(true),
+            }
+    });
+}
+
 #[test]
 fn read_only_set_emits_rejection_and_reread() {
     let simulator = Simulator::start(SimModel::Kh750);

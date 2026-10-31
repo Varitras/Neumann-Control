@@ -76,6 +76,8 @@ pub enum Command {
         path: SscPath,
         value: Value,
     },
+    /// Reads one path at once, outside the polling schedule.
+    Read(SscPath),
     ReadAll,
     Stop,
     /// Stop without the commands still waiting: they were for a speaker that moved. A command
@@ -456,6 +458,7 @@ impl Worker {
     fn execute(&self, session: &mut Session, command: Command) -> Result<(), Interruption> {
         match command {
             Command::Set { path, value } => self.write(session, path, value),
+            Command::Read(path) => self.read(session, &path),
             Command::ReadAll => {
                 session.walk.get_or_insert_with(Walk::new);
                 Ok(())
@@ -583,6 +586,8 @@ impl Worker {
                 Ok(Command::ReadAll) => self
                     .outbox
                     .emit(Event::AllValuesFailed(NOT_CONNECTED_MESSAGE.to_owned())),
+                // The reconnect reads every path anyway.
+                Ok(Command::Read(_)) => {}
                 Ok(Command::Stop | Command::Abandon) | Err(RecvTimeoutError::Disconnected) => {
                     return Err(Stopped)
                 }

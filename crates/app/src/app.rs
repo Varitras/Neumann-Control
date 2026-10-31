@@ -1051,9 +1051,14 @@ fn local_now() -> time::OffsetDateTime {
 /// written.
 fn drain_retired(speaker: &mut Speaker) {
     let state = &mut speaker.state;
+    let handle = &speaker.handle;
     speaker.retired.retain(|(worker, events)| loop {
         match events.try_recv() {
-            Ok(event) => state.apply_retired(*worker, &event),
+            Ok(event) => {
+                if let Some(command) = state.apply_retired(*worker, &event) {
+                    handle.send(command);
+                }
+            }
             Err(TryRecvError::Empty) => return true,
             Err(TryRecvError::Disconnected) => {
                 state.end_retired(*worker);

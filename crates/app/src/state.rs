@@ -316,25 +316,28 @@ impl SpeakerState {
         worker
     }
 
-    /// An event from the old worker `worker`: only its answers to writes count.
-    pub fn apply_retired(&mut self, worker: u64, event: &Event) {
+    /// An event from the old worker `worker`: only its answers to writes count. A confirmed
+    /// write may have reached the speaker after the new worker read the path, so the new worker
+    /// reads it again (the returned command); its answer is not taken over, since a newer write
+    /// may have been answered meanwhile.
+    pub fn apply_retired(&mut self, worker: u64, event: &Event) -> Option<Command> {
         let (path, done) = match event {
             Event::Written { path, .. } => (path, true),
             Event::WriteAbsent(path)
             | Event::WriteRejected { path, .. }
             | Event::WriteFailed { path, .. } => (path, false),
-            _ => return,
+            _ => return None,
         };
         let writes = self
             .retired
             .get_mut(&worker)
             .and_then(|writes| writes.get_mut(path));
-        let Some(write) = writes.and_then(VecDeque::pop_front) else {
-            return;
-        };
+        let write = writes.and_then(VecDeque::pop_front)?;
         if !done {
             self.refused_writes.push(write);
+            return None;
         }
+        Some(Command::Read(path.clone()))
     }
 
     /// The old worker `worker` is gone: what it did not answer was not written.
@@ -991,6 +994,37 @@ mod tests {
         speaker.end_retired(old);
         assert_eq!(speaker.refused_writes, vec![unanswered]);
         assert!(!speaker.awaits_write(unanswered));
+    }
+
+    /// The new connection read the path before the old one's write reached the speaker: the
+    /// confirmed old write has the path read again, so the next gesture does not start from the
+    /// read before it. A refused old write changed nothing and needs no read.
+    #[test]
+    fn an_old_connections_write_has_the_path_read_again() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.record_written(&mute, &json!(true));
+        speaker.record_written(&mute, &json!(false));
+        let old = speaker.retire_outstanding();
+        let read_before = Event::Value {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(read_before, 0.0);
+        let confirmed = Event::Written {
+            path: mute.clone(),
+            value: json!(true),
+        };
+        assert_eq!(
+            speaker.apply_retired(old, &confirmed),
+            Some(Command::Read(mute.clone()))
+        );
+        let refused = Event::WriteFailed {
+            path: mute.clone(),
+            message: String::new(),
+        };
+        assert_eq!(speaker.apply_retired(old, &refused), None);
     }
 
     /// Moved twice before the first old worker answered: each old connection's answers count
