@@ -127,6 +127,50 @@ fn call_arguments(text: &str, start: usize) -> &str {
     ""
 }
 
+/// Every read of the last report (`.values`) in the views and the app's window code, by file.
+/// A gesture starts from `SpeakerState::latest` (a write on its way included); only what is
+/// shown as reported, never a base for a write, reads the report. A new read is a decision:
+/// add it here only if it is shown and never written from.
+const REPORT_READS: &[(&str, usize)] = &[
+    // `display`: read-only rows.
+    ("views/details.rs", 1),
+    // `display`, the clip LEDs, and the mute button's look (its toggle starts from `latest`).
+    ("views/strip.rs", 4),
+    // A container's band count, which a write does not change.
+    ("app/eq.rs", 3),
+    // The export writes what the speaker reports.
+    ("app/eq_files.rs", 1),
+    ("app/full_scan.rs", 1),
+];
+
+#[test]
+fn gestures_start_from_the_latest_values() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found = Vec::new();
+    for folder in ["views", "app"] {
+        let mut files = Vec::new();
+        rust_files(&source.join(folder), &mut files);
+        for file in files {
+            let text = fs::read_to_string(&file).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+            let reads = code.matches(".values").count();
+            let name = file
+                .strip_prefix(&source)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            let allowed = REPORT_READS
+                .iter()
+                .find(|(allowed, _)| *allowed == name)
+                .map_or(0, |(_, count)| *count);
+            if reads != allowed {
+                found.push(format!("{name}: {reads} reads, {allowed} allowed"));
+            }
+        }
+    }
+    assert!(found.is_empty(), "{found:#?}");
+}
+
 /// An EQ preset is planned and saved from what the speaker will hold once its writes are
 /// through, not from its last report: a band write still on its way would otherwise be left
 /// out of a load or saved as it was.

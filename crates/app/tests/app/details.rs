@@ -1025,6 +1025,31 @@ fn a_run_without_the_lock_saves_nothing() {
     harness.get_by_label(texts::SETTINGS_NOT_LOCKED.get());
 }
 
+/// Choosing back the reported option before the speaker answered the first choice: it starts
+/// from the value just sent, as switches do, so both choices go out.
+#[test]
+fn choosing_back_before_the_answer_writes_both_choices() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Inputs);
+    // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
+    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    for option in ["DIGITAL ONLY", "ANALOG ONLY"] {
+        harness
+            .get_by_role_and_label(Role::ComboBox, "Eingangs-Interface")
+            .click();
+        harness.run_steps(2);
+        harness.get_by_label(option).click();
+        harness.run_steps(2);
+    }
+    wait_until(&mut harness, "both choices", |_| {
+        sets(&simulator, "/audio/in/interface").len() >= 2
+    });
+    assert_eq!(
+        sets(&simulator, "/audio/in/interface"),
+        vec![json!("DIGITAL ONLY"), json!("ANALOG ONLY")]
+    );
+}
+
 #[test]
 fn deleting_a_settings_preset_asks_first() {
     let (_simulator, directory, mut harness) =

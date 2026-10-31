@@ -158,7 +158,8 @@ impl NeumannApp {
             .unwrap_or_default()
             .iter()
             .map(|container| {
-                let bands = bands_of(&speaker.values, &container.path);
+                // The table, the points and the wheel start from these: a write on its way counts.
+                let bands = bands_of(&speaker.latest_values(), &container.path);
                 let curve = curve_db(bands.as_deref().unwrap_or_default(), &frequencies);
                 let color = curve_color(&self.settings.eq_display, &curve_key(&container.path));
                 Shown {

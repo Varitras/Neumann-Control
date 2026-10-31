@@ -67,13 +67,13 @@ pub fn for_entry(
     let product = speaker.product().to_owned();
     let minimum = entry.min?;
     let maximum = entry.max_for(&product, &catalog.classes)?;
-    let reported = speaker.values.get(&entry.path).cloned();
+    let latest = speaker.latest(&entry.path).cloned();
     let step = entry
         .step
         .unwrap_or_else(|| unstepped_grid(maximum - minimum));
     // Through the write's own type, so a whole-number entry reads "60 min", not "60.0 min".
     let format = |value: f64| {
-        let typed = writes::number_value(entry, reported.as_ref(), value);
+        let typed = writes::number_value(entry, latest.as_ref(), value);
         shown_value(entry, &typed)
     };
     let knob = Knob {
@@ -81,7 +81,7 @@ pub fn for_entry(
         caption,
         range: minimum..=maximum,
         step,
-        device: reported.as_ref().and_then(Value::as_f64),
+        device: latest.as_ref().and_then(Value::as_f64),
         enabled: writes::can_write(speaker, catalog, &entry.path),
         diameter,
         format: &format,
@@ -95,7 +95,7 @@ pub fn for_entry(
     // A typed value outside the range is sent as typed, for the write policy to refuse. Inside
     // it lands on the grid: a wheel step added to a reported value would keep a remainder.
     let value = if (minimum..=maximum).contains(&sent) {
-        writes::number_value(entry, reported.as_ref(), on_grid(sent, step))
+        writes::number_value(entry, latest.as_ref(), on_grid(sent, step))
     } else {
         Value::from(sent)
     };

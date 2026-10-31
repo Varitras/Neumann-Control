@@ -629,8 +629,7 @@ fn select(
     commands: &mut Vec<Command>,
 ) {
     let current = speaker
-        .values
-        .get(&entry.path)
+        .latest(&entry.path)
         .and_then(Value::as_str)
         .map(str::to_owned);
     let enabled = current.is_some() && writes::can_write(speaker, catalog, &entry.path);
@@ -683,7 +682,7 @@ fn level(
     tokens: &Tokens,
 ) {
     let path = paths::path(paths::OUTPUT_LEVEL);
-    let device = speaker.values.get(&path).and_then(Value::as_f64);
+    let device = speaker.latest(&path).and_then(Value::as_f64);
     let unit = paths::catalog_entry(catalog, &path)
         .and_then(|entry| entry.unit.clone())
         .unwrap_or_default();
