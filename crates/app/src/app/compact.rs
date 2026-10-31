@@ -68,7 +68,7 @@ impl NeumannApp {
                             );
                             let state = &mut speaker.state;
                             let response = ui
-                                .push_id(&key, |ui| {
+                                .push_id(state.instance, |ui| {
                                     compact::speaker(ui, state, catalog, &desk, &buttons, color)
                                 })
                                 .inner;
