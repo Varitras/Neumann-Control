@@ -8,7 +8,10 @@ use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportCommand, ViewportId}
 use neumann_control_core::settings::WindowGeometry;
 
 use super::{is_open, window_geometry, NeumannApp};
-use crate::views::{Opening, WindowPlace};
+use crate::views::{
+    all_values, eq_window, groups_window, panel, preset_dialog, settings_dialog, Opening,
+    WindowPlace,
+};
 use crate::window_fit::SCREEN_MARGIN;
 use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
 
@@ -27,6 +30,28 @@ pub(super) enum WindowKind {
 const CASCADE_STEP: Vec2 = Vec2::new(30.0, 30.0);
 
 impl WindowKind {
+    #[cfg(test)]
+    const ALL: [WindowKind; 6] = [
+        WindowKind::Panel,
+        WindowKind::Eq,
+        WindowKind::AllValues,
+        WindowKind::Settings,
+        WindowKind::Preset,
+        WindowKind::Groups,
+    ];
+
+    /// The least size its builder gives the window, in points.
+    fn least_size(self) -> [f32; 2] {
+        match self {
+            WindowKind::Panel => panel::PANEL_WINDOW_MIN_SIZE,
+            WindowKind::Eq => eq_window::EQ_WINDOW_MIN_SIZE,
+            WindowKind::AllValues => all_values::ALL_VALUES_MIN_SIZE,
+            WindowKind::Settings => settings_dialog::SETTINGS_WINDOW_MIN_SIZE,
+            WindowKind::Preset => preset_dialog::WINDOW_MIN_SIZE,
+            WindowKind::Groups => groups_window::GROUPS_WINDOW_MIN_SIZE,
+        }
+    }
+
     /// Where the kind's window is kept in the settings.
     fn key(self) -> &'static str {
         match self {
@@ -93,15 +118,17 @@ fn above_the_taskbar(
     fit_into(geometry, &usable, least_size(pixels_per_point))
 }
 
-/// A window of its own at `geometry` on a monitor there is; never made larger. Its builder
-/// keeps its own least size (smaller than the main window's for settings and presets).
+/// A window of its own at `geometry` on a monitor there is, no smaller than its kind's own
+/// least size (the main window's is larger than that of settings and presets).
 fn own_window_place(
     geometry: WindowGeometry,
     monitors: &[MonitorArea],
     pixels_per_point: f32,
+    kind: WindowKind,
 ) -> WindowPlace {
-    let fitted = fit_into(geometry, monitors, (0.0, 0.0));
-    place_of(fitted, pixels_per_point)
+    let [width, height] = kind.least_size();
+    let least = (width * pixels_per_point, height * pixels_per_point);
+    place_of(fit_into(geometry, monitors, least), pixels_per_point)
 }
 
 /// The least window size in screen pixels.
@@ -172,6 +199,7 @@ impl NeumannApp {
             *saved,
             &self.monitors,
             context.pixels_per_point(),
+            kind,
         ))
     }
 
@@ -289,8 +317,32 @@ mod tests {
             height: 260.0,
             maximized: false,
         };
-        let place = own_window_place(saved, &[screen], 1.0);
-        assert_eq!(place.size, vec2(360.0, 260.0));
+        let place = own_window_place(saved, &[screen], 1.0, WindowKind::Settings);
+        assert_eq!(place.size, vec2(360.0, 300.0));
+    }
+
+    /// A broken saved size (hand-edited, or kept while minimized without the system saying so)
+    /// opens no smaller than the kind's own least size, not as a bare frame.
+    #[test]
+    fn a_window_of_its_own_opens_no_smaller_than_its_kind_allows() {
+        let screen = MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let saved = WindowGeometry {
+            x: 100.0,
+            y: 100.0,
+            width: 0.0,
+            height: 0.0,
+            maximized: false,
+        };
+        for kind in WindowKind::ALL {
+            let place = own_window_place(saved, &[screen], 1.0, kind);
+            assert_eq!(place.size, Vec2::from(kind.least_size()), "{kind:?}");
+            assert!(place.size.x > 0.0 && place.size.y > 0.0, "{kind:?}");
+        }
     }
 
     /// At 150 % a saved 300 pixels are 200 points: the window opens where it was, as large.

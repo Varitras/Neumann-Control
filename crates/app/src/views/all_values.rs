@@ -17,6 +17,7 @@ use eframe::egui::Vec2;
 
 const WINDOW_ID: &str = "all_values";
 pub(crate) const DEFAULT_WINDOW_SIZE: [f32; 2] = [920.0, 480.0];
+pub(crate) const ALL_VALUES_MIN_SIZE: [f32; 2] = [420.0, 240.0];
 const PATH_WIDTH: f32 = 250.0;
 const VALUE_WIDTH: f32 = 280.0;
 const RANGE_WIDTH: f32 = 180.0;
@@ -33,8 +34,9 @@ pub fn show(
     opening: Opening,
 ) -> Vec<Command> {
     let viewport = viewport_of(&speaker.key);
-    let builder =
-        ViewportBuilder::default().with_title(texts::all_values_title(&speaker.display_name()));
+    let builder = ViewportBuilder::default()
+        .with_title(texts::all_values_title(&speaker.display_name()))
+        .with_min_inner_size(ALL_VALUES_MIN_SIZE);
     let builder = placed(builder, opening, Vec2::from(DEFAULT_WINDOW_SIZE));
     let mut commands = Vec::new();
     let close = context.show_viewport_immediate(viewport, builder, |ui, class| {

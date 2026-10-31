@@ -21,7 +21,7 @@ use eframe::egui::Vec2;
 const EQ_WINDOW_ID: &str = "eq_window";
 /// Tall enough for ten bands in two table columns below the graph.
 pub(crate) const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
-const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
+pub(crate) const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
 const SUM_SWATCH_LENGTH: f32 = 18.0;
 const SUM_SWATCH_WIDTH: f32 = 2.5;

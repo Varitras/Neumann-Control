@@ -29,7 +29,7 @@ use crate::texts;
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
 pub(crate) const PANEL_WINDOW_SIZE: [f32; 2] = [780.0, 760.0];
-const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
+pub(crate) const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 #[derive(Default)]
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
