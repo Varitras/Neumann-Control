@@ -181,9 +181,10 @@ struct Pending {
     /// What each unanswered `Set` sent, in the same order: a refused one is taken out of
     /// `value` again.
     sent: VecDeque<Value>,
-    /// What the speaker holds by the answers so far: its report before the first `Set`, with
-    /// each one answered since merged in, a refused one left out. Its report is not taken
-    /// while writes are on their way, so `value` is built again from this.
+    /// What the answers so far leave on the speaker: its report before the first `Set`, with
+    /// each confirmed one merged in, one with an answer that tells nothing taken as applied,
+    /// and a refused or not found one left out. Its report is not taken while writes are on
+    /// their way, so `value` is built again from this after a refusal.
     base: Option<Value>,
 }
 
@@ -191,7 +192,8 @@ struct Pending {
 enum Answer<'a> {
     /// The speaker holds this now.
     Held(&'a Value),
-    /// Failed with the connection: it may have been applied.
+    /// Failed with an answer that tells nothing while the connection stays: it may have been
+    /// applied. A lost connection forgets everything on its way anyway.
     MaybeApplied,
     NotApplied,
 }
@@ -1145,9 +1147,10 @@ mod tests {
         assert_eq!(newest.before, Some(json!([0, null, null])));
     }
 
-    /// Band 1 confirmed and band 2 refused while band 3 is still on its way: the list waiting for
-    /// band 3 keeps the confirmed band 1, and one that failed with the connection, as it may
-    /// have been applied, and drops only the refused band 2.
+    /// Band 1 answered and band 2 refused while band 3 is still on its way: the list waiting for
+    /// band 3 keeps band 1 as the speaker confirmed it (here clamped to 1.5), or as sent when
+    /// its answer told nothing, and drops only the refused band 2. A band sent after band 1's
+    /// answer keeps it too.
     #[test]
     fn a_refusal_keeps_the_answered_places_still_on_their_way() {
         let gain = path("audio/out/eq2/gain");
@@ -1160,26 +1163,23 @@ mod tests {
         };
         let confirmed = Event::Written {
             path: gain.clone(),
-            value: json!([1, 0, 0]),
+            value: json!([1.5, 0, 0]),
         };
         let failed = Event::WriteFailed {
             path: gain.clone(),
             message: String::new(),
         };
-        for first in [confirmed, failed] {
+        let cases = [(confirmed, json!([1.5, 0, 3])), (failed, json!([1, 0, 3]))];
+        for (first, expected) in cases {
             let mut speaker = state();
             speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
             speaker.apply(value_event("audio/out/eq2/gain", json!([0, 0, 0])), 0.0);
-            for sent in [
-                json!([1, null, null]),
-                json!([null, 2, null]),
-                json!([null, null, 3]),
-            ] {
-                speaker.record_written(&gain, &sent);
-            }
+            speaker.record_written(&gain, &json!([1, null, null]));
+            speaker.record_written(&gain, &json!([null, 2, null]));
             speaker.apply(first.clone(), 0.0);
+            speaker.record_written(&gain, &json!([null, null, 3]));
             speaker.apply(rejected.clone(), 0.0);
-            assert_eq!(speaker.latest(&gain), Some(&json!([1, 0, 3])), "{first:?}");
+            assert_eq!(speaker.latest(&gain), Some(&expected), "{first:?}");
         }
     }
 
