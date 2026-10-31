@@ -11,13 +11,13 @@
 ### Fixed
 
 - An EQ preset or import switches a band on only after its other values are written, and off
-  before; a band could sound its old values first, and keep them after an outage.
+  before, and taking it back does the same; a band could sound its old values first, and keep
+  them after an outage.
 - An Equalizer APO file with several `Device:` or `Stage:` sections is refused, as one with several
   channels is; their filters were stacked into one EQ.
 - Every control starts from the value just sent: a second choice in a list, a typed number or
   text, a knob or fader turned again and a change in the EQ window before the speaker answered
   the first no longer repeat or drop it.
-
 - A setting the speaker answered as not found is no longer kept in the history as written, and
   taking a change back that way no longer counts as done.
 - Loading or saving a preset right after a change, and a second click on a group's mute or a
@@ -49,18 +49,20 @@
   a wiki or release link that does not open is said too.
 - A speaker that gets its serial later (added by address) keeps its history, EQ window and a dim
   waiting to go back.
-- A write the old connection of a moved speaker still held is no longer sent while the history
-  says it was not written.
+- The writes of a speaker that moved to another address count by the answers of its old
+  connection: one that went through stays in the history as written, one still waiting there is
+  not sent.
 - A typed value left open when its tab, panel or mode went does not come back with old text.
 - **Ctrl+K** keeps to a text field being edited, and one **Escape** closes a window while a
   button has the keyboard focus.
 - A write failed by an outage leaves the "unreachable" message.
 - The EQ import preview and preset load say why nothing can be written (not connected,
   protected crossover) instead of "already on the speaker".
-- Windows of their own open at the size they were left, also below the main window's least size.
+- Windows of their own open at the size they were left, also below the main window's least
+  size, and never below their own.
 - With own layouts, the edit note under a strip says the change is this speaker's only.
-- A serial in any text of **All values** and the scan report is masked, also without a known
-  serial.
+- A serial in a text of **All values** and the scan report is masked, also without a known
+  serial; numbers are shown as the speaker reports them.
 - A start that fails (no graphics adapter) says why in the log.
 
 ## [0.2.0] - 2026-10-27
