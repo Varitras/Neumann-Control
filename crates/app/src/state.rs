@@ -131,6 +131,8 @@ pub struct SpeakerState {
     pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
+    /// Writes a moved speaker's old worker still answers, by path in the order sent.
+    retired: BTreeMap<SscPath, VecDeque<u64>>,
     /// The number of the write sent last.
     newest_write: Option<u64>,
     /// The numbers of writes the speaker refused, that failed, or that will never be answered
@@ -184,6 +186,7 @@ impl SpeakerState {
             response_time: None,
             written: Vec::new(),
             pending: BTreeMap::new(),
+            retired: BTreeMap::new(),
             newest_write: None,
             refused_writes: Vec::new(),
             temperature: Trend::default(),
@@ -289,10 +292,53 @@ impl SpeakerState {
 
     /// Whether the write numbered `write` is still unanswered. A write whose answer will not
     /// come (the connection was lost) is not.
+    /// The speaker moved: a new worker takes over, the old one answers what it already took
+    /// (`apply_retired`) until its connection ends (`end_retired`). Its writes wait apart from
+    /// the new worker's, which are answered in their own order.
+    pub fn retire_outstanding(&mut self) {
+        let pending = std::mem::take(&mut self.pending);
+        for (path, pending) in pending {
+            self.retired
+                .entry(path)
+                .or_default()
+                .extend(pending.unanswered);
+        }
+        self.forget_outstanding();
+    }
+
+    /// An event from a moved speaker's old worker: only its answers to writes count.
+    pub fn apply_retired(&mut self, event: &Event) {
+        let (path, done) = match event {
+            Event::Written { path, .. } => (path, true),
+            Event::WriteAbsent(path)
+            | Event::WriteRejected { path, .. }
+            | Event::WriteFailed { path, .. } => (path, false),
+            _ => return,
+        };
+        let Some(write) = self.retired.get_mut(path).and_then(VecDeque::pop_front) else {
+            return;
+        };
+        if !done {
+            self.refused_writes.push(write);
+        }
+    }
+
+    /// The old worker is gone: what it did not answer was not written.
+    pub fn end_retired(&mut self) {
+        let retired = std::mem::take(&mut self.retired);
+        self.refused_writes.extend(retired.into_values().flatten());
+    }
+
     pub fn awaits_write(&self, write: u64) -> bool {
-        self.pending
+        let pending = self
+            .pending
             .values()
-            .any(|pending| pending.unanswered.contains(&write))
+            .any(|pending| pending.unanswered.contains(&write));
+        pending
+            || self
+                .retired
+                .values()
+                .any(|retired| retired.contains(&write))
     }
 
     /// The newest sent value not yet answered, else the reported one: what the speaker holds
@@ -903,6 +949,33 @@ mod tests {
         let mut after = state();
         after.record_written(&mute, &json!(true));
         assert_ne!(after.newest_write().unwrap(), old);
+    }
+
+    /// The speaker moved with a write on its way: the old connection's answer still counts.
+    /// Confirmed, the write is done; refused or never answered (the old connection ended), it is
+    /// not; meanwhile it is still awaited.
+    #[test]
+    fn a_write_of_a_moved_speaker_counts_by_the_old_connections_answer() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.record_written(&mute, &json!(true));
+        let answered = speaker.newest_write().unwrap();
+        speaker.record_written(&mute, &json!(false));
+        let unanswered = speaker.newest_write().unwrap();
+        speaker.retire_outstanding();
+        assert!(speaker.awaits_write(answered));
+        assert!(speaker.refused_writes.is_empty());
+        let confirmed = Event::Written {
+            path: mute.clone(),
+            value: json!(true),
+        };
+        speaker.apply_retired(&confirmed);
+        assert!(!speaker.awaits_write(answered));
+        assert!(speaker.awaits_write(unanswered));
+        speaker.end_retired();
+        assert_eq!(speaker.refused_writes, vec![unanswered]);
+        assert!(!speaker.awaits_write(unanswered));
     }
 
     /// A shorter list afterwards (a firmware fault): no meter is left at its last level.
