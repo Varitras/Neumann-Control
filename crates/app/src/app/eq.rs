@@ -698,6 +698,10 @@ impl NeumannApp {
     pub(super) fn eq_refusal(&self, index: usize, writes: &[(SscPath, Value)]) -> Option<String> {
         let catalog = Catalog::embedded();
         let speaker = self.eq_speaker(index)?;
+        // Without a connection nothing is known to be on the speaker, even with no write planned.
+        if let Err(refusal) = writes::connected(speaker) {
+            return Some(texts::describe_refusal(&refusal));
+        }
         writes.iter().find_map(|(path, value)| {
             let refusal = writes::check(speaker, catalog, path, value).err()?;
             let label = leaf_label(catalog, path);

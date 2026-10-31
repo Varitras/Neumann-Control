@@ -106,13 +106,20 @@ fn writable_entry<'a>(
     catalog: &'a Catalog,
     path: &SscPath,
 ) -> Result<&'a Entry, Refusal> {
-    if speaker.status != Status::Connected {
-        return Err(Refusal::NotConnected);
-    }
+    connected(speaker)?;
     let product = speaker.product();
     paths::catalog_entry(catalog, path)
         .filter(|entry| entry.is_writable(product))
         .ok_or(Refusal::NotWritable)
+}
+
+/// The part of the write rule that holds for every path, so a plan with nothing to write is
+/// held to it too.
+pub fn connected(speaker: &SpeakerState) -> Result<(), Refusal> {
+    match speaker.status {
+        Status::Connected => Ok(()),
+        _ => Err(Refusal::NotConnected),
+    }
 }
 
 /// A range is told in the unit the value is shown and typed in, which for a converted entry is

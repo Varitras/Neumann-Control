@@ -875,6 +875,37 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .is_some());
 }
 
+/// The speaker goes while the load dialog shows a preset it already holds: with nothing to
+/// write, the dialog still says why instead of "already on the speaker".
+#[test]
+fn a_preset_already_on_a_speaker_gone_says_why() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Same");
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Same", 10))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::PRESET_UNCHANGED.get());
+    simulator.stop();
+    wait_until(&mut harness, "the outage", |harness| {
+        harness
+            .query_all_by_label(texts::UNREACHABLE.get())
+            .next()
+            .is_some()
+    });
+    assert!(harness
+        .query_by_label(texts::PRESET_UNCHANGED.get())
+        .is_none());
+    assert!(harness
+        .query_all_by_label_contains("Nicht verbunden")
+        .next()
+        .is_some());
+}
+
 /// An import previewed when the speaker goes away is refused only for as long: once it is back,
 /// the preview can be written, without reading the file again.
 #[test]
