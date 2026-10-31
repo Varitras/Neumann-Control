@@ -202,7 +202,8 @@ pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
         }
         if view.selected.is_some() {
             ui.separator();
-            if view.changes.is_empty() {
+            // With a refusal nothing is known to be on the speaker already.
+            if view.changes.is_empty() && view.refusal.is_none() {
                 ui.weak(texts::PRESET_UNCHANGED);
             }
             ScrollArea::vertical()

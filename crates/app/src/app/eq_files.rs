@@ -29,15 +29,12 @@ impl NeumannApp {
         };
         let file = file_name(&path);
         let pending = match self.imported_preset(index, &path, &file) {
-            Ok((preset, notes)) => {
-                let refusal = self.import_refusal(index, &preset);
-                PendingImport {
-                    file,
-                    preset: Some(preset),
-                    notes,
-                    refusal,
-                }
-            }
+            Ok((preset, notes)) => PendingImport {
+                file,
+                preset: Some(preset),
+                notes,
+                refusal: None,
+            },
             Err(refusal) => PendingImport {
                 file,
                 preset: None,
@@ -73,12 +70,6 @@ impl NeumannApp {
             notes.push(texts::eq_import_ignored(&imported.ignored));
         }
         Ok((preset, notes))
-    }
-
-    /// Why the speaker would refuse the import, checked before anything is written.
-    fn import_refusal(&self, index: usize, preset: &EqPreset) -> Option<String> {
-        let writes = self.import_writes(index, preset);
-        self.eq_refusal(index, &writes)
     }
 
     fn import_writes(&self, index: usize, preset: &EqPreset) -> Vec<(SscPath, Value)> {

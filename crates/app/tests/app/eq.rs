@@ -847,6 +847,34 @@ fn import_file(
     harness.run_steps(6);
 }
 
+/// The speaker goes while the import preview is open: the preview says why nothing can be
+/// written instead of "already on the speaker", and still lists what would change.
+#[test]
+fn an_import_preview_of_a_speaker_gone_says_why() {
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
+    import_file(&mut harness, &directory, "room.txt", text);
+    harness.get_by_label(&texts::eq_preset_band(1));
+    simulator.stop();
+    wait_until(&mut harness, "the outage", |harness| {
+        harness
+            .query_all_by_label(texts::UNREACHABLE.get())
+            .next()
+            .is_some()
+    });
+    assert!(harness
+        .query_by_label(texts::IMPORT_UNCHANGED.get())
+        .is_none());
+    harness.get_by_label(&texts::eq_preset_band(1));
+    assert!(harness
+        .query_all_by_label_contains("Nicht verbunden")
+        .next()
+        .is_some());
+}
+
 #[test]
 fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     // The whole frequency list is written, so every band must be in the speakers' range (the

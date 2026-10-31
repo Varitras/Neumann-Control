@@ -83,6 +83,7 @@ pub(super) struct PendingImport {
     /// `None` when the file cannot be imported; `refusal` says why.
     pub(super) preset: Option<EqPreset>,
     pub(super) notes: Vec<String>,
+    /// Only for a file that cannot be imported; whether the speaker takes it is asked each frame.
     pub(super) refusal: Option<String>,
 }
 
@@ -348,23 +349,37 @@ impl NeumannApp {
                 texts::eq_preset_entry(&preset.name, preset.bands)
             })
             .collect();
-        let preset_changes: Vec<ComparedChange> = match (&window.preset, reshapable) {
+        // Planned for the chosen container even when it cannot be written now: the dialog
+        // then says why, not that the speaker already has it.
+        let protected = selected.is_some_and(|shown| !crossovers_open && shown.container.crossover);
+        let unwritable = |writes: &[(SscPath, Value)]| -> Option<String> {
+            if protected {
+                return Some(texts::CROSSOVER_PROTECTED.get().to_owned());
+            }
+            self.eq_refusal(index, writes)
+        };
+        let preset_plan = match (&window.preset, selected) {
             (
                 Some(EqPresetDialog::Load {
                     selected: Some(place),
                     ..
                 }),
                 Some(shown),
-            ) => fitting_presets
-                .get(*place)
-                .map(|place| {
-                    let preset = &self.settings.eq_presets[*place];
-                    let plan = eq_plan(preset, &speaker.latest_values(), &shown.container.path);
-                    compared(catalog, &shown.container.path, &plan.differences)
-                })
-                .unwrap_or_default(),
+            ) => fitting_presets.get(*place).map(|place| {
+                let preset = &self.settings.eq_presets[*place];
+                eq_plan(preset, &speaker.latest_values(), &shown.container.path)
+            }),
+            _ => None,
+        };
+        let preset_changes: Vec<ComparedChange> = match (&preset_plan, selected) {
+            (Some(plan), Some(shown)) => {
+                compared(catalog, &shown.container.path, &plan.differences)
+            }
             _ => Vec::new(),
         };
+        let preset_refusal = preset_plan
+            .as_ref()
+            .and_then(|plan| unwritable(&plan.writes));
         let deleting_name = match &window.preset {
             Some(EqPresetDialog::Load {
                 selected: Some(place),
@@ -383,30 +398,40 @@ impl NeumannApp {
                 names: &preset_names,
                 selected: *selected,
                 changes: &preset_changes,
+                refusal: preset_refusal.as_deref(),
                 crossover: reshapable.is_some_and(|shown| shown.container.crossover),
                 deleting: deleting_name,
             }),
             None => None,
         };
-        let import_changes: Vec<String> = match (&window.import, reshapable) {
+        let import_plan = match (&window.import, selected) {
             (Some(pending), Some(shown)) => pending
                 .preset
                 .as_ref()
-                .map(|preset| {
-                    eq_plan(preset, &speaker.latest_values(), &shown.container.path)
-                        .bands
-                        .iter()
-                        .map(|band| texts::eq_preset_band(band + 1))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            _ => Vec::new(),
+                .map(|preset| eq_plan(preset, &speaker.latest_values(), &shown.container.path)),
+            _ => None,
         };
+        let import_changes: Vec<String> = import_plan
+            .iter()
+            .flat_map(|plan| &plan.bands)
+            .map(|band| texts::eq_preset_band(band + 1))
+            .collect();
+        // A file that cannot be imported keeps its reason; the speaker's state is asked anew
+        // each frame, so a refusal ends with a reconnect.
+        let import_refusal = window.import.as_ref().and_then(|pending| {
+            let unreadable = pending.preset.is_none();
+            match unreadable {
+                true => pending.refusal.clone(),
+                false => import_plan
+                    .as_ref()
+                    .and_then(|plan| unwritable(&plan.writes)),
+            }
+        });
         let import = window.import.as_ref().map(|pending| ImportView {
             file: &pending.file,
             changes: &import_changes,
             notes: &pending.notes,
-            refusal: pending.refusal.as_deref(),
+            refusal: import_refusal.as_deref(),
             crossover: reshapable.is_some_and(|shown| shown.container.crossover),
         });
         let reset = reshapable.map(|shown| ResetOffer {

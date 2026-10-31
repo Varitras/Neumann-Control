@@ -317,6 +317,10 @@ pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
     "This is a crossover: its low or high pass goes, the output plays unfiltered.",
 );
+pub const CROSSOVER_PROTECTED: Text = Text::new(
+    "Die Weiche ist geschützt (Einstellungen)",
+    "The crossover is protected (Settings)",
+);
 pub const PROTECT_CROSSOVERS: Text = Text::new(
     "Weichen schützen (kein Flachstellen, Zurücksetzen oder Importieren, keine EQ-Presets)",
     "Protect crossovers (no flattening, reset, import or EQ presets)",
