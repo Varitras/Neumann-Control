@@ -67,8 +67,8 @@ fn row<'a>(report: &'a LeafReport, catalog: &Catalog) -> Row<'a> {
 fn value_text(report: &LeafReport, path: &str) -> String {
     match &report.value {
         Ok(value) if paths::is_identifier(path) => masked_identifier(value),
-        // A factory name carries the serial; any text may.
-        Ok(value) => mask_serial_like(&plain_text(value)),
+        // A factory name carries the serial; any text may. A number is the speaker's value.
+        Ok(value) => plain_text(&masked_texts(value)),
         Err(_) => texts::LEAF_REFUSED.get().to_owned(),
     }
 }
@@ -83,6 +83,21 @@ fn masked_identifier(value: &Value) -> String {
         .map(|entry| mask_serial(&plain_text(entry)))
         .collect::<Vec<_>>()
         .join(IDENTIFIER_SEPARATOR)
+}
+
+/// `value` with every text in it masked like a serial where it looks like one.
+fn masked_texts(value: &Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(mask_serial_like(text)),
+        Value::Array(items) => Value::Array(items.iter().map(masked_texts).collect()),
+        Value::Object(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(key, value)| (key.clone(), masked_texts(value)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
 }
 
 /// Strings without their quotes, everything else as JSON.
@@ -160,6 +175,19 @@ mod tests {
         ));
         assert_eq!(row.value, "KH 120 II …678");
         assert_eq!(row.copy_text(), "device/name = KH 120 II …678");
+    }
+
+    /// Only text is masked: a number is the speaker's value, however many digits it has.
+    #[test]
+    fn a_long_number_is_shown_as_it_is() {
+        let row = one(report("audio/out/counter", Ok(json!(1234567890)), None));
+        assert_eq!(row.value, "1234567890");
+        let listed = one(report(
+            "osc/text",
+            Ok(json!([1234567890, "unit 3712345678"])),
+            None,
+        ));
+        assert_eq!(listed.value, "[1234567890,\"unit …678\"]");
     }
 
     /// The interface promises masked addresses: every leaf below `device/network/` is one.
