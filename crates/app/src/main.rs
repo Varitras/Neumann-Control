@@ -104,7 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
-            .with_icon(Arc::new(window_icon()?))
+            .with_icon(Arc::new(window_icon().inspect_err(log_start_failure)?))
             .with_inner_size(first_window_size(saved.settings.desk.compact))
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
@@ -131,6 +131,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             app.limit_frame_rate();
             Ok(Box::new(app))
         }),
-    )?;
+    )
+    .inspect_err(log_start_failure)?;
     Ok(())
+}
+
+/// A window app has no console: an error returned from `main` would leave no trace but here
+/// (no graphics adapter, a broken driver).
+fn log_start_failure(error: &impl std::fmt::Display) {
+    log::error!("could not start: {error}");
 }
