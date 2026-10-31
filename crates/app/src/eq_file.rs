@@ -31,8 +31,12 @@ const REW_ALL_PASS: [&str; 2] = ["All", "pass"];
 const REW_PLAIN_Q: f64 = FRAC_1_SQRT_2;
 /// First-order filters have no Q; the speakers still want one in their range.
 const FIRST_ORDER_Q: f64 = 0.7;
-/// APO commands that start another channel's filters or a condition (lower case).
+/// APO commands that start another section's filters (a channel, an output device, a
+/// processing stage) or a condition (lower case).
 const CHANNEL_COMMAND: &str = "channel";
+const DEVICE_COMMAND: &str = "device";
+const STAGE_COMMAND: &str = "stage";
+const SECTION_COMMANDS: [&str; 3] = [CHANNEL_COMMAND, DEVICE_COMMAND, STAGE_COMMAND];
 const CONDITION_COMMANDS: [&str; 3] = ["if", "elseif", "else"];
 /// APO commands that change the sound but have no place in one EQ container; anything else
 /// before a colon (REW's header lines `Dated:`, `Notes:` ...) is passed over silently.
@@ -41,11 +45,11 @@ const SOUND_COMMANDS: [&str; 11] = [
     CHANNEL_COMMAND,
     "include",
     "graphiceq",
-    "device",
+    DEVICE_COMMAND,
     "delay",
     "copy",
     "convolution",
-    "stage",
+    STAGE_COMMAND,
     "eval",
     "loudnesscorrection",
 ];
@@ -80,8 +84,9 @@ pub enum ImportError {
         band: usize,
         bands: usize,
     },
-    /// Filters for more than one channel, or under a condition: one container takes one
-    /// channel's filters, and stacking them all would sound like none of them.
+    /// Filters for more than one channel, output device or processing stage, or under a
+    /// condition: one container takes one section's filters, and stacking them all would sound
+    /// like none of them.
     SeveralChannels,
 }
 
@@ -191,7 +196,7 @@ fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>),
 pub fn parse(text: &str) -> Result<Imported, ImportError> {
     let mut imported = Imported::default();
     let mut next_band = 0;
-    let mut channels = 0;
+    let mut sections: BTreeMap<String, usize> = BTreeMap::new();
     let text = text.trim_start_matches(BYTE_ORDER_MARK);
     for (place, line) in text.lines().enumerate() {
         let line = line.trim();
@@ -210,11 +215,12 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
         if CONDITION_COMMANDS.contains(&lower.as_str()) {
             return Err(ImportError::SeveralChannels);
         }
-        if lower == CHANNEL_COMMAND {
-            channels += 1;
-            // Filters before it are every channel's, the ones after this channel's only.
+        if SECTION_COMMANDS.contains(&lower.as_str()) {
+            let count = sections.entry(lower.clone()).or_default();
+            *count += 1;
+            // Filters before it are every section's, the ones after this section's only.
             let after_filters = !imported.bands.is_empty();
-            if channels > 1 || after_filters {
+            if *count > 1 || after_filters {
                 return Err(ImportError::SeveralChannels);
             }
         }
@@ -626,6 +632,29 @@ Channel: L
 Filter: ON PK Fc 200 Hz Gain 1 dB Q 1
 ";
         assert_eq!(parse(before), Err(ImportError::SeveralChannels));
+    }
+
+    /// Every APO command that starts a section (another channel, device or processing stage):
+    /// one before all filters is fine, a second one or one after filters would stack two
+    /// sections into one EQ.
+    #[test]
+    fn every_section_command_is_refused_as_a_second_section() {
+        for command in ["Channel: L", "Device: Speakers", "Stage: post-mix"] {
+            let one = format!("{command}\nFilter: ON PK Fc 100 Hz Gain 1 dB Q 1\n");
+            assert!(parse(&one).is_ok(), "{command}");
+            let two = format!(
+                "{command}\nFilter: ON PK Fc 100 Hz Gain 1 dB Q 1\n{command}\nFilter: ON PK Fc 200 Hz Gain 1 dB Q 1\n"
+            );
+            assert_eq!(parse(&two), Err(ImportError::SeveralChannels), "{command}");
+            let after = format!(
+                "Filter: ON PK Fc 100 Hz Gain 1 dB Q 1\n{command}\nFilter: ON PK Fc 200 Hz Gain 1 dB Q 1\n"
+            );
+            assert_eq!(
+                parse(&after),
+                Err(ImportError::SeveralChannels),
+                "{command}"
+            );
+        }
     }
 
     #[test]

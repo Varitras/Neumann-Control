@@ -1083,8 +1083,8 @@ pub fn eq_import_error(error: &ImportError) -> String {
             format!("The file names band {band}, this EQ has {bands} bands."),
         ),
         ImportError::SeveralChannels => Text::new(
-            "Die Datei hat Filter für mehrere Kanäle oder unter Bedingungen; ein EQ nimmt die eines Kanals.",
-            "The file has filters for several channels or under conditions; an EQ takes one channel's.",
+            "Die Datei hat Filter für mehrere Kanäle, Geräte oder Stufen oder unter Bedingungen; ein EQ nimmt die eines Abschnitts.",
+            "The file has filters for several channels, devices or stages or under conditions; an EQ takes one section's.",
         )
         .get()
         .to_owned(),
