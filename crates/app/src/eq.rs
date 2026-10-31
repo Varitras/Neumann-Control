@@ -59,6 +59,27 @@ pub fn write_rank(path: &SscPath, value: &Value) -> u8 {
     }
 }
 
+/// Where a take-back of `after` to `before` goes, by what it switches: only the places where
+/// the two differ count. A preset writes whole arrays, so its switching on holds bands that
+/// were on already, and the take-back of it switches the new ones off.
+pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> u8 {
+    let (Some(before_places), Some(after_places)) = (before.as_array(), after.as_array()) else {
+        return write_rank(path, before);
+    };
+    let switched: Vec<Value> = before_places
+        .iter()
+        .zip(after_places)
+        .map(|(before, after)| {
+            if before == after {
+                Value::Null
+            } else {
+                before.clone()
+            }
+        })
+        .collect();
+    write_rank(path, &Value::Array(switched))
+}
+
 /// Splits each EQ `enabled` write into its switching off and its switching on and orders the
 /// writes by `write_rank`.
 pub fn switch_order(writes: Vec<(SscPath, Value)>) -> Vec<(SscPath, Value)> {
@@ -344,6 +365,9 @@ mod tests {
             write_rank(&gain, &json!([1.0, null])),
             write_rank(&paths::path(paths::MUTE), &json!(true))
         );
+        // Band 1 was on before and stays on: only band 2's switching off counts.
+        let back = take_back_rank(&enabled, &json!([true, false]), &json!([true, true]));
+        assert!(back < write_rank(&gain, &json!([1.0, null])));
     }
 
     fn values(entries: &[(&str, Value)]) -> BTreeMap<SscPath, Value> {

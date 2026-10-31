@@ -875,6 +875,56 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .is_some());
 }
 
+/// Taking back an import that switched band 2 on beside band 1, which was on already: band 2
+/// goes off before its other values are written back, as the import switched it on last.
+#[test]
+fn taking_back_an_import_switches_its_new_band_off_first() {
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        // The whole frequency list is written, so every band must be in the speakers' range.
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+        let mut enabled = vec![false; 10];
+        enabled[0] = true;
+        simulator.set_value("audio/out/eq2/enabled", json!(enabled));
+    });
+    let text =
+        "Filter 1: ON PK Fc 100 Hz Gain -4 dB Q 2\r\nFilter 2: ON PK Fc 200 Hz Gain 3 dB Q 1\r\n";
+    import_file(&mut harness, &directory, "room.txt", text);
+    harness
+        .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
+        .click();
+    wait_until(&mut harness, "the import written", |_| {
+        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+    });
+    barrier(&simulator);
+    harness.run_steps(3);
+    let written = simulator.requests().len();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "the take-back", |_| {
+        sets(&simulator, "/audio/out/eq2/enabled").len() >= 3
+    });
+    barrier(&simulator);
+    let requests = simulator.requests();
+    let tail = &requests[written..];
+    let band_2_off = tail
+        .iter()
+        .position(|request| request.pointer("/audio/out/eq2/enabled/1") == Some(&json!(false)));
+    let other_leaf = tail.iter().position(|request| {
+        ["gain", "boost", "frequency", "q", "type"]
+            .iter()
+            .any(|leaf| {
+                request
+                    .pointer(&format!("/audio/out/eq2/{leaf}"))
+                    .is_some_and(|value| !value.is_null())
+            })
+    });
+    assert!(band_2_off.is_some() && other_leaf.is_some(), "{tail:?}");
+    assert!(
+        band_2_off < other_leaf,
+        "band 2 went off after its other values"
+    );
+}
+
 #[test]
 fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     // The whole frequency list is written, so every band must be in the speakers' range (the
