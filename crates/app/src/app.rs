@@ -635,8 +635,7 @@ impl NeumannApp {
             if self.speakers[index].state.all_values == AllValuesState::Idle {
                 continue;
             }
-            let key = self.speakers[index].state.key.clone();
-            let viewport = all_values::viewport_of(&key);
+            let viewport = all_values::viewport_of(&self.speakers[index].state);
             let open_before = self.speakers[..index]
                 .iter()
                 .filter(|speaker| speaker.state.all_values != AllValuesState::Idle)

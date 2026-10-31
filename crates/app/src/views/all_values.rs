@@ -11,7 +11,7 @@ use neumann_control_core::speaker::Command;
 use super::busy;
 use super::{escape_closes, placed, Opening};
 use crate::all_values::{rows, Row};
-use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
+use crate::state::{AllValuesState, SpeakerState};
 use crate::texts;
 use eframe::egui::Vec2;
 
@@ -33,7 +33,7 @@ pub fn show(
     catalog: &Catalog,
     opening: Opening,
 ) -> Vec<Command> {
-    let viewport = viewport_of(&speaker.key);
+    let viewport = viewport_of(speaker);
     let builder = ViewportBuilder::default()
         .with_title(texts::all_values_title(&speaker.display_name()))
         .with_min_inner_size(ALL_VALUES_MIN_SIZE);
@@ -143,6 +143,6 @@ fn cell(ui: &mut Ui, width: f32, text: &str) {
 }
 
 /// The window's viewport for a speaker, to read where the user left it.
-pub fn viewport_of(key: &SpeakerKey) -> ViewportId {
-    ViewportId::from_hash_of(Id::unique((WINDOW_ID, key.clone())))
+pub fn viewport_of(speaker: &SpeakerState) -> ViewportId {
+    ViewportId::from_hash_of(Id::unique((WINDOW_ID, speaker.instance)))
 }

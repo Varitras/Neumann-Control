@@ -284,7 +284,7 @@ impl NeumannApp {
                 })
                 .collect()
         });
-        let id = Id::unique(EQ_VIEWPORT_ID).with(&window.key);
+        let id = eq_window_id(speaker);
         let own_curves = bands
             .as_deref()
             .map(|bands| band_curves(bands, &frequencies))
@@ -944,6 +944,11 @@ fn eq_preset_taken(presets: &[EqPreset], name: &str, bands: usize) -> bool {
         .any(|preset| preset.name == name && preset.bands == bands)
 }
 
+/// The id the window and its graph are named by.
+fn eq_window_id(speaker: &SpeakerState) -> Id {
+    Id::unique(EQ_VIEWPORT_ID).with(speaker.instance)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -952,6 +957,33 @@ mod tests {
 
     fn key(serial: &str) -> SpeakerKey {
         SpeakerKey::Serial(serial.to_owned())
+    }
+
+    /// A speaker first known by its address reports its serial: its own windows stay the same
+    /// windows, the EQ window and "All values" alike.
+    #[test]
+    fn a_speakers_windows_stay_when_it_gets_its_serial() {
+        let address: std::net::SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let windows = |speaker: &SpeakerState| {
+            (
+                eq_window_id(speaker),
+                crate::views::all_values::viewport_of(speaker),
+            )
+        };
+        let before = windows(&speaker);
+        let identity = neumann_control_core::speaker::Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(
+            neumann_control_core::speaker::Event::Connected(identity),
+            0.0,
+        );
+        assert_eq!(speaker.key, key("SIM0001234"));
+        assert_eq!(windows(&speaker), before);
     }
 
     fn entry(changes: &[(&SpeakerKey, &str)]) -> Entry {

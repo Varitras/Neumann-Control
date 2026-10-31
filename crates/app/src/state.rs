@@ -101,9 +101,14 @@ pub enum Message {
 /// added again, and a refusal is matched by speaker and number.
 static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
 
+static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
+    /// Fixed while the speaker is listed, unlike the key, which changes once it reports its
+    /// serial: its own windows are named by this, so they stay the same windows.
+    pub instance: u64,
     pub address: SocketAddrV6,
     pub identity: Option<Identity>,
     /// What the last scan reported for this speaker; names may be empty.
@@ -169,6 +174,7 @@ impl SpeakerState {
     pub fn new(key: SpeakerKey, address: SocketAddrV6) -> SpeakerState {
         SpeakerState {
             key,
+            instance: NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed),
             address,
             identity: None,
             discovered: None,
