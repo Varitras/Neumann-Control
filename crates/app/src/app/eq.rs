@@ -11,8 +11,8 @@ use super::window_places::WindowKind;
 use super::NeumannApp;
 use crate::display::shown_value;
 use crate::eq::{
-    bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, Band, Leaf,
-    ResetKind,
+    bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, switch_order,
+    Band, Leaf, ResetKind,
 };
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
@@ -636,13 +636,15 @@ impl NeumannApp {
     }
 
     /// Whole leaves in this frame (one history entry), all or none: every write is checked
-    /// before the first is sent, so a refused leaf never leaves the others half written.
+    /// before the first is sent, so a refused leaf never leaves the others half written. Bands
+    /// go off first and on last (`switch_order`).
     pub(super) fn write_eq_leaves(
         &mut self,
         index: usize,
         writes: Vec<(SscPath, Value)>,
         now: f64,
     ) {
+        let writes = switch_order(writes);
         if let Some(refusal) = self.eq_refusal(index, &writes) {
             self.eq_windows[index].refusal = Some(refusal);
             return;

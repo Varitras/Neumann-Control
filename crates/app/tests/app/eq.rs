@@ -869,15 +869,18 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     harness
         .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
         .click();
+    // Band 1 goes on only after its other leaves: the switching on is the last write.
     wait_until(&mut harness, "the import written", |_| {
-        !sets(&simulator, BOOST_POINTER).is_empty()
+        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
     });
     barrier(&simulator);
-    let mut enabled = vec![false; 10];
-    enabled[0] = true;
+    let mut switched_off = vec![json!(false); 10];
+    switched_off[0] = Value::Null;
+    let mut switched_on = vec![Value::Null; 10];
+    switched_on[0] = json!(true);
     assert_eq!(
         sets(&simulator, "/audio/out/eq2/enabled"),
-        vec![json!(enabled)]
+        vec![json!(switched_off), json!(switched_on)]
     );
     assert_eq!(sets(&simulator, BOOST_POINTER)[0][0], json!(-4.0));
     assert_eq!(sets(&simulator, FREQUENCY_POINTER)[0][0], json!(120.0));

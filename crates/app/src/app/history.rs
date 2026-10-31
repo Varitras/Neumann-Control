@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_group, several_outputs};
+use crate::eq::{container_of, output_group, several_outputs, write_rank};
 use crate::history::{
     changed_since, closed_because, is_open, Change, ClockTime, Closed, Entry, History,
 };
@@ -390,7 +390,15 @@ impl NeumannApp {
             return None;
         }
         let mut skipped = Vec::new();
-        for (index, change) in entry.changes.iter().enumerate() {
+        // As forward: EQ bands go off first and on last, so no prefix sounds a mixed band.
+        let mut order: Vec<(usize, &Change)> = entry.changes.iter().enumerate().collect();
+        order.sort_by_key(|(_, change)| {
+            change
+                .before
+                .as_ref()
+                .map_or(1, |before| write_rank(&change.path, before))
+        });
+        for (index, change) in order {
             if !is_open(change) {
                 continue;
             }
