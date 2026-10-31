@@ -875,6 +875,35 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .is_some());
 }
 
+/// An import previewed when the speaker goes away is refused only for as long: once it is back,
+/// the preview can be written, without reading the file again.
+#[test]
+fn an_import_refused_while_away_can_be_written_once_back() {
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2
+";
+    import_file(&mut harness, &directory, "room.txt", text);
+    let refused = |harness: &Harness<'static, NeumannApp>| {
+        harness
+            .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
+            .accesskit_node()
+            .is_disabled()
+    };
+    assert!(!refused(&harness), "refused while there");
+    let address = simulator.address();
+    simulator.stop();
+    wait_until(&mut harness, "refused while away", |harness| {
+        refused(harness)
+    });
+    let back = Simulator::start_on(SimModel::Kh120Ii, address).unwrap();
+    let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    back.set_value("audio/out/eq2/frequency", json!(frequencies));
+    wait_until(&mut harness, "writable again", |harness| !refused(harness));
+}
+
 /// Taking back an import that switched band 2 on beside band 1, which was on already: band 2
 /// goes off before its other values are written back, as the import switched it on last.
 #[test]
