@@ -178,6 +178,9 @@ pub struct Written {
 struct Pending {
     value: Value,
     unanswered: VecDeque<u64>,
+    /// What each unanswered `Set` sent, in the same order: a refused one is taken out of
+    /// `value` again.
+    sent: VecDeque<Value>,
 }
 
 impl SpeakerState {
@@ -284,13 +287,14 @@ impl SpeakerState {
         let base = self.latest(path);
         let before = base.map(|base| matching(base, value)).filter(is_given);
         let merged = merged(base, value);
-        let mut unanswered = self
+        let (mut unanswered, mut sent) = self
             .pending
             .remove(path)
-            .map(|pending| pending.unanswered)
+            .map(|pending| (pending.unanswered, pending.sent))
             .unwrap_or_default();
         let write = NEXT_WRITE.fetch_add(1, Ordering::Relaxed);
         unanswered.push_back(write);
+        sent.push_back(value.clone());
         self.newest_write = Some(write);
         self.written.push(Written {
             path: path.clone(),
@@ -301,6 +305,7 @@ impl SpeakerState {
         let pending = Pending {
             value: merged,
             unanswered,
+            sent,
         };
         self.pending.insert(path.clone(), pending);
     }
@@ -395,6 +400,7 @@ impl SpeakerState {
         let mut answered = None;
         if let Some(pending) = self.pending.get_mut(path) {
             answered = pending.unanswered.pop_front();
+            pending.sent.pop_front();
             if !pending.unanswered.is_empty() {
                 return answered;
             }
@@ -407,6 +413,22 @@ impl SpeakerState {
             knob.confirmed();
         }
         answered
+    }
+
+    /// The value still on its way to `path`, built again from what the speaker reported and the
+    /// writes not yet answered, without the one just refused.
+    fn drop_refused_from_pending(&mut self, path: &SscPath) {
+        let reported = self.values.get(path).cloned();
+        let Some(pending) = self.pending.get_mut(path) else {
+            return;
+        };
+        let value = pending
+            .sent
+            .iter()
+            .fold(reported, |base, sent| Some(merged(base.as_ref(), sent)));
+        if let Some(value) = value {
+            pending.value = value;
+        }
     }
 
     /// Only for an explicit refusal: a write that failed with the connection may have been
@@ -504,6 +526,7 @@ impl SpeakerState {
                     .map(|pending| pending.unanswered.iter().copied().collect());
                 self.note_predecessor(refused, later.unwrap_or_default());
                 self.refused_writes.extend(refused);
+                self.drop_refused_from_pending(&path);
                 let message = Message::Rejected(error.code);
                 self.set_message(Some(message), MessageSource::Write);
             }
@@ -1071,6 +1094,31 @@ mod tests {
         assert_eq!(speaker.apply_retired(old, &refused), None);
         let absent = Event::WriteAbsent(mute.clone());
         assert_eq!(speaker.apply_retired(old, &absent), None);
+    }
+
+    /// Band 1 refused while band 2 of the same list is still on its way: the list waiting for
+    /// band 2's answer no longer holds the refused band 1, so a new change of band 1 starts
+    /// from what the speaker holds.
+    #[test]
+    fn a_refused_place_leaves_the_value_still_on_its_way() {
+        let gain = path("audio/out/eq2/gain");
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.apply(value_event("audio/out/eq2/gain", json!([0, 0, 0])), 0.0);
+        speaker.record_written(&gain, &json!([1, null, null]));
+        speaker.record_written(&gain, &json!([null, 2, null]));
+        let rejected = Event::WriteRejected {
+            path: gain.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        speaker.apply(rejected, 0.0);
+        assert_eq!(speaker.latest(&gain), Some(&json!([0, 2, 0])));
+        speaker.record_written(&gain, &json!([3, null, null]));
+        let newest = speaker.written.last().unwrap();
+        assert_eq!(newest.before, Some(json!([0, null, null])));
     }
 
     /// A refusal names the writes sent after it to the same path, also from an old connection;
