@@ -91,8 +91,9 @@ mod tests {
         assert_eq!(inbox.next(WAIT), Ok(Command::Stop));
     }
 
-    /// A worker left behind for a moved speaker: the app has counted its waiting writes as not
-    /// written, so they must not go out, whether they wait in the channel or were taken early.
+    /// A worker left behind for a moved speaker: the app counts what it does not answer before
+    /// its channel ends as not written, so its waiting writes must not go out, whether they wait
+    /// in the channel or were taken early.
     #[test]
     fn writes_waiting_when_abandoned_are_dropped() {
         let set = Command::Set {

@@ -29,7 +29,8 @@ fn is_text_edit(event: &Event) -> bool {
 
 pub struct NumberField<'a> {
     pub id: Id,
-    /// What the speaker reports; `None` before the first report.
+    /// The latest known value, a write still on its way included; `None` before the first
+    /// report.
     pub device: Option<f64>,
     /// Where a drag may go; a typed value is handed out as typed, for the write policy.
     pub range: RangeInclusive<f64>,

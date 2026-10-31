@@ -78,8 +78,8 @@ pub enum Command {
     },
     ReadAll,
     Stop,
-    /// Stop without the commands still waiting: they were for a speaker that moved, and the
-    /// app no longer awaits their answers.
+    /// Stop without the commands still waiting: they were for a speaker that moved. A command
+    /// already taken is still answered, and the app reads those answers until the channel ends.
     Abandon,
 }
 
