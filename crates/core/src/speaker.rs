@@ -80,8 +80,9 @@ pub enum Command {
     Read(SscPath),
     ReadAll,
     Stop,
-    /// Stop without the commands still waiting: they were for a speaker that moved. A command
-    /// already taken is still answered, and the app reads those answers until the channel ends.
+    /// Stop without the commands still waiting, also those set aside early: they were for a
+    /// speaker that moved. The command being carried out is still answered, and the app reads
+    /// those answers until the channel ends.
     Abandon,
 }
 

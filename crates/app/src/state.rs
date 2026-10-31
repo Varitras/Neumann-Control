@@ -328,15 +328,14 @@ impl SpeakerState {
     }
 
     /// An event from the old worker `worker`: only its answers to writes count. A confirmed
-    /// write may have reached the speaker after the new worker read the path, so the new worker
-    /// reads it again (the returned command); its answer is not taken over, since a newer write
-    /// may have been answered meanwhile.
+    /// write, and one that failed with the old connection, may have reached the speaker after
+    /// the new worker read the path, so the new worker reads it again (the returned command);
+    /// the old answer is not taken over, since a newer write may have been answered meanwhile.
     pub fn apply_retired(&mut self, worker: u64, event: &Event) -> Option<Command> {
-        let (path, done) = match event {
-            Event::Written { path, .. } => (path, true),
-            Event::WriteAbsent(path)
-            | Event::WriteRejected { path, .. }
-            | Event::WriteFailed { path, .. } => (path, false),
+        let (path, done, maybe_applied) = match event {
+            Event::Written { path, .. } => (path, true, true),
+            Event::WriteFailed { path, .. } => (path, false, true),
+            Event::WriteAbsent(path) | Event::WriteRejected { path, .. } => (path, false, false),
             _ => return None,
         };
         let writes = self
@@ -350,9 +349,8 @@ impl SpeakerState {
         }
         if !done {
             self.refused_writes.push(write);
-            return None;
         }
-        Some(Command::Read(path.clone()))
+        maybe_applied.then(|| Command::Read(path.clone()))
     }
 
     /// The old worker `worker` is gone: what it did not answer was not written.
@@ -1031,14 +1029,16 @@ mod tests {
 
     /// The new connection read the path before the old one's write reached the speaker: the
     /// confirmed old write has the path read again, so the next gesture does not start from the
-    /// read before it. A refused old write changed nothing and needs no read.
+    /// read before it. So does one that failed with the old connection, as it may have been
+    /// applied; one the speaker refused or did not find changed nothing and needs no read.
     #[test]
     fn an_old_connections_write_has_the_path_read_again() {
         let mute = path(paths::MUTE);
         let mut speaker = state();
         speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
-        speaker.record_written(&mute, &json!(true));
-        speaker.record_written(&mute, &json!(false));
+        for value in [true, false, true, false] {
+            speaker.record_written(&mute, &json!(value));
+        }
         let old = speaker.retire_outstanding();
         let read_before = Event::Value {
             path: mute.clone(),
@@ -1053,11 +1053,24 @@ mod tests {
             speaker.apply_retired(old, &confirmed),
             Some(Command::Read(mute.clone()))
         );
-        let refused = Event::WriteFailed {
+        let failed = Event::WriteFailed {
             path: mute.clone(),
             message: String::new(),
         };
+        assert_eq!(
+            speaker.apply_retired(old, &failed),
+            Some(Command::Read(mute.clone()))
+        );
+        let refused = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
         assert_eq!(speaker.apply_retired(old, &refused), None);
+        let absent = Event::WriteAbsent(mute.clone());
+        assert_eq!(speaker.apply_retired(old, &absent), None);
     }
 
     /// A refusal names the writes sent after it to the same path, also from an old connection;
