@@ -976,9 +976,10 @@ impl NeumannApp {
         }
     }
 
-    fn open_web(&self, url: &str) {
+    fn open_web(&mut self, url: &str) {
         if !self.help.open(url) {
             log::warn!("the browser could not be started");
+            self.notice = Some(texts::LINK_NOT_OPENED);
         }
     }
 

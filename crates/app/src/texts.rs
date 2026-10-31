@@ -172,6 +172,10 @@ pub const HELP_HINT: Text = Text::new("Hilfe", "Help");
 pub const MANUAL: Text = Text::new("Handbuch", "Manual");
 pub const WIKI: Text = Text::new("Wiki", "Wiki");
 pub const ABOUT: Text = Text::new("Über Neumann Control", "About Neumann Control");
+pub const LINK_NOT_OPENED: Text = Text::new(
+    "Link konnte nicht geöffnet werden",
+    "The link could not be opened",
+);
 pub const MANUAL_NOT_OPENED: Text = Text::new(
     "Handbuch konnte nicht geöffnet werden",
     "The manual could not be opened",

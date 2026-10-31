@@ -67,6 +67,18 @@ fn a_manual_that_does_not_open_is_not_called_missing() {
     harness.get_by_label(texts::MANUAL_NOT_OPENED.get());
 }
 
+/// A link nothing opens (no browser, no `xdg-open`) is said, as for the manual.
+#[test]
+fn a_link_that_does_not_open_is_said() {
+    let help = FakeHelp {
+        cannot_open: true,
+        ..FakeHelp::default()
+    };
+    let (_directory, mut harness) = app_with(&help);
+    choose_from_help(&mut harness, texts::WIKI.get());
+    harness.get_by_label(texts::LINK_NOT_OPENED.get());
+}
+
 #[test]
 fn about_tells_when_no_release_is_published() {
     let (_directory, mut harness) = app_with(&FakeHelp::default());

@@ -415,7 +415,12 @@ impl SpeakerState {
             Event::WriteFailed { path, .. } => {
                 let refused = self.settle(&path);
                 self.refused_writes.extend(refused);
-                self.set_message(Some(Message::WriteFailed), MessageSource::Write);
+                // The connection's own message (unreachable, another serial) says more.
+                let told =
+                    self.message_source == MessageSource::Connection && self.message.is_some();
+                if !told {
+                    self.set_message(Some(Message::WriteFailed), MessageSource::Write);
+                }
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
@@ -846,6 +851,25 @@ mod tests {
         );
         assert!(speaker.refused_writes.is_empty());
         assert_eq!(speaker.values.get(&mute), Some(&json!(true)));
+    }
+
+    /// A write failed because the connection went: "unreachable" says more and stays, as for
+    /// a refused write (`tell_refusal`).
+    #[test]
+    fn a_write_failed_in_an_outage_leaves_the_outage_message() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let mute = path(paths::MUTE);
+        speaker.record_written(&mute, &json!(true));
+        speaker.apply(Event::Unreachable("gone".to_owned()), 1.0);
+        speaker.apply(
+            Event::WriteFailed {
+                path: mute,
+                message: "not connected".to_owned(),
+            },
+            1.1,
+        );
+        assert_eq!(speaker.message, Some(Message::Unreachable));
     }
 
     /// The connection went away with a write on its way: the worker fails it after reporting
