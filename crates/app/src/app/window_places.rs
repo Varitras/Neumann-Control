@@ -93,6 +93,17 @@ fn above_the_taskbar(
     fit_into(geometry, &usable, least_size(pixels_per_point))
 }
 
+/// A window of its own at `geometry` on a monitor there is; never made larger. Its builder
+/// keeps its own least size (smaller than the main window's for settings and presets).
+fn own_window_place(
+    geometry: WindowGeometry,
+    monitors: &[MonitorArea],
+    pixels_per_point: f32,
+) -> WindowPlace {
+    let fitted = fit_into(geometry, monitors, (0.0, 0.0));
+    place_of(fitted, pixels_per_point)
+}
+
 /// The least window size in screen pixels.
 fn least_size(pixels_per_point: f32) -> (f32, f32) {
     (
@@ -157,7 +168,11 @@ impl NeumannApp {
     fn saved_place(&self, context: &Context, kind: WindowKind) -> Option<WindowPlace> {
         let saved = self.settings.windows.get(kind.key())?;
         // On a monitor there is now: the saved one may have been unplugged since.
-        Some(self.on_a_monitor(context, *saved))
+        Some(own_window_place(
+            *saved,
+            &self.monitors,
+            context.pixels_per_point(),
+        ))
     }
 
     /// A window of `size` over the middle of the main window, once the main window's place is
@@ -186,7 +201,8 @@ impl NeumannApp {
         }
     }
 
-    /// `geometry` (screen pixels) moved and shrunk onto a monitor there is, as egui places it.
+    /// The main window's `geometry` (screen pixels) moved and shrunk onto a monitor there is,
+    /// as egui places it, never below the main window's least size.
     fn on_a_monitor(&self, context: &Context, geometry: WindowGeometry) -> WindowPlace {
         let pixels_per_point = context.pixels_per_point();
         let fitted = fit_into(geometry, &self.monitors, least_size(pixels_per_point));
@@ -254,6 +270,27 @@ mod tests {
                 maximized: false,
             }
         );
+    }
+
+    /// A window of its own made smaller than the main window may be (settings, presets) opens
+    /// as small again: its own builder keeps its least size, not the main window's.
+    #[test]
+    fn a_window_of_its_own_keeps_a_size_below_the_main_windows_least() {
+        let screen = MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        let saved = WindowGeometry {
+            x: 100.0,
+            y: 100.0,
+            width: 360.0,
+            height: 260.0,
+            maximized: false,
+        };
+        let place = own_window_place(saved, &[screen], 1.0);
+        assert_eq!(place.size, vec2(360.0, 260.0));
     }
 
     /// At 150 % a saved 300 pixels are 200 points: the window opens where it was, as large.
