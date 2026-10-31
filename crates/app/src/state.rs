@@ -181,6 +181,19 @@ struct Pending {
     /// What each unanswered `Set` sent, in the same order: a refused one is taken out of
     /// `value` again.
     sent: VecDeque<Value>,
+    /// What the speaker holds by the answers so far: its report before the first `Set`, with
+    /// each one answered since merged in, a refused one left out. Its report is not taken
+    /// while writes are on their way, so `value` is built again from this.
+    base: Option<Value>,
+}
+
+/// How an answered `Set` counts for the value still on its way to its path.
+enum Answer<'a> {
+    /// The speaker holds this now.
+    Held(&'a Value),
+    /// Failed with the connection: it may have been applied.
+    MaybeApplied,
+    NotApplied,
 }
 
 impl SpeakerState {
@@ -287,11 +300,12 @@ impl SpeakerState {
         let base = self.latest(path);
         let before = base.map(|base| matching(base, value)).filter(is_given);
         let merged = merged(base, value);
-        let (mut unanswered, mut sent) = self
+        let reported = self.values.get(path).cloned();
+        let (mut unanswered, mut sent, base) = self
             .pending
             .remove(path)
-            .map(|pending| (pending.unanswered, pending.sent))
-            .unwrap_or_default();
+            .map(|pending| (pending.unanswered, pending.sent, pending.base))
+            .unwrap_or((VecDeque::new(), VecDeque::new(), reported));
         let write = NEXT_WRITE.fetch_add(1, Ordering::Relaxed);
         unanswered.push_back(write);
         sent.push_back(value.clone());
@@ -306,6 +320,7 @@ impl SpeakerState {
             value: merged,
             unanswered,
             sent,
+            base,
         };
         self.pending.insert(path.clone(), pending);
     }
@@ -396,11 +411,19 @@ impl SpeakerState {
 
     /// Counts the oldest `Set` to `path` as answered and returns its number; when none is left,
     /// the sent value is no longer held. Whether the speaker took it, its next report says.
-    fn settle(&mut self, path: &SscPath) -> Option<u64> {
+    fn settle(&mut self, path: &SscPath, answer: Answer) -> Option<u64> {
         let mut answered = None;
         if let Some(pending) = self.pending.get_mut(path) {
             answered = pending.unanswered.pop_front();
-            pending.sent.pop_front();
+            let sent = pending.sent.pop_front();
+            let taken = match answer {
+                Answer::Held(value) => Some(value.clone()),
+                Answer::MaybeApplied => sent,
+                Answer::NotApplied => None,
+            };
+            if let Some(taken) = taken {
+                pending.base = Some(merged(pending.base.as_ref(), &taken));
+            }
             if !pending.unanswered.is_empty() {
                 return answered;
             }
@@ -415,17 +438,18 @@ impl SpeakerState {
         answered
     }
 
-    /// The value still on its way to `path`, built again from what the speaker reported and the
-    /// writes not yet answered, without the one just refused.
+    /// The value still on its way to `path`, built again from what the answers so far leave
+    /// and the writes not yet answered, without the one just refused.
     fn drop_refused_from_pending(&mut self, path: &SscPath) {
-        let reported = self.values.get(path).cloned();
         let Some(pending) = self.pending.get_mut(path) else {
             return;
         };
         let value = pending
             .sent
             .iter()
-            .fold(reported, |base, sent| Some(merged(base.as_ref(), sent)));
+            .fold(pending.base.clone(), |base, sent| {
+                Some(merged(base.as_ref(), sent))
+            });
         if let Some(value) = value {
             pending.value = value;
         }
@@ -501,7 +525,7 @@ impl SpeakerState {
                 }
             }
             Event::Written { path, value } => {
-                self.settle(&path);
+                self.settle(&path, Answer::Held(&value));
                 if !self.pending.contains_key(&path) {
                     self.take_reported(path, value, now);
                 }
@@ -512,14 +536,14 @@ impl SpeakerState {
                 self.absent.insert(path);
             }
             Event::WriteAbsent(path) => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::NotApplied);
                 self.refused_writes.extend(refused);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
             // A re-read or, for a lost connection, the reconnect follows; it shows the real value.
             Event::WriteRejected { path, error } => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::NotApplied);
                 let later = self
                     .pending
                     .get(&path)
@@ -531,7 +555,7 @@ impl SpeakerState {
                 self.set_message(Some(message), MessageSource::Write);
             }
             Event::WriteFailed { path, .. } => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::MaybeApplied);
                 self.refused_writes.extend(refused);
                 // The connection's own message (unreachable, another serial) says more.
                 let told =
@@ -1119,6 +1143,44 @@ mod tests {
         speaker.record_written(&gain, &json!([3, null, null]));
         let newest = speaker.written.last().unwrap();
         assert_eq!(newest.before, Some(json!([0, null, null])));
+    }
+
+    /// Band 1 confirmed and band 2 refused while band 3 is still on its way: the list waiting for
+    /// band 3 keeps the confirmed band 1, and one that failed with the connection, as it may
+    /// have been applied, and drops only the refused band 2.
+    #[test]
+    fn a_refusal_keeps_the_answered_places_still_on_their_way() {
+        let gain = path("audio/out/eq2/gain");
+        let rejected = Event::WriteRejected {
+            path: gain.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        let confirmed = Event::Written {
+            path: gain.clone(),
+            value: json!([1, 0, 0]),
+        };
+        let failed = Event::WriteFailed {
+            path: gain.clone(),
+            message: String::new(),
+        };
+        for first in [confirmed, failed] {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            speaker.apply(value_event("audio/out/eq2/gain", json!([0, 0, 0])), 0.0);
+            for sent in [
+                json!([1, null, null]),
+                json!([null, 2, null]),
+                json!([null, null, 3]),
+            ] {
+                speaker.record_written(&gain, &sent);
+            }
+            speaker.apply(first.clone(), 0.0);
+            speaker.apply(rejected.clone(), 0.0);
+            assert_eq!(speaker.latest(&gain), Some(&json!([1, 0, 3])), "{first:?}");
+        }
     }
 
     /// A refusal names the writes sent after it to the same path, also from an old connection;
