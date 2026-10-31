@@ -59,7 +59,8 @@ impl History {
         }
     }
 
-    /// Adds the changes of one frame as an entry; a frame without writes adds nothing.
+    /// Adds the changes of one action as an entry (what `logic` or the drawing of a frame
+    /// wrote); none adds nothing.
     pub fn push(
         &mut self,
         clock: ClockTime,

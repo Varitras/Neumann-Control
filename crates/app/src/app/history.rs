@@ -346,8 +346,8 @@ impl NeumannApp {
         self.history.history.push(clock_now(), changes, None);
     }
 
-    /// Last in the frame: runs a requested take-back, then files everything this frame wrote,
-    /// the take-back's own writes included, as one entry.
+    /// Last in `ui`: runs a requested take-back, then files everything the drawing wrote, the
+    /// take-back's own writes included, as one entry (`logic` filed its own before).
     pub(super) fn finish_history_frame(&mut self, now: f64) {
         self.settle_refused_writes();
         let mut takes_back = None;

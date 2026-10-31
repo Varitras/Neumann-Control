@@ -140,7 +140,7 @@ pub struct SpeakerState {
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
     pub response_time: Option<Duration>,
-    /// What this frame sent. The app takes it into the history at the end of the frame.
+    /// What was sent since the history last took it, at the end of `logic` and of `ui`.
     pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
