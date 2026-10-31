@@ -180,6 +180,26 @@ fn gestures_start_from_the_latest_values() {
     assert!(found.is_empty(), "{found:#?}");
 }
 
+/// Without the folder's lock `main` loads the settings untouched: `load_checked` would move
+/// or copy the file aside where another app may be using it.
+#[test]
+fn main_loads_untouched_without_the_lock() {
+    let main =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs")).unwrap();
+    let load = main
+        .split_once("let saved = if may_write {")
+        .and_then(|(_, rest)| rest.split_once("};"))
+        .map(|(load, _)| load)
+        .unwrap_or_default();
+    let (writing, untouched) = load.split_once("} else {").unwrap_or_default();
+    let guarded = writing.contains("settings::load_checked(")
+        && untouched.contains("settings::load_untouched(");
+    assert!(
+        guarded,
+        "main.rs must load with load_untouched when it may not write"
+    );
+}
+
 /// An EQ preset is planned and saved from what the speaker will hold once its writes are
 /// through, not from its last report: a band write still on its way would otherwise be left
 /// out of a load or saved as it was.
