@@ -1,8 +1,9 @@
 use neumann_control_core::settings::{
-    load, load_checked, save, BandCurves, ColorChoice, CompactButton, CrossoverGuard, DelayUnit,
-    DeskSettings, EqPreset, GroupSettings, GroupStrip, Language, LanguageChoice, Linkable,
-    LoadOutcome, ManualSpeaker, MeterFloor, Settings, SettingsPreset, StoredStripLayout,
-    StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry, SETTINGS_FILE,
+    load, load_checked, load_untouched, save, BandCurves, ColorChoice, CompactButton,
+    CrossoverGuard, DelayUnit, DeskSettings, EqPreset, GroupSettings, GroupStrip, Language,
+    LanguageChoice, Linkable, LoadOutcome, ManualSpeaker, MeterFloor, Settings, SettingsPreset,
+    StoredStripLayout, StripElement, SystemAudioSettings, ThemeChoice, WindowGeometry,
+    SETTINGS_FILE,
 };
 use neumann_control_core::ssc::wire::SscPath;
 use std::fs;
@@ -168,6 +169,25 @@ fn a_file_of_this_version_is_read_without_a_copy() {
         .path()
         .join(format!("{SETTINGS_FILE}.bad"))
         .exists());
+}
+
+/// A run without the folder's lock writes nothing there, not even to set a file aside: an
+/// unreadable one is left as it is (and not saved over), a partly understood one gets no copy.
+#[test]
+fn loading_without_the_lock_leaves_the_folder_as_it_was() {
+    let cases = [
+        ("{not json", LoadOutcome::Untouchable),
+        (r#"{"desk": 3}"#, LoadOutcome::NotCopied),
+    ];
+    for (text, outcome) in cases {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(SETTINGS_FILE);
+        fs::write(&path, text).unwrap();
+        assert_eq!(load_untouched(&path).outcome, outcome, "{text}");
+        assert_eq!(fs::read_to_string(&path).unwrap(), text);
+        let files = fs::read_dir(directory.path()).unwrap().count();
+        assert_eq!(files, 1, "{text}");
+    }
 }
 
 /// The desk's look is not worth the remembered speakers.

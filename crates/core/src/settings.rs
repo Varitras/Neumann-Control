@@ -623,9 +623,12 @@ pub enum LoadOutcome {
     PartlyUnderstood,
     /// Unreadable or malformed: moved aside, defaults in use.
     SetAside,
-    /// Unreadable or not understood, and it could not be moved or copied aside: saving would
-    /// overwrite it with what this run holds, so it must not be saved.
+    /// Unreadable or malformed, and it could not (or, without the folder's lock, must not) be
+    /// moved aside: saving would overwrite it with defaults, so it must not be saved.
     Untouchable,
+    /// Read, but with values not understood, and no copy could (or, without the folder's lock,
+    /// may) be kept: saving would drop them, so it must not be saved.
+    NotCopied,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -643,6 +646,16 @@ pub fn load(path: &Path) -> Settings {
 /// moved aside (never overwriting an earlier one); one with values this version does not
 /// understand is kept, with a copy next to it.
 pub fn load_checked(path: &Path) -> Loaded {
+    load_with(path, true)
+}
+
+/// As `load_checked`, but nothing is written next to the file, for a run without the folder's
+/// lock: another app may be using the folder.
+pub fn load_untouched(path: &Path) -> Loaded {
+    load_with(path, false)
+}
+
+fn load_with(path: &Path, may_write: bool) -> Loaded {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == ErrorKind::NotFound => {
@@ -653,7 +666,7 @@ pub fn load_checked(path: &Path) -> Loaded {
                 "settings file could not be read ({}); using defaults",
                 error.kind()
             );
-            return set_aside(path);
+            return set_aside(path, may_write);
         }
     };
     NOT_UNDERSTOOD.with(|count| count.set(0));
@@ -666,7 +679,7 @@ pub fn load_checked(path: &Path) -> Loaded {
                 "settings file is malformed ({:?}); using defaults",
                 error.classify()
             );
-            return set_aside(path);
+            return set_aside(path, may_write);
         }
     };
     let dropped = dropped_on_save(&bytes, &settings);
@@ -676,9 +689,9 @@ pub fn load_checked(path: &Path) -> Loaded {
     if NOT_UNDERSTOOD.with(Cell::get) + dropped == 0 {
         return loaded(settings, LoadOutcome::Read);
     }
-    let outcome = match keep_a_copy(path) {
+    let outcome = match may_write && keep_a_copy(path) {
         true => LoadOutcome::PartlyUnderstood,
-        false => LoadOutcome::Untouchable,
+        false => LoadOutcome::NotCopied,
     };
     loaded(settings, outcome)
 }
@@ -687,8 +700,8 @@ fn loaded(settings: Settings, outcome: LoadOutcome) -> Loaded {
     Loaded { settings, outcome }
 }
 
-fn set_aside(path: &Path) -> Loaded {
-    let outcome = match quarantine(path) {
+fn set_aside(path: &Path, may_write: bool) -> Loaded {
+    let outcome = match may_write && quarantine(path) {
         true => LoadOutcome::SetAside,
         false => LoadOutcome::Untouchable,
     };

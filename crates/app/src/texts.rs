@@ -139,6 +139,10 @@ pub const SETTINGS_NOT_LOCKED: Text = Text::new(
     "Ordner nicht für diese App gesperrt; Änderungen werden nicht gespeichert",
     "Folder not locked for this app; changes are not saved",
 );
+pub const SETTINGS_NOT_COPIED: Text = Text::new(
+    "Einstellungen teils nicht verstanden und nicht gesichert; Änderungen werden nicht gespeichert",
+    "Some settings not understood and no copy kept; changes are not saved",
+);
 pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
     "Einstellungsdatei nicht lesbar; Änderungen werden nicht gespeichert",
     "Settings file cannot be read; changes are not saved",
@@ -500,6 +504,7 @@ pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
         LoadOutcome::PartlyUnderstood => Some(SETTINGS_PARTLY_UNDERSTOOD),
         LoadOutcome::SetAside => Some(SETTINGS_SET_ASIDE),
         LoadOutcome::Untouchable => Some(SETTINGS_UNTOUCHABLE),
+        LoadOutcome::NotCopied => Some(SETTINGS_NOT_COPIED),
     }
 }
 

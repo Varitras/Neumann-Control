@@ -219,8 +219,11 @@ impl NeumannApp {
             rediscovery: Rediscovery::default(),
             scan_choice: None,
             notice: texts::settings_notice(outcome),
-            unsaved_because: (outcome == LoadOutcome::Untouchable)
-                .then_some(texts::SETTINGS_UNTOUCHABLE),
+            unsaved_because: match outcome {
+                LoadOutcome::Untouchable => Some(texts::SETTINGS_UNTOUCHABLE),
+                LoadOutcome::NotCopied => Some(texts::SETTINGS_NOT_COPIED),
+                LoadOutcome::Read | LoadOutcome::PartlyUnderstood | LoadOutcome::SetAside => None,
+            },
             add_address: None,
             removal: None,
             panels: Vec::new(),
@@ -502,10 +505,13 @@ impl NeumannApp {
         }
     }
 
-    /// For a run without the folder's lock: another app may hold the same settings file.
+    /// For a run without the folder's lock: another app may hold the same settings file. What
+    /// loading found stays said; it is the more particular reason.
     pub fn save_nothing(&mut self) {
-        self.unsaved_because = Some(texts::SETTINGS_NOT_LOCKED);
-        self.notice = self.unsaved_because;
+        let reason = *self
+            .unsaved_because
+            .get_or_insert(texts::SETTINGS_NOT_LOCKED);
+        self.notice = self.notice.or(Some(reason));
     }
 
     fn save_settings(&mut self) {

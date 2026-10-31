@@ -988,6 +988,19 @@ fn the_save_dialog_shows_a_write_still_on_its_way() {
     harness.get_by_label(&texts::preset_row(label, texts::ON.get()));
 }
 
+/// What loading found stays said when the run then goes without the lock: it already says
+/// that changes are not saved, and why.
+#[test]
+fn the_load_notice_stays_in_a_run_without_the_lock() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    std::fs::write(&path, r#"{"desk": 3}"#).unwrap();
+    let mut harness = harness(path, Vec::new());
+    harness.state_mut().save_nothing();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SETTINGS_PARTLY_UNDERSTOOD.get());
+}
+
 /// Started without the folder's lock (`main` tells the app so): a save leaves the settings file
 /// as it was and says why.
 #[test]
