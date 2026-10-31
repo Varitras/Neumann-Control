@@ -131,8 +131,10 @@ pub struct SpeakerState {
     pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
-    /// Writes a moved speaker's old worker still answers, by path in the order sent.
-    retired: BTreeMap<SscPath, VecDeque<u64>>,
+    /// Writes the old workers of a moved speaker still answer: by worker, then by path in the
+    /// order sent.
+    retired: BTreeMap<u64, BTreeMap<SscPath, VecDeque<u64>>>,
+    next_retired: u64,
     /// The number of the write sent last.
     newest_write: Option<u64>,
     /// The numbers of writes the speaker refused, that failed, or that will never be answered
@@ -187,6 +189,7 @@ impl SpeakerState {
             written: Vec::new(),
             pending: BTreeMap::new(),
             retired: BTreeMap::new(),
+            next_retired: 0,
             newest_write: None,
             refused_writes: Vec::new(),
             temperature: Trend::default(),
@@ -290,24 +293,25 @@ impl SpeakerState {
         self.newest_write
     }
 
-    /// Whether the write numbered `write` is still unanswered. A write whose answer will not
-    /// come (the connection was lost) is not.
     /// The speaker moved: a new worker takes over, the old one answers what it already took
     /// (`apply_retired`) until its connection ends (`end_retired`). Its writes wait apart from
-    /// the new worker's, which are answered in their own order.
-    pub fn retire_outstanding(&mut self) {
+    /// the new worker's and from an earlier old one's, each answered in its own order; the
+    /// number returned names this old worker.
+    pub fn retire_outstanding(&mut self) -> u64 {
         let pending = std::mem::take(&mut self.pending);
-        for (path, pending) in pending {
-            self.retired
-                .entry(path)
-                .or_default()
-                .extend(pending.unanswered);
-        }
+        let writes = pending
+            .into_iter()
+            .map(|(path, pending)| (path, pending.unanswered))
+            .collect();
+        let worker = self.next_retired;
+        self.next_retired += 1;
+        self.retired.insert(worker, writes);
         self.forget_outstanding();
+        worker
     }
 
-    /// An event from a moved speaker's old worker: only its answers to writes count.
-    pub fn apply_retired(&mut self, event: &Event) {
+    /// An event from the old worker `worker`: only its answers to writes count.
+    pub fn apply_retired(&mut self, worker: u64, event: &Event) {
         let (path, done) = match event {
             Event::Written { path, .. } => (path, true),
             Event::WriteAbsent(path)
@@ -315,7 +319,11 @@ impl SpeakerState {
             | Event::WriteFailed { path, .. } => (path, false),
             _ => return,
         };
-        let Some(write) = self.retired.get_mut(path).and_then(VecDeque::pop_front) else {
+        let writes = self
+            .retired
+            .get_mut(&worker)
+            .and_then(|writes| writes.get_mut(path));
+        let Some(write) = writes.and_then(VecDeque::pop_front) else {
             return;
         };
         if !done {
@@ -323,22 +331,23 @@ impl SpeakerState {
         }
     }
 
-    /// The old worker is gone: what it did not answer was not written.
-    pub fn end_retired(&mut self) {
-        let retired = std::mem::take(&mut self.retired);
-        self.refused_writes.extend(retired.into_values().flatten());
+    /// The old worker `worker` is gone: what it did not answer was not written.
+    pub fn end_retired(&mut self, worker: u64) {
+        let Some(writes) = self.retired.remove(&worker) else {
+            return;
+        };
+        self.refused_writes.extend(writes.into_values().flatten());
     }
 
+    /// Whether the write numbered `write` is still unanswered. A write whose answer will not
+    /// come (the connection was lost) is not.
     pub fn awaits_write(&self, write: u64) -> bool {
         let pending = self
             .pending
             .values()
             .any(|pending| pending.unanswered.contains(&write));
-        pending
-            || self
-                .retired
-                .values()
-                .any(|retired| retired.contains(&write))
+        let mut retired = self.retired.values().flat_map(BTreeMap::values);
+        pending || retired.any(|writes| writes.contains(&write))
     }
 
     /// The newest sent value not yet answered, else the reported one: what the speaker holds
@@ -963,19 +972,50 @@ mod tests {
         let answered = speaker.newest_write().unwrap();
         speaker.record_written(&mute, &json!(false));
         let unanswered = speaker.newest_write().unwrap();
-        speaker.retire_outstanding();
+        let old = speaker.retire_outstanding();
         assert!(speaker.awaits_write(answered));
         assert!(speaker.refused_writes.is_empty());
         let confirmed = Event::Written {
             path: mute.clone(),
             value: json!(true),
         };
-        speaker.apply_retired(&confirmed);
+        speaker.apply_retired(old, &confirmed);
         assert!(!speaker.awaits_write(answered));
         assert!(speaker.awaits_write(unanswered));
-        speaker.end_retired();
+        speaker.end_retired(old);
         assert_eq!(speaker.refused_writes, vec![unanswered]);
         assert!(!speaker.awaits_write(unanswered));
+    }
+
+    /// Moved twice before the first old worker answered: each old connection's answers count
+    /// for its own writes, and each ends on its own.
+    #[test]
+    fn two_moves_keep_each_old_connections_writes_apart() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.record_written(&mute, &json!(true));
+        let first = speaker.newest_write().unwrap();
+        let first_worker = speaker.retire_outstanding();
+        speaker.record_written(&mute, &json!(false));
+        let second = speaker.newest_write().unwrap();
+        let second_worker = speaker.retire_outstanding();
+        let refused = Event::WriteFailed {
+            path: mute.clone(),
+            message: "timeout".to_owned(),
+        };
+        speaker.apply_retired(second_worker, &refused);
+        assert_eq!(speaker.refused_writes, vec![second]);
+        assert!(speaker.awaits_write(first));
+        speaker.end_retired(second_worker);
+        let confirmed = Event::Written {
+            path: mute,
+            value: json!(true),
+        };
+        speaker.apply_retired(first_worker, &confirmed);
+        speaker.end_retired(first_worker);
+        assert_eq!(speaker.refused_writes, vec![second]);
+        assert!(!speaker.awaits_write(first));
     }
 
     /// A shorter list afterwards (a firmware fault): no meter is left at its last level.

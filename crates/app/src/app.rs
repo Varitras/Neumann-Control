@@ -87,8 +87,9 @@ struct Speaker {
     state: SpeakerState,
     handle: SpeakerHandle,
     events: Events,
-    /// The old workers of a moved speaker, read until they end: their answers to writes count.
-    retired: Vec<Events>,
+    /// The old workers of a moved speaker, by the number their state gave them, read until they
+    /// end: their answers to writes count.
+    retired: Vec<(u64, Events)>,
 }
 
 /// A speaker's device panel, open in a window of its own.
@@ -329,10 +330,9 @@ impl NeumannApp {
         let (handle, events) = self.spawn(key, address);
         let speaker = &mut self.speakers[position];
         speaker.state.address = address;
-        speaker.state.retire_outstanding();
-        speaker
-            .retired
-            .push(std::mem::replace(&mut speaker.events, events));
+        let worker = speaker.state.retire_outstanding();
+        let old_events = std::mem::replace(&mut speaker.events, events);
+        speaker.retired.push((worker, old_events));
         // What still waits in its inbox is dropped and so never answered: not written. What it
         // already took is answered on its own channel, read on until it ends.
         let old = std::mem::replace(&mut speaker.handle, handle);
@@ -1048,26 +1048,23 @@ fn local_now() -> time::OffsetDateTime {
     time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
-/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
-/// Reads a moved speaker's old workers; once the last has ended, what it left unanswered was
-/// not written.
+/// Reads a moved speaker's old workers; once one has ended, what it left unanswered was not
+/// written.
 fn drain_retired(speaker: &mut Speaker) {
-    if speaker.retired.is_empty() {
-        return;
-    }
     let state = &mut speaker.state;
-    speaker.retired.retain(|events| loop {
+    speaker.retired.retain(|(worker, events)| loop {
         match events.try_recv() {
-            Ok(event) => state.apply_retired(&event),
+            Ok(event) => state.apply_retired(*worker, &event),
             Err(TryRecvError::Empty) => return true,
-            Err(TryRecvError::Disconnected) => return false,
+            Err(TryRecvError::Disconnected) => {
+                state.end_retired(*worker);
+                return false;
+            }
         }
     });
-    if speaker.retired.is_empty() {
-        state.end_retired();
-    }
 }
 
+/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
 fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }
