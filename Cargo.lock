@@ -2003,6 +2003,7 @@ dependencies = [
 name = "neumann-control-core"
 version = "0.2.1"
 dependencies = [
+ "if-addrs",
  "log",
  "mdns-sd",
  "neumann-control-core",

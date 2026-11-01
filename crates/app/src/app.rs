@@ -41,8 +41,8 @@ use crate::status_leds::average_response_time;
 use crate::strip_layout;
 use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{
-    duplicate_speakers, follow_moves, forget, is_found, remember_identity, remember_serial,
-    same_speaker, targets,
+    duplicate_speakers, follow_moves, follow_reach, forget, is_found, remember_identity,
+    remember_serial, same_speaker, targets,
 };
 use crate::texts;
 use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
@@ -342,11 +342,15 @@ impl NeumannApp {
     fn drain_events(&mut self, now: f64) {
         let mut connected = Vec::new();
         let mut renamed = Vec::new();
+        let mut reached = Vec::new();
         for speaker in &mut self.speakers {
             drain_retired(speaker);
             while let Ok(event) = speaker.events.try_recv() {
                 if let Event::Connected(identity) = &event {
                     connected.push((identity.clone(), speaker.state.address));
+                }
+                if let Event::Reached(address) = &event {
+                    reached.push((speaker.state.address, *address));
                 }
                 let before = speaker.state.key.clone();
                 speaker.state.apply(event, now);
@@ -355,10 +359,10 @@ impl NeumannApp {
                 }
             }
         }
-        if connected.is_empty() {
-            return;
-        }
         let mut changed = false;
+        for (before, after) in &reached {
+            changed |= follow_reach(&mut self.settings.manual, *before, *after);
+        }
         for (identity, address) in &connected {
             changed |= remember_serial(&mut self.settings.manual, &identity.serial, *address);
             changed |= remember_identity(&mut self.settings.known, identity);
@@ -369,7 +373,9 @@ impl NeumannApp {
         if changed {
             self.save_settings();
         }
-        self.drop_duplicate_speakers();
+        if !connected.is_empty() {
+            self.drop_duplicate_speakers();
+        }
     }
 
     /// A speaker's key changed (its serial became known): everything that names the speaker by

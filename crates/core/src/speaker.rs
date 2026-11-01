@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::address::{is_link_local, link_local_addresses};
 use crate::catalog::{Catalog, Entry};
 use crate::mask::{mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
@@ -97,6 +98,10 @@ pub struct Identity {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Connected(Identity),
+    /// The speaker answered at its link-local address through another interface of this
+    /// computer than the address named (Windows numbers its interfaces anew after a driver or
+    /// adapter change): this is its address now. Sent before `Connected`.
+    Reached(SocketAddrV6),
     /// Sent once per outage; the text is the masked error.
     Unreachable(String),
     /// A read: the value as the speaker held it when the request was answered.
@@ -334,7 +339,8 @@ impl Worker {
 
     /// One connection attempt and, if the speaker is the expected one, the session on it.
     fn connect_and_serve(&mut self) -> Result<(), Stopped> {
-        let mut client = match Client::connect(self.target.address) {
+        let named = self.target.address;
+        let mut client = match self.connect() {
             Ok(client) => client,
             Err(error) => {
                 self.report_unreachable(&error);
@@ -345,13 +351,18 @@ impl Worker {
             Ok(identity) => identity,
             Err(Interruption::Stopped) => return Err(Stopped),
             Err(Interruption::Lost(error)) => {
+                self.take_address(named);
                 self.report_unreachable(&error);
                 return Ok(());
             }
         };
         if let Some(expected) = self.mismatched_serial(&identity) {
+            self.take_address(named);
             self.report_mismatch(expected, identity.serial);
             return Ok(());
+        }
+        if self.target.address != named {
+            self.outbox.emit(Event::Reached(self.target.address));
         }
         log::info!("connected to {}", self.host);
         // Added by address alone: from now on this is the speaker, not whatever answers there.
@@ -381,6 +392,39 @@ impl Worker {
                 Ok(())
             }
         }
+    }
+
+    /// A link-local address names the interface of this computer by its index, which Windows
+    /// can give another interface: when the speaker cannot be reached at it, the same address is
+    /// tried through each other interface that has a link-local address. The one that answers
+    /// is taken; whether it is the expected speaker, its identity says.
+    fn connect(&mut self) -> Result<Client, SscError> {
+        let named = self.target.address;
+        let error = match Client::connect(named) {
+            Ok(client) => return Ok(client),
+            Err(error) => error,
+        };
+        if !is_link_local(named.ip()) {
+            return Err(error);
+        }
+        let others = link_local_addresses()
+            .into_iter()
+            .map(|local| local.scope_id())
+            .filter(|scope| *scope != named.scope_id());
+        for scope in others {
+            let candidate = SocketAddrV6::new(*named.ip(), named.port(), 0, scope);
+            if let Ok(client) = Client::connect(candidate) {
+                log::info!("{} answers at {}", self.host, mask_host(&candidate));
+                self.take_address(candidate);
+                return Ok(client);
+            }
+        }
+        Err(error)
+    }
+
+    fn take_address(&mut self, address: SocketAddrV6) {
+        self.target.address = address;
+        self.host = mask_host(&address);
     }
 
     fn serve(&self, session: &mut Session, entries: &[&Entry]) -> Interruption {

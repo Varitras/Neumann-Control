@@ -508,6 +508,7 @@ impl SpeakerState {
                 self.unreachable_since = None;
                 self.set_message(None, MessageSource::Connection);
             }
+            Event::Reached(address) => self.address = address,
             // The masked reason is for the log; the strip only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;

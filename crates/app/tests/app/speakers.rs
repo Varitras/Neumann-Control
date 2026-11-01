@@ -605,3 +605,39 @@ fn removing_a_speaker_that_does_not_answer_does_not_stall_the_window() {
     harness.get_by_label(&texts::speaker_count(0));
     assert!(took < STALL_LIMIT, "the window waited {took:?}");
 }
+
+/// An index no interface of a computer has.
+const GONE_INTERFACE: u32 = 4_000_000;
+
+/// Windows numbers its interfaces anew after a driver or adapter change: a speaker remembered
+/// at a link-local address through an interface index that is gone is reached through the
+/// interface that has the address now, and remembered there, without a scan.
+#[test]
+fn a_speaker_remembered_through_a_gone_interface_is_reached_through_its_new_one() {
+    let Some(local) = neumann_control_core::address::link_local_addresses().pop() else {
+        eprintln!("no link-local IPv6 address on this computer: nothing to reach through");
+        return;
+    };
+    let simulator = Simulator::start_on(SimModel::Kh120Ii, local).unwrap();
+    let reached = simulator.address();
+    let directory = tempfile::tempdir().unwrap();
+    let gone = std::net::SocketAddrV6::new(*reached.ip(), reached.port(), 0, GONE_INTERFACE);
+    let manual = ManualSpeaker {
+        address: neumann_control_core::address::format_host(&gone),
+        port: gone.port(),
+        serial: None,
+    };
+    let path = settings_file(directory.path(), vec![manual]);
+    let mut harness = harness(path.clone(), Vec::new());
+    wait_until(
+        &mut harness,
+        "remembered at the interface it answers on",
+        |_| {
+            let stored = settings::load(&path);
+            stored
+                .manual
+                .iter()
+                .any(|entry| parse_address(&entry.address, entry.port) == Ok(reached))
+        },
+    );
+}

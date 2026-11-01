@@ -1,7 +1,7 @@
 //! Parsing of IPv6 speaker addresses, including Windows numeric zone indexes.
 
 use std::fmt;
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV6};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV6};
 
 /// The TCP port Sennheiser Sound Control listens on.
 pub const SSC_PORT: u16 = 45;
@@ -80,6 +80,29 @@ pub fn scope_suffix(address: &SocketAddrV6) -> String {
         NO_SCOPE => String::new(),
         scope => format!("{SCOPE_SEPARATOR}{scope}"),
     }
+}
+
+/// This computer's link-local IPv6 addresses on interfaces that are up, each with its
+/// interface's index (port 0): where a link-local address can be reached through.
+pub fn link_local_addresses() -> Vec<SocketAddrV6> {
+    let interfaces = match if_addrs::get_if_addrs() {
+        Ok(interfaces) => interfaces,
+        Err(error) => {
+            log::warn!("the interfaces of this computer could not be listed: {error}");
+            return Vec::new();
+        }
+    };
+    let usable = interfaces
+        .into_iter()
+        .filter(|interface| interface.is_oper_up() && !interface.is_loopback());
+    usable
+        .filter_map(|interface| match interface.ip() {
+            IpAddr::V6(ip) if is_link_local(&ip) => {
+                Some(SocketAddrV6::new(ip, 0, 0, interface.index?))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 // `u32::from_str` accepts a leading `+`, which Windows would not.

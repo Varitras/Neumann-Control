@@ -10,6 +10,9 @@ rust-version.workspace = true
 test-support = []
 
 [dependencies]
+# Already in the build through mdns-sd; named here for the interfaces a link-local address
+# can be reached through.
+if-addrs = "0.15"
 log = "0.4"
 mdns-sd = "0.21"
 serde = { version = "1", features = ["derive"] }
