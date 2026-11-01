@@ -125,7 +125,10 @@ another's window forward.
    or with `netsh interface ipv6 show interfaces` (column `Idx`). On Linux, `ip link` shows the
    index before each adapter's name.
 
-Added speakers are remembered and reconnected at every start. When a scan finds a remembered
+Added speakers are remembered and reconnected at every start. When a link-local address cannot
+be reached through its stored adapter index (Windows numbers its adapters anew after a driver or
+adapter change), the app tries the same address through the computer's other adapters and keeps
+the index the speaker answers on; this needs no scan. When a scan finds a remembered
 speaker at a different address (link-local addresses and interface indexes can change), the
 stored address is updated. The app scans for that by itself, without a dialog: once at the start,
 and when a remembered speaker stays unreachable for 30 seconds, then at most every 5 minutes

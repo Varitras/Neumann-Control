@@ -47,6 +47,9 @@
 - A speaker the scan heard once before and once after its serial was announced is offered once.
 - "Manual could not be opened" when it is there but nothing opens it, instead of "not found";
   a wiki or release link that does not open is said too.
+- A speaker remembered at a link-local address is reached also after Windows gave the network
+  adapter another index (after a driver or adapter change), without a scan, which found nothing
+  where mDNS gets no answer; the new index is remembered.
 - A speaker that gets its serial later (added by address) keeps its history, a dim waiting to go
   back, its strip with a value being typed or dragged, and its EQ and **All values** windows as
   they are.
