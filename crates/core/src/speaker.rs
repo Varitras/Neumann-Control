@@ -2,6 +2,7 @@
 //! the app before polling, and everything it learns sent back as events.
 
 mod inbox;
+mod reach;
 
 use std::collections::HashSet;
 use std::net::SocketAddrV6;
@@ -21,6 +22,7 @@ use crate::schema_walk::{LeafReport, Progress, Walk, WalkError};
 use crate::ssc::client::{Client, SscError};
 use crate::ssc::wire::{DeviceError, SscPath};
 use inbox::Inbox;
+use reach::{first_answering, other_scopes};
 
 const DEFAULT_METER_INTERVAL: Duration = Duration::from_millis(100);
 const DEFAULT_FAST_INTERVAL: Duration = Duration::from_secs(2);
@@ -407,19 +409,16 @@ impl Worker {
         if !is_link_local(named.ip()) {
             return Err(error);
         }
-        let others = link_local_addresses()
+        let candidates = other_scopes(named.scope_id(), &link_local_addresses())
             .into_iter()
-            .map(|local| local.scope_id())
-            .filter(|scope| *scope != named.scope_id());
-        for scope in others {
-            let candidate = SocketAddrV6::new(*named.ip(), named.port(), 0, scope);
-            if let Ok(client) = Client::connect(candidate) {
-                log::info!("{} answers at {}", self.host, mask_host(&candidate));
-                self.take_address(candidate);
-                return Ok(client);
-            }
-        }
-        Err(error)
+            .map(|scope| SocketAddrV6::new(*named.ip(), named.port(), 0, scope));
+        let stopped = || self.inbox.stop_requested();
+        let Some((address, client)) = first_answering(candidates, stopped, Client::connect) else {
+            return Err(error);
+        };
+        log::info!("{} answers at {}", self.host, mask_host(&address));
+        self.take_address(address);
+        Ok(client)
     }
 
     fn take_address(&mut self, address: SocketAddrV6) {
