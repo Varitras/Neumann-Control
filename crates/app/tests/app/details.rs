@@ -889,6 +889,61 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
 
 /// A stored preset can hold a value this speaker refuses (another model's range, a file edited
 /// by hand). Loading it then writes nothing, not the part before the refused value.
+/// The speaker goes while the load dialog shows a preset it holds: nothing is known to be on it
+/// any more, and the dialog says why.
+#[test]
+fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
+    let same = SettingsPreset {
+        name: "Same".to_owned(),
+        product: "KH 120 II".to_owned(),
+        values: [("audio/out/level".to_owned(), json!(100.0))].into(),
+    };
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimModel::Kh120Ii, vec![same]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimModel::Kh120Ii),
+        "Same",
+        "KH 120 II",
+    );
+    harness.get_by_label(texts::PRESET_UNCHANGED.get());
+    simulator.stop();
+    wait_until(&mut harness, "the outage", |harness| {
+        harness
+            .query_all_by_label(texts::UNREACHABLE.get())
+            .next()
+            .is_some()
+    });
+    assert!(harness
+        .query_by_label(texts::PRESET_UNCHANGED.get())
+        .is_none());
+    assert!(harness
+        .query_all_by_label_contains("Nicht verbunden")
+        .next()
+        .is_some());
+}
+
+/// A preset with values this model does not have: none was compared, so none is the same.
+#[test]
+fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
+    let other = SettingsPreset {
+        name: "Other".to_owned(),
+        product: "KH 120 II".to_owned(),
+        values: [("audio/out/not/here".to_owned(), json!(1.0))].into(),
+    };
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimModel::Kh120Ii, vec![other]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimModel::Kh120Ii),
+        "Other",
+        "KH 120 II",
+    );
+    assert!(harness
+        .query_by_label(texts::PRESET_UNCHANGED.get())
+        .is_none());
+}
+
 #[test]
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
     let far = SettingsPreset {

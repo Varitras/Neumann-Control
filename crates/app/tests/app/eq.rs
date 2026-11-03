@@ -931,6 +931,8 @@ fn a_preset_compared_with_a_value_gone_is_not_called_the_same() {
     assert!(harness
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
+    assert!(harness.query_by_label(texts::NO_PRESETS.get()).is_none());
+    harness.get_by_label(texts::EQ_VALUES_MISSING.get());
 }
 
 /// An import previewed when the speaker goes away is refused only for as long: once it is back,

@@ -89,6 +89,8 @@ pub enum PresetDialogView<'a> {
     Load {
         /// The presets that fit the container.
         names: &'a [String],
+        /// What the dialog says without any.
+        empty: &'a str,
         selected: Option<usize>,
         /// Each band's value that would change, now and as written.
         changes: &'a [ComparedChange],
@@ -269,6 +271,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
         }
         PresetDialogView::Load {
             names,
+            empty,
             selected,
             changes,
             refusal,
@@ -278,6 +281,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
             let view = LoadView {
                 title: texts::EQ_PRESET_LOAD_TITLE.get(),
                 presets: names,
+                empty,
                 selected: *selected,
                 changes: Changes::Compared(changes),
                 skipped: &[],

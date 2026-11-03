@@ -153,6 +153,8 @@ pub struct LoadView<'a> {
     pub title: &'a str,
     /// "Name (product)" per preset.
     pub presets: &'a [String],
+    /// What the dialog says when `presets` is empty.
+    pub empty: &'a str,
     pub selected: Option<usize>,
     pub changes: Changes<'a>,
     pub skipped: &'a [String],
@@ -190,7 +192,7 @@ pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
         ui.heading(view.title);
         let mut action = LoadAction::None;
         if view.presets.is_empty() {
-            ui.weak(texts::NO_PRESETS);
+            ui.weak(view.empty);
         }
         for (place, preset) in view.presets.iter().enumerate() {
             if ui
@@ -202,8 +204,9 @@ pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
         }
         if view.selected.is_some() {
             ui.separator();
-            // With a refusal nothing is known to be on the speaker already.
-            if view.changes.is_empty() && view.refusal.is_none() {
+            // With a refusal or skipped values nothing is known to be on the speaker already.
+            let compared = view.refusal.is_none() && view.skipped.is_empty();
+            if view.changes.is_empty() && compared {
                 ui.weak(texts::PRESET_UNCHANGED);
             }
             ScrollArea::vertical()
