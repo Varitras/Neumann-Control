@@ -51,7 +51,16 @@ pub struct History {
 }
 
 impl History {
-    /// Adds the changes of one frame as an entry; a frame without writes adds nothing.
+    /// The speaker's key changed (its serial became known): its changes go with it.
+    pub fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        let changes = self.entries.iter_mut().flat_map(|entry| &mut entry.changes);
+        for change in changes.filter(|change| change.speaker == *before) {
+            change.speaker = after.clone();
+        }
+    }
+
+    /// Adds the changes of one action as an entry (what `logic` or the drawing of a frame
+    /// wrote); none adds nothing.
     pub fn push(
         &mut self,
         clock: ClockTime,
@@ -133,10 +142,82 @@ impl History {
         }
     }
 
+    /// The speaker refused write `refused` while the writes `later` to its path, oldest first,
+    /// were on their way. Each took the refused value as its value before, which the speaker
+    /// never held: they take the refused write's own value before instead, place by place for
+    /// an array, each place by the first of them that wrote it.
+    pub fn pass_on_before(&mut self, speaker: &SpeakerKey, refused: u64, later: &[u64]) {
+        let source = self
+            .entries
+            .iter()
+            .flat_map(|entry| &entry.changes)
+            .find(|change| change.speaker == *speaker && change.write == Some(refused))
+            .cloned();
+        let Some(source) = source else {
+            return;
+        };
+        let mut open = given_places(&source.after);
+        for write in later {
+            if open.is_empty() {
+                return;
+            }
+            let mut changes = self.entries.iter_mut().flat_map(|entry| &mut entry.changes);
+            let found =
+                changes.find(|change| change.speaker == *speaker && change.write == Some(*write));
+            if let Some(change) = found {
+                change.before = before_from(&source, change, &mut open);
+            }
+        }
+    }
+
     fn change_mut(&mut self, id: u64, change: usize) -> Option<&mut Change> {
         let entry = self.entries.iter_mut().find(|entry| entry.id == id)?;
         entry.changes.get_mut(change)
     }
+}
+
+/// The places a write gave: an array's entries that are not `null`, or the one place of any
+/// other value.
+fn given_places(value: &Value) -> Vec<usize> {
+    let Some(entries) = value.as_array() else {
+        return vec![0];
+    };
+    let given = entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| !entry.is_null());
+    given.map(|(place, _)| place).collect()
+}
+
+/// `change`'s value before, once the places in `open` it wrote take `source`'s value before
+/// instead; those places leave `open`. Unknown where `source`'s value before is.
+fn before_from(source: &Change, change: &Change, open: &mut Vec<usize>) -> Option<Value> {
+    let arrays = (source.after.as_array(), change.after.as_array());
+    let (Some(refused), Some(written)) = arrays else {
+        open.clear();
+        let both_whole = arrays.0.is_none() && arrays.1.is_none();
+        return both_whole.then(|| source.before.clone()).flatten();
+    };
+    if refused.len() != written.len() {
+        open.clear();
+        return None;
+    }
+    let taken: Vec<usize> = open
+        .iter()
+        .copied()
+        .filter(|place| !written[*place].is_null())
+        .collect();
+    open.retain(|place| !taken.contains(place));
+    if taken.is_empty() {
+        return change.before.clone();
+    }
+    let source_before = source.before.as_ref().and_then(Value::as_array)?;
+    let mut before = change.before.as_ref().and_then(Value::as_array)?.clone();
+    for place in taken {
+        let value = source_before.get(place).filter(|value| !value.is_null())?;
+        *before.get_mut(place)? = value.clone();
+    }
+    Some(Value::Array(before))
 }
 
 /// Whether the speaker's latest value (`SpeakerState::latest`) is another than the change
@@ -263,6 +344,51 @@ mod tests {
             write: None,
             refused: false,
         }
+    }
+
+    /// The speaker refused a write of places 0 and 1 while two later writes were on their way:
+    /// place 1's value before goes to the first later write of it, place 0's to the second,
+    /// and place 2 keeps the value before the first later write found.
+    #[test]
+    fn a_refused_write_passes_its_values_before_on_place_by_place() {
+        let mut history = History::default();
+        let key = SpeakerKey::Serial("SIM0001234".to_owned());
+        let written = |write, before, after| Change {
+            write: Some(write),
+            ..change(Some(before), after)
+        };
+        let changes = [
+            written(1, json!([0, 0, null]), json!([1, 1, null])),
+            written(2, json!([null, 1, 0]), json!([null, 2, 2])),
+            written(3, json!([1, null, null]), json!([3, null, null])),
+        ];
+        for change in changes {
+            history.push(NOON, vec![change], None);
+        }
+        history.pass_on_before(&key, 1, &[2, 3]);
+        let before = |place| history.newest(place).unwrap().changes[0].before.clone();
+        assert_eq!(before(1), Some(json!([null, 0, 0])));
+        assert_eq!(before(0), Some(json!([0, null, null])));
+    }
+
+    /// A scalar refused with its value before unknown: the next write's value before is unknown
+    /// too, so it cannot be taken back.
+    #[test]
+    fn a_refused_write_with_an_unknown_value_before_passes_that_on() {
+        let mut history = History::default();
+        let key = SpeakerKey::Serial("SIM0001234".to_owned());
+        let refused = Change {
+            write: Some(1),
+            ..change(None, json!(2.0))
+        };
+        let next = Change {
+            write: Some(2),
+            ..change(Some(json!(2.0)), json!(3.0))
+        };
+        history.push(NOON, vec![refused], None);
+        history.push(NOON, vec![next], None);
+        history.pass_on_before(&key, 1, &[2]);
+        assert_eq!(history.newest(0).unwrap().changes[0].before, None);
     }
 
     /// Why a closed entry cannot be taken back, from what became of each change: a group

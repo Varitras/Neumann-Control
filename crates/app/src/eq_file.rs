@@ -31,8 +31,12 @@ const REW_ALL_PASS: [&str; 2] = ["All", "pass"];
 const REW_PLAIN_Q: f64 = FRAC_1_SQRT_2;
 /// First-order filters have no Q; the speakers still want one in their range.
 const FIRST_ORDER_Q: f64 = 0.7;
-/// APO commands that start another channel's filters or a condition (lower case).
+/// APO commands that start another section's filters (a channel, an output device, a
+/// processing stage) or a condition (lower case).
 const CHANNEL_COMMAND: &str = "channel";
+const DEVICE_COMMAND: &str = "device";
+const STAGE_COMMAND: &str = "stage";
+const SECTION_COMMANDS: [&str; 3] = [CHANNEL_COMMAND, DEVICE_COMMAND, STAGE_COMMAND];
 const CONDITION_COMMANDS: [&str; 3] = ["if", "elseif", "else"];
 /// APO commands that change the sound but have no place in one EQ container; anything else
 /// before a colon (REW's header lines `Dated:`, `Notes:` ...) is passed over silently.
@@ -41,11 +45,11 @@ const SOUND_COMMANDS: [&str; 11] = [
     CHANNEL_COMMAND,
     "include",
     "graphiceq",
-    "device",
+    DEVICE_COMMAND,
     "delay",
     "copy",
     "convolution",
-    "stage",
+    STAGE_COMMAND,
     "eval",
     "loudnesscorrection",
 ];
@@ -80,8 +84,9 @@ pub enum ImportError {
         band: usize,
         bands: usize,
     },
-    /// Filters for more than one channel, or under a condition: one container takes one
-    /// channel's filters, and stacking them all would sound like none of them.
+    /// Filters for more than one channel, output device or processing stage, or under a
+    /// condition: one container takes one section's filters, and stacking them all would sound
+    /// like none of them.
     SeveralChannels,
 }
 
@@ -98,6 +103,8 @@ pub enum LineProblem {
     BadQ,
     /// A line without a number after the highest band number there is.
     NoNextBand,
+    /// A type the speakers shape differently than the file means it.
+    OtherForm(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,7 +152,8 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
         "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
-        "BP" => shaped(eq_type::BANDPASS, false, QRule::Cookbook),
+        // The speakers' band pass is the constant skirt form, APO's the 0 dB peak one.
+        "BP" => Err(LineProblem::OtherForm(name.to_owned())),
         "NO" => shaped(eq_type::NOTCH, false, QRule::Cookbook),
         "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
         "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
@@ -191,7 +199,7 @@ fn type_and_parameters<'a>(tokens: &[&'a str]) -> Result<(String, Vec<&'a str>),
 pub fn parse(text: &str) -> Result<Imported, ImportError> {
     let mut imported = Imported::default();
     let mut next_band = 0;
-    let mut channels = 0;
+    let mut sections: BTreeMap<String, usize> = BTreeMap::new();
     let text = text.trim_start_matches(BYTE_ORDER_MARK);
     for (place, line) in text.lines().enumerate() {
         let line = line.trim();
@@ -210,11 +218,12 @@ pub fn parse(text: &str) -> Result<Imported, ImportError> {
         if CONDITION_COMMANDS.contains(&lower.as_str()) {
             return Err(ImportError::SeveralChannels);
         }
-        if lower == CHANNEL_COMMAND {
-            channels += 1;
-            // Filters before it are every channel's, the ones after this channel's only.
+        if SECTION_COMMANDS.contains(&lower.as_str()) {
+            let count = sections.entry(lower.clone()).or_default();
+            *count += 1;
+            // Filters before it are every section's, the ones after this section's only.
             let after_filters = !imported.bands.is_empty();
-            if channels > 1 || after_filters {
+            if *count > 1 || after_filters {
                 return Err(ImportError::SeveralChannels);
             }
         }
@@ -448,13 +457,13 @@ pub struct Export {
 }
 
 /// APO's token for a band, whether its line carries a gain, and its cookbook Q (a shelf's slope
-/// converted); `None` for a type APO has no line for, or a shelf beyond the cookbook form.
+/// converted); `None` for a type APO has no line for, a band pass (its form there is another
+/// than the speakers'), or a shelf beyond the cookbook form.
 fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
     match band.kind.as_str() {
         eq_type::PARAMETRIC => Some(("PK", true, band.q)),
         eq_type::LOWPASS => Some(("LPQ", false, band.q)),
         eq_type::HIGHPASS => Some(("HPQ", false, band.q)),
-        eq_type::BANDPASS => Some(("BP", false, band.q)),
         eq_type::NOTCH => Some(("NO", false, band.q)),
         eq_type::ALLPASS => Some(("AP", false, band.q)),
         eq_type::LOSHELF => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
@@ -626,6 +635,29 @@ Channel: L
 Filter: ON PK Fc 200 Hz Gain 1 dB Q 1
 ";
         assert_eq!(parse(before), Err(ImportError::SeveralChannels));
+    }
+
+    /// Every APO command that starts a section (another channel, device or processing stage):
+    /// one before all filters is fine, a second one or one after filters would stack two
+    /// sections into one EQ.
+    #[test]
+    fn every_section_command_is_refused_as_a_second_section() {
+        for command in ["Channel: L", "Device: Speakers", "Stage: post-mix"] {
+            let one = format!("{command}\nFilter: ON PK Fc 100 Hz Gain 1 dB Q 1\n");
+            assert!(parse(&one).is_ok(), "{command}");
+            let two = format!(
+                "{command}\nFilter: ON PK Fc 100 Hz Gain 1 dB Q 1\n{command}\nFilter: ON PK Fc 200 Hz Gain 1 dB Q 1\n"
+            );
+            assert_eq!(parse(&two), Err(ImportError::SeveralChannels), "{command}");
+            let after = format!(
+                "Filter: ON PK Fc 100 Hz Gain 1 dB Q 1\n{command}\nFilter: ON PK Fc 200 Hz Gain 1 dB Q 1\n"
+            );
+            assert_eq!(
+                parse(&after),
+                Err(ImportError::SeveralChannels),
+                "{command}"
+            );
+        }
     }
 
     #[test]
@@ -818,7 +850,7 @@ Equaliser: Generic
             assert!(read.bands[&0].is_some(), "{plain}");
         }
         for named in [
-            "LPQ", "LP Q", "HPQ", "HP Q", "LSC", "LS Q", "HSC", "HS Q", "PK", "BP", "NO", "AP",
+            "LPQ", "LP Q", "HPQ", "HP Q", "LSC", "LS Q", "HSC", "HS Q", "PK", "NO", "AP",
             "All pass",
         ] {
             let line = format!("Filter: ON {named} Fc 100 Hz Gain 3 dB");
@@ -969,6 +1001,25 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
         assert_eq!(kinds, [(1, "LO6DB"), (2, "INVERSION"), (3, "LOSHELF")]);
     }
 
+    /// The speakers' band pass peaks at 20·log10(Q) (measured); APO's `BP` peaks at 0 dB
+    /// (its source). Taken over either way it would be off by that peak, 12 dB at Q 4, so it
+    /// is neither read nor written.
+    #[test]
+    fn a_band_pass_is_neither_read_nor_written() {
+        assert_eq!(
+            problem_of("Filter: ON BP Fc 1000 Hz Q 4"),
+            LineProblem::OtherForm("BP".to_owned())
+        );
+        let exported = export(&[band("BANDPASS", 0.0, 500.0, 4.0)], "EQ 2");
+        assert_eq!(
+            exported.notes,
+            vec![ExportNote::NotExportable {
+                band: 1,
+                kind: "BANDPASS".to_owned(),
+            }]
+        );
+    }
+
     #[test]
     fn an_exported_container_reads_back_as_the_same_bands() {
         let mut off = band("PARAMETRIC", 0.0, 100.0, 0.7);
@@ -977,7 +1028,6 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
             band("PARAMETRIC", -4.5, 63.0, 2.5),
             off.clone(),
             band("LOWPASS", 0.0, 12000.0, 0.707),
-            band("BANDPASS", 0.0, 500.0, 1.0),
             band("NOTCH", 0.0, 50.0, 8.0),
             band("ALLPASS", 0.0, 900.0, 0.7),
             band("HIGHPASS", 0.0, 25.0, 0.5),

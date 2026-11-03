@@ -12,7 +12,7 @@ use crate::texts;
 
 const WINDOW_ID: &str = "groups_window";
 pub(crate) const GROUPS_WINDOW_SIZE: [f32; 2] = [640.0, 520.0];
-const GROUPS_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
+pub(crate) const GROUPS_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 const LIST_WIDTH: f32 = 160.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

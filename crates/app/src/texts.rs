@@ -139,6 +139,10 @@ pub const SETTINGS_NOT_LOCKED: Text = Text::new(
     "Ordner nicht für diese App gesperrt; Änderungen werden nicht gespeichert",
     "Folder not locked for this app; changes are not saved",
 );
+pub const SETTINGS_NOT_COPIED: Text = Text::new(
+    "Einstellungen teils nicht verstanden und nicht gesichert; Änderungen werden nicht gespeichert",
+    "Some settings not understood and no copy kept; changes are not saved",
+);
 pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
     "Einstellungsdatei nicht lesbar; Änderungen werden nicht gespeichert",
     "Settings file cannot be read; changes are not saved",
@@ -168,6 +172,10 @@ pub const HELP_HINT: Text = Text::new("Hilfe", "Help");
 pub const MANUAL: Text = Text::new("Handbuch", "Manual");
 pub const WIKI: Text = Text::new("Wiki", "Wiki");
 pub const ABOUT: Text = Text::new("Über Neumann Control", "About Neumann Control");
+pub const LINK_NOT_OPENED: Text = Text::new(
+    "Link konnte nicht geöffnet werden",
+    "The link could not be opened",
+);
 pub const MANUAL_NOT_OPENED: Text = Text::new(
     "Handbuch konnte nicht geöffnet werden",
     "The manual could not be opened",
@@ -308,6 +316,10 @@ pub const COMPARE_WITH: Text = Text::new("Vergleichen mit:", "Compare with:");
 pub const CROSSOVER_WARNING: Text = Text::new(
     "Das ist eine Weiche: ihr Tief- bzw. Hochpass entfällt, der Ausgang spielt ungefiltert.",
     "This is a crossover: its low or high pass goes, the output plays unfiltered.",
+);
+pub const CROSSOVER_PROTECTED: Text = Text::new(
+    "Die Weiche ist geschützt (Einstellungen)",
+    "The crossover is protected (Settings)",
 );
 pub const PROTECT_CROSSOVERS: Text = Text::new(
     "Weichen schützen (kein Flachstellen, Zurücksetzen oder Importieren, keine EQ-Presets)",
@@ -474,6 +486,12 @@ pub const UNREACHABLE: Text = Text::new(
 );
 pub const WRITE_FAILED: Text = Text::new("Schreiben fehlgeschlagen", "Write failed");
 
+/// The edit mode's note with own layouts: the change is this speaker's only.
+pub const APPLIES_TO_THIS_SPEAKER: Text = Text::new(
+    "gilt nur für diesen Lautsprecher",
+    "applies to this speaker only",
+);
+
 /// The edit mode's note that a strip layout belongs to the model, not to the one speaker.
 pub fn applies_to_every(model: &str) -> String {
     pick(
@@ -500,6 +518,7 @@ pub fn settings_notice(outcome: LoadOutcome) -> Option<Text> {
         LoadOutcome::PartlyUnderstood => Some(SETTINGS_PARTLY_UNDERSTOOD),
         LoadOutcome::SetAside => Some(SETTINGS_SET_ASIDE),
         LoadOutcome::Untouchable => Some(SETTINGS_UNTOUCHABLE),
+        LoadOutcome::NotCopied => Some(SETTINGS_NOT_COPIED),
     }
 }
 
@@ -980,12 +999,12 @@ pub fn eq_preset_entry(name: &str, bands: usize) -> String {
     )
 }
 
-/// A band an EQ preset would change, in the load dialog's preview.
 /// A band's value in the EQ preset comparison: "Band 2 · Boost".
 pub fn eq_band_leaf(band: usize, leaf: &str) -> String {
     format!("{} · {leaf}", eq_band(band))
 }
 
+/// A band an EQ preset would change, in the load dialog's preview.
 pub fn eq_preset_band(number: usize) -> String {
     pick(
         format!("Band {number} ändert sich"),
@@ -1083,8 +1102,8 @@ pub fn eq_import_error(error: &ImportError) -> String {
             format!("The file names band {band}, this EQ has {bands} bands."),
         ),
         ImportError::SeveralChannels => Text::new(
-            "Die Datei hat Filter für mehrere Kanäle oder unter Bedingungen; ein EQ nimmt die eines Kanals.",
-            "The file has filters for several channels or under conditions; an EQ takes one channel's.",
+            "Die Datei hat Filter für mehrere Kanäle, Geräte oder Stufen oder unter Bedingungen; ein EQ nimmt die eines Abschnitts.",
+            "The file has filters for several channels, devices or stages or under conditions; an EQ takes one section's.",
         )
         .get()
         .to_owned(),
@@ -1118,6 +1137,10 @@ fn line_problem(problem: &LineProblem) -> String {
         LineProblem::SameBand(band) => pick(
             format!("Band {band} steht schon in einer früheren Zeile."),
             format!("Band {band} is already in an earlier line."),
+        ),
+        LineProblem::OtherForm(kind) => pick(
+            format!("Filtertyp „{kind}“ wird nicht übernommen: Die Lautsprecher formen ihn anders."),
+            format!("Filter type \"{kind}\" is not taken over: the speakers shape it differently."),
         ),
         LineProblem::NoNextBand => pick(
             "Nach der höchsten Bandnummer gibt es kein weiteres Band.".to_owned(),

@@ -1,4 +1,5 @@
-//! The context menus that change a model's compact buttons: on a button, and on the rest of the
+//! The context menus that change compact buttons (the model's, or the speaker's own): on a
+//! button, and on the rest of the
 //! row, which still offers adding when every button is hidden. They only report the change.
 
 use eframe::egui::{Rect, Ui};

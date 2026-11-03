@@ -2,8 +2,22 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Import…** and **Export…** take no band pass (`BP`) any more: the speakers' band pass peaks at
+  its Q, Equalizer APO's at 0 dB, so it was off by that peak (12 dB at Q 4). An exported band pass
+  is written as a comment and listed.
+
 ### Fixed
 
+- An EQ preset or import switches a band on only after its other values are written, and off
+  before, and taking it back does the same; a band could sound its old values first, and keep
+  them after an outage.
+- An Equalizer APO file with several `Device:` or `Stage:` sections is refused, as one with several
+  channels is; their filters were stacked into one EQ.
+- Every control starts from the value just sent: a second choice in a list, a typed number or
+  text, a knob or fader turned again and a change in the EQ window before the speaker answered
+  the first no longer repeat or drop it.
 - A setting the speaker answered as not found is no longer kept in the history as written, and
   taking a change back that way no longer counts as done.
 - Loading or saving a preset right after a change, and a second click on a group's mute or a
@@ -21,14 +35,44 @@
 - A history entry with some changes not written and the others taken back says so, not that the
   value before is unknown.
 - Where the folder's lock file cannot be made (a folder of its name in the way, a read-only
-  folder), the app writes neither log nor settings, so a second app there cannot lose them.
+  folder), the app writes neither log nor settings, so a second app there cannot lose them; a
+  damaged settings file is then left where it is, and what loading found stays said.
+- A settings file read but with values not understood and no copy kept says so, instead of
+  "cannot be read".
 - A serial the speaker reports in another form than text is not taken, so it cannot lock out the
   real one later.
 - An EQ file with a filter line after the highest band number is refused; it could count on
   from band 1.
 - A band reported with Q 0 no longer turns the EQ curve into no numbers.
 - A speaker the scan heard once before and once after its serial was announced is offered once.
-- "Manual could not be opened" when it is there but nothing opens it, instead of "not found".
+- "Manual could not be opened" when it is there but nothing opens it, instead of "not found";
+  a wiki or release link that does not open is said too.
+- A speaker remembered at a link-local address is reached also after Windows gave the network
+  adapter another index (after a driver or adapter change), without a scan, which found nothing
+  where mDNS gets no answer; the new index is remembered.
+- A speaker that gets its serial later (added by address) keeps its history, a dim waiting to go
+  back, its strip with a value being typed or dragged, and its EQ and **All values** windows as
+  they are.
+- The writes of a speaker that moved to another address count by the answers of its old
+  connection: one that went through stays in the history as written, one still waiting there is
+  not sent, and a setting such a write went through or may have gone through is read again.
+- A typed value left open when its tab, panel or mode went does not come back with old text.
+- **Ctrl+K** keeps to a text field being edited, and one **Escape** closes a window while a
+  button has the keyboard focus.
+- A write failed by an outage leaves the "unreachable" message.
+- The EQ import preview and preset load say why nothing can be written (not connected,
+  protected crossover) instead of "already on the speaker", also when nothing would change.
+- Taking back a change sent right after another to the same setting writes the value before
+  both when the speaker refused the first, not the refused value; a refused EQ band no longer
+  counts as the band's value while other bands are still on their way.
+- A shortcut or a dim going back while the window is minimized is kept in the history as not
+  written when its write fails, not as a change to take back.
+- Windows of their own open at the size they were left, also below the main window's least
+  size, and never below their own.
+- With own layouts, the edit note under a strip says the change is this speaker's only.
+- A serial in a text of **All values** and the scan report is masked, also without a known
+  serial; numbers are shown as the speaker reports them.
+- A start that fails (no graphics adapter) says why in the log.
 
 ## [0.2.0] - 2026-10-27
 

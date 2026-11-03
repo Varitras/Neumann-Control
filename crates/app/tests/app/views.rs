@@ -217,6 +217,20 @@ fn panel_opens_from_strip_name_and_closes_on_escape() {
     assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
 }
 
+/// A button reached with Tab takes no keys: one Escape closes the window, as without it.
+#[test]
+fn one_escape_closes_a_panel_while_a_button_has_the_focus() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    let focused = harness.ctx.memory(|memory| memory.focused().is_some());
+    assert!(focused, "Tab gave a button the focus");
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(harness.query_by_label(texts::TAB_OVERVIEW.get()).is_none());
+}
+
 /// From the top of the panel's embedded window down to the middle of its title bar.
 const TITLE_BAR_MIDDLE: f32 = 10.0;
 const PANEL_MOVE: f32 = 520.0;

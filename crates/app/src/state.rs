@@ -101,9 +101,22 @@ pub enum Message {
 /// added again, and a refusal is matched by speaker and number.
 static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
 
+static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(0);
+
+/// A write the speaker refused while later writes to its path were on their way, oldest first:
+/// they took its value as their value before.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RefusedPredecessor {
+    pub write: u64,
+    pub later: Vec<u64>,
+}
+
 #[derive(Clone, Debug)]
 pub struct SpeakerState {
     pub key: SpeakerKey,
+    /// Fixed while the speaker is listed, unlike the key, which changes once it reports its
+    /// serial: its own windows are named by this, so they stay the same windows.
+    pub instance: u64,
     pub address: SocketAddrV6,
     pub identity: Option<Identity>,
     /// What the last scan reported for this speaker; names may be empty.
@@ -127,15 +140,21 @@ pub struct SpeakerState {
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
     pub response_time: Option<Duration>,
-    /// What this frame sent. The app takes it into the history at the end of the frame.
+    /// What was sent since the history last took it, at the end of `logic` and of `ui`.
     pub written: Vec<Written>,
     /// Sent values the speaker has not answered yet; the value before of the next write.
     pending: BTreeMap<SscPath, Pending>,
+    /// Writes the old workers of a moved speaker still answer: by worker, then by path in the
+    /// order sent.
+    retired: BTreeMap<u64, BTreeMap<SscPath, VecDeque<u64>>>,
+    next_retired: u64,
     /// The number of the write sent last.
     newest_write: Option<u64>,
     /// The numbers of writes the speaker refused, that failed, or that will never be answered
     /// (the connection went away), since the app last took them.
     pub refused_writes: Vec<u64>,
+    /// Refused writes later writes took their value before from, since the app last took them.
+    pub refused_predecessors: Vec<RefusedPredecessor>,
     /// `device/temperature` as reported (kelvin), for the device panel's trend.
     pub temperature: Trend<f64>,
     /// The active warnings, empty while there are none.
@@ -159,12 +178,31 @@ pub struct Written {
 struct Pending {
     value: Value,
     unanswered: VecDeque<u64>,
+    /// What each unanswered `Set` sent, in the same order: a refused one is taken out of
+    /// `value` again.
+    sent: VecDeque<Value>,
+    /// What the answers so far leave on the speaker: its report before the first `Set`, with
+    /// each confirmed one merged in, one with an answer that tells nothing taken as applied,
+    /// and a refused or not found one left out. Its report is not taken while writes are on
+    /// their way, so `value` is built again from this after a refusal.
+    base: Option<Value>,
+}
+
+/// How an answered `Set` counts for the value still on its way to its path.
+enum Answer<'a> {
+    /// The speaker holds this now.
+    Held(&'a Value),
+    /// Failed with an answer that tells nothing while the connection stays: it may have been
+    /// applied. A lost connection forgets everything on its way anyway.
+    MaybeApplied,
+    NotApplied,
 }
 
 impl SpeakerState {
     pub fn new(key: SpeakerKey, address: SocketAddrV6) -> SpeakerState {
         SpeakerState {
             key,
+            instance: NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed),
             address,
             identity: None,
             discovered: None,
@@ -184,8 +222,11 @@ impl SpeakerState {
             response_time: None,
             written: Vec::new(),
             pending: BTreeMap::new(),
+            retired: BTreeMap::new(),
+            next_retired: 0,
             newest_write: None,
             refused_writes: Vec::new(),
+            refused_predecessors: Vec::new(),
             temperature: Trend::default(),
             warnings: Trend::default(),
             full_scan: FullScanState::Idle,
@@ -261,13 +302,15 @@ impl SpeakerState {
         let base = self.latest(path);
         let before = base.map(|base| matching(base, value)).filter(is_given);
         let merged = merged(base, value);
-        let mut unanswered = self
+        let reported = self.values.get(path).cloned();
+        let (mut unanswered, mut sent, base) = self
             .pending
             .remove(path)
-            .map(|pending| pending.unanswered)
-            .unwrap_or_default();
+            .map(|pending| (pending.unanswered, pending.sent, pending.base))
+            .unwrap_or((VecDeque::new(), VecDeque::new(), reported));
         let write = NEXT_WRITE.fetch_add(1, Ordering::Relaxed);
         unanswered.push_back(write);
+        sent.push_back(value.clone());
         self.newest_write = Some(write);
         self.written.push(Written {
             path: path.clone(),
@@ -278,6 +321,8 @@ impl SpeakerState {
         let pending = Pending {
             value: merged,
             unanswered,
+            sent,
+            base,
         };
         self.pending.insert(path.clone(), pending);
     }
@@ -287,12 +332,66 @@ impl SpeakerState {
         self.newest_write
     }
 
+    /// The speaker moved: a new worker takes over, the old one answers what it already took
+    /// (`apply_retired`) until its connection ends (`end_retired`). Its writes wait apart from
+    /// the new worker's and from an earlier old one's, each answered in its own order; the
+    /// number returned names this old worker.
+    pub fn retire_outstanding(&mut self) -> u64 {
+        let pending = std::mem::take(&mut self.pending);
+        let writes = pending
+            .into_iter()
+            .map(|(path, pending)| (path, pending.unanswered))
+            .collect();
+        let worker = self.next_retired;
+        self.next_retired += 1;
+        self.retired.insert(worker, writes);
+        self.forget_outstanding();
+        worker
+    }
+
+    /// An event from the old worker `worker`: only its answers to writes count. A confirmed
+    /// write, and one that failed with the old connection, may have reached the speaker after
+    /// the new worker read the path, so the new worker reads it again (the returned command);
+    /// the old answer is not taken over, since a newer write may have been answered meanwhile.
+    pub fn apply_retired(&mut self, worker: u64, event: &Event) -> Option<Command> {
+        let (path, done, maybe_applied) = match event {
+            Event::Written { path, .. } => (path, true, true),
+            Event::WriteFailed { path, .. } => (path, false, true),
+            Event::WriteAbsent(path) | Event::WriteRejected { path, .. } => (path, false, false),
+            _ => return None,
+        };
+        let writes = self
+            .retired
+            .get_mut(&worker)
+            .and_then(|writes| writes.get_mut(path))?;
+        let write = writes.pop_front()?;
+        let later = writes.iter().copied().collect();
+        if matches!(event, Event::WriteRejected { .. }) {
+            self.note_predecessor(Some(write), later);
+        }
+        if !done {
+            self.refused_writes.push(write);
+        }
+        maybe_applied.then(|| Command::Read(path.clone()))
+    }
+
+    /// The old worker `worker` is gone: what it did not answer was not written.
+    pub fn end_retired(&mut self, worker: u64) {
+        let Some(writes) = self.retired.remove(&worker) else {
+            return;
+        };
+        self.refused_writes.extend(writes.into_values().flatten());
+    }
+
     /// Whether the write numbered `write` is still unanswered. A write whose answer will not
     /// come (the connection was lost) is not.
     pub fn awaits_write(&self, write: u64) -> bool {
-        self.pending
+        let pending = self
+            .pending
             .values()
-            .any(|pending| pending.unanswered.contains(&write))
+            .any(|pending| pending.unanswered.contains(&write));
+        let mut retired = self.retired.values().flat_map(BTreeMap::values);
+        pending || retired.any(|writes| writes.contains(&write))
     }
 
     /// The newest sent value not yet answered, else the reported one: what the speaker holds
@@ -314,10 +413,19 @@ impl SpeakerState {
 
     /// Counts the oldest `Set` to `path` as answered and returns its number; when none is left,
     /// the sent value is no longer held. Whether the speaker took it, its next report says.
-    fn settle(&mut self, path: &SscPath) -> Option<u64> {
+    fn settle(&mut self, path: &SscPath, answer: Answer) -> Option<u64> {
         let mut answered = None;
         if let Some(pending) = self.pending.get_mut(path) {
             answered = pending.unanswered.pop_front();
+            let sent = pending.sent.pop_front();
+            let taken = match answer {
+                Answer::Held(value) => Some(value.clone()),
+                Answer::MaybeApplied => sent,
+                Answer::NotApplied => None,
+            };
+            if let Some(taken) = taken {
+                pending.base = Some(merged(pending.base.as_ref(), &taken));
+            }
             if !pending.unanswered.is_empty() {
                 return answered;
             }
@@ -330,6 +438,36 @@ impl SpeakerState {
             knob.confirmed();
         }
         answered
+    }
+
+    /// The value still on its way to `path`, built again from what the answers so far leave
+    /// and the writes not yet answered, without the one just refused.
+    fn drop_refused_from_pending(&mut self, path: &SscPath) {
+        let Some(pending) = self.pending.get_mut(path) else {
+            return;
+        };
+        let value = pending
+            .sent
+            .iter()
+            .fold(pending.base.clone(), |base, sent| {
+                Some(merged(base.as_ref(), sent))
+            });
+        if let Some(value) = value {
+            pending.value = value;
+        }
+    }
+
+    /// Only for an explicit refusal: a write that failed with the connection may have been
+    /// applied.
+    fn note_predecessor(&mut self, refused: Option<u64>, later: Vec<u64>) {
+        let Some(write) = refused else {
+            return;
+        };
+        if later.is_empty() {
+            return;
+        }
+        let predecessor = RefusedPredecessor { write, later };
+        self.refused_predecessors.push(predecessor);
     }
 
     /// No answer is coming for what is pending: those writes count as failed.
@@ -370,6 +508,7 @@ impl SpeakerState {
                 self.unreachable_since = None;
                 self.set_message(None, MessageSource::Connection);
             }
+            Event::Reached(address) => self.address = address,
             // The masked reason is for the log; the strip only shows the generic text.
             Event::Unreachable(_) => {
                 self.status = Status::Unreachable;
@@ -389,7 +528,7 @@ impl SpeakerState {
                 }
             }
             Event::Written { path, value } => {
-                self.settle(&path);
+                self.settle(&path, Answer::Held(&value));
                 if !self.pending.contains_key(&path) {
                     self.take_reported(path, value, now);
                 }
@@ -400,22 +539,33 @@ impl SpeakerState {
                 self.absent.insert(path);
             }
             Event::WriteAbsent(path) => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::NotApplied);
                 self.refused_writes.extend(refused);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
             // A re-read or, for a lost connection, the reconnect follows; it shows the real value.
             Event::WriteRejected { path, error } => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::NotApplied);
+                let later = self
+                    .pending
+                    .get(&path)
+                    .map(|pending| pending.unanswered.iter().copied().collect());
+                self.note_predecessor(refused, later.unwrap_or_default());
                 self.refused_writes.extend(refused);
+                self.drop_refused_from_pending(&path);
                 let message = Message::Rejected(error.code);
                 self.set_message(Some(message), MessageSource::Write);
             }
             Event::WriteFailed { path, .. } => {
-                let refused = self.settle(&path);
+                let refused = self.settle(&path, Answer::MaybeApplied);
                 self.refused_writes.extend(refused);
-                self.set_message(Some(Message::WriteFailed), MessageSource::Write);
+                // The connection's own message (unreachable, another serial) says more.
+                let told =
+                    self.message_source == MessageSource::Connection && self.message.is_some();
+                if !told {
+                    self.set_message(Some(Message::WriteFailed), MessageSource::Write);
+                }
             }
             Event::SerialMismatch { found, .. } => {
                 self.status = Status::Unreachable;
@@ -621,6 +771,14 @@ mod tests {
         assert_eq!(speaker.key, SpeakerKey::Serial(SERIAL.to_owned()));
         assert_eq!(speaker.address, address(ADDRESS_TEXT));
         assert_eq!(speaker.status, Status::Connected);
+    }
+
+    #[test]
+    fn a_speaker_reached_through_another_interface_keeps_that_address() {
+        let mut speaker = state();
+        let reached = address("fe80::2a36:38ff:fe12:3456%18");
+        speaker.apply(Event::Reached(reached), 0.0);
+        assert_eq!(speaker.address, reached);
     }
 
     #[test]
@@ -848,6 +1006,25 @@ mod tests {
         assert_eq!(speaker.values.get(&mute), Some(&json!(true)));
     }
 
+    /// A write failed because the connection went: "unreachable" says more and stays, as for
+    /// a refused write (`tell_refusal`).
+    #[test]
+    fn a_write_failed_in_an_outage_leaves_the_outage_message() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let mute = path(paths::MUTE);
+        speaker.record_written(&mute, &json!(true));
+        speaker.apply(Event::Unreachable("gone".to_owned()), 1.0);
+        speaker.apply(
+            Event::WriteFailed {
+                path: mute,
+                message: "not connected".to_owned(),
+            },
+            1.1,
+        );
+        assert_eq!(speaker.message, Some(Message::Unreachable));
+    }
+
     /// The connection went away with a write on its way: the worker fails it after reporting
     /// the outage, and that failure still counts for the write.
     #[test]
@@ -879,6 +1056,217 @@ mod tests {
         let mut after = state();
         after.record_written(&mute, &json!(true));
         assert_ne!(after.newest_write().unwrap(), old);
+    }
+
+    /// The speaker moved with a write on its way: the old connection's answer still counts.
+    /// Confirmed, the write is done; refused or never answered (the old connection ended), it is
+    /// not; meanwhile it is still awaited.
+    #[test]
+    fn a_write_of_a_moved_speaker_counts_by_the_old_connections_answer() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.record_written(&mute, &json!(true));
+        let answered = speaker.newest_write().unwrap();
+        speaker.record_written(&mute, &json!(false));
+        let unanswered = speaker.newest_write().unwrap();
+        let old = speaker.retire_outstanding();
+        assert!(speaker.awaits_write(answered));
+        assert!(speaker.refused_writes.is_empty());
+        let confirmed = Event::Written {
+            path: mute.clone(),
+            value: json!(true),
+        };
+        speaker.apply_retired(old, &confirmed);
+        assert!(!speaker.awaits_write(answered));
+        assert!(speaker.awaits_write(unanswered));
+        speaker.end_retired(old);
+        assert_eq!(speaker.refused_writes, vec![unanswered]);
+        assert!(!speaker.awaits_write(unanswered));
+    }
+
+    /// The new connection read the path before the old one's write reached the speaker: the
+    /// confirmed old write has the path read again, so the next gesture does not start from the
+    /// read before it. So does one that failed with the old connection, as it may have been
+    /// applied; one the speaker refused or did not find changed nothing and needs no read.
+    #[test]
+    fn an_old_connections_write_has_the_path_read_again() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        for value in [true, false, true, false] {
+            speaker.record_written(&mute, &json!(value));
+        }
+        let old = speaker.retire_outstanding();
+        let read_before = Event::Value {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(read_before, 0.0);
+        let confirmed = Event::Written {
+            path: mute.clone(),
+            value: json!(true),
+        };
+        assert_eq!(
+            speaker.apply_retired(old, &confirmed),
+            Some(Command::Read(mute.clone()))
+        );
+        let failed = Event::WriteFailed {
+            path: mute.clone(),
+            message: String::new(),
+        };
+        assert_eq!(
+            speaker.apply_retired(old, &failed),
+            Some(Command::Read(mute.clone()))
+        );
+        let refused = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        assert_eq!(speaker.apply_retired(old, &refused), None);
+        let absent = Event::WriteAbsent(mute.clone());
+        assert_eq!(speaker.apply_retired(old, &absent), None);
+    }
+
+    /// Band 1 refused while band 2 of the same list is still on its way: the list waiting for
+    /// band 2's answer no longer holds the refused band 1, so a new change of band 1 starts
+    /// from what the speaker holds.
+    #[test]
+    fn a_refused_place_leaves_the_value_still_on_its_way() {
+        let gain = path("audio/out/eq2/gain");
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.apply(value_event("audio/out/eq2/gain", json!([0, 0, 0])), 0.0);
+        speaker.record_written(&gain, &json!([1, null, null]));
+        speaker.record_written(&gain, &json!([null, 2, null]));
+        let rejected = Event::WriteRejected {
+            path: gain.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        speaker.apply(rejected, 0.0);
+        assert_eq!(speaker.latest(&gain), Some(&json!([0, 2, 0])));
+        speaker.record_written(&gain, &json!([3, null, null]));
+        let newest = speaker.written.last().unwrap();
+        assert_eq!(newest.before, Some(json!([0, null, null])));
+    }
+
+    /// Band 1 answered and band 2 refused while band 3 is still on its way: the list waiting for
+    /// band 3 keeps band 1 as the speaker confirmed it (here clamped to 1.5), or as sent when
+    /// its answer told nothing, and drops only the refused band 2. A band sent after band 1's
+    /// answer keeps it too.
+    #[test]
+    fn a_refusal_keeps_the_answered_places_still_on_their_way() {
+        let gain = path("audio/out/eq2/gain");
+        let rejected = Event::WriteRejected {
+            path: gain.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        let confirmed = Event::Written {
+            path: gain.clone(),
+            value: json!([1.5, 0, 0]),
+        };
+        let failed = Event::WriteFailed {
+            path: gain.clone(),
+            message: String::new(),
+        };
+        let cases = [(confirmed, json!([1.5, 0, 3])), (failed, json!([1, 0, 3]))];
+        for (first, expected) in cases {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            speaker.apply(value_event("audio/out/eq2/gain", json!([0, 0, 0])), 0.0);
+            speaker.record_written(&gain, &json!([1, null, null]));
+            speaker.record_written(&gain, &json!([null, 2, null]));
+            speaker.apply(first.clone(), 0.0);
+            speaker.record_written(&gain, &json!([null, null, 3]));
+            speaker.apply(rejected.clone(), 0.0);
+            assert_eq!(speaker.latest(&gain), Some(&expected), "{first:?}");
+        }
+    }
+
+    /// A refusal names the writes sent after it to the same path, also from an old connection;
+    /// a write that failed with the connection is no refusal, it may have been applied.
+    #[test]
+    fn a_refused_write_names_the_writes_that_followed_it() {
+        let mute = path(paths::MUTE);
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        let failed = Event::WriteFailed {
+            path: mute.clone(),
+            message: String::new(),
+        };
+        for moved in [false, true] {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            let mut writes = Vec::new();
+            for value in [true, false, true] {
+                speaker.record_written(&mute, &json!(value));
+                writes.push(speaker.newest_write().unwrap());
+            }
+            let old = moved.then(|| speaker.retire_outstanding());
+            let answer = |speaker: &mut SpeakerState, event: &Event| match old {
+                Some(old) => {
+                    speaker.apply_retired(old, event);
+                }
+                None => speaker.apply(event.clone(), 0.0),
+            };
+            answer(&mut speaker, &failed);
+            assert!(speaker.refused_predecessors.is_empty(), "moved: {moved}");
+            answer(&mut speaker, &rejected);
+            let expected = RefusedPredecessor {
+                write: writes[1],
+                later: vec![writes[2]],
+            };
+            assert_eq!(
+                speaker.refused_predecessors,
+                vec![expected],
+                "moved: {moved}"
+            );
+        }
+    }
+
+    /// Moved twice before the first old worker answered: each old connection's answers count
+    /// for its own writes, and each ends on its own.
+    #[test]
+    fn two_moves_keep_each_old_connections_writes_apart() {
+        let mute = path(paths::MUTE);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.record_written(&mute, &json!(true));
+        let first = speaker.newest_write().unwrap();
+        let first_worker = speaker.retire_outstanding();
+        speaker.record_written(&mute, &json!(false));
+        let second = speaker.newest_write().unwrap();
+        let second_worker = speaker.retire_outstanding();
+        let refused = Event::WriteFailed {
+            path: mute.clone(),
+            message: "timeout".to_owned(),
+        };
+        speaker.apply_retired(second_worker, &refused);
+        assert_eq!(speaker.refused_writes, vec![second]);
+        assert!(speaker.awaits_write(first));
+        speaker.end_retired(second_worker);
+        let confirmed = Event::Written {
+            path: mute,
+            value: json!(true),
+        };
+        speaker.apply_retired(first_worker, &confirmed);
+        speaker.end_retired(first_worker);
+        assert_eq!(speaker.refused_writes, vec![second]);
+        assert!(!speaker.awaits_write(first));
     }
 
     /// A shorter list afterwards (a firmware fault): no meter is left at its last level.

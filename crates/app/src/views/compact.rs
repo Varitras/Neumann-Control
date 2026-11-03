@@ -50,7 +50,7 @@ pub struct SpeakerRowResponse {
     /// The name or Details was clicked: the speaker's panel opens.
     pub open_panel: bool,
     pub open_eq: bool,
-    /// A change of the model's compact buttons.
+    /// A change of the compact buttons (the model's, or the speaker's own).
     pub layout: Option<CompactChange>,
 }
 
@@ -66,7 +66,7 @@ pub fn speaker(
     let tokens = Tokens::current(ui.ctx());
     let mut commands = Vec::new();
     let path = paths::path(paths::OUTPUT_LEVEL);
-    let device = speaker.values.get(&path).and_then(Value::as_f64);
+    let device = speaker.latest(&path).and_then(Value::as_f64);
     let unit = paths::catalog_entry(catalog, &path)
         .and_then(|entry| entry.unit.clone())
         .unwrap_or_default();

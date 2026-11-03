@@ -1,5 +1,6 @@
-//! The top bar: "Suchen", "+ Adresse", "+ Gruppe", the speaker count, a notice when something
-//! failed, and at the right the average response time, the pen (edit the strips), "Kompakt",
+//! The top bar: "Suchen", "+ Adresse", "Gruppen", the speaker count, a notice when something
+//! failed, and at the right the average response time, the pen (edit the strips), "Dimmen"
+//! while dimmed, "Kompakt",
 //! "Verlauf", "Einstellungen" and "?" with the manual, the wiki and "Über" (one small button:
 //! the narrowest window has no room for two). The compact window is narrow, so there only the
 //! count, notice and the right side without the pen remain; adding speakers and groups and
@@ -149,7 +150,7 @@ fn right_side(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     action
 }
 
-/// "Suchen", "+ Adresse" and "+ Gruppe".
+/// "Suchen", "+ Adresse" and "Gruppen".
 fn adding(ui: &mut Ui, facts: &ToolbarFacts) -> ToolbarAction {
     let mut action = ToolbarAction::None;
     if ui

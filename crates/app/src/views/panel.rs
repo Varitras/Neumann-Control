@@ -29,7 +29,7 @@ use crate::texts;
 const PANEL_ID: &str = "device_panel";
 const GROUP_CHOICE_ID: &str = "group_choice";
 pub(crate) const PANEL_WINDOW_SIZE: [f32; 2] = [780.0, 760.0];
-const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
+pub(crate) const PANEL_WINDOW_MIN_SIZE: [f32; 2] = [420.0, 300.0];
 #[derive(Default)]
 pub struct PanelResponse {
     /// The writes the user asked for that the write policy allowed.
@@ -43,7 +43,7 @@ pub struct PanelResponse {
     pub open_eq: bool,
     pub save_preset: bool,
     pub load_preset: bool,
-    /// A row put on the model's strips or taken off them.
+    /// A row put on the strip layout (the model's, or the speaker's own) or taken off it.
     pub layout: Option<LayoutChange>,
     /// The strip's colour as the user changed it.
     pub color: Option<ColorChoice>,

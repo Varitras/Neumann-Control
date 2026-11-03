@@ -95,15 +95,42 @@ pub fn follow_moves(manual: &mut Vec<ManualSpeaker>, found: &[Found]) -> bool {
         }
     }
     if changed {
-        let mut kept: Vec<ManualSpeaker> = Vec::new();
-        for entry in manual.drain(..) {
-            if !kept.contains(&entry) {
-                kept.push(entry);
-            }
-        }
-        *manual = kept;
+        drop_repeats(manual);
     }
     changed
+}
+
+/// Points the remembered entries at `before` to `after`, where the same speaker answered
+/// through another interface of this computer. An entry that then equals an earlier one is
+/// dropped. True when an entry changed.
+pub fn follow_reach(
+    manual: &mut Vec<ManualSpeaker>,
+    before: SocketAddrV6,
+    after: SocketAddrV6,
+) -> bool {
+    let mut changed = false;
+    let at_before = manual
+        .iter_mut()
+        .filter(|entry| parse_address(&entry.address, entry.port) == Ok(before));
+    for entry in at_before {
+        entry.address = format_host(&after);
+        entry.port = after.port();
+        changed = true;
+    }
+    if changed {
+        drop_repeats(manual);
+    }
+    changed
+}
+
+fn drop_repeats(manual: &mut Vec<ManualSpeaker>) {
+    let mut kept: Vec<ManualSpeaker> = Vec::new();
+    for entry in manual.drain(..) {
+        if !kept.contains(&entry) {
+            kept.push(entry);
+        }
+    }
+    *manual = kept;
 }
 
 /// Drops every remembered entry of a removed speaker (`same_speaker`); another speaker's entry
@@ -218,6 +245,32 @@ mod tests {
             serial: serial.map(str::to_owned),
             address: address(text),
         }
+    }
+
+    /// Reached through interface 18 instead of 7: every entry at the old address follows, one
+    /// that then repeats another is dropped, other speakers' entries stay.
+    #[test]
+    fn entries_follow_a_speaker_reached_through_another_interface() {
+        let moved = "fe80::2a36:38ff:fe12:3456%18";
+        let mut entries = vec![
+            manual(ADDRESS_TEXT, Some(SERIAL)),
+            manual(OTHER_ADDRESS_TEXT, None),
+            manual(moved, Some(SERIAL)),
+        ];
+        assert!(follow_reach(
+            &mut entries,
+            address(ADDRESS_TEXT),
+            address(moved)
+        ));
+        assert_eq!(
+            entries,
+            vec![
+                manual(moved, Some(SERIAL)),
+                manual(OTHER_ADDRESS_TEXT, None)
+            ]
+        );
+        let unused = address(UNUSED_ADDRESS_TEXT);
+        assert!(!follow_reach(&mut entries, unused, address(moved)));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! The settings behind the toolbar's "Einstellungen", in a window of their own: how the desk
 //! looks and behaves, the Windows strip and the EQ graph's display. Every change applies at
-//! once; the app saves it. Escape, **Close** or the window's close button close it.
+//! once; the app saves it. Escape or the window's close button close it.
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
 use eframe::egui::{
@@ -19,7 +19,7 @@ use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COL
 
 const WINDOW_ID: &str = "settings_window";
 pub(crate) const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
-const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
+pub(crate) const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
 const METER_FLOOR_ID: &str = "meter_floor";
 const BAND_GRID_ID: &str = "band_colors";

@@ -2,6 +2,7 @@
 //! about each path, and nothing that identifies the speaker or its owner. No file access here.
 
 use neumann_control_core::catalog::Catalog;
+use neumann_control_core::mask::mask_serial_like;
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::{json, Map, Value};
 
@@ -102,7 +103,8 @@ fn redacted_value(value: &Value, known: &[&str]) -> Value {
     }
 }
 
-/// Replaces the known identifiers and each word that looks like an address; the rest stays.
+/// Replaces the known identifiers, each word that looks like an address and each run of
+/// digits that looks like a serial; the rest stays.
 fn redacted_text(text: &str, known: &[&str]) -> String {
     let text = known.iter().fold(text.to_owned(), |text, identifier| {
         match identifier.chars().count() >= ANYWHERE_MIN_LENGTH {
@@ -118,7 +120,8 @@ fn redacted_text(text: &str, known: &[&str]) -> String {
         redacted.push_str(&redacted_word(word));
         redacted.push_str(space);
     }
-    redacted
+    // Also when no serial is known: a run of digits as long as one is masked.
+    mask_serial_like(&redacted)
 }
 
 /// `identifier` replaced where no letter or digit adjoins it.
@@ -352,6 +355,15 @@ mod tests {
         let shown = values(&redacted(&reports, &["3712345678", "Living room left"]));
         assert_eq!(shown[0], json!(format!("unit {REDACTED} ok")));
         assert_eq!(shown[1], json!([format!("{REDACTED} speaker")]));
+    }
+
+    /// Without a known serial (none reported, or one that was no text) a text that looks like
+    /// one is still masked.
+    #[test]
+    fn a_serial_like_text_is_masked_without_a_known_serial() {
+        let reports = [leaf("osc/some/text", json!("unit 3712345678 ok"))];
+        let shown = values(&redacted(&reports, &[]));
+        assert_eq!(shown[0], json!("unit …678 ok"));
     }
 
     /// A speaker named "L" or "R": its name goes where it stands alone, not out of every word

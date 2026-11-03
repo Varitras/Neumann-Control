@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_group, several_outputs};
+use crate::eq::{container_of, output_group, several_outputs, take_back_rank};
 use crate::history::{
     changed_since, closed_because, is_open, Change, ClockTime, Closed, Entry, History,
 };
@@ -40,6 +40,19 @@ pub(super) struct HistoryState {
     pub open: bool,
     /// Take-back writes the speaker has not answered yet.
     awaited: Vec<AwaitedTakeBack>,
+}
+
+impl HistoryState {
+    pub(super) fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        self.history.rename_speaker(before, after);
+        for awaited in self
+            .awaited
+            .iter_mut()
+            .filter(|awaited| awaited.speaker == *before)
+        {
+            awaited.speaker = after.clone();
+        }
+    }
 }
 
 /// A change marked taken back when its write was sent; refused, it is open again.
@@ -324,47 +337,40 @@ impl NeumannApp {
         self.history.notice.as_ref()
     }
 
-    /// Last in the frame: runs a requested take-back, then files everything this frame wrote,
-    /// the take-back's own writes included, as one entry.
+    /// Last in `logic`: files what it wrote (a global shortcut, a dim going back) as its own
+    /// entry. `logic` also runs while the window is hidden and `ui` does not, so without this the
+    /// answers to those writes would be settled before the writes are filed, and missed.
+    pub(super) fn finish_logic_history(&mut self) {
+        self.settle_refused_writes();
+        let changes = self.written_changes();
+        self.history.history.push(clock_now(), changes, None);
+    }
+
+    /// Last in `ui`: runs a requested take-back, then files everything the drawing wrote, the
+    /// take-back's own writes included, as one entry (`logic` filed its own before).
     pub(super) fn finish_history_frame(&mut self, now: f64) {
         self.settle_refused_writes();
         let mut takes_back = None;
         if let Some((id, confirmed)) = self.history.request.take() {
             takes_back = self.take_back(id, confirmed, now);
         }
-        let changes: Vec<Change> = self
-            .speakers
-            .iter_mut()
-            .flat_map(|speaker| {
-                let key = speaker.state.key.clone();
-                speaker
-                    .state
-                    .written
-                    .drain(..)
-                    .map(move |written| Change {
-                        speaker: key.clone(),
-                        path: written.path,
-                        before: written.before,
-                        after: written.after,
-                        taken_back: false,
-                        write: Some(written.write),
-                        refused: false,
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
+        let changes = self.written_changes();
         self.history.history.push(clock_now(), changes, takes_back);
+    }
+
+    fn written_changes(&mut self) -> Vec<Change> {
+        self.speakers
+            .iter_mut()
+            .flat_map(|speaker| written_changes(&mut speaker.state))
+            .collect()
     }
 
     /// Closes the changes the speaker refused or never got, and opens again the ones their
     /// take-back was; forgets the take-backs answered.
     fn settle_refused_writes(&mut self) {
         for speaker in &mut self.speakers {
-            let refused = std::mem::take(&mut speaker.state.refused_writes);
+            let refused = settle_speaker(&mut self.history.history, &mut speaker.state);
             let key = &speaker.state.key;
-            for write in &refused {
-                self.history.history.mark_refused(key, *write);
-            }
             let awaited = self.history.awaited.iter();
             for awaited in awaited.filter(|awaited| awaited.speaker == *key) {
                 if refused.contains(&awaited.write) {
@@ -390,7 +396,14 @@ impl NeumannApp {
             return None;
         }
         let mut skipped = Vec::new();
-        for (index, change) in entry.changes.iter().enumerate() {
+        // As forward: EQ bands go off first and on last, so no prefix sounds a mixed band.
+        let mut order: Vec<(usize, &Change)> = entry.changes.iter().enumerate().collect();
+        order.sort_by_key(|(_, change)| {
+            change.before.as_ref().map_or(1, |before| {
+                take_back_rank(&change.path, before, &change.after)
+            })
+        });
+        for (index, change) in order {
             if !is_open(change) {
                 continue;
             }
@@ -437,6 +450,37 @@ impl NeumannApp {
     }
 }
 
+/// The writes the speaker was sent since the history last took them, as its changes.
+fn written_changes(speaker: &mut SpeakerState) -> Vec<Change> {
+    let key = speaker.key.clone();
+    speaker
+        .written
+        .drain(..)
+        .map(|written| Change {
+            speaker: key.clone(),
+            path: written.path,
+            before: written.before,
+            after: written.after,
+            taken_back: false,
+            write: Some(written.write),
+            refused: false,
+        })
+        .collect()
+}
+
+/// Closes the changes of the writes the speaker refused or never got, and gives later writes
+/// the value before of a refused one they took theirs from; returns the refused numbers.
+fn settle_speaker(history: &mut History, speaker: &mut SpeakerState) -> Vec<u64> {
+    for predecessor in std::mem::take(&mut speaker.refused_predecessors) {
+        history.pass_on_before(&speaker.key, predecessor.write, &predecessor.later);
+    }
+    let refused = std::mem::take(&mut speaker.refused_writes);
+    for write in &refused {
+        history.mark_refused(&speaker.key, *write);
+    }
+    refused
+}
+
 /// Each speaker once, however many of the entry's changes it left out.
 fn skip(skipped: &mut Vec<String>, name: String) {
     if !skipped.contains(&name) {
@@ -469,4 +513,68 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
+}
+
+#[cfg(test)]
+mod tests {
+    use neumann_control_core::speaker::{Event, Identity};
+    use neumann_control_core::ssc::wire::DeviceError;
+    use serde_json::json;
+
+    use super::*;
+
+    const NOON: ClockTime = ClockTime {
+        hour: 12,
+        minute: 0,
+        second: 0,
+    };
+
+    /// Mute on, then off again before the first answer: the speaker refuses the first and takes
+    /// the second. Taking the second back writes what the speaker held before both, not the
+    /// value it refused.
+    #[test]
+    fn a_take_back_does_not_restore_a_value_the_speaker_refused() {
+        let catalog = Catalog::embedded();
+        let mute = paths::path(paths::MUTE);
+        let address = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        let reported = Event::Value {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(reported, 0.0);
+        let mut history = History::default();
+        for value in [true, false] {
+            speaker.record_written(&mute, &json!(value));
+            history.push(NOON, written_changes(&mut speaker), None);
+        }
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        speaker.apply(rejected, 0.0);
+        let written = Event::Written {
+            path: mute.clone(),
+            value: json!(false),
+        };
+        speaker.apply(written, 0.0);
+        settle_speaker(&mut history, &mut speaker);
+        let second = history.newest(0).unwrap().changes[0].clone();
+        let command = send_before(&mut speaker, &second, catalog, 0.0);
+        let expected = Command::Set {
+            path: mute,
+            value: json!(false),
+        };
+        assert_eq!(command, Some(expected));
+    }
 }

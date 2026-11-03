@@ -62,6 +62,35 @@ fn ctrl_d_dims_and_restores_the_levels_before() {
     });
 }
 
+/// A speaker added by address gets its serial key while dimmed (at a reconnect): dim off still
+/// brings its level back, the dim state follows the key.
+#[test]
+fn dim_goes_back_after_the_speaker_got_its_serial() {
+    let (simulator, directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("device/identity/serial", serde_json::json!(7));
+        });
+    press(&mut harness, Key::D);
+    wait_until(&mut harness, "dimmed", |_| level_sets(&simulator) == [80.0]);
+    writes_answered(&mut harness, &simulator);
+    simulator.set_value("device/identity/serial", serde_json::json!("SIM0001234"));
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    let settings = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    wait_until(&mut harness, "the serial kept", |_| {
+        let stored = neumann_control_core::settings::load(&settings);
+        stored
+            .manual
+            .iter()
+            .any(|entry| entry.serial.as_deref() == Some("SIM0001234"))
+    });
+    press(&mut harness, Key::D);
+    wait_until(&mut harness, "restored", |_| {
+        level_sets(&simulator) == [80.0, 100.0]
+    });
+}
+
 /// Typing in a field keeps its keys: no shortcut fires while a text field has the focus.
 #[test]
 fn a_shortcut_waits_while_a_field_is_edited() {
@@ -152,4 +181,44 @@ fn a_shortcut_works_while_a_button_has_the_focus() {
     wait_until(&mut harness, "all muted", |_| {
         mute_sets(&simulator) == [Value::Bool(true)]
     });
+}
+
+/// While the window is hidden only the app's logic runs, not its drawing: a shortcut written
+/// then, whose write fails before the window is drawn again, is filed as not written, not as a
+/// change to take back.
+#[test]
+fn a_shortcut_write_failed_while_hidden_is_filed_as_not_written() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let keys = FakeGlobalKeys::default();
+    harness.state_mut().set_global_keys(Box::new(keys.clone()));
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    scroll_to_and_click(&mut harness, texts::GLOBAL_SHORTCUTS.get());
+    harness.run_steps(2);
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    keys.press(DeskShortcut::MuteAll);
+    let context = harness.ctx.clone();
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut hidden_frame = |harness: &mut Harness<'static, NeumannApp>| {
+        eframe::App::logic(harness.state_mut(), &context, &mut frame);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while mute_sets(&simulator).is_empty() {
+        assert!(std::time::Instant::now() < deadline, "no mute sent");
+        hidden_frame(&mut harness);
+    }
+    // The reconnect's first read comes after the failed write's answer.
+    let sent = simulator.requests().len();
+    while simulator.requests().len() == sent {
+        assert!(std::time::Instant::now() < deadline, "no reconnect");
+        hidden_frame(&mut harness);
+    }
+    hidden_frame(&mut harness);
+    harness.run_steps(1);
+    let entry = harness.state().history().newest(0).expect("the mute filed");
+    assert!(
+        entry.changes.iter().all(|change| change.refused),
+        "{entry:?}"
+    );
 }

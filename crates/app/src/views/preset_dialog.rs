@@ -15,7 +15,7 @@ const LOAD_ID: &str = "preset_load";
 const LIST_HEIGHT: f32 = 320.0;
 const CHANGES_GRID_ID: &str = "preset_changes";
 pub(crate) const WINDOW_SIZE: [f32; 2] = [560.0, 520.0];
-const WINDOW_MIN_SIZE: [f32; 2] = [360.0, 260.0];
+pub(crate) const WINDOW_MIN_SIZE: [f32; 2] = [360.0, 260.0];
 
 /// A dialog in a window of its own (`viewport`), drawn by `body`; true as well when the user
 /// closed the window (its close button or Escape). `body` may run more than once in a frame: egui
@@ -202,7 +202,8 @@ pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
         }
         if view.selected.is_some() {
             ui.separator();
-            if view.changes.is_empty() {
+            // With a refusal nothing is known to be on the speaker already.
+            if view.changes.is_empty() && view.refusal.is_none() {
                 ui.weak(texts::PRESET_UNCHANGED);
             }
             ScrollArea::vertical()

@@ -127,6 +127,79 @@ fn call_arguments(text: &str, start: usize) -> &str {
     ""
 }
 
+/// Every read of the last report (`.values`) in the views, the app's window code and the
+/// modules that plan writes, by file.
+/// A gesture starts from `SpeakerState::latest` (a write on its way included); only what is
+/// shown as reported, never a base for a write, reads the report. A new read is a decision:
+/// add it here only if it is shown and never written from.
+const REPORT_READS: &[(&str, usize)] = &[
+    // `display`: read-only rows.
+    ("views/details.rs", 1),
+    // `display`, the clip LEDs, and the mute button's look (its toggle starts from `latest`).
+    ("views/strip.rs", 4),
+    // A container's band count, which a write does not change.
+    ("app/eq.rs", 2),
+    // A stored preset's own values, not the speaker's.
+    ("presets.rs", 1),
+    // The export writes what the speaker reports.
+    ("app/eq_files.rs", 1),
+    ("app/full_scan.rs", 1),
+];
+
+#[test]
+fn gestures_start_from_the_latest_values() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found = Vec::new();
+    // Folders whole, and the planning modules beside them (`writes.rs` has none).
+    let planners = ["presets.rs", "writes.rs"];
+    for folder in ["views", "app", ""] {
+        let mut files = Vec::new();
+        if folder.is_empty() {
+            files.extend(planners.iter().map(|planner| source.join(planner)));
+        } else {
+            rust_files(&source.join(folder), &mut files);
+        }
+        for file in files {
+            let text = fs::read_to_string(&file).unwrap();
+            let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+            let reads = code.matches(".values").count();
+            let name = file
+                .strip_prefix(&source)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            let allowed = REPORT_READS
+                .iter()
+                .find(|(allowed, _)| *allowed == name)
+                .map_or(0, |(_, count)| *count);
+            if reads != allowed {
+                found.push(format!("{name}: {reads} reads, {allowed} allowed"));
+            }
+        }
+    }
+    assert!(found.is_empty(), "{found:#?}");
+}
+
+/// Without the folder's lock `main` loads the settings untouched: `load_checked` would move
+/// or copy the file aside where another app may be using it.
+#[test]
+fn main_loads_untouched_without_the_lock() {
+    let main =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs")).unwrap();
+    let load = main
+        .split_once("let saved = if may_write {")
+        .and_then(|(_, rest)| rest.split_once("};"))
+        .map(|(load, _)| load)
+        .unwrap_or_default();
+    let (writing, untouched) = load.split_once("} else {").unwrap_or_default();
+    let guarded = writing.contains("settings::load_checked(")
+        && untouched.contains("settings::load_untouched(");
+    assert!(
+        guarded,
+        "main.rs must load with load_untouched when it may not write"
+    );
+}
+
 /// An EQ preset is planned and saved from what the speaker will hold once its writes are
 /// through, not from its last report: a band write still on its way would otherwise be left
 /// out of a load or saved as it was.

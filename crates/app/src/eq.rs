@@ -46,6 +46,76 @@ impl Leaf {
     }
 }
 
+/// Where a write goes among several to one speaker: an EQ `enabled` write that only switches
+/// bands off first, one that switches any on last, everything else between.
+pub fn write_rank(path: &SscPath, value: &Value) -> u8 {
+    let Some(switches) = enabled_switches(path, value) else {
+        return 1;
+    };
+    if switches.iter().any(|switch| switch.as_bool() == Some(true)) {
+        2
+    } else {
+        0
+    }
+}
+
+/// Where a take-back of `after` to `before` goes, by what it switches: only the places where
+/// the two differ count. A preset writes whole arrays, so its switching on holds bands that
+/// were on already, and the take-back of it switches the new ones off.
+pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> u8 {
+    let (Some(before_places), Some(after_places)) = (before.as_array(), after.as_array()) else {
+        return write_rank(path, before);
+    };
+    let switched: Vec<Value> = before_places
+        .iter()
+        .zip(after_places)
+        .map(|(before, after)| {
+            if before == after {
+                Value::Null
+            } else {
+                before.clone()
+            }
+        })
+        .collect();
+    write_rank(path, &Value::Array(switched))
+}
+
+/// Splits each EQ `enabled` write into its switching off and its switching on and orders the
+/// writes by `write_rank`.
+pub fn switch_order(writes: Vec<(SscPath, Value)>) -> Vec<(SscPath, Value)> {
+    let mut split = Vec::new();
+    for (path, value) in writes {
+        let Some(switches) = enabled_switches(&path, &value) else {
+            split.push((path, value));
+            continue;
+        };
+        for state in [false, true] {
+            let part: Vec<Value> = switches
+                .iter()
+                .map(|switch| {
+                    if switch.as_bool() == Some(state) {
+                        switch.clone()
+                    } else {
+                        Value::Null
+                    }
+                })
+                .collect();
+            if part.iter().any(|switch| !switch.is_null()) {
+                split.push((path.clone(), Value::Array(part)));
+            }
+        }
+    }
+    // Stable: the other leaves keep their order between the two parts.
+    split.sort_by_key(|(path, value)| write_rank(path, value));
+    split
+}
+
+/// The entries of an EQ `enabled` array write; `None` for any other write.
+fn enabled_switches<'a>(path: &SscPath, value: &'a Value) -> Option<&'a Vec<Value>> {
+    let is_enabled = path.segments().last().map(String::as_str) == Some(Leaf::Enabled.name());
+    is_enabled.then(|| value.as_array()).flatten()
+}
+
 /// One band of a container.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Band {
@@ -251,6 +321,53 @@ mod tests {
 
     fn container() -> SscPath {
         paths::path("audio/out/eq2")
+    }
+
+    /// Several leaves of a container in one go: a band goes off before its other leaves change
+    /// and on only after them, so no prefix of the writes sounds a band with values it never
+    /// had (an outage after the first write leaves it at that).
+    #[test]
+    fn bands_switch_off_first_and_on_last() {
+        let enabled = Leaf::Enabled.path(&container());
+        let gain = Leaf::Gain.path(&container());
+        let writes = vec![
+            (enabled.clone(), json!([true, false])),
+            (gain.clone(), json!([6.0, 0.0])),
+        ];
+        assert_eq!(
+            switch_order(writes),
+            vec![
+                (enabled.clone(), json!([null, false])),
+                (gain.clone(), json!([6.0, 0.0])),
+                (enabled.clone(), json!([true, null])),
+            ]
+        );
+        let only_off = vec![
+            (enabled.clone(), json!([false, false])),
+            (gain.clone(), json!([1.0, 1.0])),
+        ];
+        assert_eq!(switch_order(only_off.clone()), only_off);
+    }
+
+    /// Taking back writes the values before in the same order: switching off, then the other
+    /// leaves, then switching on.
+    #[test]
+    fn a_take_back_switches_off_first_and_on_last() {
+        let enabled = Leaf::Enabled.path(&container());
+        let gain = Leaf::Gain.path(&container());
+        assert!(
+            write_rank(&enabled, &json!([null, false])) < write_rank(&gain, &json!([1.0, null]))
+        );
+        assert!(
+            write_rank(&gain, &json!([1.0, null])) < write_rank(&enabled, &json!([true, null]))
+        );
+        assert_eq!(
+            write_rank(&gain, &json!([1.0, null])),
+            write_rank(&paths::path(paths::MUTE), &json!(true))
+        );
+        // Band 1 was on before and stays on: only band 2's switching off counts.
+        let back = take_back_rank(&enabled, &json!([true, false]), &json!([true, true]));
+        assert!(back < write_rank(&gain, &json!([1.0, null])));
     }
 
     fn values(entries: &[(&str, Value)]) -> BTreeMap<SscPath, Value> {

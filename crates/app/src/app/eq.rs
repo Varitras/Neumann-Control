@@ -11,8 +11,8 @@ use super::window_places::WindowKind;
 use super::NeumannApp;
 use crate::display::shown_value;
 use crate::eq::{
-    bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, Band, Leaf,
-    ResetKind,
+    bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, switch_order,
+    Band, Leaf, ResetKind,
 };
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
@@ -48,6 +48,17 @@ impl EqWindow {
     }
 }
 
+impl EqWindow {
+    pub(super) fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        let keys = std::iter::once(&mut self.key)
+            .chain(&mut self.compared)
+            .chain(&mut self.candidates);
+        for key in keys.filter(|key| **key == *before) {
+            *key = after.clone();
+        }
+    }
+}
+
 /// An open EQ window and what is chosen in it.
 pub(super) struct EqWindow {
     key: SpeakerKey,
@@ -72,6 +83,7 @@ pub(super) struct PendingImport {
     /// `None` when the file cannot be imported; `refusal` says why.
     pub(super) preset: Option<EqPreset>,
     pub(super) notes: Vec<String>,
+    /// Only for a file that cannot be imported; whether the speaker takes it is asked each frame.
     pub(super) refusal: Option<String>,
 }
 
@@ -158,7 +170,8 @@ impl NeumannApp {
             .unwrap_or_default()
             .iter()
             .map(|container| {
-                let bands = bands_of(&speaker.values, &container.path);
+                // The table, the points and the wheel start from these: a write on its way counts.
+                let bands = bands_of(&speaker.latest_values(), &container.path);
                 let curve = curve_db(bands.as_deref().unwrap_or_default(), &frequencies);
                 let color = curve_color(&self.settings.eq_display, &curve_key(&container.path));
                 Shown {
@@ -271,7 +284,7 @@ impl NeumannApp {
                 })
                 .collect()
         });
-        let id = Id::unique(EQ_VIEWPORT_ID).with(&window.key);
+        let id = eq_window_id(speaker);
         let own_curves = bands
             .as_deref()
             .map(|bands| band_curves(bands, &frequencies))
@@ -336,23 +349,37 @@ impl NeumannApp {
                 texts::eq_preset_entry(&preset.name, preset.bands)
             })
             .collect();
-        let preset_changes: Vec<ComparedChange> = match (&window.preset, reshapable) {
+        // Planned for the chosen container even when it cannot be written now: the dialog
+        // then says why, not that the speaker already has it.
+        let protected = selected.is_some_and(|shown| !crossovers_open && shown.container.crossover);
+        let unwritable = |writes: &[(SscPath, Value)]| -> Option<String> {
+            if protected {
+                return Some(texts::CROSSOVER_PROTECTED.get().to_owned());
+            }
+            self.eq_refusal(index, writes)
+        };
+        let preset_plan = match (&window.preset, selected) {
             (
                 Some(EqPresetDialog::Load {
                     selected: Some(place),
                     ..
                 }),
                 Some(shown),
-            ) => fitting_presets
-                .get(*place)
-                .map(|place| {
-                    let preset = &self.settings.eq_presets[*place];
-                    let plan = eq_plan(preset, &speaker.latest_values(), &shown.container.path);
-                    compared(catalog, &shown.container.path, &plan.differences)
-                })
-                .unwrap_or_default(),
+            ) => fitting_presets.get(*place).map(|place| {
+                let preset = &self.settings.eq_presets[*place];
+                eq_plan(preset, &speaker.latest_values(), &shown.container.path)
+            }),
+            _ => None,
+        };
+        let preset_changes: Vec<ComparedChange> = match (&preset_plan, selected) {
+            (Some(plan), Some(shown)) => {
+                compared(catalog, &shown.container.path, &plan.differences)
+            }
             _ => Vec::new(),
         };
+        let preset_refusal = preset_plan
+            .as_ref()
+            .and_then(|plan| unwritable(&plan.writes));
         let deleting_name = match &window.preset {
             Some(EqPresetDialog::Load {
                 selected: Some(place),
@@ -371,30 +398,40 @@ impl NeumannApp {
                 names: &preset_names,
                 selected: *selected,
                 changes: &preset_changes,
+                refusal: preset_refusal.as_deref(),
                 crossover: reshapable.is_some_and(|shown| shown.container.crossover),
                 deleting: deleting_name,
             }),
             None => None,
         };
-        let import_changes: Vec<String> = match (&window.import, reshapable) {
+        let import_plan = match (&window.import, selected) {
             (Some(pending), Some(shown)) => pending
                 .preset
                 .as_ref()
-                .map(|preset| {
-                    eq_plan(preset, &speaker.latest_values(), &shown.container.path)
-                        .bands
-                        .iter()
-                        .map(|band| texts::eq_preset_band(band + 1))
-                        .collect()
-                })
-                .unwrap_or_default(),
-            _ => Vec::new(),
+                .map(|preset| eq_plan(preset, &speaker.latest_values(), &shown.container.path)),
+            _ => None,
         };
+        let import_changes: Vec<String> = import_plan
+            .iter()
+            .flat_map(|plan| &plan.bands)
+            .map(|band| texts::eq_preset_band(band + 1))
+            .collect();
+        // A file that cannot be imported keeps its reason; the speaker's state is asked anew
+        // each frame, so a refusal ends with a reconnect.
+        let import_refusal = window.import.as_ref().and_then(|pending| {
+            let unreadable = pending.preset.is_none();
+            match unreadable {
+                true => pending.refusal.clone(),
+                false => import_plan
+                    .as_ref()
+                    .and_then(|plan| unwritable(&plan.writes)),
+            }
+        });
         let import = window.import.as_ref().map(|pending| ImportView {
             file: &pending.file,
             changes: &import_changes,
             notes: &pending.notes,
-            refusal: pending.refusal.as_deref(),
+            refusal: import_refusal.as_deref(),
             crossover: reshapable.is_some_and(|shown| shown.container.crossover),
         });
         let reset = reshapable.map(|shown| ResetOffer {
@@ -636,13 +673,15 @@ impl NeumannApp {
     }
 
     /// Whole leaves in this frame (one history entry), all or none: every write is checked
-    /// before the first is sent, so a refused leaf never leaves the others half written.
+    /// before the first is sent, so a refused leaf never leaves the others half written. Bands
+    /// go off first and on last (`switch_order`).
     pub(super) fn write_eq_leaves(
         &mut self,
         index: usize,
         writes: Vec<(SscPath, Value)>,
         now: f64,
     ) {
+        let writes = switch_order(writes);
         if let Some(refusal) = self.eq_refusal(index, &writes) {
             self.eq_windows[index].refusal = Some(refusal);
             return;
@@ -659,6 +698,10 @@ impl NeumannApp {
     pub(super) fn eq_refusal(&self, index: usize, writes: &[(SscPath, Value)]) -> Option<String> {
         let catalog = Catalog::embedded();
         let speaker = self.eq_speaker(index)?;
+        // Without a connection nothing is known to be on the speaker, even with no write planned.
+        if let Err(refusal) = writes::connected(speaker) {
+            return Some(texts::describe_refusal(&refusal));
+        }
         writes.iter().find_map(|(path, value)| {
             let refusal = writes::check(speaker, catalog, path, value).err()?;
             let label = leaf_label(catalog, path);
@@ -805,7 +848,8 @@ fn output_sums(
         .into_iter()
         .filter(|container| output_key(container) == key)
         .filter_map(|container| {
-            let bands = bands_of(&speaker.values, &container.path)?;
+            // As the speaker's own curves: a write on its way counts.
+            let bands = bands_of(&speaker.latest_values(), &container.path)?;
             Some((container.input.as_deref(), curve_db(&bands, frequencies)))
         })
         .collect();
@@ -900,6 +944,11 @@ fn eq_preset_taken(presets: &[EqPreset], name: &str, bands: usize) -> bool {
         .any(|preset| preset.name == name && preset.bands == bands)
 }
 
+/// The id the window and its graph are named by.
+fn eq_window_id(speaker: &SpeakerState) -> Id {
+    Id::unique(EQ_VIEWPORT_ID).with(speaker.instance)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -908,6 +957,33 @@ mod tests {
 
     fn key(serial: &str) -> SpeakerKey {
         SpeakerKey::Serial(serial.to_owned())
+    }
+
+    /// A speaker first known by its address reports its serial: its own windows stay the same
+    /// windows, the EQ window and "All values" alike.
+    #[test]
+    fn a_speakers_windows_stay_when_it_gets_its_serial() {
+        let address: std::net::SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let windows = |speaker: &SpeakerState| {
+            (
+                eq_window_id(speaker),
+                crate::views::all_values::viewport_of(speaker),
+            )
+        };
+        let before = windows(&speaker);
+        let identity = neumann_control_core::speaker::Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(
+            neumann_control_core::speaker::Event::Connected(identity),
+            0.0,
+        );
+        assert_eq!(speaker.key, key("SIM0001234"));
+        assert_eq!(windows(&speaker), before);
     }
 
     fn entry(changes: &[(&SpeakerKey, &str)]) -> Entry {

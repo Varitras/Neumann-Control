@@ -67,13 +67,13 @@ pub fn for_entry(
     let product = speaker.product().to_owned();
     let minimum = entry.min?;
     let maximum = entry.max_for(&product, &catalog.classes)?;
-    let reported = speaker.values.get(&entry.path).cloned();
+    let latest = speaker.latest(&entry.path).cloned();
     let step = entry
         .step
         .unwrap_or_else(|| unstepped_grid(maximum - minimum));
     // Through the write's own type, so a whole-number entry reads "60 min", not "60.0 min".
     let format = |value: f64| {
-        let typed = writes::number_value(entry, reported.as_ref(), value);
+        let typed = writes::number_value(entry, latest.as_ref(), value);
         shown_value(entry, &typed)
     };
     let knob = Knob {
@@ -81,7 +81,7 @@ pub fn for_entry(
         caption,
         range: minimum..=maximum,
         step,
-        device: reported.as_ref().and_then(Value::as_f64),
+        device: latest.as_ref().and_then(Value::as_f64),
         enabled: writes::can_write(speaker, catalog, &entry.path),
         diameter,
         format: &format,
@@ -95,7 +95,7 @@ pub fn for_entry(
     // A typed value outside the range is sent as typed, for the write policy to refuse. Inside
     // it lands on the grid: a wheel step added to a reported value would keep a remainder.
     let value = if (minimum..=maximum).contains(&sent) {
-        writes::number_value(entry, reported.as_ref(), on_grid(sent, step))
+        writes::number_value(entry, latest.as_ref(), on_grid(sent, step))
     } else {
         Value::from(sent)
     };
@@ -270,6 +270,13 @@ pub(super) fn value_entry(
     if open_now {
         let shown = conversion.map_or(value, |conversion| conversion.apply(value));
         ui.data_mut(|data| data.insert_temp(text_id, texts::number(shown)));
+    }
+    // A view gone meanwhile (another tab, the compact mode) took the focus without a
+    // `lost_focus`: the text left is stale and goes, so it is not entered by mistake later.
+    let focused = ui.memory(|memory| memory.has_focus(text_id));
+    if !open_now && !focused {
+        ui.data_mut(|data| data.remove::<String>(text_id));
+        return None;
     }
     let mut text = ui.data(|data| data.get_temp::<String>(text_id))?;
     let field = ui.add(

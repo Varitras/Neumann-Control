@@ -21,7 +21,7 @@ use eframe::egui::Vec2;
 const EQ_WINDOW_ID: &str = "eq_window";
 /// Tall enough for ten bands in two table columns below the graph.
 pub(crate) const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
-const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
+pub(crate) const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
 const SUM_SWATCH_LENGTH: f32 = 18.0;
 const SUM_SWATCH_WIDTH: f32 = 2.5;
@@ -92,6 +92,8 @@ pub enum PresetDialogView<'a> {
         selected: Option<usize>,
         /// Each band's value that would change, now and as written.
         changes: &'a [ComparedChange],
+        /// Why the preset cannot be written now (not connected, protected crossover ...).
+        refusal: Option<&'a str>,
         /// The container is a crossover (protection off): loading warns.
         crossover: bool,
         /// The selected preset's name while its deletion is being confirmed.
@@ -269,6 +271,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
             names,
             selected,
             changes,
+            refusal,
             crossover,
             deleting,
         } => {
@@ -279,7 +282,7 @@ fn preset_dialog(ui: &mut Ui, dialog: &PresetDialogView) -> Option<EqAction> {
                 changes: Changes::Compared(changes),
                 skipped: &[],
                 warning: crossover.then(|| texts::CROSSOVER_WARNING.get()),
-                refusal: None,
+                refusal: *refusal,
                 deleting: *deleting,
             };
             match preset_dialog::load(ui, &view) {

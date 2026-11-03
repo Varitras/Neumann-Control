@@ -355,6 +355,66 @@ fn ctrl_z_takes_back_while_a_button_has_the_focus() {
     });
 }
 
+/// A speaker added by address that first reported no usable serial gets its serial key later
+/// (at a reconnect): its history goes with it, so Ctrl+Z still takes its write back.
+#[test]
+fn ctrl_z_takes_back_after_the_speaker_got_its_serial() {
+    let (simulator, directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("device/identity/serial", json!(7));
+        });
+    click_mute(&mut harness, &simulator, 1);
+    simulator.set_value("device/identity/serial", json!("SIM0001234"));
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    let settings = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    wait_until(&mut harness, "the serial kept", |_| {
+        let stored = neumann_control_core::settings::load(&settings);
+        stored
+            .manual
+            .iter()
+            .any(|entry| entry.serial.as_deref() == Some("SIM0001234"))
+    });
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    wait_until(&mut harness, "unmute", |_| {
+        sets(&simulator, MUTE_POINTER) == [json!(true), json!(false)]
+    });
+}
+
+/// A speaker added by address gets its serial while its level is being typed: the strip stays
+/// the same strip, so the typed text stays in the field.
+#[test]
+fn a_typed_value_stays_when_the_speaker_gets_its_serial() {
+    let (simulator, directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("device/identity/serial", json!(7));
+        });
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.get_by_role(Role::TextInput).type_text("5");
+    harness.run_steps(1);
+    simulator.set_value("device/identity/serial", json!("SIM0001234"));
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    let settings = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    wait_until(&mut harness, "the serial kept", |_| {
+        let stored = neumann_control_core::settings::load(&settings);
+        stored
+            .manual
+            .iter()
+            .any(|entry| entry.serial.as_deref() == Some("SIM0001234"))
+    });
+    harness.run_steps(3);
+    let field = harness.get_by_role(Role::TextInput);
+    assert!(
+        field.value().is_some_and(|text| text.ends_with('5')),
+        "{:?}",
+        field.value()
+    );
+}
+
 #[test]
 fn ctrl_z_in_a_text_field_does_not_take_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);

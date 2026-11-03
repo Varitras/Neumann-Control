@@ -125,12 +125,15 @@ another's window forward.
    or with `netsh interface ipv6 show interfaces` (column `Idx`). On Linux, `ip link` shows the
    index before each adapter's name.
 
-Added speakers are remembered and reconnected at every start. When a scan finds a remembered
+Added speakers are remembered and reconnected at every start. When a link-local address cannot
+be reached through its stored adapter index (Windows numbers its adapters anew after a driver or
+adapter change), the app tries the same address through the computer's other adapters and keeps
+the index the speaker answers on; this needs no scan. When a scan finds a remembered
 speaker at a different address (link-local addresses and interface indexes can change), the
 stored address is updated. The app scans for that by itself, without a dialog: once at the start,
 and when a remembered speaker stays unreachable for 30 seconds, then at most every 5 minutes
 while one is missing. Speakers are matched by their serial; one added by address that never
-connected has none yet and is not followed. IPv4 addresses are not accepted: the speakers are
+connected has none yet and no scan can follow it. IPv4 addresses are not accepted: the speakers are
 reachable only over IPv6.
 
 ## Using the app
@@ -167,7 +170,8 @@ speaker shows its model's layout; the own ones are kept for the next time.
 - The pen in the toolbar (**Customize strips**) switches every strip into edit mode: **+ Add**
   adds an element, dragging one with the left button moves it (also across the fader; while you
   drag, the strip already shows it where it would land, faded, and the others make room; it
-  goes to strips of the same model only), right-click hides it, and **Default** brings back the
+  goes to strips of the same model only, with own layouts to its own strip only; the note under
+  the strip says which), right-click hides it, and **Default** brings back the
   model's default strip. The controls write nothing while you edit; the pen again (**Done**) ends
   it.
 - Any number, switch, choice or read-only value of the device panel can go on a strip; the
@@ -359,20 +363,22 @@ input B ("Crossover A", "Crossover B").
   A filter with a number goes to that band, one without to the next band; bands the file does not
   name are switched off; empty slots (`None`) are passed over. The file's `Gain` becomes the band's
   boost. Taken over: peaking (`PK`, `PEQ`, `Modal`), low and high pass with Q (`LP`/`LPQ`/`LP Q`,
-  `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), band pass (`BP`), notch (`NO`),
-  all pass (`AP`, REW's `All pass`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
+  `HP`/`HPQ`/`HP Q`), first-order low and high pass (`LP1`, `HP1`), notch (`NO`), all pass (`AP`,
+  REW's `All pass`) and shelving filters (`LS`, `LSC`, `LS Q`, and the same with `HS`); `BW Oct`
   instead of Q is converted. A shelf's Q in these files is the usual (cookbook) Q, the speakers'
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1),
   and so is a plain `LP` or `HP` without Q (Q 0.707, both read from what REW stores). Refused:
-  shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), other types, any other
-  missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel or under a condition (`Channel:` twice or after
-  filters, `If:`), more filters than the EQ has
-  bands and values the speaker would refuse: then nothing is written. `Preamp` and other APO
+  shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), band pass (`BP`: the
+  speakers' band pass peaks at its Q, APO's at 0 dB), other types, any
+  other missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel,
+  output device or processing stage or under a condition (`Channel:`, `Device:` or `Stage:` twice
+  or after filters, `If:`), more filters than the EQ has bands and values the speaker would
+  refuse: then nothing is written. `Preamp` and other APO
   commands are not taken over; the preview names them. The preview shows which bands change
   before **Write** sends them as one history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
-  filters and inversion have no APO line; they are written as comments and listed after saving.
+  filters, band passes and inversion have no APO line; they are written as comments and listed after saving.
   Room EQ Wizard cannot load text filter files.
 - With **Protect crossovers** on in **Settings** (off by default), the crossovers get no **Make
   flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
@@ -458,7 +464,8 @@ The app shows the control mode (NETWORK or LOCAL), which the CONTROL switch on t
 speaker sets; it cannot be changed over the network. In LOCAL the speaker refuses every write, and
 the strip says so.
 
-A speaker that stops answering is shown as unreachable and reconnected every 10 seconds.
+A speaker that stops answering is shown as unreachable and tried again 10 seconds after each
+attempt; an attempt can take a few seconds more for each network adapter of the computer.
 
 ## How writes stay safe
 

@@ -2,6 +2,7 @@
 //! the app before polling, and everything it learns sent back as events.
 
 mod inbox;
+mod reach;
 
 use std::collections::HashSet;
 use std::net::SocketAddrV6;
@@ -13,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::address::{is_link_local, link_local_addresses};
 use crate::catalog::{Catalog, Entry};
 use crate::mask::{mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
@@ -20,6 +22,7 @@ use crate::schema_walk::{LeafReport, Progress, Walk, WalkError};
 use crate::ssc::client::{Client, SscError};
 use crate::ssc::wire::{DeviceError, SscPath};
 use inbox::Inbox;
+use reach::{first_answering, other_scopes};
 
 const DEFAULT_METER_INTERVAL: Duration = Duration::from_millis(100);
 const DEFAULT_FAST_INTERVAL: Duration = Duration::from_secs(2);
@@ -72,9 +75,18 @@ impl Default for Timing {
 /// The value of a `Set` is checked against the catalog by the app before it is sent.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
-    Set { path: SscPath, value: Value },
+    Set {
+        path: SscPath,
+        value: Value,
+    },
+    /// Reads one path at once, outside the polling schedule.
+    Read(SscPath),
     ReadAll,
     Stop,
+    /// Stop without the commands still waiting, also those set aside early: they were for a
+    /// speaker that moved. The command being carried out is still answered, and the app reads
+    /// those answers until the channel ends.
+    Abandon,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +100,10 @@ pub struct Identity {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Connected(Identity),
+    /// The speaker answered at its link-local address through another interface of this
+    /// computer than the address named (Windows numbers its interfaces anew after a driver or
+    /// adapter change): this is its address now. Sent before `Connected`.
+    Reached(SocketAddrV6),
     /// Sent once per outage; the text is the masked error.
     Unreachable(String),
     /// A read: the value as the speaker held it when the request was answered.
@@ -138,6 +154,11 @@ impl SpeakerHandle {
         // After Stop or a panic the worker is gone and the command has no one to run it;
         // Drop logs a panic when joining.
         let _ = self.commands.send(command);
+    }
+
+    /// Ends the worker without sending what still waits (see `Command::Abandon`).
+    pub fn abandon(self) {
+        self.send(Command::Abandon);
     }
 }
 
@@ -320,7 +341,8 @@ impl Worker {
 
     /// One connection attempt and, if the speaker is the expected one, the session on it.
     fn connect_and_serve(&mut self) -> Result<(), Stopped> {
-        let mut client = match Client::connect(self.target.address) {
+        let named = self.target.address;
+        let mut client = match self.connect() {
             Ok(client) => client,
             Err(error) => {
                 self.report_unreachable(&error);
@@ -331,13 +353,18 @@ impl Worker {
             Ok(identity) => identity,
             Err(Interruption::Stopped) => return Err(Stopped),
             Err(Interruption::Lost(error)) => {
+                self.take_address(named);
                 self.report_unreachable(&error);
                 return Ok(());
             }
         };
         if let Some(expected) = self.mismatched_serial(&identity) {
+            self.take_address(named);
             self.report_mismatch(expected, identity.serial);
             return Ok(());
+        }
+        if self.target.address != named {
+            self.outbox.emit(Event::Reached(self.target.address));
         }
         log::info!("connected to {}", self.host);
         // Added by address alone: from now on this is the speaker, not whatever answers there.
@@ -367,6 +394,36 @@ impl Worker {
                 Ok(())
             }
         }
+    }
+
+    /// A link-local address names the interface of this computer by its index, which Windows
+    /// can give another interface: when the speaker cannot be reached at it, the same address is
+    /// tried through each other interface that has a link-local address. The one that answers
+    /// is taken; whether it is the expected speaker, its identity says.
+    fn connect(&mut self) -> Result<Client, SscError> {
+        let named = self.target.address;
+        let error = match Client::connect(named) {
+            Ok(client) => return Ok(client),
+            Err(error) => error,
+        };
+        if !is_link_local(named.ip()) {
+            return Err(error);
+        }
+        let candidates = other_scopes(named.scope_id(), &link_local_addresses())
+            .into_iter()
+            .map(|scope| SocketAddrV6::new(*named.ip(), named.port(), 0, scope));
+        let stopped = || self.inbox.stop_requested();
+        let Some((address, client)) = first_answering(candidates, stopped, Client::connect) else {
+            return Err(error);
+        };
+        log::info!("{} answers at {}", self.host, mask_host(&address));
+        self.take_address(address);
+        Ok(client)
+    }
+
+    fn take_address(&mut self, address: SocketAddrV6) {
+        self.target.address = address;
+        self.host = mask_host(&address);
     }
 
     fn serve(&self, session: &mut Session, entries: &[&Entry]) -> Interruption {
@@ -445,11 +502,12 @@ impl Worker {
     fn execute(&self, session: &mut Session, command: Command) -> Result<(), Interruption> {
         match command {
             Command::Set { path, value } => self.write(session, path, value),
+            Command::Read(path) => self.read(session, &path),
             Command::ReadAll => {
                 session.walk.get_or_insert_with(Walk::new);
                 Ok(())
             }
-            Command::Stop => Err(Interruption::Stopped),
+            Command::Stop | Command::Abandon => Err(Interruption::Stopped),
         }
     }
 
@@ -572,7 +630,11 @@ impl Worker {
                 Ok(Command::ReadAll) => self
                     .outbox
                     .emit(Event::AllValuesFailed(NOT_CONNECTED_MESSAGE.to_owned())),
-                Ok(Command::Stop) | Err(RecvTimeoutError::Disconnected) => return Err(Stopped),
+                // The reconnect reads every path anyway.
+                Ok(Command::Read(_)) => {}
+                Ok(Command::Stop | Command::Abandon) | Err(RecvTimeoutError::Disconnected) => {
+                    return Err(Stopped)
+                }
                 Err(RecvTimeoutError::Timeout) => return Ok(()),
             }
         }

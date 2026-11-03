@@ -95,12 +95,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         log::warn!("the instance lock is not supported here ({})", error.kind());
     }
     let settings_path = directory.join(SETTINGS_FILE);
-    let saved = settings::load_checked(&settings_path);
+    let saved = if may_write {
+        settings::load_checked(&settings_path)
+    } else {
+        settings::load_untouched(&settings_path)
+    };
     let saved_window = saved.settings.window_of_mode();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
-            .with_icon(Arc::new(window_icon()?))
+            .with_icon(Arc::new(window_icon().inspect_err(log_start_failure)?))
             .with_inner_size(first_window_size(saved.settings.desk.compact))
             .with_min_inner_size(WINDOW_MIN_SIZE),
         centered: true,
@@ -127,6 +131,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             app.limit_frame_rate();
             Ok(Box::new(app))
         }),
-    )?;
+    )
+    .inspect_err(log_start_failure)?;
     Ok(())
+}
+
+/// A window app has no console: an error returned from `main` would leave no trace but here
+/// (no graphics adapter, a broken driver).
+fn log_start_failure(error: &impl std::fmt::Display) {
+    log::error!("could not start: {error}");
 }

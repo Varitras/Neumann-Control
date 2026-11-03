@@ -750,6 +750,18 @@ fn switch_to_own_layouts(harness: &mut Harness<'static, NeumannApp>) {
     harness.run_steps(2);
 }
 
+/// With own layouts an edit is this speaker's only, and the hint says so.
+#[test]
+fn with_own_layouts_the_hint_names_the_speaker() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    switch_to_own_layouts(&mut harness);
+    start_editing(&mut harness);
+    harness.get_by_label(texts::APPLIES_TO_THIS_SPEAKER.get());
+    assert!(harness
+        .query_by_label(&texts::applies_to_every(MONITOR))
+        .is_none());
+}
+
 /// With own layouts, a knob let go on the other speaker's strip of the same model lands nowhere:
 /// it belongs to its own speaker's layout.
 #[test]

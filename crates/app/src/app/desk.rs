@@ -137,7 +137,7 @@ impl NeumannApp {
                                 let speaker = &mut self.speakers[index];
                                 let key = speaker.state.key.clone();
                                 let response = ui
-                                    .push_id(&key, |ui| {
+                                    .push_id(speaker.state.instance, |ui| {
                                         if dragged == Some(index) {
                                             ui.multiply_opacity(DRAGGED_OPACITY);
                                         }

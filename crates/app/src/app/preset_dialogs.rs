@@ -25,6 +25,15 @@ fn preset_viewport() -> ViewportId {
     ViewportId::from_hash_of(Id::unique(PRESET_WINDOW_ID))
 }
 
+impl PresetDialog {
+    pub(super) fn rename_speaker(&mut self, before: &SpeakerKey, after: &SpeakerKey) {
+        let (PresetDialog::Save { key, .. } | PresetDialog::Load { key, .. }) = self;
+        if *key == *before {
+            *key = after.clone();
+        }
+    }
+}
+
 pub(super) enum PresetDialog {
     Save {
         key: SpeakerKey,

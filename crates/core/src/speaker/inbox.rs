@@ -33,6 +33,7 @@ impl Inbox {
                 Ok(Command::Stop) | Err(TryRecvError::Disconnected) => {
                     self.stop_requested.set(true);
                 }
+                Ok(Command::Abandon) => self.abandon(),
                 Ok(command) => self.pending.borrow_mut().push_back(command),
                 Err(TryRecvError::Empty) => return false,
             }
@@ -40,16 +41,26 @@ impl Inbox {
         self.pending.borrow().is_empty()
     }
 
+    fn abandon(&self) {
+        self.pending.borrow_mut().clear();
+        self.stop_requested.set(true);
+    }
+
     /// Commands that came before a `Stop` go first: a write sent just before a speaker is closed
     /// or removed still reaches it.
     pub(super) fn next(&self, timeout: Duration) -> Result<Command, RecvTimeoutError> {
+        // An abandon behind the commands set aside drops them too.
+        self.stop_requested();
         if let Some(command) = self.pending.borrow_mut().pop_front() {
             return Ok(command);
         }
         if self.stop_requested.get() {
             return Ok(Command::Stop);
         }
-        self.receiver.recv_timeout(timeout)
+        match self.receiver.recv_timeout(timeout) {
+            Ok(Command::Abandon) => Ok(Command::Stop),
+            received => received,
+        }
     }
 }
 
@@ -78,5 +89,32 @@ mod tests {
         assert_eq!(inbox.next(WAIT), Ok(set));
         assert!(inbox.stop_requested());
         assert_eq!(inbox.next(WAIT), Ok(Command::Stop));
+    }
+
+    /// A worker left behind for a moved speaker: the app counts what it does not answer before
+    /// its channel ends as not written, so its waiting writes must not go out, whether they wait
+    /// in the channel or were taken early.
+    #[test]
+    fn writes_waiting_when_abandoned_are_dropped() {
+        let set = Command::Set {
+            path: SscPath::parse("audio/out/mute").unwrap(),
+            value: serde_json::json!(true),
+        };
+        for taken_early in [false, true] {
+            let (sender, receiver) = channel();
+            sender.send(set.clone()).unwrap();
+            let inbox = Inbox::new(receiver);
+            if taken_early {
+                // A second command lets the first be set aside while looking for a stop.
+                sender.send(set.clone()).unwrap();
+                assert!(!inbox.stop_requested());
+            }
+            sender.send(Command::Abandon).unwrap();
+            assert_eq!(
+                inbox.next(WAIT),
+                Ok(Command::Stop),
+                "taken early: {taken_early}"
+            );
+        }
     }
 }

@@ -349,7 +349,7 @@ fn the_read_budgets_are_the_specified_ones() {
 }
 
 #[test]
-fn every_request_carries_its_own_xid() {
+fn every_get_carries_its_own_xid() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
     for _ in 0..3 {

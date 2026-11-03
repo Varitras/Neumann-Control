@@ -47,8 +47,8 @@ impl Fields<'_> {
     /// One gesture per write, see `number_field`; a typed value outside the range is sent as
     /// typed, for the write policy to refuse with the reason.
     pub fn number(&mut self, ui: &mut Ui, entry: &Entry) {
-        let reported = self.speaker.values.get(&entry.path).cloned();
-        let device = reported.as_ref().and_then(Value::as_f64);
+        let latest = self.speaker.latest(&entry.path).cloned();
+        let device = latest.as_ref().and_then(Value::as_f64);
         let product = self.speaker.product();
         let min = entry.min.unwrap_or(f64::NEG_INFINITY);
         let max = entry
@@ -74,7 +74,7 @@ impl Fields<'_> {
         let Some(number) = written else {
             return;
         };
-        let value = field_value(entry, reported.as_ref(), number, min..=max);
+        let value = field_value(entry, latest.as_ref(), number, min..=max);
         let path = entry.path.clone();
         self.send(ui, Intent::Write { path, value });
     }
@@ -143,8 +143,7 @@ impl Fields<'_> {
     pub fn select(&mut self, ui: &mut Ui, entry: &Entry) {
         let current = self
             .speaker
-            .values
-            .get(&entry.path)
+            .latest(&entry.path)
             .and_then(Value::as_str)
             .map(str::to_owned);
         let enabled = self.enabled(entry, current.is_some());
@@ -179,13 +178,12 @@ impl Fields<'_> {
     /// Written with "Übernehmen" or Enter after the catalog check; a refused text stays in
     /// the field with the reason below it. Polling never replaces what is being edited.
     pub fn text(&mut self, ui: &mut Ui, entry: &Entry) {
-        let reported = self
+        let latest = self
             .speaker
-            .values
-            .get(&entry.path)
+            .latest(&entry.path)
             .and_then(Value::as_str)
             .map(str::to_owned);
-        let enabled = self.enabled(entry, reported.is_some());
+        let enabled = self.enabled(entry, latest.is_some());
         let draft_id = ui
             .scope_id()
             .with(entry.path.to_string())
@@ -196,7 +194,7 @@ impl Fields<'_> {
             .unwrap_or_default();
         let focused = ui.memory(|memory| memory.has_focus(field_id));
         if !draft.edited && !focused {
-            draft.text = reported.as_deref().map(capped).unwrap_or_default();
+            draft.text = latest.as_deref().map(capped).unwrap_or_default();
         }
         let label = ui.label(entry.label(texts::language()));
         let field = TextEdit::singleline(&mut draft.text)

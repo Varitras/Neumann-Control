@@ -41,8 +41,8 @@ use crate::status_leds::average_response_time;
 use crate::strip_layout;
 use crate::system_audio::{AudioDevice, SystemAudio};
 use crate::targets::{
-    duplicate_speakers, follow_moves, forget, is_found, remember_identity, remember_serial,
-    same_speaker, targets,
+    duplicate_speakers, follow_moves, follow_reach, forget, is_found, remember_identity,
+    remember_serial, same_speaker, targets,
 };
 use crate::texts;
 use crate::ui_kit::eq_palette::{curve_key, CURVE_KEYS};
@@ -87,6 +87,9 @@ struct Speaker {
     state: SpeakerState,
     handle: SpeakerHandle,
     events: Events,
+    /// The old workers of a moved speaker, by the number their state gave them, read until they
+    /// end: their answers to writes count.
+    retired: Vec<(u64, Events)>,
 }
 
 /// A speaker's device panel, open in a window of its own.
@@ -219,8 +222,11 @@ impl NeumannApp {
             rediscovery: Rediscovery::default(),
             scan_choice: None,
             notice: texts::settings_notice(outcome),
-            unsaved_because: (outcome == LoadOutcome::Untouchable)
-                .then_some(texts::SETTINGS_UNTOUCHABLE),
+            unsaved_because: match outcome {
+                LoadOutcome::Untouchable => Some(texts::SETTINGS_UNTOUCHABLE),
+                LoadOutcome::NotCopied => Some(texts::SETTINGS_NOT_COPIED),
+                LoadOutcome::Read | LoadOutcome::PartlyUnderstood | LoadOutcome::SetAside => None,
+            },
             add_address: None,
             removal: None,
             panels: Vec::new(),
@@ -294,6 +300,7 @@ impl NeumannApp {
                     state,
                     handle,
                     events,
+                    retired: Vec::new(),
                 });
                 continue;
             };
@@ -323,18 +330,27 @@ impl NeumannApp {
         let (handle, events) = self.spawn(key, address);
         let speaker = &mut self.speakers[position];
         speaker.state.address = address;
-        speaker.state.forget_outstanding();
-        speaker.events = events;
-        retire(std::mem::replace(&mut speaker.handle, handle));
+        let worker = speaker.state.retire_outstanding();
+        let old_events = std::mem::replace(&mut speaker.events, events);
+        speaker.retired.push((worker, old_events));
+        // What still waits in its inbox is dropped and so never answered: not written. What it
+        // already took is answered on its own channel, read on until it ends.
+        let old = std::mem::replace(&mut speaker.handle, handle);
+        thread::spawn(move || old.abandon());
     }
 
     fn drain_events(&mut self, now: f64) {
         let mut connected = Vec::new();
         let mut renamed = Vec::new();
+        let mut reached = Vec::new();
         for speaker in &mut self.speakers {
+            drain_retired(speaker);
             while let Ok(event) = speaker.events.try_recv() {
                 if let Event::Connected(identity) = &event {
                     connected.push((identity.clone(), speaker.state.address));
+                }
+                if let Event::Reached(address) = &event {
+                    reached.push((speaker.state.address, *address));
                 }
                 let before = speaker.state.key.clone();
                 speaker.state.apply(event, now);
@@ -343,10 +359,10 @@ impl NeumannApp {
                 }
             }
         }
-        if connected.is_empty() {
-            return;
-        }
         let mut changed = false;
+        for (before, after) in &reached {
+            changed |= follow_reach(&mut self.settings.manual, *before, *after);
+        }
         for (identity, address) in &connected {
             changed |= remember_serial(&mut self.settings.manual, &identity.serial, *address);
             changed |= remember_identity(&mut self.settings.known, identity);
@@ -357,14 +373,39 @@ impl NeumannApp {
         if changed {
             self.save_settings();
         }
-        self.drop_duplicate_speakers();
+        if !connected.is_empty() {
+            self.drop_duplicate_speakers();
+        }
     }
 
-    /// A speaker's key changed (its serial became known): its group, its place in the order and
-    /// its open panel go with it.
+    /// A speaker's key changed (its serial became known): everything that names the speaker by
+    /// its key goes with it — its group, its place in the order, its open windows, its history
+    /// and a dim waiting to go back.
     fn follow_key(&mut self, before: &SpeakerKey, after: &SpeakerKey) -> bool {
         for panel in self.panels.iter_mut().filter(|panel| panel.key == *before) {
             panel.key = after.clone();
+        }
+        for window in &mut self.eq_windows {
+            window.rename_speaker(before, after);
+        }
+        if let Some(dialog) = &mut self.preset_dialog {
+            dialog.rename_speaker(before, after);
+        }
+        if let Some(removal) = self
+            .removal
+            .as_mut()
+            .filter(|removal| removal.key == *before)
+        {
+            removal.key = after.clone();
+        }
+        self.history.rename_speaker(before, after);
+        let dim_levels = self
+            .dimmed
+            .iter_mut()
+            .flatten()
+            .chain(&mut self.dim_returns);
+        for (key, _) in dim_levels.filter(|(key, _)| *key == *before) {
+            *key = after.clone();
         }
         let (old, new) = (member_id(before), member_id(after));
         rename_member_settings(&mut self.settings, &old, &new)
@@ -502,10 +543,13 @@ impl NeumannApp {
         }
     }
 
-    /// For a run without the folder's lock: another app may hold the same settings file.
+    /// For a run without the folder's lock: another app may hold the same settings file. What
+    /// loading found stays said; it is the more particular reason.
     pub fn save_nothing(&mut self) {
-        self.unsaved_because = Some(texts::SETTINGS_NOT_LOCKED);
-        self.notice = self.unsaved_because;
+        let reason = *self
+            .unsaved_because
+            .get_or_insert(texts::SETTINGS_NOT_LOCKED);
+        self.notice = self.notice.or(Some(reason));
     }
 
     fn save_settings(&mut self) {
@@ -554,12 +598,12 @@ impl NeumannApp {
             }
             ToolbarAction::None => {}
         }
-        if ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
+        // A field being edited keeps its keys (Ctrl+arrows, typed letters, Ctrl+K); a button
+        // reached with Tab takes none.
+        let editing_a_field = ui.ctx().text_edit_focused();
+        if !editing_a_field && ui.input_mut(|input| input.consume_shortcut(&COMPACT_SHORTCUT)) {
             self.toggle_compact(ui.ctx());
         }
-        // A field being edited keeps its keys (Ctrl+arrows, typed letters); a button reached with
-        // Tab takes none.
-        let editing_a_field = ui.ctx().text_edit_focused();
         if !editing_a_field {
             let now = ui.input(|input| input.time);
             for shortcut in ui.input_mut(shortcuts::pressed) {
@@ -597,8 +641,7 @@ impl NeumannApp {
             if self.speakers[index].state.all_values == AllValuesState::Idle {
                 continue;
             }
-            let key = self.speakers[index].state.key.clone();
-            let viewport = all_values::viewport_of(&key);
+            let viewport = all_values::viewport_of(&self.speakers[index].state);
             let open_before = self.speakers[..index]
                 .iter()
                 .filter(|speaker| speaker.state.all_values != AllValuesState::Idle)
@@ -945,9 +988,10 @@ impl NeumannApp {
         }
     }
 
-    fn open_web(&self, url: &str) {
+    fn open_web(&mut self, url: &str) {
         if !self.help.open(url) {
             log::warn!("the browser could not be started");
+            self.notice = Some(texts::LINK_NOT_OPENED);
         }
     }
 
@@ -1009,7 +1053,29 @@ fn local_now() -> time::OffsetDateTime {
     time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 }
 
-/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
+/// Reads a moved speaker's old workers; once one has ended, what it left unanswered was not
+/// written.
+fn drain_retired(speaker: &mut Speaker) {
+    let state = &mut speaker.state;
+    let handle = &speaker.handle;
+    speaker.retired.retain(|(worker, events)| loop {
+        match events.try_recv() {
+            Ok(event) => {
+                if let Some(command) = state.apply_retired(*worker, &event) {
+                    handle.send(command);
+                }
+            }
+            Err(TryRecvError::Empty) => return true,
+            Err(TryRecvError::Disconnected) => {
+                state.end_retired(*worker);
+                return false;
+            }
+        }
+    });
+}
+
+/// Dropping a handle joins its worker, which can sit in a connect of up to 3 s; not on the UI
+/// thread.
 fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }
@@ -1085,6 +1151,7 @@ impl eframe::App for NeumannApp {
         self.write_scan_reports();
         self.rediscover(now);
         self.poll_scan();
+        self.finish_logic_history();
         let pixels_per_point = context.pixels_per_point();
         self.window = context.input(|input| {
             let size = input.viewport_rect().size();

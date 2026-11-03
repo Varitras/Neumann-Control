@@ -11,12 +11,13 @@ use neumann_control_core::speaker::Command;
 use super::busy;
 use super::{escape_closes, placed, Opening};
 use crate::all_values::{rows, Row};
-use crate::state::{AllValuesState, SpeakerKey, SpeakerState};
+use crate::state::{AllValuesState, SpeakerState};
 use crate::texts;
 use eframe::egui::Vec2;
 
 const WINDOW_ID: &str = "all_values";
 pub(crate) const DEFAULT_WINDOW_SIZE: [f32; 2] = [920.0, 480.0];
+pub(crate) const ALL_VALUES_MIN_SIZE: [f32; 2] = [420.0, 240.0];
 const PATH_WIDTH: f32 = 250.0;
 const VALUE_WIDTH: f32 = 280.0;
 const RANGE_WIDTH: f32 = 180.0;
@@ -32,9 +33,10 @@ pub fn show(
     catalog: &Catalog,
     opening: Opening,
 ) -> Vec<Command> {
-    let viewport = viewport_of(&speaker.key);
-    let builder =
-        ViewportBuilder::default().with_title(texts::all_values_title(&speaker.display_name()));
+    let viewport = viewport_of(speaker);
+    let builder = ViewportBuilder::default()
+        .with_title(texts::all_values_title(&speaker.display_name()))
+        .with_min_inner_size(ALL_VALUES_MIN_SIZE);
     let builder = placed(builder, opening, Vec2::from(DEFAULT_WINDOW_SIZE));
     let mut commands = Vec::new();
     let close = context.show_viewport_immediate(viewport, builder, |ui, class| {
@@ -141,6 +143,6 @@ fn cell(ui: &mut Ui, width: f32, text: &str) {
 }
 
 /// The window's viewport for a speaker, to read where the user left it.
-pub fn viewport_of(key: &SpeakerKey) -> ViewportId {
-    ViewportId::from_hash_of(Id::unique((WINDOW_ID, key.clone())))
+pub fn viewport_of(speaker: &SpeakerState) -> ViewportId {
+    ViewportId::from_hash_of(Id::unique((WINDOW_ID, speaker.instance)))
 }

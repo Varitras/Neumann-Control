@@ -1,4 +1,5 @@
-//! The context menus that change a model's strip layout: on an element of a strip, and on a row
+//! The context menus that change a strip layout (the model's, or the speaker's own with own
+//! layouts): on an element of a strip, and on a row
 //! of the device panel. A right click anywhere on the element's area opens them, also on a
 //! disabled control, which takes no click itself. They only report the change.
 
