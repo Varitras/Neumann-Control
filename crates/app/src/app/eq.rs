@@ -396,7 +396,8 @@ impl NeumannApp {
             }),
             Some(EqPresetDialog::Load { selected, .. }) => Some(PresetDialogView::Load {
                 names: &preset_names,
-                selected: *selected,
+                // Without a plan nothing was compared, so nothing is shown as compared.
+                selected: preset_plan.as_ref().and(*selected),
                 changes: &preset_changes,
                 refusal: preset_refusal.as_deref(),
                 crossover: reshapable.is_some_and(|shown| shown.container.crossover),

@@ -906,6 +906,33 @@ fn a_preset_already_on_a_speaker_gone_says_why() {
         .is_some());
 }
 
+/// A value of the EQ goes missing on the speaker while the load dialog shows a preset: nothing
+/// can be compared any more, so nothing is said to be on the speaker already.
+#[test]
+fn a_preset_compared_with_a_value_gone_is_not_called_the_same() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    save_eq_preset(&mut harness, "Same");
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Same", 10))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::PRESET_UNCHANGED.get());
+    simulator.remove_value("audio/out/eq2/gain");
+    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    wait_until(&mut harness, "the preset no longer fits", |harness| {
+        harness
+            .query_by_label(&texts::eq_preset_entry("Same", 10))
+            .is_none()
+    });
+    assert!(harness
+        .query_by_label(texts::PRESET_UNCHANGED.get())
+        .is_none());
+}
+
 /// An import previewed when the speaker goes away is refused only for as long: once it is back,
 /// the preview can be written, without reading the file again.
 #[test]
