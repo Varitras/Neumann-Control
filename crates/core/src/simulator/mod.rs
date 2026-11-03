@@ -68,6 +68,8 @@ enum Delivery {
 struct State {
     device: SimulatedDevice,
     faults: VecDeque<Fault>,
+    /// Faults waiting for a write to their JSON pointer, whatever is polled meanwhile.
+    write_faults: Vec<(String, Fault)>,
     requests: Vec<Value>,
     reply_delay: Duration,
 }
@@ -85,6 +87,13 @@ struct Shared {
     stopping: AtomicBool,
 }
 
+/// A read names its path with `null`, a write with the value.
+fn writes_to(request: &Map<String, Value>, pointer: &str) -> bool {
+    let request = Value::Object(request.clone());
+    let value = request.pointer(pointer);
+    value.is_some_and(|value| !value.is_null())
+}
+
 impl Shared {
     fn state(&self) -> MutexGuard<'_, State> {
         self.state.lock().expect("simulator state lock")
@@ -99,7 +108,14 @@ impl Shared {
     fn respond(&self, request: Map<String, Value>) -> Delivery {
         let mut state = self.state();
         state.requests.push(Value::Object(request.clone()));
-        let fault = state.faults.pop_front();
+        let waiting = state
+            .write_faults
+            .iter()
+            .position(|(pointer, _)| writes_to(&request, pointer));
+        let fault = match waiting {
+            Some(place) => Some(state.write_faults.remove(place).1),
+            None => state.faults.pop_front(),
+        };
         let answer = state.device.answer(&request);
         let reply = encode_line(&answer.body, answer.xid.as_ref());
         match fault {
@@ -246,6 +262,7 @@ impl Simulator {
             state: Mutex::new(State {
                 device: SimulatedDevice::new(model),
                 faults: VecDeque::new(),
+                write_faults: Vec::new(),
                 requests: Vec::new(),
                 reply_delay: Duration::ZERO,
             }),
@@ -275,6 +292,13 @@ impl Simulator {
     /// Queues a fault for the next reply; several queued faults apply one per reply.
     pub fn inject(&self, fault: Fault) {
         self.shared.state().faults.push_back(fault);
+    }
+
+    /// Queues a fault for the next write to the JSON pointer `pointer`; a poll in between does
+    /// not take it, as `inject`'s fault would.
+    pub fn inject_on_write(&self, pointer: &str, fault: Fault) {
+        let fault = (pointer.to_owned(), fault);
+        self.shared.state().write_faults.push(fault);
     }
 
     /// Every request received so far, parsed.
