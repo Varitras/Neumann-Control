@@ -1,4 +1,5 @@
-//! Parsing of IPv6 speaker addresses, including Windows numeric zone indexes.
+//! Parsing of IPv6 speaker addresses, including Windows numeric zone indexes, and this
+//! computer's link-local addresses.
 
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV6};

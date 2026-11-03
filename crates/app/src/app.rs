@@ -1074,7 +1074,8 @@ fn drain_retired(speaker: &mut Speaker) {
     });
 }
 
-/// Dropping a handle joins its worker, which can sit in a 3 s connect; not on the UI thread.
+/// Dropping a handle joins its worker, which can sit in a connect of up to 3 s; not on the UI
+/// thread.
 fn retire(handle: SpeakerHandle) {
     thread::spawn(move || drop(handle));
 }

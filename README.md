@@ -133,7 +133,7 @@ speaker at a different address (link-local addresses and interface indexes can c
 stored address is updated. The app scans for that by itself, without a dialog: once at the start,
 and when a remembered speaker stays unreachable for 30 seconds, then at most every 5 minutes
 while one is missing. Speakers are matched by their serial; one added by address that never
-connected has none yet and is not followed. IPv4 addresses are not accepted: the speakers are
+connected has none yet and no scan can follow it. IPv4 addresses are not accepted: the speakers are
 reachable only over IPv6.
 
 ## Using the app
@@ -464,7 +464,8 @@ The app shows the control mode (NETWORK or LOCAL), which the CONTROL switch on t
 speaker sets; it cannot be changed over the network. In LOCAL the speaker refuses every write, and
 the strip says so.
 
-A speaker that stops answering is shown as unreachable and reconnected every 10 seconds.
+A speaker that stops answering is shown as unreachable and tried again 10 seconds after each
+attempt; an attempt can take a few seconds more for each network adapter of the computer.
 
 ## How writes stay safe
 
