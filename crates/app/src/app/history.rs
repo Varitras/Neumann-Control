@@ -579,6 +579,41 @@ mod tests {
         assert_eq!(command, Some(expected));
     }
 
+    /// Three writes of one band: the first confirmed differently, the second refused. The third
+    /// started from the refused value, so it goes back to what the first left.
+    #[test]
+    fn a_refusal_after_a_differing_confirmation_passes_on_the_confirmed_value() {
+        let gain = paths::path("audio/out/eq2/gain");
+        let address = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, 0.0]),
+        };
+        speaker.apply(reported, 0.0);
+        let mut history = History::default();
+        for value in [1.0, 2.0, 3.0] {
+            speaker.record_written(&gain, &json!([value, null]));
+            history.push(NOON, written_changes(&mut speaker), None);
+        }
+        let confirmed = Event::Written {
+            path: gain.clone(),
+            value: json!([1.5, 0.0]),
+        };
+        speaker.apply(confirmed, 0.0);
+        let rejected = Event::WriteRejected {
+            path: gain.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        speaker.apply(rejected, 0.0);
+        settle_speaker(&mut history, &mut speaker);
+        let third = &history.newest(0).unwrap().changes[0];
+        assert_eq!(third.before, Some(json!([1.5, null])));
+    }
+
     /// Mute on, then off again before the first answer: the speaker refuses the first and takes
     /// the second. Taking the second back writes what the speaker held before both, not the
     /// value it refused.

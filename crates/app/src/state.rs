@@ -180,13 +180,12 @@ pub struct Written {
 struct Pending {
     value: Value,
     unanswered: VecDeque<u64>,
-    /// What each unanswered `Set` sent, in the same order: a refused one is taken out of
-    /// `value` again.
+    /// What each unanswered `Set` sent, in the same order, for building `value` again.
     sent: VecDeque<Value>,
     /// What the answers so far leave on the speaker: its report before the first `Set`, with
     /// each confirmed one merged in, one with an answer that tells nothing taken as applied,
     /// and a refused or not found one left out. Its report is not taken while writes are on
-    /// their way, so `value` is built again from this after a refusal.
+    /// their way, so `value` is built again from this after a confirmation or a refusal.
     base: Option<Value>,
 }
 
@@ -396,8 +395,8 @@ impl SpeakerState {
         pending || retired.any(|writes| writes.contains(&write))
     }
 
-    /// The newest sent value not yet answered, else the reported one: what the speaker holds
-    /// once its writes are through. The next toggle and a take-back start from this, so a write
+    /// What the answers so far leave with the writes not yet answered on top, else the reported
+    /// value: what the speaker holds once its writes are through. The next toggle and a take-back start from this, so a write
     /// still on the way does not count as someone else's change.
     pub fn latest(&self, path: &SscPath) -> Option<&Value> {
         let sent = self.pending.get(path).map(|pending| &pending.value);
@@ -1256,6 +1255,32 @@ mod tests {
             let newest = speaker.written.last().unwrap();
             assert_eq!(newest.before, Some(json!([1.5, null, null])), "{confirmed}");
         }
+    }
+
+    /// A single value confirmed differently, with another write on its way: the later write
+    /// replaces it, so only that write's value before changes.
+    #[test]
+    fn a_differing_confirmation_of_a_single_value_is_named_for_the_later_write() {
+        let level = path(paths::DELAY);
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        speaker.apply(value_event(paths::DELAY, json!(0)), 0.0);
+        speaker.record_written(&level, &json!(5));
+        let first = speaker.newest_write().unwrap();
+        speaker.record_written(&level, &json!(6));
+        let second = speaker.newest_write().unwrap();
+        let answer = Event::Written {
+            path: level.clone(),
+            value: json!(4),
+        };
+        speaker.apply(answer, 0.0);
+        assert_eq!(speaker.latest(&level), Some(&json!(6)));
+        let expected = Predecessor {
+            write: first,
+            later: vec![second],
+            confirmed: Some(json!(4)),
+        };
+        assert_eq!(speaker.predecessors, vec![expected]);
     }
 
     /// A refusal names the writes sent after it to the same path, also from an old connection;
