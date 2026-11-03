@@ -634,10 +634,10 @@ fn a_speaker_remembered_through_a_gone_interface_is_reached_through_its_new_one(
         "remembered at the interface it answers on",
         |_| {
             let stored = settings::load(&path);
-            stored
-                .manual
-                .iter()
-                .any(|entry| parse_address(&entry.address, entry.port) == Ok(reached))
+            stored.manual.iter().any(|entry| {
+                let moved = parse_address(&entry.address, entry.port) == Ok(reached);
+                moved && entry.serial.is_some()
+            })
         },
     );
 }

@@ -774,6 +774,14 @@ mod tests {
     }
 
     #[test]
+    fn a_speaker_reached_through_another_interface_keeps_that_address() {
+        let mut speaker = state();
+        let reached = address("fe80::2a36:38ff:fe12:3456%18");
+        speaker.apply(Event::Reached(reached), 0.0);
+        assert_eq!(speaker.address, reached);
+    }
+
+    #[test]
     fn unreachable_event_greys_the_speaker_and_keeps_values() {
         let mut speaker = state();
         speaker.apply(

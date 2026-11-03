@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use neumann_control_core::address::link_local_addresses;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::schema_walk::{read_all, WalkError, MAX_SCHEMA_DEPTH, MAX_SCHEMA_NODES};
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
@@ -28,6 +29,10 @@ const KH_120_II_LEAVES: usize = 50;
 const KH_120_II_PRODUCT: &str = "KH 120 II";
 const KH_750_PRODUCT: &str = "KH 750";
 const KH_120_II_SERIAL: &str = "SIM0001234";
+/// An index no interface of a computer has.
+const GONE_INTERFACE: u32 = 4_000_000;
+// Each other interface of the computer can take a whole connect timeout first.
+const REACH_DEADLINE: Duration = Duration::from_secs(40);
 
 fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("a valid path")
@@ -313,6 +318,46 @@ fn a_read_command_reports_the_value_as_it_is_now() {
                 value: json!(true),
             }
     });
+}
+
+/// A simulator on this computer's own link-local address, and that address through an interface
+/// index that does not exist; `None` on a computer without one.
+fn simulator_behind_a_gone_interface() -> Option<(Simulator, SocketAddrV6)> {
+    let local = link_local_addresses().pop()?;
+    let simulator = Simulator::start_on(SimModel::Kh120Ii, local).unwrap();
+    let reached = simulator.address();
+    let gone = SocketAddrV6::new(*reached.ip(), reached.port(), 0, GONE_INTERFACE);
+    Some((simulator, gone))
+}
+
+/// Windows numbers its interfaces anew: the worker finds the speaker through the interface that
+/// has the address now and says so before `Connected`.
+#[test]
+fn a_link_local_speaker_is_reached_through_its_new_interface() {
+    let Some((simulator, gone)) = simulator_behind_a_gone_interface() else {
+        eprintln!("no link-local IPv6 address on this computer: nothing to reach through");
+        return;
+    };
+    let (_handle, events) = start_worker(gone, None, short_timing());
+    let seen = collect_until(&events, REACH_DEADLINE, is_connected);
+    let reached = Event::Reached(simulator.address());
+    assert_eq!(seen[seen.len() - 2], reached, "{seen:?}");
+}
+
+/// Another speaker answers at the address through another interface: it is not taken for the
+/// expected one, and the app is not told of a new address.
+#[test]
+fn another_serial_through_another_interface_is_no_new_address() {
+    let Some((_simulator, gone)) = simulator_behind_a_gone_interface() else {
+        eprintln!("no link-local IPv6 address on this computer: nothing to reach through");
+        return;
+    };
+    let (_handle, events) = start_worker(gone, Some("ANOTHER"), short_timing());
+    let seen = collect_until(&events, REACH_DEADLINE, |event| {
+        matches!(event, Event::SerialMismatch { .. })
+    });
+    let told = seen.iter().any(|event| matches!(event, Event::Reached(_)));
+    assert!(!told, "{seen:?}");
 }
 
 #[test]
