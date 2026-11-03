@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- A value the speaker confirms differently than it was sent counts at once, also while another
+  write to the same setting is on its way: the next change starts from it, and taking a change
+  back writes it, not the value sent.
+- Loading a preset no longer says the speaker already has its values when nothing could be
+  compared: an EQ value went missing, the speaker is gone, or the preset holds only values this
+  model does not have.
+
 ## [0.2.1] - 2026-11-03
 
 ### Changed

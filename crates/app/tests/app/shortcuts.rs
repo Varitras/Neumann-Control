@@ -195,7 +195,8 @@ fn a_shortcut_write_failed_while_hidden_is_filed_as_not_written() {
     harness.run_steps(2);
     scroll_to_and_click(&mut harness, texts::GLOBAL_SHORTCUTS.get());
     harness.run_steps(2);
-    simulator.inject(neumann_control_core::simulator::Fault::CloseConnection);
+    let fault = neumann_control_core::simulator::Fault::CloseConnection;
+    simulator.inject_on_write(MUTE_POINTER, fault);
     keys.press(DeskShortcut::MuteAll);
     let context = harness.ctx.clone();
     let mut frame = eframe::Frame::_new_kittest();

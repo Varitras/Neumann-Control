@@ -426,6 +426,10 @@ pub const PRESET_REPLACES: Text = Text::new(
     "A preset of this name is replaced.",
 );
 pub const NO_PRESETS: Text = Text::new("Noch keine Presets.", "No presets yet.");
+pub const EQ_VALUES_MISSING: Text = Text::new(
+    "Dem Lautsprecher fehlen Werte dieses EQ; Presets lassen sich nicht vergleichen.",
+    "The speaker lacks values of this EQ; presets cannot be compared.",
+);
 pub const PRESET_UNCHANGED: Text = Text::new(
     "Der Lautsprecher hat schon die Werte des Presets.",
     "The speaker already has the preset's values.",

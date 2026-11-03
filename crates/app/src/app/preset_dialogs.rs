@@ -212,7 +212,9 @@ impl NeumannApp {
             .collect();
         // All or nothing, as for EQ presets: a refused value would otherwise leave the preset
         // half written, its message wiped by the next write.
-        let refusal = loading.changes.iter().find_map(|change| {
+        let gone = writes::connected(speaker).err();
+        let gone = gone.map(|refusal| texts::describe_refusal(&refusal));
+        let refused = loading.changes.iter().find_map(|change| {
             let refusal = writes::check(speaker, catalog, &change.path, &change.preset).err()?;
             let label = paths::catalog_entry(catalog, &change.path).map_or_else(
                 || change.path.to_string(),
@@ -223,9 +225,11 @@ impl NeumannApp {
                 &texts::describe_refusal(&refusal),
             ))
         });
+        let refusal = gone.or(refused);
         let view = LoadView {
             title: texts::LOAD_PRESET_TITLE.get(),
             presets: &names,
+            empty: texts::NO_PRESETS.get(),
             selected,
             changes: Changes::Compared(&changes),
             skipped: &loading.skipped,
