@@ -142,20 +142,30 @@ impl History {
         }
     }
 
-    /// The speaker refused write `refused` while the writes `later` to its path, oldest first,
-    /// were on their way. Each took the refused value as its value before, which the speaker
-    /// never held: they take the refused write's own value before instead, place by place for
-    /// an array, each place by the first of them that wrote it.
-    pub fn pass_on_before(&mut self, speaker: &SpeakerKey, refused: u64, later: &[u64]) {
+    /// Write `write` did not leave what it sent while the writes `later` to its path, oldest
+    /// first, were on their way. Each took the sent value as its value before, which the speaker
+    /// never held: they take what it `confirmed` instead, or for a refused write that write's
+    /// own value before, place by place for an array, each place by the first of them that
+    /// wrote it.
+    pub fn pass_on_before(
+        &mut self,
+        speaker: &SpeakerKey,
+        write: u64,
+        later: &[u64],
+        confirmed: Option<&Value>,
+    ) {
         let source = self
             .entries
             .iter()
             .flat_map(|entry| &entry.changes)
-            .find(|change| change.speaker == *speaker && change.write == Some(refused))
+            .find(|change| change.speaker == *speaker && change.write == Some(write))
             .cloned();
-        let Some(source) = source else {
+        let Some(mut source) = source else {
             return;
         };
+        if let Some(confirmed) = confirmed {
+            source.before = Some(confirmed.clone());
+        }
         let mut open = given_places(&source.after);
         for write in later {
             if open.is_empty() {
@@ -365,7 +375,7 @@ mod tests {
         for change in changes {
             history.push(NOON, vec![change], None);
         }
-        history.pass_on_before(&key, 1, &[2, 3]);
+        history.pass_on_before(&key, 1, &[2, 3], None);
         let before = |place| history.newest(place).unwrap().changes[0].before.clone();
         assert_eq!(before(1), Some(json!([null, 0, 0])));
         assert_eq!(before(0), Some(json!([0, null, null])));
@@ -387,7 +397,7 @@ mod tests {
         };
         history.push(NOON, vec![refused], None);
         history.push(NOON, vec![next], None);
-        history.pass_on_before(&key, 1, &[2]);
+        history.pass_on_before(&key, 1, &[2], None);
         assert_eq!(history.newest(0).unwrap().changes[0].before, None);
     }
 

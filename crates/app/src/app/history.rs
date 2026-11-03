@@ -468,11 +468,18 @@ fn written_changes(speaker: &mut SpeakerState) -> Vec<Change> {
         .collect()
 }
 
-/// Closes the changes of the writes the speaker refused or never got, and gives later writes
-/// the value before of a refused one they took theirs from; returns the refused numbers.
+/// Closes the changes of the writes the speaker refused or never got, and corrects the value
+/// before of later writes that took a refused or differently confirmed one; returns the refused
+/// numbers.
 fn settle_speaker(history: &mut History, speaker: &mut SpeakerState) -> Vec<u64> {
-    for predecessor in std::mem::take(&mut speaker.refused_predecessors) {
-        history.pass_on_before(&speaker.key, predecessor.write, &predecessor.later);
+    for predecessor in std::mem::take(&mut speaker.predecessors) {
+        let confirmed = predecessor.confirmed.as_ref();
+        history.pass_on_before(
+            &speaker.key,
+            predecessor.write,
+            &predecessor.later,
+            confirmed,
+        );
     }
     let refused = std::mem::take(&mut speaker.refused_writes);
     for write in &refused {
@@ -528,6 +535,49 @@ mod tests {
         minute: 0,
         second: 0,
     };
+
+    /// Band 1 sent twice before the first answer, and the speaker confirms the first at another
+    /// value: taking the second back writes the confirmed value, not the one sent.
+    #[test]
+    fn a_take_back_restores_what_the_speaker_confirmed_before_it() {
+        let catalog = Catalog::embedded();
+        let gain = paths::path("audio/out/eq2/gain");
+        let address = "[fe80::1]:45".parse().unwrap();
+        let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
+        let identity = Identity {
+            product: "KH 120 II".to_owned(),
+            version: "1".to_owned(),
+            serial: "SIM0001234".to_owned(),
+            name: String::new(),
+        };
+        speaker.apply(Event::Connected(identity), 0.0);
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, 0.0]),
+        };
+        speaker.apply(reported, 0.0);
+        let mut history = History::default();
+        for value in [1.0, 2.0] {
+            speaker.record_written(&gain, &json!([value, null]));
+            history.push(NOON, written_changes(&mut speaker), None);
+        }
+        for value in [1.5, 2.0] {
+            let confirmed = Event::Written {
+                path: gain.clone(),
+                value: json!([value, 0.0]),
+            };
+            speaker.apply(confirmed, 0.0);
+        }
+        settle_speaker(&mut history, &mut speaker);
+        let second = history.newest(0).unwrap().changes[0].clone();
+        assert_eq!(second.before, Some(json!([1.5, null])));
+        let command = send_before(&mut speaker, &second, catalog, 0.0);
+        let expected = Command::Set {
+            path: gain,
+            value: json!([1.5, null]),
+        };
+        assert_eq!(command, Some(expected));
+    }
 
     /// Mute on, then off again before the first answer: the speaker refuses the first and takes
     /// the second. Taking the second back writes what the speaker held before both, not the
