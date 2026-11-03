@@ -369,7 +369,7 @@ input B ("Crossover A", "Crossover B").
   shelf Q is its slope, so it is converted; a plain `LS`/`HS` is taken as REW defines it (slope 1),
   and so is a plain `LP` or `HP` without Q (Q 0.707, both read from what REW stores). Refused:
   shelves by slope in dB or by corner frequency (`LSC 10.8 dB`, `LS 6dB`), band pass (`BP`: the
-  speakers' band pass peaks at its Q, and that APO's does too is not confirmed), other types, any
+  speakers' band pass peaks at its Q, APO's at 0 dB), other types, any
   other missing Q, a Q or bandwidth that gives no Q above 0, filters for more than one channel,
   output device or processing stage or under a condition (`Channel:`, `Device:` or `Stage:` twice
   or after filters, `If:`), more filters than the EQ has bands and values the speaker would

@@ -1138,9 +1138,9 @@ fn line_problem(problem: &LineProblem) -> String {
             format!("Band {band} steht schon in einer früheren Zeile."),
             format!("Band {band} is already in an earlier line."),
         ),
-        LineProblem::UnconfirmedForm(kind) => pick(
-            format!("Filtertyp „{kind}“ wird nicht übernommen: Ob die Lautsprecher ihn gleich formen, ist nicht belegt."),
-            format!("Filter type \"{kind}\" is not taken over: whether the speakers shape it alike is not confirmed."),
+        LineProblem::OtherForm(kind) => pick(
+            format!("Filtertyp „{kind}“ wird nicht übernommen: Die Lautsprecher formen ihn anders."),
+            format!("Filter type \"{kind}\" is not taken over: the speakers shape it differently."),
         ),
         LineProblem::NoNextBand => pick(
             "Nach der höchsten Bandnummer gibt es kein weiteres Band.".to_owned(),

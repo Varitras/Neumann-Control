@@ -5,8 +5,8 @@
 ### Changed
 
 - **Import…** and **Export…** take no band pass (`BP`) any more: the speakers' band pass peaks at
-  its Q, and that Equalizer APO's does too is not confirmed; it could have been off by up to
-  12 dB. An exported band pass is written as a comment and listed.
+  its Q, Equalizer APO's at 0 dB, so it was off by that peak (12 dB at Q 4). An exported band pass
+  is written as a comment and listed.
 
 ### Fixed
 

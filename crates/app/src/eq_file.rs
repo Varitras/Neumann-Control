@@ -103,8 +103,8 @@ pub enum LineProblem {
     BadQ,
     /// A line without a number after the highest band number there is.
     NoNextBand,
-    /// A type whose form on the speakers is not confirmed to match the file's.
-    UnconfirmedForm(String),
+    /// A type the speakers shape differently than the file means it.
+    OtherForm(String),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,8 +152,8 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
         "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
-        // The speakers' band pass is the constant skirt form; APO's is not confirmed to be.
-        "BP" => Err(LineProblem::UnconfirmedForm(name.to_owned())),
+        // The speakers' band pass is the constant skirt form, APO's the 0 dB peak one.
+        "BP" => Err(LineProblem::OtherForm(name.to_owned())),
         "NO" => shaped(eq_type::NOTCH, false, QRule::Cookbook),
         "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
         "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
@@ -457,8 +457,8 @@ pub struct Export {
 }
 
 /// APO's token for a band, whether its line carries a gain, and its cookbook Q (a shelf's slope
-/// converted); `None` for a type APO has no line for, a band pass (its form there is not
-/// confirmed to be the speakers'), or a shelf beyond the cookbook form.
+/// converted); `None` for a type APO has no line for, a band pass (its form there is another
+/// than the speakers'), or a shelf beyond the cookbook form.
 fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
     match band.kind.as_str() {
         eq_type::PARAMETRIC => Some(("PK", true, band.q)),
@@ -1001,14 +1001,14 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
         assert_eq!(kinds, [(1, "LO6DB"), (2, "INVERSION"), (3, "LOSHELF")]);
     }
 
-    /// The speakers' band pass peaks at 20·log10(Q) (measured); APO's `BP` is a band pass
-    /// "without gain", of a form not confirmed. Taken over either way it could be off by
-    /// 12 dB at Q 4, so it is neither read nor written.
+    /// The speakers' band pass peaks at 20·log10(Q) (measured); APO's `BP` peaks at 0 dB
+    /// (its source). Taken over either way it would be off by that peak, 12 dB at Q 4, so it
+    /// is neither read nor written.
     #[test]
     fn a_band_pass_is_neither_read_nor_written() {
         assert_eq!(
             problem_of("Filter: ON BP Fc 1000 Hz Q 4"),
-            LineProblem::UnconfirmedForm("BP".to_owned())
+            LineProblem::OtherForm("BP".to_owned())
         );
         let exported = export(&[band("BANDPASS", 0.0, 500.0, 4.0)], "EQ 2");
         assert_eq!(
