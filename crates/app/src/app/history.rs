@@ -17,7 +17,7 @@ use crate::texts;
 use crate::views::history::{
     self as history_view, HistoryAction, HistoryRow, QuestionAction, UNDO_SHORTCUT,
 };
-use crate::writes::Intent;
+use crate::writes::{self, Intent};
 use neumann_control_core::catalog::{Catalog, Conversion};
 use neumann_control_core::speaker::Command;
 
@@ -396,6 +396,14 @@ impl NeumannApp {
             return None;
         }
         let mut skipped = Vec::new();
+        // All or nothing per speaker, as forward: one value the policy refuses keeps the
+        // speaker's other changes of the entry from going out alone.
+        let refusing: Vec<SpeakerKey> = entry
+            .changes
+            .iter()
+            .filter(|change| is_open(change) && self.refuses_take_back(change, catalog))
+            .map(|change| change.speaker.clone())
+            .collect();
         // As forward: EQ bands go off first and on last, so no prefix sounds a mixed band.
         let mut order: Vec<(usize, &Change)> = entry.changes.iter().enumerate().collect();
         order.sort_by_key(|(_, change)| {
@@ -415,6 +423,10 @@ impl NeumannApp {
                 skip(&mut skipped, texts::REMOVED_SPEAKER.get().to_owned());
                 continue;
             };
+            if refusing.contains(&speaker.state.key) {
+                skip(&mut skipped, speaker.state.display_name());
+                continue;
+            }
             let Some(command) = send_before(&mut speaker.state, change, catalog, now) else {
                 skip(&mut skipped, speaker.state.display_name());
                 continue;
@@ -436,6 +448,19 @@ impl NeumannApp {
         }
         self.history.notice = (!skipped.is_empty()).then_some(TakeBackNotice { skipped });
         Some(id)
+    }
+
+    /// The write policy refuses the change's value before, e.g. one the speaker reported out of
+    /// its range; a speaker gone or a value before unknown is left to `take_back` itself.
+    fn refuses_take_back(&self, change: &Change, catalog: &Catalog) -> bool {
+        let speaker = self
+            .speakers
+            .iter()
+            .find(|speaker| speaker.state.key == change.speaker);
+        let (Some(speaker), Some(before)) = (speaker, change.before.as_ref()) else {
+            return false;
+        };
+        writes::check(&speaker.state, catalog, &change.path, before).is_err()
     }
 
     fn changed_since(&self, entry: &Entry, catalog: &Catalog) -> bool {
