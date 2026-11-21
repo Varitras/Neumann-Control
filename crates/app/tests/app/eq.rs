@@ -10,7 +10,7 @@ use neumann_control_app::eq_file;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::CrossoverGuard;
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 use serde_json::{json, Value};
 
 const GAIN_LABEL: &str = "Pegel";
@@ -898,6 +898,78 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .query_all_by_label_contains("Nicht verbunden")
         .next()
         .is_some());
+}
+
+/// How often the speaker was asked for the boost array.
+fn boost_reads(simulator: &Simulator) -> usize {
+    simulator
+        .requests()
+        .iter()
+        .filter(|request| request.pointer(BOOST_POINTER).is_some_and(Value::is_null))
+        .count()
+}
+
+/// The container stops reporting a leaf while the import preview is open (a reconnect without
+/// the gain array): the preview says why and cannot write. Clicking Write closed it without
+/// writing anything.
+#[test]
+fn an_import_preview_of_a_container_gone_stays_and_says_why() {
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    import_file(
+        &mut harness,
+        &directory,
+        "room.txt",
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\n",
+    );
+    simulator.remove_value("audio/out/eq2/gain");
+    simulator.inject(Fault::CloseConnection);
+    wait_for_label(&mut harness, texts::EQ_NOT_REPORTED.get());
+    let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());
+    assert!(write.accesskit_node().is_disabled());
+    barrier(&simulator);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
+/// Bands the file leaves out are switched off with their other values as they are. A band that
+/// changed while the preview was open was written back to its value from when the file was read.
+#[test]
+fn an_import_keeps_what_changed_in_untouched_bands_meanwhile() {
+    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    import_file(
+        &mut harness,
+        &directory,
+        "room.txt",
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\n",
+    );
+    let mut boosts = simulator.value("audio/out/eq2/boost").unwrap();
+    boosts[2] = json!(5.0);
+    simulator.set_value("audio/out/eq2/boost", boosts);
+    // A reconnect reads the container at once; its own poll is slow.
+    let reads_before = boost_reads(&simulator);
+    simulator.inject(Fault::CloseConnection);
+    wait_until(&mut harness, "the boost read anew", |_| {
+        boost_reads(&simulator) > reads_before
+    });
+    harness.run_steps(4);
+    harness
+        .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
+        .click();
+    wait_until(&mut harness, "the import written", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    barrier(&simulator);
+    for boost in sets(&simulator, BOOST_POINTER) {
+        assert!(
+            matches!(boost[2], Value::Null) || boost[2] == json!(5.0),
+            "{boost}"
+        );
+    }
 }
 
 /// The speaker goes while the load dialog shows a preset it already holds: with nothing to
