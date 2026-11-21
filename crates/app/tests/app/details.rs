@@ -410,6 +410,28 @@ fn a_name_typed_then_tabbed_to_apply_is_sent() {
     assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
 }
 
+/// Model and firmware come from the device like any other text and are cut to the same length
+/// in the panel's header; a faulty firmware's endless text filled the window.
+#[test]
+fn the_panel_header_cuts_long_device_texts() {
+    const LONG: usize = 1000;
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+            simulator.set_value("device/identity/product", json!("M".repeat(LONG)));
+            simulator.set_value("device/identity/version", json!("7".repeat(LONG)));
+        });
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Overview);
+    let limit = neumann_control_app::display::VALUE_CHARACTER_LIMIT;
+    let longest = harness
+        .query_all_by_role(Role::Label)
+        .filter_map(|node| node.value())
+        .filter(|text| text.contains("MMMM") || text.contains("7777"))
+        .map(|text| text.chars().count())
+        .max()
+        .expect("the header line");
+    assert!(longest <= 3 * limit, "{longest} characters");
+}
+
 /// How often the speaker was asked for its name.
 fn name_reads(simulator: &Simulator) -> usize {
     simulator
