@@ -480,10 +480,8 @@ pub const SCAN_CHOICE_TITLE: Text = Text::new("Gefundene Lautsprecher", "Speaker
 pub const NOTHING_FOUND: Text = Text::new("Keine Lautsprecher gefunden", "No speakers found");
 /// A firewall that blocks mDNS gives the same empty answer as a network without speakers.
 pub const SCAN_EMPTY_HINT: Text = Text::new(
-    "Die Firewall muss mDNS (UDP-Port 5353) für dieses Programm erlauben, und Computer und \
-     Lautsprecher müssen im selben Netz sein. Ohne Suche geht es mit „+ Adresse“.",
-    "The firewall must allow mDNS (UDP port 5353) for this app, and the computer and the \
-     speakers must be on the same network. Without a scan, use “+ Address”.",
+    "Die Firewall muss mDNS (UDP-Port 5353) für dieses Programm erlauben, und Computer und Lautsprecher müssen im selben Netz sein. Ohne Suche geht es mit „+ Adresse“.",
+    "The firewall must allow mDNS (UDP port 5353) for this app, and the computer and the speakers must be on the same network. Without a scan, use “+ Address”.",
 );
 pub const SCAN_AGAIN: Text = Text::new("Erneut suchen", "Scan again");
 pub const ALREADY_ADDED: Text = Text::new("bereits hinzugefügt", "already added");
