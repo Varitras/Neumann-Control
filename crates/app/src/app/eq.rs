@@ -14,6 +14,7 @@ use crate::eq::{
     bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, switch_order,
     Band, Leaf, ResetKind,
 };
+use crate::eq_file::Imported;
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
@@ -80,8 +81,9 @@ pub(super) struct EqWindow {
 /// A filter file read for import, shown before it is written.
 pub(super) struct PendingImport {
     pub(super) file: String,
-    /// `None` when the file cannot be imported; `refusal` says why.
-    pub(super) preset: Option<EqPreset>,
+    /// The file as read, `None` when it cannot be imported (`refusal` says why). The preset is
+    /// built from it against the speaker's values each time (`import_preset`).
+    pub(super) imported: Option<Imported>,
     pub(super) notes: Vec<String>,
     /// Only for a file that cannot be imported; whether the speaker takes it is asked each frame.
     pub(super) refusal: Option<String>,
@@ -409,11 +411,17 @@ impl NeumannApp {
             }),
             None => None,
         };
-        let import_plan = match (&window.import, selected) {
-            (Some(pending), Some(shown)) => pending
-                .preset
-                .as_ref()
-                .map(|preset| eq_plan(preset, &speaker.latest_values(), &shown.container.path)),
+        // Built from the speaker's values now, as Write builds it.
+        let import_preset = window.import.as_ref().and_then(|pending| {
+            let imported = pending.imported.as_ref()?;
+            Some(self.import_preset(index, &pending.file, imported))
+        });
+        let import_plan = match (&import_preset, selected) {
+            (Some(Ok(preset)), Some(shown)) => Some(eq_plan(
+                preset,
+                &speaker.latest_values(),
+                &shown.container.path,
+            )),
             _ => None,
         };
         let import_changes: Vec<String> = import_plan
@@ -423,15 +431,17 @@ impl NeumannApp {
             .collect();
         // A file that cannot be imported keeps its reason; the speaker's state is asked anew
         // each frame, so a refusal ends with a reconnect.
-        let import_refusal = window.import.as_ref().and_then(|pending| {
-            let unreadable = pending.preset.is_none();
-            match unreadable {
-                true => pending.refusal.clone(),
-                false => import_plan
-                    .as_ref()
-                    .and_then(|plan| unwritable(&plan.writes)),
-            }
-        });
+        let import_refusal =
+            window
+                .import
+                .as_ref()
+                .and_then(|pending| match (&pending.imported, &import_preset) {
+                    (None, _) => pending.refusal.clone(),
+                    (Some(_), Some(Err(reason))) => Some(reason.clone()),
+                    _ => import_plan
+                        .as_ref()
+                        .and_then(|plan| unwritable(&plan.writes)),
+                });
         let import = window.import.as_ref().map(|pending| ImportView {
             file: &pending.file,
             changes: &import_changes,
