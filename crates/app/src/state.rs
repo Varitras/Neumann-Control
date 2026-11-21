@@ -578,9 +578,13 @@ impl SpeakerState {
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
+            // Refused like a rejection: later writes of the path keep the value before it.
             Event::WriteAbsent(path) => {
                 let refused = self.settle(&path, Answer::NotApplied);
+                let later = self.later_writes(&path);
+                self.note_predecessor(refused, later, None);
                 self.refused_writes.extend(refused);
+                self.rebuild_pending(&path);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
