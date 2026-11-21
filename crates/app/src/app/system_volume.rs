@@ -66,7 +66,7 @@ impl NeumannApp {
     }
 
     /// Chosen in the settings, on a system that has it.
-    fn system_strip_on(&self) -> bool {
+    pub(super) fn system_strip_on(&self) -> bool {
         self.settings.system_audio.shown && self.system_audio.offered()
     }
 

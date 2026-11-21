@@ -16,6 +16,8 @@
 - Loading a preset no longer says the speaker already has its values when nothing could be
   compared: an EQ value went missing, the speaker is gone, or the preset holds only values this
   model does not have.
+- The Windows volume strip, when switched on in the settings, now shows also before any speaker
+  is added.
 
 ## [0.2.1] - 2026-11-03
 

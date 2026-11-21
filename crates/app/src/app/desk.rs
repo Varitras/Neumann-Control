@@ -93,9 +93,13 @@ impl NeumannApp {
     }
 
     pub(super) fn show_desk(&mut self, ui: &mut Ui) {
-        if self.speakers.is_empty() {
+        let no_speakers = self.speakers.is_empty();
+        if no_speakers {
             ui.weak(texts::NO_SPEAKERS);
-            return;
+            // The Windows strip needs no speaker.
+            if !self.system_strip_on() {
+                return;
+            }
         }
         let catalog = Catalog::embedded();
         let desk = self.settings.desk.clone();
@@ -201,7 +205,7 @@ impl NeumannApp {
                             }
                         }
                     }
-                    if desk.show_master {
+                    if desk.show_master && !no_speakers {
                         let everyone: Vec<usize> = (0..self.speakers.len()).collect();
                         let states = self.states(&everyone);
                         let level = shared_level(&levels(&states), &range);

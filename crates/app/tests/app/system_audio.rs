@@ -67,6 +67,41 @@ fn desk_on(
     (simulator, directory, harness)
 }
 
+/// No speaker yet, the strip chosen or not, the master shown if there were any.
+fn empty_desk(shown: bool, audio: FakeAudio) -> (tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut stored = settings::load(&path);
+    stored.system_audio = SystemAudioSettings {
+        shown,
+        device: None,
+    };
+    stored.desk.show_master = true;
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness_with_audio(path, audio);
+    harness.run_steps(3);
+    (directory, harness)
+}
+
+/// The strip needs no speaker: it was missing until one was added, with the desk saying only
+/// that there are none.
+#[test]
+fn the_strip_shows_on_a_desk_without_speakers() {
+    let (_directory, harness) = empty_desk(true, fake(Some(playing())));
+    harness.get_by_label(texts::NO_SPEAKERS.get());
+    harness.get_by_label(DEVICE_NAME);
+    assert!(harness.query_by_label(texts::MASTER.get()).is_none());
+}
+
+#[test]
+fn a_desk_without_speakers_leaves_a_strip_switched_off_away() {
+    let audio = fake(Some(playing()));
+    let (_directory, harness) = empty_desk(false, audio.clone());
+    harness.get_by_label(texts::NO_SPEAKERS.get());
+    assert!(harness.query_by_label(DEVICE_NAME).is_none());
+    assert!(audio.0.lock().unwrap().asked.is_empty());
+}
+
 #[test]
 fn the_strip_is_off_until_chosen() {
     let audio = fake(Some(playing()));
