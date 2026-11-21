@@ -1282,3 +1282,23 @@ fn each_strip_is_a_group_named_after_what_it_shows() {
     }
     harness.get_by_role_and_label(Role::Group, &texts::strip_region(GROUP_NAME));
 }
+
+/// Own windows note their places in memory only; leaving the app saves them. It saved only once
+/// the main window was no longer fitted to its content, so those places were lost.
+#[test]
+fn leaving_saves_the_settings_while_the_window_is_still_fitted() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    // No window of its own: the main window is fitted to the desk.
+    let stored = settings::Settings {
+        manual: vec![manual_for(&simulator)],
+        ..settings::Settings::default()
+    };
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.run_steps(4);
+    std::fs::write(&path, r#"{"manual":[]}"#).unwrap();
+    eframe::App::on_exit(harness.state_mut());
+    assert_eq!(settings::load(&path).manual.len(), 1);
+}
