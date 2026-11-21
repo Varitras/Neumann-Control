@@ -52,13 +52,13 @@ fn ctrl_m_mutes_all_and_again_unmutes() {
 #[test]
 fn a_held_ctrl_m_switches_once() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    harness.key_press_modifiers(Modifiers::COMMAND, Key::M);
-    for _ in 0..3 {
+    // Held: egui marks each press after the first a repeat until the key is released.
+    for pressed in [true, true, true, true, false] {
         harness.input_mut().events.push(egui::Event::Key {
             key: Key::M,
             physical_key: None,
-            pressed: true,
-            repeat: true,
+            pressed,
+            repeat: false,
             modifiers: Modifiers::COMMAND,
         });
         harness.step();
