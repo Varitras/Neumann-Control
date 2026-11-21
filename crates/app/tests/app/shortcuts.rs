@@ -47,6 +47,31 @@ fn ctrl_m_mutes_all_and_again_unmutes() {
     });
 }
 
+/// The key held down repeats: Ctrl+M and Ctrl+D switch once per press, as the global hot keys
+/// do. Each repeat flipped mute (or dim) again on every speaker.
+#[test]
+fn a_held_ctrl_m_switches_once() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::M);
+    for _ in 0..3 {
+        harness.input_mut().events.push(egui::Event::Key {
+            key: Key::M,
+            physical_key: None,
+            pressed: true,
+            repeat: true,
+            modifiers: Modifiers::COMMAND,
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+    wait_until(&mut harness, "all muted", |_| {
+        !mute_sets(&simulator).is_empty()
+    });
+    writes_answered(&mut harness, &simulator);
+    barrier(&simulator);
+    assert_eq!(mute_sets(&simulator), [Value::Bool(true)]);
+}
+
 /// Dim lowers by 20 dB; dim again goes back to exactly the levels before, also where the range
 /// stopped the way down.
 #[test]
