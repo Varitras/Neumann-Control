@@ -7,7 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{Ipv6Addr, Shutdown, SocketAddr, SocketAddrV6, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -353,39 +353,36 @@ impl Drop for Simulator {
     }
 }
 
-/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`. nextest's
-/// slot is unique among the tests running at once; process numbers can share a range, so they
-/// count only under `cargo test`, which runs one test process at a time.
+/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`: from
+/// nextest's slot (under `cargo test` the process number) on, the first range no other process
+/// holds, kept for the life of the process.
 fn process_start(slot: Option<&str>, process_id: u32) -> u16 {
+    static CLAIMED: OnceLock<(u16, TcpListener)> = OnceLock::new();
     let position = slot
         .and_then(|slot| slot.parse::<u32>().ok())
         .unwrap_or(process_id);
-    claim_range(position).0
+    CLAIMED.get_or_init(|| claim_range(position)).0
 }
 
-/// The range at `preferred`, as an offset into `SIMULATOR_PORTS`, and what keeps it.
-fn claim_range(preferred: u32) -> (u16, Option<TcpListener>) {
+/// The first range from `preferred` on whose last port can be bound, and that port's listener:
+/// while it is held, no other process takes the range. Slots alone repeat in every nextest run
+/// (`cargo mutants -j 4` starts four), process numbers repeat modulo the ranges.
+fn claim_range(preferred: u32) -> (u16, TcpListener) {
     let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
-    ((preferred % processes) as u16 * PORTS_PER_PROCESS, None)
+    for step in 0..processes {
+        let start = ((preferred + step) % processes) as u16 * PORTS_PER_PROCESS;
+        let guard = SIMULATOR_PORTS.start + start + PORTS_PER_PROCESS - 1;
+        if let Ok(listener) = TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, guard, 0, 0))
+        {
+            return (start, listener);
+        }
+    }
+    panic!("no simulator port range is free on the IPv6 loopback address");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Two process numbers 120 apart got the same ports; under nextest, where every test is a
-    /// process of its own, a stopped simulator's port then went to the other test, and a test
-    /// expecting its speaker unreachable met that one.
-    #[test]
-    fn tests_running_at_once_under_nextest_get_ports_apart() {
-        const SAME_RANGE_PROCESSES: [u32; 2] = [5, 125];
-        let starts: Vec<u16> = ["0", "1"]
-            .iter()
-            .zip(SAME_RANGE_PROCESSES)
-            .map(|(slot, process_id)| process_start(Some(slot), process_id))
-            .collect();
-        assert_ne!(starts[0], starts[1]);
-    }
 
     /// nextest's slots start at 0 in every run, so the runs of `cargo mutants -j 4` shared
     /// ranges; process numbers repeat too. A range is held by one process at a time.
