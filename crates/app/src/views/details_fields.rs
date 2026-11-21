@@ -192,8 +192,9 @@ impl Fields<'_> {
         let mut draft = ui
             .data(|data| data.get_temp::<TextDraft>(draft_id))
             .unwrap_or_default();
-        let focused = ui.memory(|memory| memory.has_focus(field_id));
-        if !draft.edited && !focused {
+        // Untouched, the draft follows the speaker even with the focus: Enter in it wrote the
+        // name from when it got the focus, undoing a rename made meanwhile.
+        if !draft.edited {
             draft.text = latest.as_deref().map(capped).unwrap_or_default();
         }
         let label = ui.label(entry.label(texts::language()));
