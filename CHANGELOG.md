@@ -33,6 +33,12 @@
   longer changes its level.
 - Removing a speaker removes the right one when two speakers were remembered at the same address.
 - If the settings file or its desk part cannot be read, **Protect crossovers** is switched on.
+- A speaker that reports no name, firmware, model or serial is now used with that field empty
+  instead of being shown as unreachable, and one added from a scan is no longer refused because
+  its serial holds unusual characters.
+- Full-scan reports and **All values** hide network addresses also when written with a port, a
+  prefix or a full stop after them; copied refusal texts are masked too.
+- Very long model, firmware and history texts from a speaker are cut, as other device texts are.
 
 ## [0.2.1] - 2026-11-03
 
