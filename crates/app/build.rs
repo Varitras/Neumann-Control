@@ -36,24 +36,8 @@ fn product_version() -> String {
     println!("cargo:rerun-if-changed={}", path.display());
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
-    let version = text.trim();
-    let well_formed = version.split('.').count() == 3
-        && version
-            .split('.')
-            .all(|part| !part.is_empty() && part.chars().all(|digit| digit.is_ascii_digit()));
-    assert!(
-        well_formed,
-        "{} must hold one version like 0.2.1, found {version:?}",
-        path.display()
-    );
-    version.to_owned()
+    checked_version(&text)
+        .unwrap_or_else(|problem| panic!("{} must hold {problem}", path.display()))
 }
 
-/// Windows' four 16-bit fields, major first; the fourth stays 0.
-fn numeric_version(version: &str) -> u64 {
-    version
-        .split('.')
-        .map(|part| part.parse::<u64>().expect("checked digits"))
-        .zip([48, 32, 16])
-        .fold(0, |packed, (part, shift)| packed | (part << shift))
-}
+include!("src/product_version.rs");
