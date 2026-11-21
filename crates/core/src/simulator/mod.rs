@@ -357,11 +357,16 @@ impl Drop for Simulator {
 /// slot is unique among the tests running at once; process numbers can share a range, so they
 /// count only under `cargo test`, which runs one test process at a time.
 fn process_start(slot: Option<&str>, process_id: u32) -> u16 {
-    let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
     let position = slot
         .and_then(|slot| slot.parse::<u32>().ok())
         .unwrap_or(process_id);
-    (position % processes) as u16 * PORTS_PER_PROCESS
+    claim_range(position).0
+}
+
+/// The range at `preferred`, as an offset into `SIMULATOR_PORTS`, and what keeps it.
+fn claim_range(preferred: u32) -> (u16, Option<TcpListener>) {
+    let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
+    ((preferred % processes) as u16 * PORTS_PER_PROCESS, None)
 }
 
 #[cfg(test)]
@@ -380,5 +385,15 @@ mod tests {
             .map(|(slot, process_id)| process_start(Some(slot), process_id))
             .collect();
         assert_ne!(starts[0], starts[1]);
+    }
+
+    /// nextest's slots start at 0 in every run, so the runs of `cargo mutants -j 4` shared
+    /// ranges; process numbers repeat too. A range is held by one process at a time.
+    #[test]
+    fn a_range_another_process_holds_is_not_taken() {
+        const PREFERRED: u32 = 7;
+        let (first, _held) = claim_range(PREFERRED);
+        let (second, _also_held) = claim_range(PREFERRED);
+        assert_ne!(first, second);
     }
 }
