@@ -1148,6 +1148,28 @@ fn the_export_saves_the_chosen_eq_as_apo_lines() {
     harness.get_by_label(&texts::eq_export_report("export.txt", &[])[0]);
 }
 
+/// A failed export must leave the file it was to replace: writing it in place lost the old
+/// filters once the write broke off (a full disk). A folder where the temporary file goes makes
+/// the write fail here.
+#[test]
+fn a_failed_export_keeps_the_file_it_was_to_replace() {
+    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let path = directory.path().join("export.txt");
+    std::fs::write(&path, "old filters").unwrap();
+    std::fs::create_dir(directory.path().join("export.txt.tmp")).unwrap();
+    let files = FakeFiles {
+        save: Some(path.clone()),
+        ..FakeFiles::default()
+    };
+    use_files(&mut harness, &files);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
+        .click();
+    harness.run_steps(2);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "old filters");
+    harness.get_by_label_contains(&texts::eq_file_unwritable("export.txt", "")[0]);
+}
+
 #[test]
 fn a_cancelled_file_dialog_changes_nothing() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
