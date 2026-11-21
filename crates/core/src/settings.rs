@@ -42,7 +42,7 @@ pub struct Settings {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub windows: BTreeMap<String, WindowGeometry>,
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "readable_desk")]
     pub desk: DeskSettings,
     #[serde(deserialize_with = "readable_items")]
     pub groups: Vec<GroupSettings>,
@@ -358,6 +358,16 @@ pub struct StoredStripLayout {
     pub below: Vec<StripElement>,
 }
 
+impl DeskSettings {
+    /// The defaults for desk settings that could not be read: the crossovers stay protected.
+    fn unread() -> DeskSettings {
+        DeskSettings {
+            crossovers: CrossoverGuard::Protected,
+            ..DeskSettings::default()
+        }
+    }
+}
+
 impl Default for DeskSettings {
     fn default() -> DeskSettings {
         DeskSettings {
@@ -522,6 +532,23 @@ where
         );
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
         T::default()
+    }))
+}
+
+/// Like `or_default`, but an unreadable desk keeps the crossovers protected: open is the choice
+/// of a fresh install, not of a block that was not understood.
+fn readable_desk<'de, D>(deserializer: D) -> Result<DeskSettings, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(DeskSettings::deserialize(value).unwrap_or_else(|error| {
+        log::warn!(
+            "the desk settings are not understood ({:?}); using their defaults",
+            error.classify()
+        );
+        NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
+        DeskSettings::unread()
     }))
 }
 
@@ -704,7 +731,11 @@ fn set_aside(path: &Path, may_write: bool) -> Loaded {
         true => LoadOutcome::SetAside,
         false => LoadOutcome::Untouchable,
     };
-    loaded(Settings::default(), outcome)
+    let settings = Settings {
+        desk: DeskSettings::unread(),
+        ..Settings::default()
+    };
+    loaded(settings, outcome)
 }
 
 /// How many values of the file `bytes` saving `settings` would lose: keys this version does not

@@ -82,12 +82,28 @@ fn save_replaces_existing_file() {
     assert_eq!(load(&path), sample());
 }
 
+/// What desk settings that cannot be read load as: the defaults, with the crossovers protected.
+fn unread_desk() -> DeskSettings {
+    DeskSettings {
+        crossovers: CrossoverGuard::Protected,
+        ..DeskSettings::default()
+    }
+}
+
+/// What a file that cannot be read loads as.
+fn unread_settings() -> Settings {
+    Settings {
+        desk: unread_desk(),
+        ..Settings::default()
+    }
+}
+
 #[test]
 fn malformed_file_is_moved_aside() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, "{ not json").unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert!(!path.exists());
     assert_eq!(
         fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
@@ -105,7 +121,7 @@ fn existing_bad_file_is_never_overwritten() {
     )
     .unwrap();
     fs::write(&path, "second").unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert_eq!(
         fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
         "first"
@@ -200,7 +216,7 @@ fn a_desk_of_the_wrong_type_keeps_the_speakers() {
     let loaded = load_checked(&path);
     assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
     assert_eq!(loaded.settings.manual.len(), 1);
-    assert_eq!(loaded.settings.desk, DeskSettings::default());
+    assert_eq!(loaded.settings.desk, unread_desk());
 }
 
 /// A file that can be neither read nor moved aside (held open by another program) must not
@@ -385,7 +401,7 @@ fn an_unreadable_file_is_moved_aside_not_taken_for_missing() {
     let path = directory.path().join(SETTINGS_FILE);
     // A folder in its place cannot be read, and is not "not found" either.
     fs::create_dir(&path).unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert!(!path.exists());
     let set_aside = directory.path().join(format!("{SETTINGS_FILE}.bad"));
     assert!(set_aside.is_dir());
