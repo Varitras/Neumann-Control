@@ -690,6 +690,27 @@ fn every_settings_map_keeps_its_readable_entries() {
     }
 }
 
+/// Open is the choice of a fresh install, not of a file that cannot be read: an unreadable desk
+/// block or a file set aside left the crossovers open, against "not understood is protected".
+#[test]
+fn crossovers_are_protected_when_their_settings_cannot_be_read() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Open, "no file");
+    fs::write(&path, r#"{"manual":[],"desk":7}"#).unwrap();
+    assert_eq!(
+        load(&path).desk.crossovers,
+        CrossoverGuard::Protected,
+        "desk"
+    );
+    fs::write(&path, "not json").unwrap();
+    assert_eq!(
+        load(&path).desk.crossovers,
+        CrossoverGuard::Protected,
+        "file"
+    );
+}
+
 /// Out of the box the master strip is hidden and the crossovers may be changed; a crossover value
 /// that cannot be read still falls back to protected.
 #[test]
