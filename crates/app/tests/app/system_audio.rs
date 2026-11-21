@@ -93,6 +93,26 @@ fn the_strip_shows_on_a_desk_without_speakers() {
     assert!(harness.query_by_label(texts::MASTER.get()).is_none());
 }
 
+/// Without speakers a group has no member on the desk: its strip stays away like the master's.
+/// It showed beside the Windows strip with nothing to control.
+#[test]
+fn an_empty_desk_shows_no_group_strip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut stored = settings::load(&path);
+    stored.system_audio = SystemAudioSettings {
+        shown: true,
+        device: None,
+    };
+    let group = serde_json::json!({"name": "Front", "members": ["serial:SIM9999999"]});
+    stored.groups.push(serde_json::from_value(group).unwrap());
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness_with_audio(path, fake(Some(playing())));
+    harness.run_steps(3);
+    harness.get_by_label(DEVICE_NAME);
+    assert!(harness.query_by_label("Front").is_none());
+}
+
 #[test]
 fn a_desk_without_speakers_leaves_a_strip_switched_off_away() {
     let audio = fake(Some(playing()));
