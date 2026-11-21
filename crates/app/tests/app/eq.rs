@@ -926,7 +926,14 @@ fn an_import_preview_of_a_container_gone_stays_and_says_why() {
     );
     simulator.remove_value("audio/out/eq2/gain");
     simulator.inject(Fault::CloseConnection);
-    wait_for_label(&mut harness, texts::EQ_NOT_REPORTED.get());
+    // Said in the EQ window and in the preview.
+    wait_until(&mut harness, "the container gone", |harness| {
+        harness
+            .query_all_by_label(texts::EQ_NOT_REPORTED.get())
+            .count()
+            >= 1
+    });
+    harness.run_steps(2);
     let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());
     assert!(write.accesskit_node().is_disabled());
     barrier(&simulator);
