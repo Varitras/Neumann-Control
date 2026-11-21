@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 rust-version.workspace = true
+# Not on crates.io; cargo-about leaves it out of the third-party licence list.
+publish = false
 
 [features]
 test-support = []

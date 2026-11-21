@@ -2,6 +2,8 @@
 targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 ignore-dev-dependencies = true
 ignore-build-dependencies = false
+# The workspace's own crates (publish = false) are not third-party.
+private = { ignore = true }
 
 # The set actually present in the release dependency graph of the workspace,
 # found by running `cargo about generate` once with a permissive list and

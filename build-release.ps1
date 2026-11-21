@@ -30,6 +30,8 @@ $glibcFloor = [version]'2.39'
 $releaseFiles = @($executable, 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
 # The product version; Cargo.toml stays at 0.0.0 (see crates/app/build.rs).
 $versionFile = 'VERSION'
+# A workspace crate as the licence list names one: name, space, version.
+$ownCrates = 'neumann-control-(app|core|manual) \d'
 
 function Invoke-Step {
     param([string] $Name, [scriptblock] $Command)
@@ -153,6 +155,12 @@ $licensesPath = Join-Path $releaseDirectory 'THIRD-PARTY-LICENSES.html'
 Invoke-Step 'Generate third-party licenses' {
     # The app's graph only: the manual generator is not part of what ships.
     cargo about generate -m crates/app/Cargo.toml --target $licenceTarget --locked --fail -c about.toml about.hbs -o $licensesPath
+    if ($LASTEXITCODE -ne 0) { return }
+    # Our own crates are not third-party, and their Cargo version is a fixed 0.0.0.
+    if (Select-String -LiteralPath $licensesPath -Pattern $ownCrates -Quiet) {
+        Write-Host "THIRD-PARTY-LICENSES.html lists the app's own crates" -ForegroundColor Red
+        $global:LASTEXITCODE = 1
+    }
 }
 
 $sumsPath = Join-Path $releaseDirectory 'SHA256SUMS'
