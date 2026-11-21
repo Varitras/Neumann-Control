@@ -1236,6 +1236,18 @@ mod tests {
         assert_eq!(trend_start(60.0), "−1 min");
     }
 
+    /// A device text in the history is cut like everywhere else the app shows one.
+    #[test]
+    fn a_long_device_text_in_the_history_is_cut() {
+        use crate::display::VALUE_CHARACTER_LIMIT;
+        let long = serde_json::json!("x".repeat(3 * VALUE_CHARACTER_LIMIT));
+        let list = serde_json::json!(vec!["y".repeat(VALUE_CHARACTER_LIMIT); 3]);
+        for value in [long, list] {
+            let shown = history_value(&value, None).chars().count();
+            assert!(shown <= VALUE_CHARACTER_LIMIT + 1, "{shown}");
+        }
+    }
+
     #[test]
     fn a_list_value_reads_entry_by_entry() {
         let value = serde_json::json!([0.0, -20.5]);
