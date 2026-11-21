@@ -17,7 +17,7 @@ use serde_json::Value;
 use crate::address::{is_link_local, link_local_addresses};
 use crate::catalog::{Catalog, Entry};
 use crate::discovery::cleaned;
-use crate::mask::{mask_host, mask_serial};
+use crate::mask::{mask_device_text, mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
 use crate::schema_walk::{LeafReport, Progress, Walk, WalkError};
 use crate::ssc::client::{Client, SscError};
@@ -527,8 +527,13 @@ impl Worker {
                 }
             }
             Err(lost) if lost.is_connection_lost() => return Err(Interruption::Lost(lost)),
-            // Nothing the user could act on; the next poll asks again.
-            Err(error) => log::warn!("{} could not read {path}: {error}", self.host),
+            // Nothing the user could act on; the next poll asks again. The device's own words are
+            // masked like any device text.
+            Err(error) => log::warn!(
+                "{} could not read {path}: {}",
+                self.host,
+                mask_device_text(&error.to_string())
+            ),
         }
         Ok(())
     }

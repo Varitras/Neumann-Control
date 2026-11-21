@@ -2,7 +2,7 @@
 //! identifiers masked and device text capped. No drawing here.
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::mask::{mask_serial, mask_serial_like};
+use neumann_control_core::mask::{mask_device_text, mask_serial};
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::Value;
 
@@ -36,7 +36,7 @@ impl Row<'_> {
     /// because only a click needs it.
     pub fn copy_text(&self) -> String {
         let value = match &self.report.value {
-            Err(refusal) => refusal.clone(),
+            Err(refusal) => mask_device_text(refusal),
             Ok(_) => value_text(self.report, &self.path),
         };
         format!("{}{COPY_SEPARATOR}{value}", self.path)
@@ -85,10 +85,10 @@ fn masked_identifier(value: &Value) -> String {
         .join(IDENTIFIER_SEPARATOR)
 }
 
-/// `value` with every text in it masked like a serial where it looks like one.
+/// `value` with every address and serial-like run in its texts masked.
 fn masked_texts(value: &Value) -> Value {
     match value {
-        Value::String(text) => Value::String(mask_serial_like(text)),
+        Value::String(text) => Value::String(mask_device_text(text)),
         Value::Array(items) => Value::Array(items.iter().map(masked_texts).collect()),
         Value::Object(fields) => Value::Object(
             fields

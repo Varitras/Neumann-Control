@@ -12,6 +12,20 @@ const KEPT_SERIAL_CHARACTERS: usize = 3;
 const ELLIPSIS: char = '…';
 /// Shorter digit runs are years, levels or model numbers rather than a serial.
 const SERIAL_LIKE_DIGITS: usize = 8;
+/// Stands for every value a report or a shown device text leaves out.
+pub const REDACTED: &str = "<redacted>";
+const MAC_GROUPS: usize = 6;
+const MAC_GROUP_LENGTH: usize = 2;
+/// A full IPv6 address has seven colons; a shortened one has `::`. A clock time has two at most.
+const IPV6_FULL_COLONS: usize = 7;
+const IPV6_SHORTENED: &str = "::";
+const IPV4_GROUPS: usize = 4;
+/// Punctuation around an address in a word; brackets are not among it, `[address]:port` is
+/// told by them.
+const WORD_TRIM: &str = ",;()\"'";
+/// What may end a sentence right after an address ("reached at 192.0.2.5.").
+const SENTENCE_END: [char; 4] = ['.', '!', '?', ':'];
+const PORT_SEPARATOR: char = ':';
 
 /// Keeps the first four groups (the network prefix) and only the low byte of
 /// the last group, so the interface identifier never reaches logs.
@@ -80,6 +94,84 @@ pub fn mask_serial_like(text: &str) -> String {
     }
     flush(&mut digits, &mut masked);
     masked
+}
+
+/// `text` with each word that holds an address replaced by `REDACTED`: an IPv4, IPv6 or MAC
+/// address, also as `key=address`, `[address]:port`, `address:port`, `address/prefix` or followed
+/// by sentence punctuation. The one rule for every way a device text leaves the app.
+pub fn mask_addresses_in(text: &str) -> String {
+    let mut masked = String::new();
+    // Whitespace of any kind separates words; it stays as it was.
+    for piece in text.split_inclusive(char::is_whitespace) {
+        let word = piece.trim_end_matches(char::is_whitespace);
+        masked.push_str(&masked_word(word));
+        masked.push_str(&piece[word.len()..]);
+    }
+    masked
+}
+
+/// `mask_addresses_in`, then `mask_serial_like`: for a device text whose speaker is not known.
+pub fn mask_device_text(text: &str) -> String {
+    mask_serial_like(&mask_addresses_in(text))
+}
+
+fn masked_word(word: &str) -> String {
+    let value = word.rsplit_once('=').map_or(word, |(_, value)| value);
+    let bare = value.trim_matches(|character: char| WORD_TRIM.contains(character));
+    let bracketed = bare
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once(']'))
+        .map(|(inside, _)| inside);
+    let candidate = bracketed.unwrap_or(bare);
+    let candidate = candidate.split('/').next().unwrap_or_default();
+    match address_in(candidate) {
+        Some(address) => word.replace(address, REDACTED),
+        None => word.to_owned(),
+    }
+}
+
+/// The address `candidate` is, without sentence punctuation after it or a port.
+fn address_in(candidate: &str) -> Option<&str> {
+    let trimmed = candidate.trim_end_matches(SENTENCE_END);
+    let without_port = trimmed
+        .rsplit_once(PORT_SEPARATOR)
+        .filter(|(_, port)| !port.is_empty() && port.chars().all(|digit| digit.is_ascii_digit()))
+        .map(|(host, _)| host)
+        .filter(|host| looks_like_ipv4(host));
+    [Some(candidate), Some(trimmed), without_port]
+        .into_iter()
+        .flatten()
+        .find(|address| !address.is_empty() && looks_like_address(address))
+}
+
+fn looks_like_address(word: &str) -> bool {
+    looks_like_mac(word) || looks_like_ipv6(word) || looks_like_ipv4(word)
+}
+
+fn looks_like_ipv4(word: &str) -> bool {
+    let groups: Vec<&str> = word.split('.').collect();
+    groups.len() == IPV4_GROUPS && groups.iter().all(|group| group.parse::<u8>().is_ok())
+}
+
+fn looks_like_mac(word: &str) -> bool {
+    let groups: Vec<&str> = word.split([':', '-']).collect();
+    groups.len() == MAC_GROUPS
+        && groups.iter().all(|group| {
+            group.len() == MAC_GROUP_LENGTH && group.chars().all(|digit| digit.is_ascii_hexdigit())
+        })
+}
+
+fn looks_like_ipv6(word: &str) -> bool {
+    let address = word.split('%').next().unwrap_or_default();
+    let colons = address.matches(':').count();
+    let allowed = address
+        .chars()
+        .all(|character| character.is_ascii_hexdigit() || character == ':' || character == '.');
+    let has_digit = address
+        .chars()
+        .any(|character| character.is_ascii_hexdigit());
+    let shaped = address.contains(IPV6_SHORTENED) || colons >= IPV6_FULL_COLONS;
+    shaped && allowed && has_digit
 }
 
 #[cfg(test)]
