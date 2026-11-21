@@ -5,13 +5,17 @@
 /// The file's text as `major.minor.patch`, or why it is not one.
 pub fn checked_version(text: &str) -> Result<String, String> {
     let version = text.trim();
+    // Each part is one 16-bit field of the exe's version.
     let well_formed = version.split('.').count() == 3
-        && version
-            .split('.')
-            .all(|part| !part.is_empty() && part.chars().all(|digit| digit.is_ascii_digit()));
+        && version.split('.').all(|part| {
+            part.chars().all(|digit| digit.is_ascii_digit()) && part.parse::<u16>().is_ok()
+        });
     match well_formed {
         true => Ok(version.to_owned()),
-        false => Err(format!("one version like 0.2.1, found {version:?}")),
+        false => Err(format!(
+            "one version like 0.2.1, each part at most {}, found {version:?}",
+            u16::MAX
+        )),
     }
 }
 

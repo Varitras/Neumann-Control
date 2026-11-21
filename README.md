@@ -579,8 +579,7 @@ section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml
 Windows and Linux runners it runs `build-release.ps1 -KeepVersion` (the scripts run in PowerShell 7
 on Linux too) and drafts a GitHub release with the Windows folder as a ZIP, the Linux folder as a
 `.tar.gz`, a `SHA256SUMS` of both and that CHANGELOG section as its text, marked as a prerelease
-below 1.0 or with a version suffix (`-alpha.1`); the draft is published by hand. CI runs
-`check.ps1` on Windows and on Linux.
+below 1.0; the draft is published by hand. CI runs `check.ps1` on Windows and on Linux.
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
 `.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into
