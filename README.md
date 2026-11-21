@@ -447,7 +447,8 @@ it). It sets:
 - on Windows, whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
   default device or a chosen one): a fader in percent, mute and a peak meter per channel, named
   after its speaker position (L, R, C, LFE, BL, BR, SL, SR …) as the device's format gives it. It
-  sets Windows' own volume, like the volume slider in the taskbar.
+  sets Windows' own volume, like the volume slider in the taskbar. The strip shows also before
+  any speaker is added.
 
 ### Help and updates
 
