@@ -3,7 +3,8 @@ members = ["crates/core", "crates/app", "crates/manual"]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.1"
+# Fixed: the product version is in VERSION (see crates/app/build.rs).
+version = "0.0.0"
 edition = "2021"
 authors = ["Varitras"]
 license = "MIT"
@@ -11,7 +12,7 @@ repository = "https://github.com/Varitras/Neumann-Control"
 rust-version = "1.95"
 
 # Dependencies carry no debug info in dev and test builds: their PDBs made up
-# most of a target directory that grew past 40 GB; our own crate keeps its own.
+# most of a target directory that grew past 40 GB.
 [profile.dev.package."*"]
 debug = false
 

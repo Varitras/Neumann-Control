@@ -2,7 +2,7 @@
 .SYNOPSIS
     Builds a release binary and drops it into <OutputRoot>\neumann-control-<version>\ (on Linux
     <OutputRoot>/neumann-control-<version>-linux-x86_64/). Each
-    build raises the patch of the workspace version (0.1.0 -> 0.1.1) once the gate has passed
+    build raises the patch of the version in VERSION (0.1.0 -> 0.1.1) once the gate has passed
     and commits that alone; -KeepVersion builds the version as it is (a rebuild). OutputRoot
     defaults to release\ in the repository. A release folder that already holds files is refused
     unless -Force is given.
@@ -28,9 +28,8 @@ $licenceTarget = if ($onWindows) { 'x86_64-pc-windows-msvc' } else { 'x86_64-unk
 $glibcFloor = [version]'2.39'
 # The one list of what a release folder holds; anything else in it fails the build.
 $releaseFiles = @($executable, 'neumann-control-manual.html', 'LICENSE', 'THIRD-PARTY-LICENSES.html', 'SHA256SUMS')
-# Only the version line of [workspace.package]: a plain match would also hit a dependency
-# pinned with `version = "..."`.
-$workspaceVersionLine = [regex]'(\[workspace\.package\][^\[]*?\nversion = ")([^"]+)(")'
+# The product version; Cargo.toml stays at 0.0.0 (see crates/app/build.rs).
+$versionFile = 'VERSION'
 
 function Invoke-Step {
     param([string] $Name, [scriptblock] $Command)
@@ -66,10 +65,8 @@ function Assert-CleanTree {
     }
 }
 
-function Get-WorkspaceVersion {
-    $match = $workspaceVersionLine.Match([System.IO.File]::ReadAllText((Resolve-Path 'Cargo.toml')))
-    if (-not $match.Success) { throw 'could not find the [workspace.package] version in Cargo.toml' }
-    $match.Groups[2].Value
+function Get-ProductVersion {
+    [System.IO.File]::ReadAllText((Resolve-Path $versionFile)).Trim()
 }
 
 # Only the patch moves: the version stays below 1.0 until a release says otherwise.
@@ -79,19 +76,17 @@ function Get-NextPatch {
     "$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)"
 }
 
-function Set-WorkspaceVersion {
+function Set-ProductVersion {
     param([string] $Version)
-    $path = (Resolve-Path 'Cargo.toml').Path
-    $text = [System.IO.File]::ReadAllText($path)
-    $changed = $workspaceVersionLine.Replace($text, "`${1}$Version`${3}", 1)
-    [System.IO.File]::WriteAllText($path, $changed, (New-Object System.Text.UTF8Encoding $false))
+    $path = (Resolve-Path $versionFile).Path
+    [System.IO.File]::WriteAllText($path, "$Version`n", (New-Object System.Text.UTF8Encoding $false))
 }
 
 Assert-Tool 'cargo-about' 'Install with: cargo install cargo-about --locked'
 if (-not $onWindows) { Assert-Tool 'objdump' 'Install binutils.' }
 Assert-CleanTree
 
-$version = Get-WorkspaceVersion
+$version = Get-ProductVersion
 if (-not $KeepVersion) { $version = Get-NextPatch $version }
 
 # Checked before the gate: a rerun must not silently replace an exe already built.
@@ -115,11 +110,8 @@ Invoke-Step 'Quality gates' { & (Join-Path $PSScriptRoot 'check.ps1') }
 
 if (-not $KeepVersion) {
     Invoke-Step "Raise the version to $version" {
-        Set-WorkspaceVersion $version
-        # The lock file names the workspace crates' versions too; --locked below needs it current.
-        cargo update --workspace --offline
-        if ($LASTEXITCODE -ne 0) { return }
-        git add Cargo.toml Cargo.lock
+        Set-ProductVersion $version
+        git add $versionFile
         if ($LASTEXITCODE -ne 0) { return }
         git commit -q -m "Bump version to $version"
     }
