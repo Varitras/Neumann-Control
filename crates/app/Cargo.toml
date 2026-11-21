@@ -62,7 +62,7 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
 libc = "0.2"
 
 [build-dependencies]
-# Puts the icon into the executable, for Explorer and the taskbar.
+# Puts the icon and the version into the executable, for Explorer and the taskbar.
 winresource = "0.1"
 
 [dev-dependencies]

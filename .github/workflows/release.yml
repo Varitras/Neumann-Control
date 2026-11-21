@@ -24,11 +24,9 @@ jobs:
         shell: pwsh
         run: |
           $tag = '${{ github.ref_name }}'
-          $manifest = Get-Content Cargo.toml -Raw
-          if ($manifest -notmatch '(?s)\[workspace\.package\][^\[]*?\nversion = "([^"]+)"') {
-            throw 'no [workspace.package] version in Cargo.toml'
-          }
-          $version = $Matches[1]
+          # The product version; Cargo.toml stays at 0.0.0.
+          $version = (Get-Content VERSION -Raw).Trim()
+          if (-not $version) { throw 'VERSION is empty' }
           if ($tag -ne "v$version") { throw "tag $tag does not match version $version" }
           git merge-base --is-ancestor HEAD origin/main
           if ($LASTEXITCODE -ne 0) { throw "tag $tag is not on main" }

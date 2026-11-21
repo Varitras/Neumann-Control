@@ -37,7 +37,7 @@ pub fn show(ui: &mut Ui, update: &UpdateView) -> AboutAction {
 fn contents(ui: &mut Ui, update: &UpdateView) -> AboutAction {
     let mut action = AboutAction::None;
     ui.heading(texts::WINDOW_TITLE);
-    ui.label(texts::version(env!("CARGO_PKG_VERSION")));
+    ui.label(texts::version(env!("APP_VERSION")));
     ui.label(texts::LICENCE);
     if ui.link(texts::PROJECT_PAGE).clicked() {
         action = AboutAction::Open(REPOSITORY_URL.to_owned());

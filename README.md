@@ -560,7 +560,7 @@ The executable is `target\release\neumann-control.exe` (on Linux `target/release
 carriage returns, a test of `release-notes.ps1`, format, licence check, `cargo audit`, clippy and
 the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
-raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
+raises the patch version in the file `VERSION` and commits that alone (`-KeepVersion` builds the
 version as it is), and writes `release\neumann-control-<version>\` (on Linux
 `release/neumann-control-<version>-linux-x86_64/`; or `-OutputRoot <folder>`) with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. On Linux
 it stops when the executable needs a glibc newer than 2.39, as one built on a newer system does.
@@ -570,7 +570,7 @@ The manual is this README as one HTML file with its pictures embedded, made by `
 cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
 ```
 
-A release is a tag `v<version>` on `main` whose version matches `Cargo.toml` and has its own
+A release is a tag `v<version>` on `main` whose version matches the file `VERSION` and has its own
 section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml`: on clean
 Windows and Linux runners it runs `build-release.ps1 -KeepVersion` (the scripts run in PowerShell 7
 on Linux too) and drafts a GitHub release with the Windows folder as a ZIP, the Linux folder as a

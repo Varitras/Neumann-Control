@@ -141,7 +141,7 @@ pub fn parse_releases(body: &str) -> Result<Option<Release>, String> {
 }
 
 /// GitHub refuses API calls without one.
-const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("neumann-control/", env!("APP_VERSION"));
 
 /// GitHub's status and body for the list of releases. A repository without releases lists
 /// none; anything but 200 is not an answer.
@@ -163,7 +163,7 @@ impl UpdateCheck {
         let result = Arc::new(Mutex::new(None));
         let answer = Arc::clone(&result);
         thread::spawn(move || {
-            let found = verdict(env!("CARGO_PKG_VERSION"), help.latest_release());
+            let found = verdict(env!("APP_VERSION"), help.latest_release());
             *answer
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(found);

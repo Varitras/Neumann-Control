@@ -19,6 +19,15 @@ fn app_with(help: &FakeHelp) -> (tempfile::TempDir, Harness<'static, NeumannApp>
     (directory, harness)
 }
 
+/// The product version as the repository states it, read here rather than taken from the build.
+fn version_file() -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../VERSION");
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()))
+        .trim()
+        .to_owned()
+}
+
 fn choose_from_help(harness: &mut Harness<'static, NeumannApp>, item: &str) {
     harness.get_by_label(texts::HELP.get()).click();
     harness.run_steps(2);
@@ -83,7 +92,7 @@ fn a_link_that_does_not_open_is_said() {
 fn about_tells_when_no_release_is_published() {
     let (_directory, mut harness) = app_with(&FakeHelp::default());
     choose_from_help(&mut harness, texts::ABOUT.get());
-    harness.get_by_label(&texts::version(env!("CARGO_PKG_VERSION")));
+    harness.get_by_label(&texts::version(&version_file()));
     harness.get_by_label(texts::CHECK_FOR_UPDATES.get()).click();
     wait_for_label(&mut harness, texts::NO_RELEASE.get());
 }
@@ -116,7 +125,7 @@ fn a_newer_release_links_to_its_page() {
 fn the_running_version_is_current_against_itself() {
     let help = FakeHelp {
         release: Some(Release {
-            tag: format!("v{}", env!("CARGO_PKG_VERSION")),
+            tag: format!("v{}", version_file()),
             url: REPOSITORY_URL.to_owned(),
         }),
         ..FakeHelp::default()
