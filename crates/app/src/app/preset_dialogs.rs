@@ -127,13 +127,17 @@ impl NeumannApp {
         let entries = presettable(catalog, speaker);
         let rows: Vec<SaveRow> = entries
             .iter()
-            .map(|entry| SaveRow {
-                label: entry.label(texts::language()).to_owned(),
-                value: saved_value(speaker, &entry.path).map_or_else(
-                    || texts::UNKNOWN_VALUE.to_owned(),
-                    |value| shown_value(entry, value),
-                ),
-                chosen: chosen.contains(&entry.path),
+            .map(|entry| {
+                let value = saved_value(speaker, &entry.path);
+                SaveRow {
+                    label: entry.label(texts::language()).to_owned(),
+                    value: value.map_or_else(
+                        || texts::UNKNOWN_VALUE.to_owned(),
+                        |value| shown_value(entry, value),
+                    ),
+                    chosen: chosen.contains(&entry.path),
+                    unread: value.is_none(),
+                }
             })
             .collect();
         let product = speaker.product().to_owned();

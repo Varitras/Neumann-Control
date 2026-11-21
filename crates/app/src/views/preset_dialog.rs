@@ -52,6 +52,8 @@ pub struct SaveRow {
     pub label: String,
     pub value: String,
     pub chosen: bool,
+    /// The speaker has not answered this value; a preset cannot hold it.
+    pub unread: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -104,7 +106,18 @@ pub fn save_body(
                 }
             });
         let something = rows.is_empty() || rows.iter().any(|row| row.chosen);
-        let savable = !name.trim().is_empty() && something;
+        // Saved without them, a preset would miss values the user checked, and replacing one of
+        // the name would lose its own.
+        let unread: Vec<&str> = rows
+            .iter()
+            .filter(|row| row.chosen && row.unread)
+            .map(|row| row.label.as_str())
+            .collect();
+        let savable = !name.trim().is_empty() && something && unread.is_empty();
+        if !unread.is_empty() {
+            let note = texts::preset_unread(&unread.join(", "));
+            ui.colored_label(ui.visuals().warn_fg_color, note);
+        }
         if replacing {
             ui.colored_label(ui.visuals().warn_fg_color, texts::PRESET_REPLACES);
         }
