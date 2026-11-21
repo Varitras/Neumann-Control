@@ -577,6 +577,9 @@ impl SpeakerState {
             }
             // A write on its way gets its own answer, which may still be `Written`.
             Event::Absent(path) => {
+                if let Some(meters) = self.meters_of(&path) {
+                    meters.clear();
+                }
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
@@ -713,13 +716,22 @@ impl SpeakerState {
         }
     }
 
+    /// The meters `path` feeds, if it is a meter path.
+    fn meters_of(&mut self, path: &SscPath) -> Option<&mut Vec<MeterState>> {
+        match path.to_string().as_str() {
+            paths::INPUT_METER => Some(&mut self.input_meters),
+            paths::OUTPUT_METER => Some(&mut self.output_meters),
+            _ => None,
+        }
+    }
+
     fn feed_meters(&mut self, path: &SscPath, value: &Value, now: f64) {
-        let meters = match path.to_string().as_str() {
-            paths::INPUT_METER => &mut self.input_meters,
-            paths::OUTPUT_METER => &mut self.output_meters,
-            _ => return,
+        let Some(meters) = self.meters_of(path) else {
+            return;
         };
+        // No list is no reading: the meters go empty instead of standing at the last level.
         let Some(levels) = value.as_array() else {
+            meters.clear();
             return;
         };
         let levels = &levels[..levels.len().min(MAX_METER_CHANNELS)];
