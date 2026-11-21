@@ -94,7 +94,9 @@ fn instance_name<'a>(fullname: &'a str, service_type: &str) -> &'a str {
     fullname.strip_suffix(&suffix).unwrap_or(fullname)
 }
 
-fn capped(text: &str) -> String {
+/// A device text as the app keeps it: no control characters, at most 64 characters. The worker
+/// cleans the serial it reads the same way, so a scanned speaker's serial compares equal.
+pub fn cleaned(text: &str) -> String {
     text.chars()
         .filter(|character| !character.is_control())
         .take(MAX_TXT_CHARACTERS)
@@ -104,7 +106,7 @@ fn capped(text: &str) -> String {
 /// A TXT value that is empty after cleaning counts as missing, so two malformed speakers are
 /// never merged under the same empty serial.
 fn txt_value(text: Option<&str>) -> Option<String> {
-    text.map(capped).filter(|value| !value.is_empty())
+    text.map(cleaned).filter(|value| !value.is_empty())
 }
 
 /// Adds one resolved speaker; mdns-sd re-emits resolutions per interface and refresh, so the
@@ -147,7 +149,7 @@ fn found_from_parts(
         None => mask_serial_like(name),
     };
     Some(Found {
-        name: capped(&name),
+        name: cleaned(&name),
         product: txt_value(product),
         serial,
         address: pick_address(addresses, port)?,
@@ -366,7 +368,7 @@ mod tests {
 
     #[test]
     fn control_characters_are_removed_from_txt() {
-        assert_eq!(capped("KH\u{0}1\n20\u{1b}"), "KH120");
+        assert_eq!(cleaned("KH\u{0}1\n20\u{1b}"), "KH120");
     }
 
     #[test]

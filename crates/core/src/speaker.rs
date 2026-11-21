@@ -16,6 +16,7 @@ use serde_json::Value;
 
 use crate::address::{is_link_local, link_local_addresses};
 use crate::catalog::{Catalog, Entry};
+use crate::discovery::cleaned;
 use crate::mask::{mask_host, mask_serial};
 use crate::poll_schedule::{Due, Schedule};
 use crate::schema_walk::{LeafReport, Progress, Walk, WalkError};
@@ -671,7 +672,7 @@ impl Worker {
         self.outbox.emit(Event::SerialMismatch { expected, found });
     }
 
-    /// A device error counts as lost too: without its identity the speaker cannot be used.
+    /// A field the speaker answers without a value is empty; only a lost connection fails it.
     fn read_identity(&self, client: &mut Client) -> Result<Identity, Interruption> {
         Ok(Identity {
             product: self.read_text(client, PRODUCT_PATH)?,
@@ -681,32 +682,45 @@ impl Worker {
         })
     }
 
-    /// A string value as it is; any other value in its JSON form.
+    /// A string value as it is, any other value in its JSON form; empty when the speaker has
+    /// none (404, `null`): it answers, so it is reachable.
     fn read_text(&self, client: &mut Client, path: &str) -> Result<String, Interruption> {
         match self.read_identity_value(client, path)? {
-            Value::String(text) => Ok(text),
-            other => Ok(other.to_string()),
+            Some(Value::String(text)) => Ok(text),
+            Some(other) => Ok(other.to_string()),
+            None => Ok(String::new()),
         }
     }
 
     /// Empty, as for a speaker that reports none, unless it is text: the serial pins a speaker
     /// added by address and is saved, so a value in another form would lock out the real one.
+    /// Cleaned as a scan cleans it, which is what a scanned speaker expects.
     fn read_serial(&self, client: &mut Client) -> Result<String, Interruption> {
         match self.read_identity_value(client, SERIAL_PATH)? {
-            Value::String(serial) => Ok(serial),
+            Some(Value::String(serial)) => Ok(cleaned(&serial)),
+            None => Ok(String::new()),
             // Not logged as it came: serials are masked in the log.
-            _ => {
+            Some(_) => {
                 log::warn!("{} reports a serial that is no text", self.host);
                 Ok(String::new())
             }
         }
     }
 
-    fn read_identity_value(&self, client: &mut Client, path: &str) -> Result<Value, Interruption> {
+    /// `None` for an answer without a value (404, `null`); a lost connection interrupts.
+    fn read_identity_value(
+        &self,
+        client: &mut Client,
+        path: &str,
+    ) -> Result<Option<Value>, Interruption> {
         if self.inbox.stop_requested() {
             return Err(Interruption::Stopped);
         }
         let path = SscPath::parse(path).expect("constant identity path is valid");
-        client.get(&path).map_err(Interruption::Lost)
+        match client.get(&path) {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.is_connection_lost() => Err(Interruption::Lost(error)),
+            Err(_) => Ok(None),
+        }
     }
 }
