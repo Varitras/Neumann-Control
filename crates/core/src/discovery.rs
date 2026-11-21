@@ -29,7 +29,8 @@ pub struct Found {
 
 /// Link-local with a scope wins, the lowest scope of several (two adapters on the speakers'
 /// segment hear it on both, in no fixed order); a link-local address without a scope cannot be
-/// connected to on Windows and is skipped; a global address is the fallback.
+/// connected to on Windows and is skipped; a global address is the fallback, the lowest of
+/// several, so the choice does not follow the order they came in.
 pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAddrV6> {
     let scoped_link_local = addresses
         .iter()
@@ -37,7 +38,8 @@ pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAd
         .min_by_key(|(address, scope)| (*scope, *address));
     let global = addresses
         .iter()
-        .find(|(address, _)| !is_link_local(address));
+        .filter(|(address, _)| !is_link_local(address))
+        .min_by_key(|(address, _)| *address);
     scoped_link_local
         .or(global)
         .map(|(address, scope)| SocketAddrV6::new(*address, port, 0, *scope))
@@ -73,11 +75,14 @@ pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
     merged
 }
 
+/// As `pick_address` chooses: a link-local address over a global one, then the lower scope and
+/// address.
 fn replaces(candidate: &SocketAddrV6, held: &SocketAddrV6) -> bool {
     match (is_link_local(held.ip()), is_link_local(candidate.ip())) {
         (true, true) => (candidate.scope_id(), candidate.ip()) < (held.scope_id(), held.ip()),
         (true, false) => false,
-        (false, _) => true,
+        (false, true) => true,
+        (false, false) => candidate.ip() < held.ip(),
     }
 }
 
