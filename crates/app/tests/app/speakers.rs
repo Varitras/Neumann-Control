@@ -583,6 +583,37 @@ fn confirm_remove(harness: &mut Harness<'static, NeumannApp>) {
     harness.run_steps(2);
 }
 
+/// Two serials at one address are two speakers: one moved there after the other left. Removing
+/// the one that answers removed the first strip at that address instead, the other speaker.
+#[test]
+fn removing_one_of_two_serials_at_an_address_removes_that_one() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let moved_away = ManualSpeaker {
+        serial: Some("SIM9999999".to_owned()),
+        ..manual_for(&simulator)
+    };
+    let here = ManualSpeaker {
+        serial: Some(SIMULATED_SERIAL.to_owned()),
+        ..manual_for(&simulator)
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![moved_away, here]);
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    wait_for_label(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(&texts::speaker_count(2));
+    remove_named(&mut harness, KH120_DEVICE_NAME);
+    harness.run_steps(3);
+    harness.get_by_label(&texts::speaker_count(1));
+    assert!(harness.query_by_label(KH120_DEVICE_NAME).is_none());
+    let left: Vec<Option<String>> = settings::load(&path)
+        .manual
+        .into_iter()
+        .map(|entry| entry.serial)
+        .collect();
+    assert_eq!(left, vec![Some("SIM9999999".to_owned())]);
+}
+
 #[test]
 fn removing_the_second_speaker_keeps_the_first() {
     let (_simulators, _directory, mut harness) =
