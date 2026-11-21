@@ -835,6 +835,8 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
             .join(" / "),
         other => other.to_string(),
     };
+    // Cut like any device text the app shows; a list of long entries too.
+    let text = crate::display::capped(&text);
     match unit {
         Some(unit) => format!("{text} {unit}"),
         None => text,
