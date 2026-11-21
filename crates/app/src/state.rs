@@ -570,6 +570,8 @@ impl SpeakerState {
                 if self.pending.contains_key(&path) {
                     self.follow_confirmation(&path, answered, sent, &value);
                 } else {
+                    // A band write may confirm only its own entry; the others stay as known.
+                    let value = merged(self.values.get(&path), &value);
                     self.take_reported(path, value, now);
                 }
             }
