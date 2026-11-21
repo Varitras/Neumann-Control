@@ -25,6 +25,8 @@ const SIMULATOR_PORTS: std::ops::Range<u16> = 20_000..32_000;
 /// Each test process starts this far from the others: nextest runs every test in a process of
 /// its own.
 const PORTS_PER_PROCESS: u16 = 100;
+/// nextest's number for each test that runs at the same time, from 0; unset under `cargo test`.
+const NEXTEST_SLOT: &str = "NEXTEST_TEST_GLOBAL_SLOT";
 static SIMULATORS_STARTED: AtomicU16 = AtomicU16::new(0);
 const FILLER_BYTE: char = 'a';
 // Windows does not wake a blocked read when another handle of the socket is shut down, so
@@ -238,8 +240,8 @@ impl Simulator {
     /// gets, also once this one is stopped: a test can restart it there with `start_on`.
     pub fn start(model: SimModel) -> Simulator {
         let span = SIMULATOR_PORTS.end - SIMULATOR_PORTS.start;
-        let processes = u32::from(span / PORTS_PER_PROCESS);
-        let process_start = (std::process::id() % processes) as u16 * PORTS_PER_PROCESS;
+        let slot = std::env::var(NEXTEST_SLOT).ok();
+        let process_start = process_start(slot.as_deref(), std::process::id());
         for _ in 0..span {
             let started = SIMULATORS_STARTED.fetch_add(1, Ordering::Relaxed);
             let port = SIMULATOR_PORTS.start + process_start.wrapping_add(started) % span;
@@ -348,5 +350,30 @@ impl Drop for Simulator {
         for worker in workers {
             let _ = worker.join();
         }
+    }
+}
+
+/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`.
+fn process_start(_slot: Option<&str>, process_id: u32) -> u16 {
+    let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
+    (process_id % processes) as u16 * PORTS_PER_PROCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two process numbers 120 apart got the same ports; under nextest, where every test is a
+    /// process of its own, a stopped simulator's port then went to the other test, and a test
+    /// expecting its speaker unreachable met that one.
+    #[test]
+    fn tests_running_at_once_under_nextest_get_ports_apart() {
+        const SAME_RANGE_PROCESSES: [u32; 2] = [5, 125];
+        let starts: Vec<u16> = ["0", "1"]
+            .iter()
+            .zip(SAME_RANGE_PROCESSES)
+            .map(|(slot, process_id)| process_start(Some(slot), process_id))
+            .collect();
+        assert_ne!(starts[0], starts[1]);
     }
 }
