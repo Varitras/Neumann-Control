@@ -1,8 +1,8 @@
 //! The "Gefundene Lautsprecher" dialog after "Suchen": a spinner while the scan runs, then one
-//! row per found speaker to check. Speakers already shown are listed but not offered. "Erneut
-//! suchen" scans again and keeps the rows and checks so far.
+//! row per found speaker to check, or the usual causes when none answered. Speakers already shown
+//! are listed but not offered. "Erneut suchen" scans again and keeps the rows and checks so far.
 
-use eframe::egui::{Button, Checkbox, Grid, Id, Modal, Ui};
+use eframe::egui::{Button, Checkbox, Grid, Id, Label, Modal, Ui};
 
 use super::busy;
 use crate::scan_choice::{Offer, ScanChoice};
@@ -10,6 +10,7 @@ use crate::texts;
 
 const MODAL_ID: &str = "scan_choice";
 const GRID_ID: &str = "scan_choice_rows";
+const HINT_WIDTH: f32 = 360.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScanChoiceAction {
@@ -18,6 +19,7 @@ pub enum ScanChoiceAction {
     Add,
     Cancel,
     ScanAgain,
+    OpenManual,
 }
 
 /// `scanning`: a scan runs, whose speakers will join the rows.
@@ -41,10 +43,7 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
             ui.colored_label(ui.visuals().error_fg_color, texts::SCAN_FAILED);
             ScanChoiceAction::None
         }
-        ScanChoice::Offered(offers) if offers.is_empty() => {
-            ui.label(texts::NOTHING_FOUND);
-            ScanChoiceAction::None
-        }
+        ScanChoice::Offered(offers) if offers.is_empty() => nothing_found(ui),
         ScanChoice::Offered(offers) => rows(ui, offers),
     };
     ui.horizontal(|ui| {
@@ -69,6 +68,17 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
         }
     });
     action
+}
+
+fn nothing_found(ui: &mut Ui) -> ScanChoiceAction {
+    ui.label(texts::NOTHING_FOUND);
+    // Without a limit the modal grows as wide as the sentence.
+    ui.set_max_width(HINT_WIDTH);
+    ui.add(Label::new(texts::SCAN_EMPTY_HINT).wrap());
+    if ui.button(texts::MANUAL).clicked() {
+        return ScanChoiceAction::OpenManual;
+    }
+    ScanChoiceAction::None
 }
 
 fn rows(ui: &mut Ui, offers: &[Offer]) -> ScanChoiceAction {
