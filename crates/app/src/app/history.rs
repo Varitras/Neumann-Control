@@ -614,11 +614,25 @@ mod tests {
         assert_eq!(third.before, Some(json!([1.5, null])));
     }
 
-    /// Mute on, then off again before the first answer: the speaker refuses the first and takes
-    /// the second. Taking the second back writes what the speaker held before both, not the
-    /// value it refused.
+    /// Mute on, then off again before the first answer: the speaker refuses the first, by an
+    /// error or by a 404, and takes the second. Taking the second back writes what the speaker
+    /// held before both, not the value it refused (a 404 once sent `mute true`).
     #[test]
     fn a_take_back_does_not_restore_a_value_the_speaker_refused() {
+        let mute = paths::path(paths::MUTE);
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        for refusal in [rejected, Event::WriteAbsent(mute.clone())] {
+            take_back_after_a_refusal(refusal);
+        }
+    }
+
+    fn take_back_after_a_refusal(refusal: Event) {
         let catalog = Catalog::embedded();
         let mute = paths::path(paths::MUTE);
         let address = "[fe80::1]:45".parse().unwrap();
@@ -640,14 +654,8 @@ mod tests {
             speaker.record_written(&mute, &json!(value));
             history.push(NOON, written_changes(&mut speaker), None);
         }
-        let rejected = Event::WriteRejected {
-            path: mute.clone(),
-            error: DeviceError {
-                code: DeviceError::READ_ONLY,
-                description: String::new(),
-            },
-        };
-        speaker.apply(rejected, 0.0);
+        let shown = format!("{refusal:?}");
+        speaker.apply(refusal, 0.0);
         let written = Event::Written {
             path: mute.clone(),
             value: json!(false),
@@ -660,6 +668,6 @@ mod tests {
             path: mute,
             value: json!(false),
         };
-        assert_eq!(command, Some(expected));
+        assert_eq!(command, Some(expected), "after {shown}");
     }
 }
