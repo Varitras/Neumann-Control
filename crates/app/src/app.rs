@@ -1186,8 +1186,9 @@ impl eframe::App for NeumannApp {
         self.speakers.clear();
         if let Some(window) = self.chosen_window() {
             self.settings.remember_window(window);
-            self.save_settings();
         }
+        // Also while the main window is fitted: own windows note their places in memory only.
+        self.save_settings();
     }
 }
 
