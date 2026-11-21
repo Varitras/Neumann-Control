@@ -115,16 +115,26 @@ if (-not $KeepVersion) {
         Set-ProductVersion $version
         git add $versionFile
         if ($LASTEXITCODE -ne 0) { return }
-        git commit -q -m "Bump version to $version"
+        # Only VERSION: anything else staged meanwhile (another program in the same tree) stays
+        # out of the version commit.
+        git commit -q -m "Bump version to $version" -- $versionFile
     }
 }
 
 Invoke-Step 'Build release binary' { cargo build --release --locked -p neumann-control-app }
 
+# Where Cargo put it: a CARGO_TARGET_DIR or a config elsewhere moves it from target/release,
+# where an older build could still lie.
+$metadata = cargo metadata --format-version 1 --no-deps --locked | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'FAILED: cargo metadata did not run; cannot find the built binary' -ForegroundColor Red
+    exit 1
+}
+$builtBinary = Join-Path (Join-Path $metadata.target_directory 'release') $executable
+
 if (-not $onWindows) {
     Invoke-Step "Check the binary needs no glibc newer than $glibcFloor" {
-        $binary = Join-Path (Join-Path 'target' 'release') $executable
-        $needed = objdump -T $binary |
+        $needed = objdump -T $builtBinary |
             Select-String -Pattern 'GLIBC_([0-9.]+)' -AllMatches |
             ForEach-Object { $_.Matches } |
             ForEach-Object { [version]$_.Groups[1].Value } |
@@ -142,7 +152,7 @@ if (-not $onWindows) {
 }
 
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
-Copy-Item (Join-Path (Join-Path 'target' 'release') $executable) $releaseDirectory
+Copy-Item $builtBinary $releaseDirectory
 Copy-Item 'LICENSE' $releaseDirectory
 
 # The app opens this file from its own folder (help.rs names it the same).
