@@ -683,6 +683,27 @@ fn an_eq_preset_with_a_refused_value_writes_nothing() {
     assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
 }
 
+/// Frequencies exactly halfway between two steps of the three-digit grid. A vertical drag must
+/// not write a frequency: the pixel round trip rounded some to the other step.
+#[test]
+fn a_vertical_drag_writes_no_frequency_even_halfway_between_steps() {
+    const HALFWAY: [f64; 10] = [
+        12.35, 25.25, 50.55, 101.5, 202.5, 404.5, 1235.0, 2465.0, 4935.0, 9875.0,
+    ];
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq2/frequency", json!(HALFWAY));
+    });
+    for band in 1..=HALFWAY.len() {
+        let point = harness.get_by_label(&texts::eq_band(band)).rect().center();
+        drag(&mut harness, point, egui::vec2(0.0, -30.0));
+    }
+    wait_until(&mut harness, "the boost writes", |_| {
+        sets(&simulator, BOOST_POINTER).len() >= HALFWAY.len()
+    });
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER), Vec::<Value>::new());
+}
+
 /// Band 1 was outside the range before a drag moved it: its frequency cannot be taken back, so
 /// the boost is not either; taking back the rest alone left a band that never existed.
 #[test]
