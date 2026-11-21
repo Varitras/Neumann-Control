@@ -140,6 +140,23 @@ mod tests {
         assert!((asked.y - 654.8).abs() < 1e-3, "{asked:?}");
     }
 
+    /// Above 100 % a request can be less than a point more than the window has. Granted, the new
+    /// size was still "close to" the old one, so the request counted as under way for good and
+    /// the window never grew with the desk again.
+    #[test]
+    fn a_request_less_than_a_point_more_is_seen_granted() {
+        const SCALE: f32 = 1.25;
+        let mut fit = WindowFit::default();
+        let current = vec2(640.0, 480.0);
+        let asked = fit
+            .next(current, vec2(640.3, 480.0), SCREEN, SCALE)
+            .expect("a request");
+        assert!((asked - current).max_elem() < TOLERANCE, "{asked:?}");
+        assert_eq!(fit.next(asked, vec2(640.3, 480.0), SCREEN, SCALE), None);
+        let grown = fit.next(asked, vec2(740.0, 480.0), SCREEN, SCALE);
+        assert!(grown.is_some(), "the fit hangs on its earlier request");
+    }
+
     const START: Vec2 = Vec2::new(900.0, 600.0);
     const SCREEN: Option<Vec2> = Some(Vec2::new(1920.0, 1080.0));
 
