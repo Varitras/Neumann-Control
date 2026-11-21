@@ -263,6 +263,28 @@ mod tests {
         }
     }
 
+    /// A speaker that announces several global addresses (and no scoped link-local one) gets the
+    /// same one whatever their order: the first or the last one won, so a remembered entry could
+    /// move on every scan.
+    #[test]
+    fn of_several_global_addresses_the_choice_does_not_follow_their_order() {
+        let low = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1);
+        let high = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2);
+        for order in [[low, high], [high, low]] {
+            let addresses: Vec<(Ipv6Addr, u32)> =
+                order.iter().map(|address| (*address, 0)).collect();
+            assert_eq!(
+                pick_address(&addresses, 45).map(|chosen| *chosen.ip()),
+                Some(low)
+            );
+        }
+        for order in [[2, 1], [1, 2]] {
+            let found = order.map(|last| sample(Some("SIM0001234"), last)).to_vec();
+            let merged = merge_found(found);
+            assert_eq!(*merged[0].address.ip(), low, "order {order:?}");
+        }
+    }
+
     #[test]
     fn repeated_events_do_not_fill_the_cap() {
         let mut found = Vec::new();
