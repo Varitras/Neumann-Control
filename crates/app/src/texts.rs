@@ -918,6 +918,14 @@ pub fn preset_row(setting: &str, value: &str) -> String {
     format!("{setting}: {value}")
 }
 
+/// `settings`: the checked rows the speaker has not answered, joined.
+pub fn preset_unread(settings: &str) -> String {
+    match language() {
+        Language::German => format!("Noch nicht gelesen: {settings}. Warten oder abwählen."),
+        Language::English => format!("Not read yet: {settings}. Wait or uncheck."),
+    }
+}
+
 /// A preset in the load dialog.
 pub fn preset_entry(name: &str, product: &str) -> String {
     format!("{name} ({product})")

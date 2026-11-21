@@ -887,6 +887,49 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
 
+/// The delay row of the save dialog, found by its label's start (the value follows).
+fn delay_row(harness: &Harness<'static, NeumannApp>) -> Option<String> {
+    harness
+        .query_all_by_role(Role::CheckBox)
+        .filter_map(|node| node.accesskit_node().label())
+        .find(|label| label.starts_with("Verzögerung"))
+}
+
+/// A checked value the speaker has not answered cannot go into a preset: saving dropped it
+/// without a word, and replacing an older preset of the name lost that value for good.
+#[test]
+fn a_settings_preset_waits_for_its_unread_values() {
+    let (simulator, directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+    simulator.remove_value("audio/out/delay");
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .type_text("Evening");
+    wait_until(&mut harness, "the delay unread", |harness| {
+        delay_row(harness).is_some_and(|label| label.ends_with(texts::UNKNOWN_VALUE))
+    });
+    let delay = delay_row(&harness).unwrap();
+    let delay_label = delay.split(':').next().unwrap();
+    harness.get_by_label(&texts::preset_unread(delay_label));
+    assert!(harness
+        .get_by_label(texts::SAVE.get())
+        .accesskit_node()
+        .is_disabled());
+    harness.get_by_label(&delay).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(saved.presets.len(), 1);
+    assert!(saved.presets[0].values.contains_key("audio/out/level"));
+}
+
 /// A stored preset can hold a value this speaker refuses (another model's range, a file edited
 /// by hand). Loading it then writes nothing, not the part before the refused value.
 /// The speaker goes while the load dialog shows a preset it holds: nothing is known to be on it
