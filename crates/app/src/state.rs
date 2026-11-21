@@ -1088,6 +1088,26 @@ mod tests {
         assert!(speaker.refused_writes.contains(&write));
     }
 
+    /// A meter path that answers no list, or turns 404, has no reading: its meters go empty
+    /// instead of standing at the last level for good.
+    #[test]
+    fn meters_without_a_reading_go_empty() {
+        let meter = path(paths::INPUT_METER);
+        let readings = |value: Value| Event::Value {
+            path: meter.clone(),
+            value,
+        };
+        for gone in [readings(json!("no list")), Event::Absent(meter.clone())] {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            speaker.apply(readings(json!([-10.0, -20.0])), 0.0);
+            assert_eq!(speaker.input_meters.len(), 2);
+            let shown = format!("{gone:?}");
+            speaker.apply(gone, 0.1);
+            assert!(speaker.input_meters.is_empty(), "after {shown}");
+        }
+    }
+
     /// A band write confirmed with only its own entry (the others `null`) fills the rest from what
     /// was known, also for the last write of the path: stored as it came, the other bands read
     /// as `null` until the next slow poll.
