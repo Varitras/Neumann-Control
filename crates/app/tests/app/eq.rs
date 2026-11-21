@@ -683,6 +683,31 @@ fn an_eq_preset_with_a_refused_value_writes_nothing() {
     assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
 }
 
+/// Band 1 was outside the range before a drag moved it: its frequency cannot be taken back, so
+/// the boost is not either; taking back the rest alone left a band that never existed.
+#[test]
+fn a_take_back_with_a_refused_value_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        let mut frequencies = simulator.value("audio/out/eq2/frequency").unwrap();
+        frequencies[0] = json!(30000.0);
+        simulator.set_value("audio/out/eq2/frequency", frequencies);
+    });
+    let point = harness.get_by_label(&texts::eq_band(1)).rect().center();
+    drag(&mut harness, point, egui::vec2(-60.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+            && !sets(&simulator, FREQUENCY_POINTER).is_empty()
+    });
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::Button, texts::UNDO.get())
+        .click();
+    harness.run_steps(4);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
+}
+
 #[test]
 fn eq_presets_of_another_band_count_are_not_offered() {
     let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
