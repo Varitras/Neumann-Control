@@ -90,7 +90,7 @@ mod core_audio {
         STGM_READ,
     };
 
-    use super::{AudioDevice, AudioState, SystemAudio};
+    use super::{read_or_forget, AudioDevice, AudioState, SystemAudio};
 
     /// The device last read, so a frame does not activate its interfaces again.
     struct Endpoint {
@@ -237,26 +237,26 @@ mod core_audio {
         }
 
         fn state(&mut self, device: Option<&str>) -> Option<AudioState> {
-            let endpoint = self.endpoint(device)?;
-            // SAFETY: COM calls on activated interfaces; a vanished device answers an error.
-            let read = unsafe {
-                let volume = endpoint.volume.GetMasterVolumeLevelScalar().ok()?;
-                let mute = endpoint.volume.GetMute().ok()?.as_bool();
-                let channels = endpoint.meter.GetMeteringChannelCount().ok()?;
-                let mut peaks = vec![0.0; channels as usize];
-                endpoint.meter.GetChannelsPeakValues(&mut peaks).ok()?;
-                Some((volume, mute, peaks))
-            };
-            let Some((volume, mute, peaks)) = read else {
-                self.endpoint = None;
-                return None;
-            };
-            Some(AudioState {
-                name: endpoint.name.clone(),
-                volume,
-                mute,
-                peaks,
-                channel_mask: endpoint.channel_mask,
+            self.endpoint(device)?;
+            // A failed read forgets the interfaces, so the next poll activates them anew: an
+            // endpoint Windows reconfigured keeps its id but not its old interfaces. The `?`s
+            // ended the function before that once, inside a plain block.
+            read_or_forget(&mut self.endpoint, |endpoint| {
+                // SAFETY: COM calls on activated interfaces; a vanished device answers an error.
+                unsafe {
+                    let volume = endpoint.volume.GetMasterVolumeLevelScalar().ok()?;
+                    let mute = endpoint.volume.GetMute().ok()?.as_bool();
+                    let channels = endpoint.meter.GetMeteringChannelCount().ok()?;
+                    let mut peaks = vec![0.0; channels as usize];
+                    endpoint.meter.GetChannelsPeakValues(&mut peaks).ok()?;
+                    Some(AudioState {
+                        name: endpoint.name.clone(),
+                        volume,
+                        mute,
+                        peaks,
+                        channel_mask: endpoint.channel_mask,
+                    })
+                }
             })
         }
 
@@ -307,9 +307,32 @@ impl SystemAudio for CoreAudio {
     fn set_mute(&mut self, _device: Option<&str>, _mute: bool) {}
 }
 
+/// Reads from the cached `entry`; a failed read forgets it, so the next read starts afresh.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn read_or_forget<E, T>(cache: &mut Option<E>, read: impl FnOnce(&E) -> Option<T>) -> Option<T> {
+    let result = read(cache.as_ref()?);
+    if result.is_none() {
+        *cache = None;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_read_forgets_the_cached_entry() {
+        let mut cache = Some("endpoint");
+        assert_eq!(read_or_forget(&mut cache, |_| None::<u8>), None);
+        assert_eq!(cache, None);
+        let mut cache = Some("endpoint");
+        assert_eq!(
+            read_or_forget(&mut cache, |entry| Some(entry.len())),
+            Some(8)
+        );
+        assert_eq!(cache, Some("endpoint"));
+    }
 
     #[test]
     fn a_peak_reads_as_db_down_to_the_floor() {
