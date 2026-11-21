@@ -1086,6 +1086,28 @@ mod tests {
         assert!(speaker.refused_writes.contains(&write));
     }
 
+    /// A band write confirmed with only its own entry (the others `null`) fills the rest from what
+    /// was known, also for the last write of the path: stored as it came, the other bands read
+    /// as `null` until the next slow poll.
+    #[test]
+    fn a_sparse_confirmation_of_the_last_write_keeps_the_other_entries() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let gain = path("audio/out/eq2/gain");
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, -3.0]),
+        };
+        speaker.apply(reported, 0.0);
+        speaker.record_written(&gain, &json!([1.0, null]));
+        let confirmed = Event::Written {
+            path: gain.clone(),
+            value: json!([1.0, null]),
+        };
+        speaker.apply(confirmed, 0.5);
+        assert_eq!(speaker.values.get(&gain), Some(&json!([1.0, -3.0])));
+    }
+
     /// A speaker removed and added again is a new state, but its history stays: its writes are
     /// numbered on from the old ones, so a refusal of a new write closes no old change.
     #[test]
