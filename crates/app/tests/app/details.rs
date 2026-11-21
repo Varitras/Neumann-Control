@@ -410,6 +410,40 @@ fn a_name_typed_then_tabbed_to_apply_is_sent() {
     assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
 }
 
+/// How often the speaker was asked for its name.
+fn name_reads(simulator: &Simulator) -> usize {
+    simulator
+        .requests()
+        .iter()
+        .filter(|request| request.pointer(NAME_POINTER).is_some_and(Value::is_null))
+        .count()
+}
+
+/// The speaker is renamed elsewhere while the name field has the focus but nothing typed: the
+/// field follows, and Enter writes nothing. It wrote the name from when the field got the focus,
+/// undoing the rename.
+#[test]
+fn enter_in_an_untouched_name_field_does_not_undo_a_rename() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    let reads_before = name_reads(&simulator);
+    simulator.set_value("device/name", json!("Renamed"));
+    // The name is polled slowly: up to one slow interval.
+    wait_until(&mut harness, "the new name read", |_| {
+        name_reads(&simulator) > reads_before
+    });
+    harness.run_steps(2);
+    let shown = harness.get_by_role(Role::TextInput).value();
+    assert_eq!(shown.as_deref(), Some("Renamed"));
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+    barrier(&simulator);
+    let sets = sets(&simulator, NAME_POINTER);
+    assert!(sets.iter().all(|name| name == "Renamed"), "{sets:?}");
+}
+
 #[test]
 fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
     let (_simulator, _directory, mut harness) =
