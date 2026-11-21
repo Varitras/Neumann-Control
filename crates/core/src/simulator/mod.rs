@@ -23,7 +23,7 @@ const FOREIGN_XID_OFFSET: u64 = 1000;
 /// soon), and a test that expected it unreachable, or restarted it there, met another.
 const SIMULATOR_PORTS: std::ops::Range<u16> = 20_000..32_000;
 /// Each test process starts this far from the others: nextest runs every test in a process of
-/// its own.
+/// its own (see `process_start`).
 const PORTS_PER_PROCESS: u16 = 100;
 /// nextest's number for each test that runs at the same time, from 0; unset under `cargo test`.
 const NEXTEST_SLOT: &str = "NEXTEST_TEST_GLOBAL_SLOT";
@@ -353,10 +353,15 @@ impl Drop for Simulator {
     }
 }
 
-/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`.
-fn process_start(_slot: Option<&str>, process_id: u32) -> u16 {
+/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`. nextest's
+/// slot is unique among the tests running at once; process numbers can share a range, so they
+/// count only under `cargo test`, which runs one test process at a time.
+fn process_start(slot: Option<&str>, process_id: u32) -> u16 {
     let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
-    (process_id % processes) as u16 * PORTS_PER_PROCESS
+    let position = slot
+        .and_then(|slot| slot.parse::<u32>().ok())
+        .unwrap_or(process_id);
+    (position % processes) as u16 * PORTS_PER_PROCESS
 }
 
 #[cfg(test)]
