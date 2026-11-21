@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 
 use neumann_control_core::catalog::Catalog;
+use neumann_control_core::files;
 use neumann_control_core::settings::EqPreset;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -104,7 +105,8 @@ impl NeumannApp {
             return;
         };
         let file = file_name(&path);
-        let report = match fs::write(&path, export.text) {
+        // Replaced whole: a write that breaks off must not cost the user's old filters.
+        let report = match files::replace(&path, export.text.as_bytes()) {
             Ok(()) => texts::eq_export_report(&file, &export.notes),
             Err(error) => texts::eq_file_unwritable(&file, &error.to_string()),
         };

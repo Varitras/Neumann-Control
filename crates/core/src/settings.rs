@@ -2,20 +2,19 @@
 
 use std::cell::Cell;
 use std::collections::BTreeMap;
-use std::ffi::OsString;
-use std::fs::{self, File};
-use std::io::{self, ErrorKind, Write};
+use std::fs;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::files;
 use crate::ssc::wire::SscPath;
 
 pub const SETTINGS_FILE: &str = "settings.json";
 pub const LOG_FILE: &str = "neumann-control.log";
 
-const TEMPORARY_SUFFIX: &str = ".tmp";
 const QUARANTINE_SUFFIX: &str = ".bad";
 
 thread_local! {
@@ -753,13 +752,8 @@ fn carries_something(value: &serde_json::Value) -> bool {
 /// Writes through a temporary file in the same directory so a crash never
 /// leaves a truncated settings file behind.
 pub fn save(settings: &Settings, path: &Path) -> io::Result<()> {
-    let temporary = with_suffix(path, TEMPORARY_SUFFIX);
     let serialized = serde_json::to_vec_pretty(settings)?;
-    let mut file = File::create(&temporary)?;
-    file.write_all(&serialized)?;
-    file.sync_all()?;
-    drop(file);
-    fs::rename(&temporary, path)
+    files::replace(path, &serialized)
 }
 
 /// Copies the file aside, as `quarantine` would move it, keeping the original in place.
@@ -784,18 +778,12 @@ fn quarantine(path: &Path) -> bool {
 }
 
 fn free_quarantine_path(path: &Path) -> PathBuf {
-    let first = with_suffix(path, QUARANTINE_SUFFIX);
+    let first = files::with_suffix(path, QUARANTINE_SUFFIX);
     if !first.exists() {
         return first;
     }
     (1..)
-        .map(|number| with_suffix(&first, &format!(".{number}")))
+        .map(|number| files::with_suffix(&first, &format!(".{number}")))
         .find(|candidate| !candidate.exists())
         .expect("an unbounded range always yields a free name")
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut name: OsString = path.as_os_str().to_owned();
-    name.push(suffix);
-    PathBuf::from(name)
 }
