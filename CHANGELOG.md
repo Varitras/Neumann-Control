@@ -18,6 +18,21 @@
   model does not have.
 - The Windows volume strip, when switched on in the settings, now shows also before any speaker
   is added.
+- Undo after a write the speaker answered with "not found" no longer sends the value it refused.
+- Undoing an EQ change writes nothing to a speaker if one of its old values cannot be written,
+  instead of switching a band back on with only part of its values.
+- Saving or replacing a settings preset waits for checked values the speaker has not reported yet
+  and names them; before, they were left out and a replaced preset lost them.
+- A failed EQ export keeps the file it was to replace.
+- An EQ import is worked out from the speaker's values when you press **Write**: bands the file
+  leaves out keep changes made meanwhile, and if the EQ is no longer reported the preview stays
+  open and says so instead of closing without writing.
+- Enter in the name field no longer writes back the old name after the speaker was renamed
+  elsewhere.
+- Dragging an EQ point up or down no longer changes its frequency, and dragging it sideways no
+  longer changes its level.
+- Removing a speaker removes the right one when two speakers were remembered at the same address.
+- If the settings file or its desk part cannot be read, **Protect crossovers** is switched on.
 
 ## [0.2.1] - 2026-11-03
 
