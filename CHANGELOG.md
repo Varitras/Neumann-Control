@@ -39,6 +39,8 @@
 - Full-scan reports and **All values** hide network addresses also when written with a port, a
   prefix or a full stop after them; copied refusal texts are masked too.
 - Very long model, firmware and history texts from a speaker are cut, as other device texts are.
+- The third-party licence list in a release no longer lists the app's own parts.
+- The library rustix is updated to 1.1.6, which fixes a reported soundness problem.
 
 ## [0.2.1] - 2026-11-03
 
