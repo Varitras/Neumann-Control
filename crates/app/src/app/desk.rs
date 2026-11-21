@@ -105,7 +105,11 @@ impl NeumannApp {
         let desk = self.settings.desk.clone();
         let editing = self.editing;
         let ids = self.member_ids();
-        let items = layout(&self.settings.order, &self.settings.groups, &ids);
+        let mut items = layout(&self.settings.order, &self.settings.groups, &ids);
+        // Without speakers a group strip has nothing to control, as the master.
+        if no_speakers {
+            items.clear();
+        }
         let dragged = DragAndDrop::payload::<String>(ui.ctx())
             .and_then(|member| ids.iter().position(|id| *id == *member));
         let items = match dragged {
