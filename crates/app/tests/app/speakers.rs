@@ -107,6 +107,32 @@ fn scan_says_when_nothing_was_found() {
         .is_none());
 }
 
+/// A blocked mDNS port looks the same as an empty network: the dialog names the usual causes,
+/// the way around the scan, and opens the manual from there.
+#[test]
+fn an_empty_scan_names_the_firewall_and_opens_the_manual() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let manual = directory
+        .path()
+        .join(neumann_control_app::help::MANUAL_FILE);
+    std::fs::write(&manual, "<html></html>").unwrap();
+    let help = FakeHelp::default();
+    let mut harness = harness(path, Vec::new());
+    harness
+        .state_mut()
+        .set_help(std::sync::Arc::new(help.clone()));
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    harness.get_by_label(texts::SCAN_EMPTY_HINT.get());
+    harness.get_by_label(texts::MANUAL.get()).click();
+    harness.run_steps(2);
+    assert_eq!(
+        *help.opened.lock().unwrap(),
+        vec![manual.to_string_lossy().into_owned()]
+    );
+}
+
 /// A speaker still starting up was missed: "Scan again" finds it without closing the dialog.
 #[test]
 fn scan_again_finds_a_speaker_the_first_scan_missed() {
