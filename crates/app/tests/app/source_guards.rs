@@ -90,6 +90,41 @@ fn the_release_script_ships_the_manual_the_app_opens() {
     );
 }
 
+/// Cargo puts the package version into the identity of every build artifact, so each new version
+/// left a full new set in `target/` next to the old one. The product version lives in `VERSION`
+/// and Cargo's stays fixed; built from parts so this file does not name it itself.
+const CARGO_VERSION: &str = concat!("CARGO_PKG", "_VERSION");
+const FIXED_CARGO_VERSION: &str = "version = \"0.0.0\"";
+
+#[test]
+fn the_product_version_comes_from_the_version_file() {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = vec![crate_root.join("build.rs")];
+    rust_files(&crate_root.join("src"), &mut files);
+    rust_files(&crate_root.join("tests"), &mut files);
+    let reading_cargo: Vec<_> = files
+        .iter()
+        .filter(|path| fs::read_to_string(path).unwrap().contains(CARGO_VERSION))
+        .collect();
+    assert!(
+        reading_cargo.is_empty(),
+        "{CARGO_VERSION} in {reading_cargo:?}"
+    );
+
+    let manifest = fs::read_to_string(crate_root.join("../../Cargo.toml")).unwrap();
+    let workspace_package = manifest
+        .split("[workspace.package]")
+        .nth(1)
+        .and_then(|rest| rest.split("\n[").next())
+        .expect("a [workspace.package] section");
+    assert!(
+        workspace_package
+            .lines()
+            .any(|line| line.trim() == FIXED_CARGO_VERSION),
+        "the workspace version stays {FIXED_CARGO_VERSION}"
+    );
+}
+
 /// egui's spinner asks for the next frame at once; without vsync (the app presents by Mailbox)
 /// that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
 #[test]
