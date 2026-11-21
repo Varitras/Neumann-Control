@@ -211,6 +211,62 @@ impl Drop for ClosingListener {
 
 /// A serial that is no text (measured: it always is) is no serial: a speaker added by address
 /// is not pinned to it, so its real serial is taken at the next connection.
+/// Name, firmware, model or serial missing (404) or `null`: the speaker answers, so it is
+/// connected with that field empty. Each made it unreachable, and the app kept reconnecting.
+#[test]
+fn a_missing_or_null_identity_field_leaves_it_empty() {
+    const FIELDS: [&str; 4] = [
+        "device/name",
+        "device/identity/version",
+        "device/identity/product",
+        "device/identity/serial",
+    ];
+    for field in FIELDS {
+        for missing in [true, false] {
+            let simulator = Simulator::start(SimModel::Kh120Ii);
+            match missing {
+                true => simulator.remove_value(field),
+                false => simulator.set_value(field, Value::Null),
+            }
+            let (_handle, events) = start_worker(simulator.address(), None, quiet_timing());
+            let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+                is_connected(event) || is_unreachable(event)
+            });
+            let Some(Event::Connected(identity)) = seen.last() else {
+                panic!("{field}, missing {missing}: {seen:?}");
+            };
+            let read = match field {
+                "device/name" => &identity.name,
+                "device/identity/version" => &identity.version,
+                "device/identity/product" => &identity.product,
+                _ => &identity.serial,
+            };
+            assert_eq!(read, "", "{field}, missing {missing}");
+        }
+    }
+}
+
+/// A speaker added from a scan expects the serial as the scan cleaned it (no control
+/// characters, at most 64 characters); the serial read over SSC is cleaned the same way before
+/// it is compared, or that speaker was locked out with a serial mismatch.
+#[test]
+fn a_serial_is_compared_as_the_scan_cleaned_it() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    simulator.set_value(
+        "device/identity/serial",
+        json!(format!("{KH_120_II_SERIAL}\u{7}")),
+    );
+    let (_handle, events) =
+        start_worker(simulator.address(), Some(KH_120_II_SERIAL), quiet_timing());
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        is_connected(event) || matches!(event, Event::SerialMismatch { .. })
+    });
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("{seen:?}");
+    };
+    assert_eq!(identity.serial, KH_120_II_SERIAL);
+}
+
 #[test]
 fn a_serial_of_the_wrong_type_is_not_taken() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
