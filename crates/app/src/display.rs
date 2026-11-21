@@ -36,12 +36,13 @@ pub fn conversion_of(entry: &Entry) -> Option<Conversion> {
     }
 }
 
-/// The device reports its firmware as `major_minor_patch`; people write it with dots.
+/// The device reports its firmware as `major_minor_patch`; people write it with dots. Cut like
+/// any device text.
 pub fn firmware_version(reported: &str) -> String {
-    reported.replace(
+    capped(&reported.replace(
         DEVICE_VERSION_SEPARATOR,
         &SHOWN_VERSION_SEPARATOR.to_string(),
-    )
+    ))
 }
 
 pub fn shown_value(entry: &Entry, value: &Value) -> String {
