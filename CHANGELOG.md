@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- When a scan finds no speakers, the dialog now says what usually causes it (a firewall blocking
+  the speaker search, or a different network), how to add a speaker by address instead, and
+  opens the manual.
+
 ### Fixed
 
 - A value the speaker confirms differently than it was sent counts at once, also while another

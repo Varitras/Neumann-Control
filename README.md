@@ -114,8 +114,10 @@ another's window forward.
    Speakers that already have one are marked "already added". **Scan again** looks once more, for
    a speaker that was still starting up; the list and your checks stay, new speakers are added
    below. **Cancel** adds nothing.
-2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
-   the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
+2. If the scan finds nothing, the dialog names the usual causes: the firewall must allow mDNS
+   (UDP port 5353) for the app, and the computer and the speakers must be on the same network
+   (see [Requirements](#requirements)). Its **Manual** button opens this manual. Without a scan,
+   press **+ Address** and enter the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
    adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
 
    ```powershell

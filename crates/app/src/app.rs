@@ -1039,6 +1039,7 @@ impl NeumannApp {
             }
             ScanChoiceAction::Toggle(index) => choice.toggle(index),
             ScanChoiceAction::Cancel => self.scan_choice = None,
+            ScanChoiceAction::OpenManual => self.open_manual(),
             ScanChoiceAction::Add => {
                 let chosen = choice.chosen();
                 self.scan_choice = None;
