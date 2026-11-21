@@ -9,6 +9,8 @@ use crate::window_placement::WINDOW_MIN_SIZE;
 /// A difference below this is rounding, not a size to ask for, as long as the window is not
 /// short of the content: at 1.25 px/pt a whole pixel is less than this.
 const TOLERANCE: f32 = 1.0;
+/// Less than this apart, two sizes are the same whole pixels.
+const HALF_PIXEL: f32 = 0.5;
 /// Below this a window short of the content is float noise, not a pixel.
 const SHORT_BY: f32 = 0.01;
 /// Kept free around a window on the screen (points), for the taskbar.
@@ -49,10 +51,13 @@ impl WindowFit {
             return None;
         }
         if let Some((asked, before)) = self.pending {
-            if close(current, before) {
+            // Granted to the pixel first: a request less than a point more is also close to the
+            // size before, and waited for good.
+            let granted = same_pixels(current, asked, pixels_per_point);
+            if !granted && close(current, before) {
                 return None;
             }
-            if !close(current, asked) {
+            if !granted && !close(current, asked) {
                 log::debug!("window fit: over, asked {asked:?} and got {current:?}");
                 self.done = true;
                 return None;
@@ -111,6 +116,11 @@ fn short_of(current: Vec2, wanted: Vec2) -> bool {
 
 fn close(one: Vec2, other: Vec2) -> bool {
     (one - other).abs().max_elem() < TOLERANCE
+}
+
+/// The same size in the window's whole pixels.
+fn same_pixels(one: Vec2, other: Vec2, pixels_per_point: f32) -> bool {
+    ((one - other) * pixels_per_point).abs().max_elem() < HALF_PIXEL
 }
 
 #[cfg(test)]
