@@ -520,8 +520,14 @@ impl NeumannApp {
     /// Stops the speaker's worker and forgets it in the settings: its manual entry, its group and
     /// its place in the order.
     fn remove_speaker(&mut self, removal: Removal) {
+        // The shared rule: two serials at one address are two speakers.
         let position = self.speakers.iter().position(|speaker| {
-            speaker.state.key == removal.key || speaker.state.address == removal.address
+            same_speaker(
+                &speaker.state.key,
+                speaker.state.address,
+                &removal.key,
+                removal.address,
+            )
         });
         let (key, address) = match position {
             Some(position) => {
