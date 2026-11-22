@@ -644,6 +644,20 @@ fn an_unreadable_strip_element_is_left_out_and_keeps_a_copy() {
     assert_eq!(fs::read_to_string(copy).unwrap(), text);
 }
 
+/// A switch that cannot be read takes the same default as one not there: the response times
+/// were shown when the key was missing and hidden when its value was not understood.
+#[test]
+fn an_unreadable_response_time_switch_keeps_its_default() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"desk": {"show_response_times": "yes"}}"#).unwrap();
+    let desk = load(&path).desk;
+    assert_eq!(
+        desk.show_response_times,
+        DeskSettings::default().show_response_times
+    );
+}
+
 #[test]
 fn compact_layouts_round_trip() {
     let directory = tempfile::tempdir().unwrap();
