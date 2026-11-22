@@ -1283,6 +1283,23 @@ fn each_strip_is_a_group_named_after_what_it_shows() {
     harness.get_by_role_and_label(Role::Group, &texts::strip_region(GROUP_NAME));
 }
 
+/// A first start without speakers: the fit saw no frame of the empty desk, so a size the user
+/// gave the window counted for nothing, was not saved and was undone once speakers came.
+#[test]
+fn a_size_given_to_the_empty_first_window_is_the_users() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    settings::save(&settings::Settings::default(), &path).unwrap();
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.run_steps(5);
+    harness.set_size(eframe::egui::vec2(1000.0, 700.0));
+    harness.run_steps(5);
+    eframe::App::on_exit(harness.state_mut());
+    let window = settings::load(&path).window_of_mode();
+    let size = window.map(|window| (window.width, window.height));
+    assert_eq!(size, Some((1000.0, 700.0)));
+}
+
 /// Own windows note their places in memory only; leaving the app saves them. It saved only once
 /// the main window was no longer fitted to its content, so those places were lost.
 #[test]
