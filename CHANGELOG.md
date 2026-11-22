@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.6] - 2026-11-22
 
 ### Added
 
@@ -50,6 +50,7 @@
 - Very long model, firmware and history texts from a speaker are cut, as other device texts are.
 - The third-party licence list in a release no longer lists the app's own parts.
 - Two libraries the app uses are updated to fix reported safety problems.
+- The libraries for the speaker search and the file dialog are updated.
 - On a screen scaled above 100 %, a window without a size of its own keeps growing with the
   speakers added; it stopped after the first size.
 - A size you give the empty window before adding speakers is kept and saved.
