@@ -137,6 +137,9 @@ pub struct NeumannApp {
     panels: Vec<OpenPanel>,
     groups_window: Option<desk::GroupsWindow>,
     settings_open: bool,
+    /// A setting changed while the pointer was held (a colour dragged in its picker): saved
+    /// once it is let go.
+    settings_unsaved: bool,
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
     editing: bool,
     window: Option<WindowGeometry>,
@@ -241,6 +244,7 @@ impl NeumannApp {
             panels: Vec::new(),
             groups_window: None,
             settings_open: false,
+            settings_unsaved: false,
             editing: false,
             history: history::HistoryState::default(),
             eq_windows: Vec::new(),
@@ -960,10 +964,17 @@ impl NeumannApp {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));
                 log_detail::apply(self.settings.desk.detailed_log);
-                self.save_settings();
+                self.settings_unsaved = true;
             }
             SettingsAction::Close => self.settings_open = false,
             SettingsAction::None => {}
+        }
+        // The dialog is embedded in the main window where there are no windows of their own.
+        let held = |viewport| context.input_for(viewport, |input| input.pointer.any_down());
+        let held = held(viewport) || held(ViewportId::ROOT);
+        if settings_due(self.settings_unsaved, held, !self.settings_open) {
+            self.settings_unsaved = false;
+            self.save_settings();
         }
     }
 
@@ -1146,6 +1157,12 @@ pub fn window_geometry(
     })
 }
 
+/// Whether changed settings are written now: not on every frame of a drag, which wrote and
+/// flushed the file each time, but once the pointer is let go or the dialog closes.
+fn settings_due(unsaved: bool, held: bool, closing: bool) -> bool {
+    unsaved && (!held || closing)
+}
+
 /// How long a window manager may take to maximize or restore the window as asked; one that
 /// ignores the request leaves the window as it is.
 const MAXIMIZE_WAIT_SECONDS: f64 = 1.0;
@@ -1325,6 +1342,16 @@ mod tests {
     use super::*;
     use eframe::egui::{pos2, vec2, Rect};
     use std::sync::Mutex;
+
+    /// A colour dragged in its picker changes the settings on every frame: they are written once
+    /// the pointer is let go, or when the dialog closes meanwhile.
+    #[test]
+    fn settings_changed_while_held_wait_for_the_release() {
+        assert!(!settings_due(true, true, false));
+        assert!(settings_due(true, false, false));
+        assert!(settings_due(true, true, true));
+        assert!(!settings_due(false, false, true));
+    }
 
     /// Each speaker reports its meters ten times a second; drawing every report at once made the
     /// frame rate grow with the number of speakers.
