@@ -90,7 +90,7 @@ mod core_audio {
         STGM_READ,
     };
 
-    use super::{read_or_forget, AudioDevice, AudioState, SystemAudio};
+    use super::{read_or_forget, same_layout, AudioDevice, AudioState, SystemAudio};
 
     /// The device last read, so a frame does not activate its interfaces again.
     struct Endpoint {
@@ -101,6 +101,8 @@ mod core_audio {
         volume: IAudioEndpointVolume,
         meter: IAudioMeterInformation,
         channel_mask: Option<u32>,
+        /// The meters' channel count when the mask was read.
+        channels: u32,
     }
 
     /// `WAVE_FORMAT_EXTENSIBLE`: the format carries a channel mask.
@@ -158,6 +160,8 @@ mod core_audio {
                 // SAFETY: as above.
                 let meter =
                     unsafe { device.Activate::<IAudioMeterInformation>(CLSCTX_ALL, None) }.ok()?;
+                // SAFETY: as above.
+                let channels = unsafe { meter.GetMeteringChannelCount() }.ok()?;
                 self.endpoint = Some(Endpoint {
                     wanted: wanted.map(str::to_owned),
                     name: device_name(&device).unwrap_or_else(|| id.clone()),
@@ -165,6 +169,7 @@ mod core_audio {
                     volume,
                     meter,
                     channel_mask: channel_mask(&device),
+                    channels,
                 });
             }
             self.endpoint.as_ref()
@@ -247,6 +252,9 @@ mod core_audio {
                     let volume = endpoint.volume.GetMasterVolumeLevelScalar().ok()?;
                     let mute = endpoint.volume.GetMute().ok()?.as_bool();
                     let channels = endpoint.meter.GetMeteringChannelCount().ok()?;
+                    if !same_layout(endpoint.channels, channels) {
+                        return None;
+                    }
                     let mut peaks = vec![0.0; channels as usize];
                     endpoint.meter.GetChannelsPeakValues(&mut peaks).ok()?;
                     Some(AudioState {
@@ -307,6 +315,14 @@ impl SystemAudio for CoreAudio {
     fn set_mute(&mut self, _device: Option<&str>, _mute: bool) {}
 }
 
+/// Whether the channel mask read when the device was activated still names its channels: a
+/// speaker setup changed in Windows (stereo to 5.1) keeps the device's id, and the strip kept
+/// the old names. A read that finds another count is a failed one, so the mask is read anew.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn same_layout(activated: u32, now: u32) -> bool {
+    activated == now
+}
+
 /// Reads from the cached `entry`; a failed read forgets it, so the next read starts afresh.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn read_or_forget<E, T>(cache: &mut Option<E>, read: impl FnOnce(&E) -> Option<T>) -> Option<T> {
@@ -332,6 +348,18 @@ mod tests {
             Some(8)
         );
         assert_eq!(cache, Some("endpoint"));
+    }
+
+    /// Stereo turned into 5.1 in Windows: the read forgets the device, whose mask is then read
+    /// again with its interfaces.
+    #[test]
+    fn a_changed_channel_count_forgets_the_device() {
+        let activated_stereo = 2;
+        let mut cache = Some(activated_stereo);
+        let read = |channels: &u32| same_layout(*channels, 6).then_some(());
+        assert_eq!(read_or_forget(&mut cache, read), None);
+        assert_eq!(cache, None);
+        assert!(same_layout(2, 2));
     }
 
     #[test]
