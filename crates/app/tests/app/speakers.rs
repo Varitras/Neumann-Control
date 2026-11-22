@@ -167,6 +167,29 @@ fn scan_again_finds_a_speaker_the_first_scan_missed() {
     harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
 }
 
+/// "Scan again" keeps the rows and checks, also when it fails: the failure replaced them, and
+/// the user had to scan and check again.
+#[test]
+fn a_failed_scan_again_keeps_the_rows_and_checks() {
+    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let shared: SharedScan =
+        std::sync::Arc::new(std::sync::Mutex::new(Ok(vec![kh120_found(&simulator)])));
+    let mut harness = harness_with_shared_scan(path.clone(), shared.clone());
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, KH120_NAME);
+    harness.get_by_label(KH120_NAME).click();
+    harness.run_steps(1);
+    *shared.lock().unwrap() = Err("no network".to_owned());
+    harness.get_by_label(texts::SCAN_AGAIN.get()).click();
+    wait_for_label(&mut harness, texts::SCAN_FAILED.get());
+    harness.get_by_label(texts::ADD.get()).click();
+    wait_until(&mut harness, "the checked speaker added", |_| {
+        saved_at(&path, &simulator)
+    });
+}
+
 #[test]
 fn a_failed_scan_says_so_in_the_dialog() {
     let directory = tempfile::tempdir().unwrap();
