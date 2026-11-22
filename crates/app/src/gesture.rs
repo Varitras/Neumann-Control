@@ -222,14 +222,21 @@ mod tests {
         assert_eq!(fader.due(1.25), Some(80.5));
     }
 
+    /// Asked while the step would be due and not yet stale, so only the drag can have dropped
+    /// it: asked later, the stale rule dropped it anyway and the test could not fail.
     #[test]
     fn a_drag_drops_wheel_steps_not_yet_sent() {
         let range = LEVEL_RANGE;
         let mut fader = GestureState::default();
-        fader.on_wheel(2.0, LEVEL_STEP, 80.0, range, 1.0);
+        fader.on_wheel(2.0, LEVEL_STEP, 80.0, range.clone(), 1.0);
         fader.drag_started();
-        assert_eq!(fader.due(5.0), None);
+        assert_eq!(fader.due(1.0 + WHEEL_IDLE_SECONDS), None);
         assert_eq!(fader.deadline(), None);
+        // Half a notch before the drag and half after make no whole notch.
+        fader.on_wheel(0.5, LEVEL_STEP, 80.0, range.clone(), 2.0);
+        fader.drag_started();
+        fader.on_wheel(0.5, LEVEL_STEP, 80.0, range, 2.1);
+        assert_eq!(fader.due(2.1 + WHEEL_IDLE_SECONDS), None);
     }
 
     #[test]
@@ -238,7 +245,7 @@ mod tests {
         let mut fader = GestureState::default();
         fader.on_wheel(1.0, LEVEL_STEP, 80.0, range, 1.0);
         fader.sent(90.0, 1.0);
-        assert_eq!(fader.due(5.0), None);
+        assert_eq!(fader.due(1.0 + WHEEL_IDLE_SECONDS), None);
         assert_eq!(fader.shown(80.0, 2.5), 90.0);
         assert_eq!(fader.deadline(), Some(1.0 + SENT_HOLD_SECONDS));
         assert_eq!(fader.shown(80.0, 3.0), 80.0);
