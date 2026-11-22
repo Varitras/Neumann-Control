@@ -193,6 +193,36 @@ fn a_take_back_is_itself_an_entry_that_can_be_taken_back() {
     });
 }
 
+/// Ctrl+Z waits while a "changed since" question waits for its answer: it would take back the
+/// newest entry past the question.
+#[test]
+fn ctrl_z_waits_for_a_pending_question() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
+    wait_for_level(&mut harness, 90.0);
+    drag_fader_down(&mut harness);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    click_mute(&mut harness, &simulator, 1);
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    let level = entries(&harness)
+        .iter()
+        .find(|entry| {
+            entry.changes[0].path == neumann_control_app::paths::path(paths::OUTPUT_LEVEL)
+        })
+        .expect("the level entry")
+        .id;
+    take_back(&mut harness, level);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, MUTE_POINTER).len(), 1);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+}
+
 #[test]
 fn a_changed_value_asks_before_taking_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
