@@ -454,6 +454,30 @@ mod tests {
         assert_eq!(bands_of(&values, &container()), None);
     }
 
+    /// A faulty report can make any leaf shorter or longer than the others, or give it the
+    /// wrong kind of entry: no band is read, and nothing indexes past an array.
+    #[test]
+    fn every_leaf_of_another_length_or_type_gives_no_bands() {
+        for leaf in Leaf::ALL {
+            let path = leaf.path(&container());
+            let held = two_bands()[&path].as_array().unwrap().clone();
+            let wrong = match held[0] {
+                Value::Bool(_) | Value::Number(_) => json!("x"),
+                _ => json!(1.0),
+            };
+            let changes = [
+                Value::Array(held[..1].to_vec()),
+                Value::Array([held.clone(), held[..1].to_vec()].concat()),
+                Value::Array(vec![held[0].clone(), wrong]),
+            ];
+            for changed in changes {
+                let mut values = two_bands();
+                values.insert(path.clone(), changed.clone());
+                assert_eq!(bands_of(&values, &container()), None, "{leaf:?} {changed}");
+            }
+        }
+    }
+
     #[test]
     fn the_crossovers_of_two_inputs_are_summed_apart() {
         let shared = [1.0, 2.0];
