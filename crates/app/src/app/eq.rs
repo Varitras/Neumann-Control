@@ -547,6 +547,7 @@ impl NeumannApp {
                 }
             }
             EqAction::Undo => {
+                window.refusal = None;
                 let key = window.key.clone();
                 if let Some(id) = self.eq_undo(&key) {
                     self.request_take_back(id);
