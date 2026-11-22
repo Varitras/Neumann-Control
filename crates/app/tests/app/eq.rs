@@ -440,6 +440,41 @@ fn ctrl_z_in_the_eq_window_undoes_eq_only() {
     assert_band_2_written_back(&simulator);
 }
 
+/// As in the main window, Ctrl+Z waits while a "changed since" question waits for its answer:
+/// in the EQ window it took the EQ change back past the question.
+#[test]
+fn ctrl_z_in_the_eq_window_waits_for_a_pending_question() {
+    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    close_eq(&mut harness);
+    harness.run_steps(2);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::ArrowUp);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    // Someone else turns the speaker meanwhile: taking the level back asks first.
+    simulator.set_value(neumann_control_app::paths::OUTPUT_LEVEL, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    let level = harness.state().history().newest(0).expect("the level").id;
+    harness.state_mut().request_take_back(level);
+    wait_until(&mut harness, "the question", |harness| {
+        harness.state().take_back_question() == Some(level)
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+}
+
 /// As in the main window: a button reached with Tab does not keep Ctrl+Z from the EQ window.
 #[test]
 fn ctrl_z_in_the_eq_window_works_while_a_button_has_the_focus() {
