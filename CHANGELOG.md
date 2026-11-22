@@ -6,7 +6,7 @@
 
 - When a scan finds no speakers, the dialog now says what usually causes it (a firewall blocking
   the speaker search, or a different network), how to add a speaker by address instead, and
-  opens the manual, or says there that the manual is missing.
+  has a button that opens the manual (or says there that the manual is missing).
 
 ### Fixed
 

@@ -154,9 +154,9 @@ Each speaker has a channel strip:
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
-  speaker's EQ window once the speaker has reported its model; on the KH 120 II also
-  **Auto standby**, on the KH 750 **Mute A** and **Mute B** for its outputs A and B and its
-  **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
+  speaker's EQ window once the speaker has reported its model; on the KH 120 II and on the
+  read-only models also **Auto standby** (greyed out where it cannot be changed), on the KH 750
+  **Mute A** and **Mute B** for its outputs A and B and its **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
   stand level,
 - **Details** at the foot, which opens the device panel.
 
@@ -213,8 +213,9 @@ opening it again brings it to the front. Its header shows name, model, firmware 
 serial number; below it, tabs sort every setting the catalog knows for that model:
 
 - **Overview**: strip colour, the device name to change, presets, **EQ** and **Remove**,
-- **Group**: which group the speaker is in; while it is in one, that group's settings (as in the
-  groups window, without deleting), **Apply to group** and **Manage groups…**,
+- **Group**: which group the speaker is in and **Manage groups…**; while it is in one, also that
+  group's settings (as in the groups window, without deleting) and **Apply to group** for each
+  linked setting,
 - **Outputs**: one column per output, side by side (on the KH 750 its own woofer, then A and B),
 - **Inputs**: the input settings and what the rear panel reports,
 - **Standby**: standby time, level and the countdown,
@@ -279,8 +280,8 @@ and its own layouts are forgotten.
   value to the other members.
 - The group's name or **Details** at the foot of the group strip open the groups window on that
   group; right-click the group strip for **Delete group…**, which asks there first.
-- **Show group strip** (on by default) takes the group strip off the desk; the members stay
-  grouped and linked, and in the compact mode each gets its own row instead of the group's.
+- **Show group strip** (on by default): switched off, the group strip leaves the desk; the
+  members stay grouped and linked, and in the compact mode each gets its own row instead of the group's.
   Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
   group, also while the group strip is off.
 - **Strip colour** in the group's settings keeps the group's colour (**Default**), takes it off
@@ -380,7 +381,8 @@ input B ("Crossover A", "Crossover B").
   before **Write** sends them as one history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
-  filters, band passes and inversion have no APO line; they are written as comments and listed after saving.
+  filters, band passes, inversion and shelves too steep for their height have no APO line; they
+  are written as comments and listed after saving.
   Room EQ Wizard cannot load text filter files.
 - With **Protect crossovers** on in **Settings** (off by default), the crossovers get no **Make
   flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
@@ -544,7 +546,8 @@ start.
 - Models other than the KH 120 II and the KH 750 are read-only. If you have one, please
   [open an issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml)
   with its **Full scan** (see [Supported models](#supported-models)).
-- Only IPv6 link-local addressing is supported; IPv4 is not.
+- Only IPv6 is supported; IPv4 is not. Link-local addresses are preferred; a global address is
+  used only when a speaker announces no link-local one.
 - On Linux there is no strip with the system volume and no shortcuts from other programs, and
   only x86_64 is built. Under Wayland the app learns no window positions: it keeps the windows'
   sizes, and the desktop decides where they open. macOS is not supported.
