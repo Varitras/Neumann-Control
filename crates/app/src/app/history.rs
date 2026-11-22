@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_group, several_outputs, take_back_rank};
+use crate::eq::{container_of, output_group, several_outputs, take_back_rank, WriteStage};
 use crate::history::{
     changed_since, closed_because, is_open, Change, ClockTime, Closed, Entry, History,
 };
@@ -249,23 +249,35 @@ impl NeumannApp {
 
     /// The open changes whose speakers now hold another value than the written one.
     pub(super) fn changed_lines(&self, entry: &Entry) -> Vec<String> {
+        self.changed_now(entry)
+            .map(|(change, now)| {
+                let described = self.describe(change);
+                texts::changed_now(
+                    &described.speaker,
+                    &described.setting,
+                    &described.text(now),
+                    &described.text(&change.after),
+                )
+            })
+            .collect()
+    }
+
+    /// The open changes of `entry` whose value changed since, with the value now.
+    fn changed_now<'a>(
+        &'a self,
+        entry: &'a Entry,
+    ) -> impl Iterator<Item = (&'a Change, &'a serde_json::Value)> {
         let catalog = Catalog::embedded();
-        let mut lines = Vec::new();
-        for change in entry.changes.iter().filter(|change| is_open(change)) {
-            let latest = self.latest(change);
-            let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-            let Some(now) = latest.filter(|_| changed_since(change, latest, step)) else {
-                continue;
-            };
-            let described = self.describe(change);
-            lines.push(texts::changed_now(
-                &described.speaker,
-                &described.setting,
-                &described.text(now),
-                &described.text(&change.after),
-            ));
-        }
-        lines
+        entry
+            .changes
+            .iter()
+            .filter(|change| is_open(change))
+            .filter_map(move |change| {
+                let latest = self.latest(change);
+                let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
+                let now = latest.filter(|_| changed_since(change, latest, step))?;
+                Some((change, now))
+            })
     }
 
     fn latest(&self, change: &Change) -> Option<&serde_json::Value> {
@@ -414,7 +426,7 @@ impl NeumannApp {
     fn take_back(&mut self, id: u64, confirmed: bool, now: f64) -> Option<u64> {
         let catalog = Catalog::embedded();
         let entry = self.history.history.entry(id)?.clone();
-        if !confirmed && self.changed_since(&entry, catalog) {
+        if !confirmed && self.changed_now(&entry).next().is_some() {
             self.history.question = Some(id);
             return None;
         }
@@ -430,9 +442,12 @@ impl NeumannApp {
         // As forward: EQ bands go off first and on last, so no prefix sounds a mixed band.
         let mut order: Vec<(usize, &Change)> = entry.changes.iter().enumerate().collect();
         order.sort_by_key(|(_, change)| {
-            change.before.as_ref().map_or(1, |before| {
-                take_back_rank(&change.path, before, &change.after)
-            })
+            change
+                .before
+                .as_ref()
+                .map_or(WriteStage::Between, |before| {
+                    take_back_rank(&change.path, before, &change.after)
+                })
         });
         for (index, change) in order {
             if !is_open(change) {
@@ -484,17 +499,6 @@ impl NeumannApp {
             return false;
         };
         writes::check(&speaker.state, catalog, &change.path, before).is_err()
-    }
-
-    fn changed_since(&self, entry: &Entry, catalog: &Catalog) -> bool {
-        entry
-            .changes
-            .iter()
-            .filter(|change| is_open(change))
-            .any(|change| {
-                let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-                changed_since(change, self.latest(change), step)
-            })
     }
 }
 
@@ -568,6 +572,21 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
+}
+
+/// Whether the changes are one setting on as many speakers, as a group move writes it; the two
+/// parts of an EQ write that switches bands off and on are one speaker's.
+fn one_setting_on_each(changes: &[Change]) -> bool {
+    let Some(first) = changes.first() else {
+        return false;
+    };
+    let shared = changes.iter().all(|change| change.path == first.path);
+    let speakers_apart = changes.iter().enumerate().all(|(place, change)| {
+        changes[..place]
+            .iter()
+            .all(|earlier| earlier.speaker != change.speaker)
+    });
+    shared && speakers_apart
 }
 
 #[cfg(test)]
@@ -718,19 +737,4 @@ mod tests {
         };
         assert_eq!(command, Some(expected), "after {shown}");
     }
-}
-
-/// Whether the changes are one setting on as many speakers, as a group move writes it; the two
-/// parts of an EQ write that switches bands off and on are one speaker's.
-fn one_setting_on_each(changes: &[Change]) -> bool {
-    let Some(first) = changes.first() else {
-        return false;
-    };
-    let shared = changes.iter().all(|change| change.path == first.path);
-    let speakers_apart = changes.iter().enumerate().all(|(place, change)| {
-        changes[..place]
-            .iter()
-            .all(|earlier| earlier.speaker != change.speaker)
-    });
-    shared && speakers_apart
 }

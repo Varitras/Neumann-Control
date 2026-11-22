@@ -46,23 +46,33 @@ impl Leaf {
     }
 }
 
-/// Where a write goes among several to one speaker: an EQ `enabled` write that only switches
-/// bands off first, one that switches any on last, everything else between.
-pub fn write_rank(path: &SscPath, value: &Value) -> u8 {
+/// Where a write goes among several to one speaker, in this order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WriteStage {
+    /// An EQ `enabled` write that only switches bands off.
+    SwitchOff,
+    /// Everything else.
+    Between,
+    /// An EQ `enabled` write that switches any band on.
+    SwitchOn,
+}
+
+/// Where a write goes among several to one speaker: switching off first, switching on last.
+pub fn write_rank(path: &SscPath, value: &Value) -> WriteStage {
     let Some(switches) = enabled_switches(path, value) else {
-        return 1;
+        return WriteStage::Between;
     };
     if switches.iter().any(|switch| switch.as_bool() == Some(true)) {
-        2
+        WriteStage::SwitchOn
     } else {
-        0
+        WriteStage::SwitchOff
     }
 }
 
 /// Where a take-back of `after` to `before` goes, by what it switches: only the places where
 /// the two differ count. A preset writes whole arrays, so its switching on holds bands that
 /// were on already, and the take-back of it switches the new ones off.
-pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> u8 {
+pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> WriteStage {
     let (Some(before_places), Some(after_places)) = (before.as_array(), after.as_array()) else {
         return write_rank(path, before);
     };
