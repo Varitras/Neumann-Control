@@ -9,13 +9,20 @@ use std::path::{Path, PathBuf};
 const TEMPORARY_SUFFIX: &str = ".tmp";
 
 /// Writes `contents` to `path`, replacing what was there only once all of it is on disk.
+/// A failure removes the temporary file again.
 pub fn replace(path: &Path, contents: &[u8]) -> io::Result<()> {
     let temporary = with_suffix(path, TEMPORARY_SUFFIX);
-    let mut file = File::create(&temporary)?;
+    let written = write_through(&temporary, contents).and_then(|()| fs::rename(&temporary, path));
+    if written.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    written
+}
+
+fn write_through(path: &Path, contents: &[u8]) -> io::Result<()> {
+    let mut file = File::create(path)?;
     file.write_all(contents)?;
-    file.sync_all()?;
-    drop(file);
-    fs::rename(&temporary, path)
+    file.sync_all()
 }
 
 /// `path` with `suffix` added to its file name, e.g. `settings.json.tmp`.
