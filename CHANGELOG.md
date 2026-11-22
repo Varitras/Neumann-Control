@@ -17,6 +17,7 @@
 - A scroll bar's handle now shows at all times, not only under the mouse pointer. To match,
   text inputs are darker in the dark theme and white in the light theme.
 - Text and cursor in a text field sit in its middle, not slightly above it.
+- The strip colour choice wraps in a narrow groups window; its own colour was cut off.
 - A value the speaker confirms differently than it was sent counts at once, also while another
   write to the same setting is on its way: the next change starts from it, and taking a change
   back writes it, not the value sent.
