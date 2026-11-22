@@ -16,9 +16,9 @@ use neumann_control_app::strip_layout;
 use neumann_control_app::texts;
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::settings::{self, StoredStripLayout, StripElement};
-use neumann_control_core::simulator::SimulatedModel;
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::ssc::wire::SscPath;
-use serde_json::json;
+use serde_json::{json, Value};
 
 const MONITOR: &str = KH120_PRODUCT;
 const SUBWOOFER: &str = KH750_PRODUCT;
@@ -578,6 +578,25 @@ fn a_right_drag_in_edit_mode_moves_nothing() {
     assert_eq!(stored.above.first(), Some(&element(paths::DELAY)));
 }
 
+/// Waits until the speaker was asked for its meters again and the answer reached the window:
+/// a fixed number of frames took no time and could compare a round without a new level.
+fn new_reading(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
+    let meter_reads = |simulator: &Simulator| {
+        let meters = pointer(paths::INPUT_METER);
+        simulator
+            .requests()
+            .iter()
+            .filter(|request| request.pointer(&meters).is_some_and(Value::is_null))
+            .count()
+    };
+    let before = meter_reads(simulator);
+    wait_until(harness, "a new meter reading", |_| {
+        meter_reads(simulator) > before
+    });
+    barrier(simulator);
+    harness.run_steps(2);
+}
+
 /// The input meters' places while the levels change, in normal and in edit mode.
 fn meters_while_levels_change(editing: bool) -> Vec<Vec<egui::Rect>> {
     let (simulators, _directory, mut harness) =
@@ -588,7 +607,7 @@ fn meters_while_levels_change(editing: bool) -> Vec<Vec<egui::Rect>> {
     let mut places = Vec::new();
     for level in [-119.0, -60.0, -6.0, -100.0, -0.5, -45.0] {
         simulators[0].set_value("m/in/level", json!([level, level - 3.0]));
-        harness.run_steps(4);
+        new_reading(&mut harness, &simulators[0]);
         let meters: Vec<egui::Rect> = harness
             .query_all_by_role(Role::ProgressIndicator)
             .map(|node| node.rect())
@@ -693,7 +712,9 @@ fn no_strip_moves_while_values_change() {
             simulator.set_value("m/in/level", json!([level, level - 1.0]));
             simulator.set_value("m/out/level", json!([level, level, level]));
         }
-        harness.run_steps(4);
+        for simulator in &simulators {
+            new_reading(&mut harness, simulator);
+        }
         assert_eq!(places(&harness), first, "round {round}");
     }
 }
