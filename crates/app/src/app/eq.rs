@@ -531,10 +531,12 @@ impl NeumannApp {
             EqAction::Output(output) => {
                 (window.output, window.container, window.band) = (output, 0, 0);
                 window.asking_reset = None;
+                window.refusal = None;
             }
             EqAction::Container(container) => {
                 (window.container, window.band) = (container, 0);
                 window.asking_reset = None;
+                window.refusal = None;
             }
             EqAction::ResetAsk(kind) => window.asking_reset = Some(kind),
             EqAction::ResetCancel => window.asking_reset = None,
@@ -604,17 +606,24 @@ impl NeumannApp {
                 boost,
             }) => {
                 let writes = [(Leaf::Frequency, frequency), (Leaf::Boost, boost)];
-                for (leaf, value) in writes {
-                    if let Some(value) = value {
-                        self.write_band(index, drawn, band, leaf, Value::from(value), now);
-                    }
-                }
+                // The first refusal of the move is the one to tell; a later write's success
+                // does not take it back.
+                let refusals: Vec<String> = writes
+                    .into_iter()
+                    .filter_map(|(leaf, value)| {
+                        let value = Value::from(value?);
+                        self.write_band(index, drawn, band, leaf, value, now)
+                    })
+                    .collect();
+                self.eq_windows[index].refusal = refusals.into_iter().next();
             }
             EqAction::Graph(GraphAction::Q { band, q }) => {
-                self.write_band(index, drawn, band, Leaf::Q, Value::from(q), now);
+                let refusal = self.write_band(index, drawn, band, Leaf::Q, Value::from(q), now);
+                self.eq_windows[index].refusal = refusal;
             }
             EqAction::Table(TableAction::Write { band, leaf, value }) => {
-                self.write_band(index, drawn, band, leaf, value, now);
+                let refusal = self.write_band(index, drawn, band, leaf, value, now);
+                self.eq_windows[index].refusal = refusal;
             }
         }
     }
@@ -702,6 +711,7 @@ impl NeumannApp {
         now: f64,
     ) {
         let writes = switch_order(writes);
+        self.eq_windows[index].refusal = None;
         if let Some(refusal) = self.eq_refusal(index, &writes) {
             self.eq_windows[index].refusal = Some(refusal);
             return;
@@ -746,6 +756,7 @@ impl NeumannApp {
     /// Every band of the chosen container at once, in this frame, so the history files it as
     /// one entry.
     fn reset_container(&mut self, index: usize, kind: ResetKind, now: f64) {
+        self.eq_windows[index].refusal = None;
         for leaf in kind.leaves() {
             let Some((path, length)) = self.chosen_leaf(index, *leaf) else {
                 return;
@@ -776,8 +787,8 @@ impl NeumannApp {
         Some((path, length))
     }
 
-    /// One leaf of one band of the container at `place`, `null` elsewhere; a refusal is shown in
-    /// the window.
+    /// One leaf of one band of the container at `place`, `null` elsewhere; a refusal comes back
+    /// as the window says it.
     fn write_band(
         &mut self,
         index: usize,
@@ -786,18 +797,12 @@ impl NeumannApp {
         leaf: Leaf,
         value: Value,
         now: f64,
-    ) {
-        let Some((path, length)) = self.leaf_at(index, place, leaf) else {
-            return;
-        };
-        let Some(value) = one_band(length, band, value) else {
-            return;
-        };
-        let refusal = self
-            .send_eq_write(index, &path, value, now)
+    ) -> Option<String> {
+        let (path, length) = self.leaf_at(index, place, leaf)?;
+        let value = one_band(length, band, value)?;
+        self.send_eq_write(index, &path, value, now)
             .err()
-            .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason));
-        self.eq_windows[index].refusal = refusal;
+            .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason))
     }
 
     /// One EQ write through the write policy; a refusal comes back as the leaf's name and the
