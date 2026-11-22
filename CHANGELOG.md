@@ -6,7 +6,7 @@
 
 - When a scan finds no speakers, the dialog now says what usually causes it (a firewall blocking
   the speaker search, or a different network), how to add a speaker by address instead, and
-  opens the manual.
+  opens the manual, or says there that the manual is missing.
 
 ### Fixed
 
@@ -41,6 +41,47 @@
 - Very long model, firmware and history texts from a speaker are cut, as other device texts are.
 - The third-party licence list in a release no longer lists the app's own parts.
 - The library rustix is updated to 1.1.6, which fixes a reported soundness problem.
+- On a screen scaled above 100 %, a window without a size of its own keeps growing with the
+  speakers added; it stopped after the first size.
+- A size you give the empty window before adding speakers is kept and saved.
+- Leaving the app saves where its other windows were, also while the main window still fits
+  itself to the speakers.
+- Holding **Ctrl+M** or **Ctrl+D** switches mute or dim once, not again with every key repeat.
+- An EQ band change the speaker confirms for that band only no longer leaves the other bands
+  without values.
+- A meter whose speaker sends no reading shows none instead of staying at the last level, and
+  a clip lamp no longer stays lit after its speaker became unreachable.
+- The meter readout below a falling bar changes four times a second, as intended, not with every
+  reading.
+- A speaker with several global network addresses is reached at the same one after every scan.
+- The Windows volume strip finds its playback device again after Windows changed it, and names
+  the channels anew after the speaker setup changed (stereo to 5.1).
+- Compact mode no longer redraws ten to twenty times a second for the Windows volume strip it
+  does not show.
+- **Scan again** keeps the list and your checks when the scan fails, and keeps a speaker's serial
+  when the new scan found it without one.
+- **All values** and **Full scan** share one read of the speaker instead of reading it twice
+  when started together, and a failed **All values** read is written to the log.
+- Loading a preset on a speaker in a group passes linked settings (level, mute and the like) on
+  to the other members, as every other change does.
+- Group and master controls and linked settings leave out members whose model cannot change the
+  setting, instead of showing a refusal on their strip.
+- The load preset dialog names skipped settings as everywhere else, not by their internal path.
+- An EQ refusal disappears with the next change or when another EQ is shown.
+- Reading back an EQ file the app exported changes nothing; every shelf was written again.
+- Among overlapping EQ points, the one highlighted is the one a click, drag or wheel changes.
+- **Ctrl+Z** in the EQ window waits, as in the main window, while a question waits for an answer.
+- If the app's folder cannot be written, the notice says so and the settings no longer offer the
+  detailed log.
+- An unreadable **Show response times** setting falls back to on, as on a first start.
+- Settings are saved once you let go of a colour you drag in its picker, not on every frame.
+- A further window of a kind opens on the screen even when the first was left at its edge.
+- With two windows of a kind open, the place kept is that of the one you moved last.
+- On Linux, switching to a mode whose window was maximized no longer keeps the other mode's
+  size for when it is restored.
+- On Windows with monitors at different scales, a window opens where it was left.
+- The log no longer holds a detailed line about the window's place when **Detailed log** is
+  off.
 
 ## [0.2.1] - 2026-11-03
 
