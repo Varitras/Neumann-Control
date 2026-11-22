@@ -206,10 +206,7 @@ impl NeumannApp {
             .changes
             .iter()
             .map(|change| ComparedChange {
-                label: paths::catalog_entry(catalog, &change.path).map_or_else(
-                    || change.path.to_string(),
-                    |entry| entry.label(texts::language()).to_owned(),
-                ),
+                label: setting_label(catalog, &change.path),
                 now: shown(&change.path, change.current.as_ref()),
                 written: shown(&change.path, Some(&change.preset)),
             })
@@ -220,23 +217,28 @@ impl NeumannApp {
         let gone = gone.map(|refusal| texts::describe_refusal(&refusal));
         let refused = loading.changes.iter().find_map(|change| {
             let refusal = writes::check(speaker, catalog, &change.path, &change.preset).err()?;
-            let label = paths::catalog_entry(catalog, &change.path).map_or_else(
-                || change.path.to_string(),
-                |entry| entry.label(texts::language()).to_owned(),
-            );
+            let label = setting_label(catalog, &change.path);
             Some(texts::setting_refusal(
                 &label,
                 &texts::describe_refusal(&refusal),
             ))
         });
         let refusal = gone.or(refused);
+        let skipped: Vec<String> = loading
+            .skipped
+            .iter()
+            .map(|text| match SscPath::parse(text) {
+                Ok(path) => setting_label(catalog, &path),
+                Err(_) => text.clone(),
+            })
+            .collect();
         let view = LoadView {
             title: texts::LOAD_PRESET_TITLE.get(),
             presets: &names,
             empty: texts::NO_PRESETS.get(),
             selected,
             changes: Changes::Compared(&changes),
-            skipped: &loading.skipped,
+            skipped: &skipped,
             warning: None,
             refusal: refusal.as_deref(),
             deleting: selected
@@ -278,4 +280,12 @@ impl NeumannApp {
             deleting,
         })
     }
+}
+
+/// A setting as the dialog names it: its label in the catalog (of any model), else its path.
+fn setting_label(catalog: &Catalog, path: &SscPath) -> String {
+    paths::catalog_entry(catalog, path).map_or_else(
+        || path.to_string(),
+        |entry| entry.label(texts::language()).to_owned(),
+    )
 }
