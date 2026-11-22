@@ -197,4 +197,22 @@ mod tests {
         assert_eq!(mask_serial_like("KH 750 12345678"), "KH 750 …678");
         assert_eq!(mask_serial_like("KH 120 II 2024"), "KH 120 II 2024");
     }
+
+    /// An address after a label with a colon, or in angle brackets, is masked too: both stayed.
+    #[test]
+    fn an_address_after_a_label_or_in_angle_brackets_is_masked() {
+        for text in [
+            "addr:fe80::1 up",
+            "ip:192.0.2.5",
+            "peer <fe80::1> lost",
+            "mac:00:11:22:33:44:55",
+        ] {
+            let masked = mask_addresses_in(text);
+            for address in ["fe80::1", "192.0.2.5", "00:11:22:33:44:55"] {
+                assert!(!masked.contains(address), "{text} -> {masked}");
+            }
+        }
+        // A word that is no address keeps its colon.
+        assert_eq!(mask_addresses_in("state:ok"), "state:ok");
+    }
 }
