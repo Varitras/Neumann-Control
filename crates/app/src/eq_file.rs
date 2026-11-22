@@ -969,6 +969,26 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
         );
     }
 
+    /// The app's own export read back changes nothing: a shelf's Q, rounded to three decimals
+    /// in the file, came back as another slope, and every shelf was written anew.
+    #[test]
+    fn an_export_read_back_writes_nothing() {
+        let bands = vec![
+            band("LOSHELF", 4.0, 80.0, 0.7),
+            band("HISHELF", -6.5, 8000.0, 0.9),
+            band("PARAMETRIC", -3.0, 1230.0, 0.7),
+        ];
+        let text = export(&bands, "EQ 3").text;
+        let preset = imported_preset("again", &parse(&text).unwrap(), &bands).unwrap();
+        let container = neumann_control_core::ssc::wire::SscPath::parse("audio/out/eq3").unwrap();
+        let held = Leaf::ALL
+            .iter()
+            .map(|leaf| (leaf.path(&container), leaf_array(*leaf, &bands)))
+            .collect();
+        let plan = crate::presets::eq_plan(&preset, &held, &container);
+        assert_eq!(plan.writes, Vec::new(), "{:?}", plan.differences);
+    }
+
     /// First-order filters, inversion and a shelf too steep for its height have no APO line:
     /// each is a comment and a note, and the bands around them are exported.
     #[test]
