@@ -256,6 +256,37 @@ fn mute_goes_to_the_chosen_device() {
     );
 }
 
+/// With a device chosen, the strip reads that device and its fader sets that device's volume,
+/// not those of Windows' default device.
+#[test]
+fn the_chosen_device_is_read_and_its_volume_set() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_on(true, Some(DEVICE_ID), audio.clone());
+    harness.run_steps(2);
+    let asked = audio.0.lock().unwrap().asked.clone();
+    assert!(!asked.is_empty());
+    assert!(
+        asked
+            .iter()
+            .all(|device| device.as_deref() == Some(DEVICE_ID)),
+        "{asked:?}"
+    );
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::SYSTEM_VOLUME.get())
+        .rect();
+    let from = fader.center();
+    harness.drag_at(from);
+    for frame in 1..=5 {
+        harness.hover_at(from + egui::vec2(0.0, -8.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(from + egui::vec2(0.0, -40.0));
+    harness.run_steps(3);
+    let held = audio.0.lock().unwrap();
+    assert_eq!(held.volume_sets.len(), 1);
+    assert_eq!(held.set_on, vec![Some(DEVICE_ID.to_owned())]);
+}
+
 #[test]
 fn a_vanished_device_reads_unavailable() {
     let audio = fake(None);
