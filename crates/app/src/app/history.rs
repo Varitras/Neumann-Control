@@ -301,10 +301,7 @@ impl NeumannApp {
         let catalog = Catalog::embedded();
         let entry = paths::catalog_entry(catalog, &change.path);
         let language = texts::language();
-        let label = entry.map_or_else(
-            || change.path.to_string(),
-            |entry| entry.label(language).to_owned(),
-        );
+        let label = paths::setting_label(catalog, &change.path);
         let given: Vec<usize> = change
             .after
             .as_array()

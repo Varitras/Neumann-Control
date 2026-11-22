@@ -735,7 +735,7 @@ impl NeumannApp {
         }
         writes.iter().find_map(|(path, value)| {
             let refusal = writes::check(speaker, catalog, path, value).err()?;
-            let label = leaf_label(catalog, path);
+            let label = paths::setting_label(catalog, path);
             Some(texts::setting_refusal(
                 &label,
                 &texts::describe_refusal(&refusal),
@@ -833,19 +833,15 @@ impl NeumannApp {
                 speaker.handle.send(command);
                 Ok(())
             }
-            Err(refusal) => Err((leaf_label(catalog, path), texts::describe_refusal(&refusal))),
+            Err(refusal) => Err((
+                paths::setting_label(catalog, path),
+                texts::describe_refusal(&refusal),
+            )),
         }
     }
 }
 
 /// A leaf's name as the window shows it.
-fn leaf_label(catalog: &Catalog, path: &SscPath) -> String {
-    paths::catalog_entry(catalog, path).map_or_else(
-        || path.to_string(),
-        |entry| entry.label(texts::language()).to_owned(),
-    )
-}
-
 /// Whether every change of `entry` is an EQ write to the speaker `key`.
 fn is_eq_entry_of(entry: &Entry, key: &SpeakerKey, catalog: &Catalog) -> bool {
     entry

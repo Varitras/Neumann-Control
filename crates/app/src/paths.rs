@@ -46,6 +46,14 @@ pub fn catalog_entry<'a>(catalog: &'a Catalog, path: &SscPath) -> Option<&'a Ent
     catalog.entries.iter().find(|entry| entry.path == *path)
 }
 
+/// A setting as the app names it: its label in the catalog (of any model), else its path.
+pub fn setting_label(catalog: &Catalog, path: &SscPath) -> String {
+    catalog_entry(catalog, path).map_or_else(
+        || path.to_string(),
+        |entry| entry.label(crate::texts::language()).to_owned(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
