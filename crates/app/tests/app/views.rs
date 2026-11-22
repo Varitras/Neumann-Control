@@ -10,6 +10,8 @@ use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::state::{SpeakerKey, SpeakerState};
 use neumann_control_app::texts;
+use neumann_control_app::ui_kit::eq_palette::BAND_COLOR_COUNT;
+use neumann_control_app::views::settings_dialog::{SETTINGS_WINDOW_MIN_SIZE, SETTINGS_WINDOW_SIZE};
 use neumann_control_app::views::{all_values, Opening};
 use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
@@ -1357,4 +1359,66 @@ fn leaving_saves_the_settings_while_the_window_is_still_fitted() {
     std::fs::write(&path, r#"{"manual":[]}"#).unwrap();
     eframe::App::on_exit(harness.state_mut());
     assert_eq!(settings::load(&path).manual.len(), 1);
+}
+
+/// The band colours stood in ten fixed columns, so a settings window narrower than ten of them
+/// cut off the right-hand bands. They now wrap to the window's width, in columns still.
+#[test]
+fn the_band_colours_wrap_in_columns_in_a_narrow_settings_window() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(settings::SETTINGS_FILE);
+    let narrow = settings::WindowGeometry {
+        x: 16.0,
+        y: 16.0,
+        width: SETTINGS_WINDOW_MIN_SIZE[0],
+        height: SETTINGS_WINDOW_SIZE[1],
+        maximized: false,
+    };
+    let mut saved = settings::Settings {
+        manual: vec![manual_for(&simulator)],
+        ..Default::default()
+    };
+    saved.windows.insert("settings".to_owned(), narrow);
+    settings::save(&saved, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    wait_for_label(&mut harness, texts::DETAILS.get());
+    open_settings(&mut harness);
+    harness
+        .get_by_label(texts::DEFAULT_COLORS.get())
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    let window = harness
+        .get_by_role_and_label(Role::Window, texts::SETTINGS_TITLE.get())
+        .rect();
+    let top = harness
+        .get_by_label(texts::BAND_COLORS.get())
+        .rect()
+        .bottom();
+    let bottom = harness.get_by_label(texts::CURVE_COLORS.get()).rect().top();
+    let swatches: Vec<egui::Rect> = harness
+        .query_all_by_role(Role::ColorWell)
+        .map(|node| node.rect())
+        .filter(|rect| rect.top() > top && rect.bottom() < bottom)
+        .collect();
+    assert_eq!(swatches.len(), BAND_COLOR_COUNT);
+    // The test's window grows to what it holds; the system's window keeps its size and cuts.
+    let right_edge = window.left() + SETTINGS_WINDOW_MIN_SIZE[0];
+    for swatch in &swatches {
+        assert!(swatch.right() <= right_edge, "{swatch:?} past {right_edge}");
+    }
+    let first_row = swatches
+        .iter()
+        .filter(|rect| rect.top() == swatches[0].top())
+        .count();
+    assert!(first_row < BAND_COLOR_COUNT, "all in one row: {swatches:?}");
+    for (band, swatch) in swatches.iter().enumerate() {
+        let column_left = swatches[band % first_row].left();
+        assert_eq!(
+            swatch.left(),
+            column_left,
+            "band {} out of its column",
+            band + 1
+        );
+    }
 }
