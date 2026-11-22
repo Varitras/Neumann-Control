@@ -1158,6 +1158,31 @@ mod tests {
         assert_eq!(speaker.values.get(&gain), Some(&json!([1.0, -3.0])));
     }
 
+    /// Two band writes of one path on their way, each confirmed for its own band only: the
+    /// speaker holds both. The last confirmation was filled from the value before the first
+    /// write, which took the first band back.
+    #[test]
+    fn two_sparse_confirmations_of_one_path_keep_both_bands() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let gain = path("audio/out/eq2/gain");
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, -3.0]),
+        };
+        speaker.apply(reported, 0.0);
+        speaker.record_written(&gain, &json!([1.0, null]));
+        speaker.record_written(&gain, &json!([null, 2.0]));
+        for confirmed in [json!([1.0, null]), json!([null, 2.0])] {
+            let confirmed = Event::Written {
+                path: gain.clone(),
+                value: confirmed,
+            };
+            speaker.apply(confirmed, 0.5);
+        }
+        assert_eq!(speaker.values.get(&gain), Some(&json!([1.0, 2.0])));
+    }
+
     /// A speaker removed and added again is a new state, but its history stays: its writes are
     /// numbered on from the old ones, so a refusal of a new write closes no old change.
     #[test]
