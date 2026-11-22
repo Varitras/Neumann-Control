@@ -413,6 +413,8 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
     assert_ne!(groups[0].color, groups[1].color);
 }
 
+/// The member that may not write the setting keeps its own message: a refusal of a write it
+/// never asked for stood on its strip.
 #[test]
 fn a_linked_setting_skips_a_model_that_may_not_write_it() {
     // The KH 750's auto standby follows its rear switch and refuses writes.
@@ -427,7 +429,8 @@ fn a_linked_setting_skips_a_model_that_may_not_write_it() {
     harness.run_steps(5);
     barrier(&kh750);
     assert!(sets(&kh750, "/device/standby/enabled").is_empty());
-    harness.get_by_label(&texts::describe_refusal(&Refusal::NotWritable));
+    let refusal = texts::describe_refusal(&Refusal::NotWritable);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
 }
 
 #[test]
