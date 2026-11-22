@@ -1055,7 +1055,10 @@ impl NeumannApp {
         let Some(choice) = &mut self.scan_choice else {
             return;
         };
-        match scan_choice_view::show(ui, choice, self.scan.is_some(), self.notice) {
+        // What its manual button may have run into; other notices stay in the toolbar.
+        let manual_notices = [texts::MANUAL_MISSING, texts::MANUAL_NOT_OPENED];
+        let notice = self.notice.filter(|notice| manual_notices.contains(notice));
+        match scan_choice_view::show(ui, choice, self.scan.is_some(), notice) {
             ScanChoiceAction::None => {}
             ScanChoiceAction::ScanAgain => {
                 if self.scan.is_none() {

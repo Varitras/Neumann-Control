@@ -22,8 +22,8 @@ pub enum ScanChoiceAction {
     OpenManual,
 }
 
-/// `scanning`: a scan runs, whose speakers will join the rows. `notice`: the app's notice, which
-/// the toolbar shows behind the dialog's backdrop (the manual that could not be opened).
+/// `scanning`: a scan runs, whose speakers will join the rows. `notice`: why the manual could
+/// not be opened, which the toolbar shows behind the dialog's backdrop.
 pub fn show(
     ui: &mut Ui,
     choice: &ScanChoice,
