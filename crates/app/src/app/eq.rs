@@ -466,6 +466,7 @@ impl NeumannApp {
             viewport,
             opening,
             title: texts::eq_window_title(&speaker.display_name()),
+            undo_key: !self.dialog_open(),
             outputs: &output_names,
             output,
             tabs: &tabs,

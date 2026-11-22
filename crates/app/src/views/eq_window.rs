@@ -33,6 +33,9 @@ pub struct EqView<'a> {
     pub viewport: ViewportId,
     pub opening: Opening,
     pub title: String,
+    /// Ctrl+Z may take back: not while a dialog of the app waits for an answer, as in the main
+    /// window.
+    pub undo_key: bool,
     /// The outputs to choose from; one output needs no choice.
     pub outputs: &'a [String],
     pub output: usize,
@@ -166,7 +169,8 @@ pub fn show(context: &Context, view: &EqView) -> Vec<EqAction> {
         }
         // A text field keeps its own undo; a button reached with Tab takes no keys.
         let typing = ui.ctx().text_edit_focused();
-        if !typing && ui.input_mut(|input| input.consume_shortcut(&UNDO_SHORTCUT)) {
+        let takes_key = view.undo_key && !typing;
+        if takes_key && ui.input_mut(|input| input.consume_shortcut(&UNDO_SHORTCUT)) {
             actions.push(EqAction::Undo);
         }
         actions

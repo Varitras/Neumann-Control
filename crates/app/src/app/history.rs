@@ -125,7 +125,8 @@ impl NeumannApp {
         }
     }
 
-    fn dialog_open(&self) -> bool {
+    /// A dialog waits for an answer: Ctrl+Z takes nothing back meanwhile, in no window.
+    pub(super) fn dialog_open(&self) -> bool {
         self.settings_open
             || self.removal.is_some()
             || self.add_address.is_some()
