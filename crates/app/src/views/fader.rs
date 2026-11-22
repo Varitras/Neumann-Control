@@ -148,7 +148,9 @@ pub fn show(
     paint(ui, rect, &range, value, enabled, orientation, &tokens);
     response.widget_info(|| WidgetInfo::slider(enabled, value, texts::LEVEL));
     let id = response.id;
-    response.on_hover_text(texts::FADER_HINT);
+    if enabled {
+        response.on_hover_text(texts::FADER_HINT);
+    }
     if dragging {
         let text = texts::readout(value, unit);
         dragged_value(ui, id, rect, &range, value, orientation, &text);
@@ -196,7 +198,9 @@ pub fn shared(
     paint(ui, rect, &range, value, enabled, orientation, &tokens);
     response.widget_info(|| WidgetInfo::slider(enabled, value, label));
     let id = response.id;
-    response.on_hover_text(texts::FADER_HINT);
+    if enabled {
+        response.on_hover_text(texts::FADER_HINT);
+    }
     if drag.current.is_some() {
         let moved = gesture::released(drag.started, value, WHEEL_STEP_DB)
             .map_or(0.0, |end| end - drag.started);

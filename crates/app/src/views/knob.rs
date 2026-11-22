@@ -214,7 +214,12 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             response
         })
         .inner;
-    response.on_hover_text(format!("{}\n{}", knob.label, texts::CONTROL_HINT));
+    // A knob that cannot be used is named only: it takes neither Shift nor a double click.
+    let hint = match enabled {
+        true => format!("{}\n{}", knob.label, texts::CONTROL_HINT),
+        false => knob.label.to_owned(),
+    };
+    response.on_hover_text(hint);
     sent
 }
 

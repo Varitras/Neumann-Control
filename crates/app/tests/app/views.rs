@@ -372,10 +372,17 @@ fn unreachable_strip_is_disabled() {
 fn a_control_that_cannot_be_used_offers_no_gestures() {
     let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let name = device_name(SimulatedModel::Kh120Ii);
-    open_panel_on(&mut harness, name, neumann_control_app::panel_tabs::PanelTab::Standby);
+    open_panel_on(
+        &mut harness,
+        name,
+        neumann_control_app::panel_tabs::PanelTab::Standby,
+    );
     simulator.stop();
     wait_until(&mut harness, "the unreachable text", |harness| {
-        harness.query_all_by_label(texts::UNREACHABLE.get()).next().is_some()
+        harness
+            .query_all_by_label(texts::UNREACHABLE.get())
+            .next()
+            .is_some()
     });
     let knob = slider_center(&harness, STANDBY_TIME_LABEL);
     harness.hover_at(knob);
