@@ -261,3 +261,40 @@ fn the_wheel_during_a_knob_drag_writes_nothing_of_its_own() {
     let sets = delay_sets(&simulator);
     assert_eq!(sets.len(), 1, "{sets:?}");
 }
+
+/// The value entry of a knob ends with Escape without a write.
+#[test]
+fn escape_in_a_knob_entry_writes_nothing() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    let position = slider_center(&harness, DELAY_LABEL);
+    double_click_at(&mut harness, position);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("10");
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert!(
+        delay_sets(&simulator).is_empty(),
+        "{:?}",
+        delay_sets(&simulator)
+    );
+}
+
+/// The level entry left by a click elsewhere writes nothing: only Enter takes the value.
+#[test]
+fn clicking_away_from_the_level_entry_writes_nothing() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    let position = harness.get_by_label(&readout(100.0)).rect().center();
+    double_click_at(&mut harness, position);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("87,5");
+    harness.run_steps(1);
+    click_at(&mut harness, egui::pos2(5.0, 400.0));
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert!(
+        level_sets(&simulator).is_empty(),
+        "{:?}",
+        level_sets(&simulator)
+    );
+}
