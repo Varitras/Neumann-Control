@@ -1,6 +1,7 @@
-//! Which buttons a model's compact rows show after their fixed part, and how a change to that
-//! list is applied. Like the strip layout, the stored list is resolved against the catalog every
-//! time, so a hand-edited or older file never puts a button on a row that the model cannot have.
+//! Which buttons a model's (or a speaker's own) compact rows show after their fixed part, and how a
+//! change to that list is applied. Like the strip layout, the stored list is resolved against the
+//! catalog every time, so a hand-edited or older file never puts a button on a row that the model
+//! cannot have.
 
 use neumann_control_core::catalog::{Catalog, Kind};
 use neumann_control_core::settings::CompactButton;
@@ -79,7 +80,9 @@ pub fn changed(
     Some(result)
 }
 
-/// The buttons to store after `change`; `None` drops the model's entry, so it shows the default.
+/// The buttons to store after `change`; `None` drops the owner's entry (the model's, or the
+/// speaker's with layouts per speaker), so the row shows what applies one level up: the model's
+/// buttons, else the default.
 pub fn apply(buttons: &[CompactButton], change: &CompactChange) -> Option<Vec<CompactButton>> {
     let mut changed = buttons.to_vec();
     let place = |button: &CompactButton| buttons.iter().position(|other| other == button);

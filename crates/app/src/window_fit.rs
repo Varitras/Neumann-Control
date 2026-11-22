@@ -38,8 +38,8 @@ impl WindowFit {
     }
 
     /// The size to ask the window for this frame, if any. `current` is the window's inner size,
-    /// `wanted` what the desk needs, `screen` the monitor's size when known, all in points of
-    /// `pixels_per_point`.
+    /// `wanted` what the content of the current mode (desk or compact) needs, `screen` the
+    /// monitor's size when known, all in points of `pixels_per_point`.
     pub fn next(
         &mut self,
         current: Vec2,

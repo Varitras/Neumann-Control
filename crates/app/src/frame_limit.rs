@@ -1,6 +1,6 @@
-//! Keeps frames at least a sixtieth of a second apart. The app presents without vsync (Mailbox,
-//! for remote desktops), so every egui animation that asks for the next frame at once (a scroll
-//! bar fading in, a spinner) drew a frame every millisecond; measured at startup: one to two
+//! Keeps frames at least a sixtieth of a second apart. On Windows the app presents without vsync
+//! (Mailbox, for remote desktops), so every egui animation that asks for the next frame at once (a
+//! scroll bar fading in, a spinner) drew a frame every millisecond; measured at startup: one to two
 //! hundred frames a second and 40 % of a core.
 
 use std::time::{Duration, Instant};

@@ -125,8 +125,8 @@ fn the_product_version_comes_from_the_version_file() {
     );
 }
 
-/// egui's spinner asks for the next frame at once; without vsync (the app presents by Mailbox)
-/// that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
+/// egui's spinner asks for the next frame at once; without vsync (on Windows the app presents by
+/// Mailbox) that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
 #[test]
 fn no_view_draws_egui_s_own_spinner() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

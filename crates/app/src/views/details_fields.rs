@@ -126,8 +126,8 @@ impl Fields<'_> {
         self.send(ui, Intent::Write { path, value });
     }
 
-    /// Shows and toggles from the value last sent, as the strip does: a second click before the
-    /// answer undoes the first instead of repeating it.
+    /// Shows and toggles from the value last sent: a second click before the answer undoes the
+    /// first instead of repeating it. The strip toggles so too, but shows the reported value.
     pub fn switch(&mut self, ui: &mut Ui, entry: &Entry) {
         let current = self.speaker.latest(&entry.path).and_then(Value::as_bool);
         let enabled = self.enabled(entry, current.is_some());

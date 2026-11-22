@@ -1096,8 +1096,8 @@ mod tests {
         assert_eq!(speaker.message, Some(Message::Unreachable));
     }
 
-    /// The connection went away with a write on its way: the worker fails it after reporting
-    /// the outage, and that failure still counts for the write.
+    /// The connection went away with a write on its way: the outage counts it as failed, and the
+    /// worker's failure for it afterwards does not count it twice.
     #[test]
     fn a_write_outstanding_at_an_outage_counts_as_failed() {
         let mut speaker = state();

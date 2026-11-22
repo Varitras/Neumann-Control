@@ -1,6 +1,7 @@
 //! The compact mode's rows: LEDs (or the group's colour), name, a lying level fader with its
 //! value, the loudest input as a small meter, then buttons: on a speaker's row the ones chosen
-//! for its model, on a group's and the master's mute. One row per ungrouped speaker and per
+//! for its model, or for the speaker itself when layouts are kept per speaker, on a group's and
+//! the master's mute. One row per ungrouped speaker and per
 //! group, the master at the bottom. The rows only report gestures, as the strips do.
 
 use std::ops::RangeInclusive;

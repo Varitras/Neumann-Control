@@ -258,7 +258,7 @@ pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",
     "The value before is unknown",
 );
-pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since");
+pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since then");
 pub const REVERT_ANYWAY: Text = Text::new("Trotzdem rückgängig machen?", "Undo anyway?");
 pub const REVERT: Text = Text::new("Trotzdem rückgängig", "Undo anyway");
 pub const SWITCH_ON: Text = Text::new("an", "on");
@@ -910,7 +910,7 @@ pub fn frequency_mark(hertz: f64) -> String {
     format!("{hertz}")
 }
 
-/// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
+/// What a band change in the history touched: "EQ 2 Band 3 · Anhebung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
 }

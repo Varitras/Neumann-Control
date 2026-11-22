@@ -1,6 +1,7 @@
-//! The EQ graph: a log frequency axis, one curve per container, the sum, and a point per band
-//! of the chosen container. A point is dragged for frequency and gain and turned with the
-//! mouse wheel for Q; each gesture is handed out once, when it ends.
+//! The EQ graph: a log frequency axis, one curve per container, the sum, compared speakers' sums,
+//! each band's own curve, and a point per band of the chosen container that is on. A point is
+//! dragged for frequency and gain and turned with the mouse wheel for Q; each gesture is handed out
+//! once, when it ends.
 
 use std::ops::RangeInclusive;
 

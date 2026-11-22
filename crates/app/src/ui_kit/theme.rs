@@ -1,5 +1,5 @@
-//! The look of the app in Windows' light and dark mode. egui follows the system theme on its
-//! own, so each of its two themes gets its own style here.
+//! The app's light and dark look. egui keeps a style per theme and shows the one the settings
+//! choose (or the system's), so each of its two themes gets its own style here.
 
 use crate::groups::Tint;
 use crate::ui_kit::eq_palette::parse_hex;

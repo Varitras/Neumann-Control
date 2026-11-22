@@ -1,6 +1,6 @@
-//! Which elements a model's channel strips show besides their fixed part, and how a change to
-//! that list is applied. The stored list is resolved against the catalog every time, so a
-//! hand-edited or older file never puts something on a strip that the model cannot show.
+//! Which elements a model's (or a speaker's own) channel strips show besides their fixed part, and
+//! how a change to that list is applied. The stored list is resolved against the catalog every
+//! time, so a hand-edited or older file never puts something on a strip that the model cannot show.
 
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{Language, StoredStripLayout, StripElement};
@@ -143,7 +143,9 @@ pub fn changed(
     Some(result)
 }
 
-/// The layout to store after `change`; `None` drops the model's entry, so it shows the default.
+/// The layout to store after `change`; `None` drops the owner's entry (the model's, or the
+/// speaker's with layouts per speaker), so the strip shows what applies one level up: the
+/// model's layout, else the default.
 pub fn apply(layout: &StripLayout, change: &LayoutChange) -> Option<StoredStripLayout> {
     let mut changed = layout.clone();
     match change {

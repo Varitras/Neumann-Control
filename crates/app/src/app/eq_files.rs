@@ -17,7 +17,8 @@ use crate::eq_file::{self, Imported, MAX_FILE_BYTES};
 use crate::presets::eq_plan;
 use crate::texts;
 
-/// Characters Windows does not allow in a file name; a container label like "A/B" has some.
+/// Characters Windows does not allow in a file name. The suggested name is made of the model and
+/// the EQ's label, which come from the speaker and the catalog and are not checked for them.
 const FORBIDDEN_IN_FILE_NAMES: [char; 9] = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
 const FILE_NAME_REPLACEMENT: char = '-';
 const FILE_EXTENSION: &str = "txt";

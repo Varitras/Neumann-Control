@@ -164,7 +164,7 @@ impl Changes<'_> {
 
 pub struct LoadView<'a> {
     pub title: &'a str,
-    /// "Name (product)" per preset.
+    /// One line per preset: its name with its model, or with its band count for an EQ preset.
     pub presets: &'a [String],
     /// What the dialog says when `presets` is empty.
     pub empty: &'a str,

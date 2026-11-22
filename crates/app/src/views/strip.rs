@@ -1,6 +1,7 @@
-//! One speaker as a channel strip: name (opens the device panel), status LEDs, the elements of
-//! its model's layout above and below the level fader with meters, readout and response time,
-//! and the last message. The strip only reports gestures; `writes` decides what becomes a command.
+//! One speaker as a channel strip: name (opens the device panel), status LEDs, the elements of its
+//! layout (its model's, or the speaker's own) above and below the level fader with meters, readout
+//! and response time, and the last message. The strip only reports gestures; `writes` decides what
+//! becomes a command.
 
 use eframe::egui::{
     self, vec2, Align, Button, Color32, ComboBox, CornerRadius, CursorIcon, DragAndDrop, Label,

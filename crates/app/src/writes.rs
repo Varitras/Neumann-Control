@@ -1,6 +1,7 @@
 //! The write policy: what the user asked for becomes a `Command` only for a connected speaker
 //! whose model the catalog lists as writable for the path, with a value the catalog accepts.
-//! Anything else is refused: `request` puts the reason on the speaker's message line, and
+//! Anything else is refused: `request` puts the reason on the speaker's message line (unless
+//! the speaker is not connected and its message already says why), and
 //! `try_request` hands it to the caller (a text field shows it under itself).
 
 use neumann_control_core::catalog::{Catalog, Entry, ValueError};
@@ -140,7 +141,8 @@ fn refusal_of(entry: &Entry, error: ValueError) -> Refusal {
 }
 
 impl SpeakerState {
-    /// The command for `intent`, or `None` after putting the refusal on the speaker's message.
+    /// The command for `intent`, or `None` after putting the refusal on the speaker's message;
+    /// a speaker not connected keeps the message that says so.
     /// A sent level is held on the fader until the speaker reports it (`now` is the UI clock).
     pub fn request(&mut self, intent: Intent, catalog: &Catalog, now: f64) -> Option<Command> {
         match self.try_request(intent, catalog, now) {
