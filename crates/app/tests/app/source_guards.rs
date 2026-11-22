@@ -196,7 +196,7 @@ fn gestures_start_from_the_latest_values() {
         }
         for file in files {
             let text = fs::read_to_string(&file).unwrap();
-            let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+            let code = production_code(&text);
             let reads = code.matches(".values").count();
             let name = file
                 .strip_prefix(&source)
@@ -263,7 +263,7 @@ fn eq_presets_are_planned_from_the_latest_values() {
     for file in files {
         let text = fs::read_to_string(&file).unwrap();
         // Unit tests hand the planners their own values.
-        let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+        let code = production_code(&text);
         for call in ["eq_plan(", "capture_eq("] {
             for (start, _) in code.match_indices(call) {
                 let defined = code[..start].ends_with("fn ");
@@ -279,4 +279,14 @@ fn eq_presets_are_planned_from_the_latest_values() {
         found.is_empty(),
         "planned from the reported values at: {found:?}"
     );
+}
+
+/// A file's code before its test module: an item marked `#[cfg(test)]` further up (a constant
+/// only tests use) is production code's neighbour, not its end.
+fn production_code(text: &str) -> &str {
+    let Some(module) = text.find("mod tests {") else {
+        return text;
+    };
+    let start = text[..module].rfind("#[cfg(test)]").unwrap_or(module);
+    &text[..start]
 }
