@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// Where links to files that are not shipped lead.
 /// From the workspace manifest, as the app's help menu.
@@ -44,6 +44,11 @@ pub fn render(markdown: &str, read: impl Fn(&str) -> Option<Vec<u8>>) -> Result<
         };
         match tag {
             Tag::Image { dest_url, .. } => *dest_url = embedded(dest_url, &read)?.into(),
+            // pulldown-cmark adds the `mailto:` of an address in angle brackets itself.
+            Tag::Link {
+                link_type: LinkType::Email,
+                ..
+            } => {}
             Tag::Link { dest_url, .. } => *dest_url = link(dest_url, &ids)?.into(),
             _ => {}
         }
