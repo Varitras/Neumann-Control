@@ -22,7 +22,7 @@ const IPV6_SHORTENED: &str = "::";
 const IPV4_GROUPS: usize = 4;
 /// Punctuation around an address in a word; brackets are not among it, `[address]:port` is
 /// told by them.
-const WORD_TRIM: &str = ",;()\"'";
+const WORD_TRIM: &str = ",;()<>\"'";
 /// What may end a sentence right after an address ("reached at 192.0.2.5.").
 const SENTENCE_END: [char; 4] = ['.', '!', '?', ':'];
 const PORT_SEPARATOR: char = ':';
@@ -124,7 +124,14 @@ fn masked_word(word: &str) -> String {
         .map(|(inside, _)| inside);
     let candidate = bracketed.unwrap_or(bare);
     let candidate = candidate.split('/').next().unwrap_or_default();
-    match address_in(candidate) {
+    // "addr:fe80::1": a label of letters before the colon, then the address.
+    let after_label = || {
+        let (label, rest) = candidate.split_once(PORT_SEPARATOR)?;
+        let is_label =
+            !label.is_empty() && label.chars().all(|letter| letter.is_ascii_alphabetic());
+        is_label.then(|| address_in(rest)).flatten()
+    };
+    match address_in(candidate).or_else(after_label) {
         Some(address) => word.replace(address, REDACTED),
         None => word.to_owned(),
     }
