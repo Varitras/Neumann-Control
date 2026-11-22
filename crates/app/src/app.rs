@@ -146,6 +146,8 @@ pub struct NeumannApp {
     awaited_window: Option<AwaitedWindow>,
     /// Own windows just opened at a place, in screen pixels, until they are seen there.
     placing: HashMap<ViewportId, WindowGeometry>,
+    /// Own windows' places as seen the frame before.
+    seen_places: HashMap<ViewportId, WindowGeometry>,
     /// Without a saved desk window, the window is sized to the desk until the user sizes it.
     window_fit: Option<WindowFit>,
     history: history::HistoryState,
@@ -221,6 +223,7 @@ impl NeumannApp {
             window: settings.window_of_mode(),
             awaited_window: None,
             placing: HashMap::new(),
+            seen_places: HashMap::new(),
             window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
             settings_path,
             settings,

@@ -87,8 +87,9 @@ fn note_place(
     viewport: ViewportId,
     geometry: WindowGeometry,
 ) {
-    seen.insert(viewport, geometry);
-    keep_place(windows, kind, geometry);
+    if seen.insert(viewport, geometry) != Some(geometry) {
+        keep_place(windows, kind, geometry);
+    }
 }
 
 /// The `index`-th open window of a kind (from 0), set off from the others; before it is fitted
@@ -332,7 +333,10 @@ impl NeumannApp {
         viewport: ViewportId,
         kind: WindowKind,
     ) {
-        let last = self.settings.windows.get(kind.key()).copied();
+        // Its own last place first: another window of its kind may have left the kind's.
+        let last = (self.seen_places.get(&viewport))
+            .or_else(|| self.settings.windows.get(kind.key()))
+            .copied();
         // The window's own scale: on another monitor it may differ from the main window's.
         let (geometry, pixels_per_point) = context.input_for(viewport, |input| {
             let size = input.viewport_rect().size();
@@ -353,7 +357,8 @@ impl NeumannApp {
             context.send_viewport_cmd_to(viewport, ViewportCommand::InnerSize(place.size));
             return;
         }
-        keep_place(&mut self.settings.windows, kind, geometry);
+        let windows = &mut self.settings.windows;
+        note_place(&mut self.seen_places, windows, kind, viewport, geometry);
     }
 }
 
