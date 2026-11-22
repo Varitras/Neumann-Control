@@ -82,6 +82,12 @@
 - On Windows with monitors at different scales, a window opens where it was left.
 - The log no longer holds a detailed line about the window's place when **Detailed log** is
   off.
+- Compact mode without speakers says how to get back to the desk, where speakers are added; it
+  named buttons compact mode does not have.
+- The history names the bands an EQ change switched on or off and the one speaker it went to;
+  it said "all bands", "2 speakers" and showed "null" for bands it left alone.
+- The Windows volume fader shows its move in percent while dragged, not in dB.
+- A knob or fader that cannot be used no longer offers Shift or a double click in its hint.
 
 ## [0.2.1] - 2026-11-03
 
