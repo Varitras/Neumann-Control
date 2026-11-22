@@ -613,7 +613,8 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     // The panel takes its size from the window it opens in.
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
-    harness.get_by_label(name).click();
+    // The first of a name: two speakers may carry the same.
+    harness.query_all_by_label(name).next().unwrap().click();
     wait_until(harness, "the device panel", |harness| {
         harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
     });

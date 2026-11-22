@@ -93,7 +93,7 @@ fn an_added_select_writes_through_the_policy() {
     harness.run_steps(2);
     harness.get_by_label("DIGITAL ONLY").click();
     wait_until(&mut harness, "the interface write", |_| {
-        sets(&simulators[0], "/audio/in/interface") == [json!("DIGITAL ONLY")]
+        sets(&simulators[0], &pointer(paths::INPUT_INTERFACE)) == [json!("DIGITAL ONLY")]
     });
 }
 
@@ -106,7 +106,7 @@ fn a_switch_the_model_may_not_write_is_shown_disabled() {
     button.click();
     harness.run_steps(3);
     barrier(&simulators[0]);
-    assert!(sets(&simulators[0], "/device/standby/enabled").is_empty());
+    assert!(sets(&simulators[0], &pointer(paths::STANDBY_ENABLED)).is_empty());
 }
 
 #[test]
@@ -118,16 +118,6 @@ fn a_display_shows_its_value() {
         .expect("a temperature");
     let shown = shown_value(entry(paths::TEMPERATURE), &reported);
     assert!(harness.query_by_label_contains(&shown).is_some(), "{shown}");
-}
-
-fn open_first_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.run_steps(2);
-    harness.query_all_by_label(name).next().unwrap().click();
-    wait_until(harness, "the device panel", |harness| {
-        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
-    });
-    harness.run_steps(1);
 }
 
 fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
@@ -151,7 +141,7 @@ fn stored_layout(directory: &tempfile::TempDir, model: &str) -> Option<StoredStr
 fn add_to_strip_from_the_panel_reaches_both_monitors() {
     let models = [SimModel::Kh120Ii, SimModel::Kh120Ii, SimModel::Kh750];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
-    open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     show_tab(&mut harness, PanelTab::Outputs);
     let phase = label(paths::PHASE_INVERSION);
     harness
@@ -173,7 +163,7 @@ fn hide_from_the_strip_menu() {
     choose(&mut harness, texts::HIDE.get());
     let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
     assert!(identify.is_none());
-    open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     show_tab(&mut harness, PanelTab::Device);
     harness
         .get_by_role_and_label(Role::CheckBox, label(paths::IDENTIFY))
@@ -345,7 +335,7 @@ fn editing_sends_nothing() {
         .get_by_role_and_label(Role::Button, texts::MUTE.get())
         .click();
     wait_until(&mut harness, "the mute after editing", |_| {
-        !sets(&simulators[0], "/audio/out/mute").is_empty()
+        !sets(&simulators[0], &pointer(paths::MUTE)).is_empty()
     });
     assert!(any_set(&simulators[0]), "the check itself sees a set");
 }
