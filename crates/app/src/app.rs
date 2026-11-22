@@ -224,7 +224,8 @@ impl NeumannApp {
             awaited_window: AwaitedWindow::at_start(settings.window_of_mode()),
             placing: HashMap::new(),
             seen_places: HashMap::new(),
-            window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
+            window_fit: (settings.window_of_mode().is_none())
+                .then(|| WindowFit::for_mode(settings.desk.compact)),
             settings_path,
             settings,
             spawner,

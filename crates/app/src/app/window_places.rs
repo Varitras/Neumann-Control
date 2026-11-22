@@ -134,7 +134,8 @@ fn above_the_taskbar(
             ..*monitor
         })
         .collect();
-    fit_into(geometry, &usable, least_size(pixels_per_point))
+    // An own window keeps the smaller least size of the two modes, as before they differed.
+    fit_into(geometry, &usable, least_size(true, pixels_per_point))
 }
 
 /// A window of its own at `geometry` on a monitor there is, no smaller than its kind's own
@@ -321,7 +322,12 @@ impl NeumannApp {
     /// as egui places it, never below the main window's least size.
     fn on_a_monitor(&self, context: &Context, geometry: WindowGeometry) -> WindowPlace {
         let pixels_per_point = context.pixels_per_point();
-        let fitted = fit_into(geometry, &self.monitors, least_size(pixels_per_point));
+        let compact = self.settings.desk.compact;
+        let fitted = fit_into(
+            geometry,
+            &self.monitors,
+            least_size(compact, pixels_per_point),
+        );
         place_of(fitted, pixels_per_point)
     }
 

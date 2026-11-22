@@ -8,7 +8,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::paths;
 use neumann_control_app::texts;
-use neumann_control_app::window_placement::{COMPACT_WINDOW_SIZE, WINDOW_MIN_SIZE};
+use neumann_control_app::window_placement::{min_size, COMPACT_WINDOW_SIZE};
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
 use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::ssc::wire::DeviceError;
@@ -191,10 +191,10 @@ fn compact_columns_line_up_between_speaker_and_master_rows() {
 fn mute_stays_reachable_in_the_narrowest_compact_window() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
-    harness.set_size(WINDOW_MIN_SIZE.into());
+    harness.set_size(min_size(true).into());
     harness.run_steps(2);
     let mute = harness.get_by_label(texts::MUTE.get()).rect();
-    let fits = mute.right() <= WINDOW_MIN_SIZE[0];
+    let fits = mute.right() <= min_size(true)[0];
     let scrolls = harness
         .query_all_by_role(Role::ScrollBar)
         .any(|bar| bar.rect().width() > bar.rect().height());
@@ -222,7 +222,7 @@ fn toolbar_fits_the_narrowest_window(language: settings::LanguageChoice) {
     stored.desk.language = language;
     settings::save(&stored, &path).unwrap();
     let mut harness = harness(path, Vec::new());
-    harness.set_size(WINDOW_MIN_SIZE.into());
+    harness.set_size(min_size(false).into());
     wait_until(&mut harness, "the average response time", |harness| {
         harness.query_by_label_contains("Ø ").is_some()
     });
@@ -251,7 +251,7 @@ fn toolbar_fits_the_narrowest_window(language: settings::LanguageChoice) {
         .collect();
     for (index, rect) in rects.iter().enumerate() {
         assert!(
-            rect.right() <= WINDOW_MIN_SIZE[0],
+            rect.right() <= min_size(false)[0],
             "{} at {rect:?}",
             toolbar[index]
         );
@@ -468,6 +468,19 @@ fn commands_of_a_mode_switch(harness: &mut Harness<'static, NeumannApp>) -> Vec<
         .clone();
     harness.run_steps(6);
     commands
+}
+
+/// The desk needs a wider window than the compact mode, whose toolbar has no buttons on the
+/// left: each mode tells the window its own least size.
+#[test]
+fn each_mode_tells_the_window_its_least_size() {
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    let to_compact = commands_of_a_mode_switch(&mut harness);
+    let compact = ViewportCommand::MinInnerSize(egui::Vec2::from(min_size(true)));
+    assert!(to_compact.contains(&compact), "{to_compact:?}");
+    let to_desk = commands_of_a_mode_switch(&mut harness);
+    let desk = ViewportCommand::MinInnerSize(egui::Vec2::from(min_size(false)));
+    assert!(to_desk.contains(&desk), "{to_desk:?}");
 }
 
 /// Into the compact mode without a size of its own, the fit alone sizes the window: the switch

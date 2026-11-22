@@ -1,7 +1,7 @@
 //! The compact mode: one row per ungrouped speaker and per group, the master at the bottom. The
 //! rows' gestures mean the same as on the desk and go the same way to the speakers.
 
-use eframe::egui::{Context, Id, ScrollArea, Ui};
+use eframe::egui::{Context, Id, ScrollArea, Ui, Vec2, ViewportCommand};
 use neumann_control_core::catalog::Catalog;
 
 use super::desk::{
@@ -19,6 +19,7 @@ use crate::texts;
 use crate::ui_kit::theme::tint_color;
 use crate::views::compact::{self, SharedRow};
 use crate::window_fit::WindowFit;
+use crate::window_placement::min_size;
 
 impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
@@ -147,7 +148,10 @@ impl NeumannApp {
         // Only a geometry of the new mode may be kept for it; a maximised window reports none
         // and would otherwise leave the old mode's geometry to be saved for the new one.
         self.window = target;
-        self.window_fit = target.is_none().then(WindowFit::default);
+        let compact = self.settings.desk.compact;
+        self.window_fit = target.is_none().then(|| WindowFit::for_mode(compact));
+        // Each mode has its least size: the desk's toolbar needs more room.
+        context.send_viewport_cmd(ViewportCommand::MinInnerSize(Vec2::from(min_size(compact))));
         // Without a size of its own the fit sizes the window: a first size sent beside it looked
         // like the user's and ended the fit.
         if let Some(geometry) = target {

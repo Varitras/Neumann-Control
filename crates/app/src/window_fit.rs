@@ -4,7 +4,7 @@
 
 use eframe::egui::Vec2;
 
-use crate::window_placement::WINDOW_MIN_SIZE;
+use crate::window_placement::min_size;
 
 /// A difference below this is rounding, not a size to ask for, as long as the window is not
 /// short of the content: at 1.25 px/pt a whole pixel is less than this.
@@ -19,8 +19,10 @@ const SHORT_BY: f32 = 0.01;
 /// Kept free around a window on the screen (points), for the taskbar.
 pub const SCREEN_MARGIN: f32 = 60.0;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WindowFit {
+    /// The mode's smallest window: the fit asks for no less.
+    least: Vec2,
     /// The size asked for and the size the window had then; until the window has one of them
     /// the request is under way.
     pending: Option<(Vec2, Vec2)>,
@@ -33,7 +35,25 @@ pub struct WindowFit {
     done: bool,
 }
 
+impl Default for WindowFit {
+    /// The compact mode's fit, whose least size is the smaller one.
+    fn default() -> WindowFit {
+        WindowFit::for_mode(true)
+    }
+}
+
 impl WindowFit {
+    /// A fit for the desk or the compact mode, never below its least size.
+    pub fn for_mode(compact: bool) -> WindowFit {
+        WindowFit {
+            least: Vec2::from(min_size(compact)),
+            pending: None,
+            settled: None,
+            granted_short: None,
+            done: false,
+        }
+    }
+
     /// The user sized the window (or the system gave it another size): from now on its size is
     /// a choice.
     pub fn is_over(&self) -> bool {
@@ -74,7 +94,7 @@ impl WindowFit {
                 return None;
             }
         }
-        let wanted = whole_pixels(bounded(wanted, screen), pixels_per_point);
+        let wanted = whole_pixels(bounded(wanted, self.least, screen), pixels_per_point);
         let fits = close(current, wanted) && !short_of(current, wanted);
         // The system may grant a pixel less than asked; asking again would only repeat.
         if fits || self.granted_short == Some(wanted) {
@@ -98,8 +118,8 @@ pub fn wanted_size(window: Vec2, room: Vec2, content: Vec2) -> Vec2 {
     window + content - room
 }
 
-fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
-    let at_least = wanted.max(Vec2::from(WINDOW_MIN_SIZE));
+fn bounded(wanted: Vec2, least: Vec2, screen: Option<Vec2>) -> Vec2 {
+    let at_least = wanted.max(least);
     match screen {
         Some(screen) => at_least.min(screen - Vec2::splat(SCREEN_MARGIN)),
         None => at_least,
@@ -130,6 +150,7 @@ fn same_pixels(one: Vec2, other: Vec2, pixels_per_point: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::window_placement::COMPACT_MIN_SIZE;
     use eframe::egui::vec2;
 
     /// A window of whole pixels, as egui gives it in points (pixels / scale, with float noise),
@@ -276,7 +297,7 @@ mod tests {
         let mut fit = WindowFit::default();
         assert_eq!(
             fit.next(START, vec2(200.0, 3000.0), SCREEN, 1.0),
-            Some(vec2(WINDOW_MIN_SIZE[0], 1080.0 - SCREEN_MARGIN))
+            Some(vec2(COMPACT_MIN_SIZE[0], 1080.0 - SCREEN_MARGIN))
         );
     }
 }

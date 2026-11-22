@@ -7,15 +7,24 @@ use neumann_control_core::settings::WindowGeometry;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::window::Window;
 
-/// The smallest window in points, in both modes.
-pub const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
+/// The smallest window in points. The desk's toolbar needs room for its buttons on the left
+/// beside the right side's, with the average response time and "Dim" (at 480 points they ran
+/// over each other); the compact mode's toolbar has no buttons on the left.
+pub const DESK_MIN_SIZE: [f32; 2] = [660.0, 360.0];
+pub const COMPACT_MIN_SIZE: [f32; 2] = [480.0, 360.0];
+
+/// The smallest window in points of the desk or the compact mode.
+pub fn min_size(compact: bool) -> [f32; 2] {
+    match compact {
+        true => COMPACT_MIN_SIZE,
+        false => DESK_MIN_SIZE,
+    }
+}
 
 /// The main window's least size in screen pixels.
-pub fn least_size(pixels_per_point: f32) -> (f32, f32) {
-    (
-        WINDOW_MIN_SIZE[0] * pixels_per_point,
-        WINDOW_MIN_SIZE[1] * pixels_per_point,
-    )
+pub fn least_size(compact: bool, pixels_per_point: f32) -> (f32, f32) {
+    let [width, height] = min_size(compact);
+    (width * pixels_per_point, height * pixels_per_point)
 }
 /// The window size in points of a mode that never had a window of its own.
 pub const DESK_WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
@@ -48,9 +57,9 @@ pub fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
 
 /// Puts the window where `saved` says, fitted onto the monitors there are now. Set in physical
 /// pixels once the window exists: points need the scale, which is known only on a monitor.
-pub fn place_window(window: &Window, saved: WindowGeometry) {
+pub fn place_window(window: &Window, saved: WindowGeometry, compact: bool) {
     let scale = window.scale_factor() as f32;
-    let geometry = fit_into(saved, &monitor_areas(window), least_size(scale));
+    let geometry = fit_into(saved, &monitor_areas(window), least_size(compact, scale));
     log::debug!("placing the window: saved {saved:?}, asked {geometry:?} at scale {scale}");
     window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
     // The size granted arrives as a resize event like any other.
@@ -120,7 +129,7 @@ fn clamp_start(start: f32, monitor_start: f32, monitor_length: f32, window_lengt
 mod tests {
     use super::*;
 
-    const MIN_SIZE: (f32, f32) = (WINDOW_MIN_SIZE[0], WINDOW_MIN_SIZE[1]);
+    const MIN_SIZE: (f32, f32) = (COMPACT_MIN_SIZE[0], COMPACT_MIN_SIZE[1]);
     const LAPTOP: MonitorArea = MonitorArea {
         x: 0.0,
         y: 0.0,
