@@ -40,7 +40,7 @@
   prefix or a full stop after them; copied refusal texts are masked too.
 - Very long model, firmware and history texts from a speaker are cut, as other device texts are.
 - The third-party licence list in a release no longer lists the app's own parts.
-- The library rustix is updated to 1.1.6, which fixes a reported soundness problem.
+- Two libraries the app uses are updated to fix reported safety problems.
 - On a screen scaled above 100 %, a window without a size of its own keeps growing with the
   speakers added; it stopped after the first size.
 - A size you give the empty window before adding speakers is kept and saved.
@@ -54,8 +54,8 @@
 - The meter readout below a falling bar changes four times a second, as intended, not with every
   reading.
 - A speaker with several global network addresses is reached at the same one after every scan.
-- The Windows volume strip finds its playback device again after Windows changed it, and names
-  the channels anew after the speaker setup changed (stereo to 5.1).
+- The Windows volume strip asks Windows for its playback device again after a read failed, and
+  reads the channel names again when the device reports another number of channels.
 - Compact mode no longer redraws ten to twenty times a second for the Windows volume strip it
   does not show.
 - **Scan again** keeps the list and your checks when the scan fails, and keeps a speaker's serial
@@ -77,9 +77,11 @@
 - Settings are saved once you let go of a colour you drag in its picker, not on every frame.
 - A further window of a kind opens on the screen even when the first was left at its edge.
 - With two windows of a kind open, the place kept is that of the one you moved last.
-- On Linux, switching to a mode whose window was maximized no longer keeps the other mode's
-  size for when it is restored.
-- On Windows with monitors at different scales, a window opens where it was left.
+- On Linux, after switching to a mode whose window was maximized, the app waits up to a second for
+  the window to be maximized before it notes the window's size, so the other mode's size is not
+  kept for it.
+- On Windows, a window that opens on a monitor with another scale than the main window is moved
+  to the place it was left, in that monitor's scale.
 - The log no longer holds a detailed line about the window's place when **Detailed log** is
   off.
 - Compact mode without speakers says how to get back to the desk, where speakers are added; it
