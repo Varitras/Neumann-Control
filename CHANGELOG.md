@@ -23,7 +23,7 @@
   instead of switching a band back on with only part of its values.
 - Saving or replacing a settings preset waits for checked values the speaker has not reported yet
   and names them; before, they were left out and a replaced preset lost them.
-- A failed EQ export keeps the file it was to replace.
+- A failed EQ export keeps the file it was to replace and leaves no temporary file beside it.
 - An EQ import is worked out from the speaker's values when you press **Write**: bands the file
   leaves out keep changes made meanwhile, and if the EQ is no longer reported the preview stays
   open and says so instead of closing without writing.
@@ -37,7 +37,8 @@
   instead of being shown as unreachable, and one added from a scan is no longer refused because
   its serial holds unusual characters.
 - Full-scan reports and **All values** hide network addresses also when written with a port, a
-  prefix or a full stop after them; copied refusal texts are masked too.
+  prefix, a full stop after them, a label before them (`ip:`) or in angle brackets; copied
+  refusal texts are masked too.
 - Very long model, firmware and history texts from a speaker are cut, as other device texts are.
 - The third-party licence list in a release no longer lists the app's own parts.
 - Two libraries the app uses are updated to fix reported safety problems.
@@ -76,10 +77,11 @@
 - An unreadable **Show response times** setting falls back to on, as on a first start.
 - Settings are saved once you let go of a colour you drag in its picker, not on every frame.
 - A further window of a kind opens on the screen even when the first was left at its edge.
-- With two windows of a kind open, the place kept is that of the one you moved last.
-- On Linux, after switching to a mode whose window was maximized, the app waits up to a second for
-  the window to be maximized before it notes the window's size, so the other mode's size is not
-  kept for it.
+- With two windows of a kind open, the place kept is that of the one you moved last; a window
+  only opened there does not move the place where the next one opens.
+- On Linux, after starting or switching to a mode whose window was maximized, the app waits up to
+  a second for the window to be maximized before it notes the window's size, so another size is
+  not kept for it.
 - On Windows, a window that opens on a monitor with another scale than the main window is moved
   to the place it was left, in that monitor's scale.
 - The log no longer holds a detailed line about the window's place when **Detailed log** is
