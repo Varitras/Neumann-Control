@@ -370,7 +370,8 @@ impl SpeakerState {
             .and_then(|writes| writes.get_mut(path))?;
         let write = writes.pop_front()?;
         let later = writes.iter().copied().collect();
-        if matches!(event, Event::WriteRejected { .. }) {
+        // A 404 is a refusal too: the value before goes on to the later writes.
+        if matches!(event, Event::WriteRejected { .. } | Event::WriteAbsent(_)) {
             self.note_predecessor(Some(write), later, None);
         }
         if !done {
