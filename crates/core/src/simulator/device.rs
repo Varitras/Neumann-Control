@@ -60,8 +60,8 @@ const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
     description: "parameter address not found",
 };
 
-/// While the rear CONTROL switch is on LOCAL, every set answers 401 and gets still work.
-/// Measured on the KH 750 and the KH 120 II.
+/// While the rear CONTROL switch is on LOCAL, every set of a writable path answers 401 and gets
+/// still work; a read-only path still answers 405. Measured on the KH 750 and the KH 120 II.
 const CONTROL_MODE_PATH: &str = "ui/control_mode";
 const LOCAL_CONTROL_MODE: &str = "LOCAL";
 
@@ -279,11 +279,11 @@ impl SimulatedDevice {
         if value.is_null() {
             return Ok(nest(path, current));
         }
-        if self.is_in_local_mode() {
-            return Err(error_entry(path, &NOT_AUTHORISED));
-        }
         if self.is_read_only(path) {
             return Err(error_entry(path, &NOT_ALLOWED));
+        }
+        if self.is_in_local_mode() {
+            return Err(error_entry(path, &NOT_AUTHORISED));
         }
         if !same_kind(&current, &value) {
             return Err(error_entry(path, &NOT_ACCEPTABLE));

@@ -89,7 +89,8 @@ pub struct DeviceError {
 }
 
 impl DeviceError {
-    /// "authorisation needed": every write while the rear CONTROL switch is on LOCAL.
+    /// "authorisation needed": every write of a writable path while the rear CONTROL switch is
+    /// on LOCAL (a read-only path still answers `READ_ONLY`).
     pub const LOCAL_MODE: i64 = 401;
     /// The speaker does not have the path.
     pub const NOT_FOUND: i64 = 404;
