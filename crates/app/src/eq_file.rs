@@ -19,11 +19,9 @@ use crate::eq_response::{shelf_q_of_slope, shelf_slope_of_q};
 pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
 
 const COMMENT: char = '#';
-/// Frequencies and gains keep three decimals in the file. A shelf's Q is its slope converted,
-/// and three decimals of it came back as another slope; with nine, the slope read back rounds
-/// to what was exported (`SLOPE_DECIMALS`), also for a steep shelf.
-const VALUE_DECIMALS: usize = 3;
-const Q_DECIMALS: usize = 9;
+/// Frequencies and gains keep three decimals in the file (`trimmed`). A shelf's Q is its slope
+/// converted, and three decimals of it came back as another slope; with nine (`trimmed_q`), the
+/// slope read back rounds to what was exported, also for a steep shelf.
 const SLOPE_DECIMALS: i32 = 6;
 const FILTER_COMMAND: &str = "filter";
 const BYTE_ORDER_MARK: char = '\u{feff}';
@@ -541,7 +539,7 @@ fn filter_line(number: usize, token: &str, gain: bool, q: f64, band: &Band) -> S
     if gain {
         line.push_str(&format!(" Gain {} dB", trimmed(band.boost)));
     }
-    line.push_str(&format!(" Q {}", trimmed_to(q, Q_DECIMALS)));
+    line.push_str(&format!(" Q {}", trimmed_q(q)));
     line
 }
 
@@ -550,13 +548,17 @@ fn rounded(value: f64, decimals: i32) -> f64 {
     (value * scale).round() / scale
 }
 
+/// Up to three decimals with a point, no trailing zeros and no `-0`.
 fn trimmed(value: f64) -> String {
-    trimmed_to(value, VALUE_DECIMALS)
+    without_trailing_zeros(&format!("{value:.3}"))
 }
 
-/// Up to `decimals` decimals with a point, no trailing zeros and no `-0`.
-fn trimmed_to(value: f64, decimals: usize) -> String {
-    let text = format!("{value:.decimals$}");
+/// Like `trimmed` with nine decimals, for a Q.
+fn trimmed_q(value: f64) -> String {
+    without_trailing_zeros(&format!("{value:.9}"))
+}
+
+fn without_trailing_zeros(text: &str) -> String {
     let text = text.trim_end_matches('0').trim_end_matches('.');
     match text {
         "-0" => "0".to_owned(),
