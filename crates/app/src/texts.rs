@@ -832,6 +832,8 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
             .as_f64()
             .map_or_else(|| number.to_string(), self::number),
         Value::String(text) => text.clone(),
+        // A place a write left alone is no value.
+        Value::Null => UNKNOWN_VALUE.to_owned(),
         Value::Array(entries) => entries
             .iter()
             .map(|entry| history_value(entry, None))

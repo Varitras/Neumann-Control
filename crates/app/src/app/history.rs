@@ -71,26 +71,44 @@ struct Described {
     unit: Option<String>,
     /// The panel's conversion of the setting (a delay in ms or m), so the line reads the same.
     conversion: Option<Conversion>,
-    /// For an EQ band write: the band it touched; its values are that band's entries.
-    band: Option<usize>,
-    /// An EQ write of every band (a reset to flat).
-    all_bands: bool,
+    /// Which bands of an EQ array the write touched; its values are their entries.
+    bands: Bands,
+}
+
+/// The bands of an EQ write a history line names.
+enum Bands {
+    /// No EQ array: the value is shown whole.
+    Whole,
+    One(usize),
+    /// Every band (a reset to flat).
+    All,
+    /// Some bands: one part of a write switching bands off and on, whose other places are
+    /// `null`.
+    Some(Vec<usize>),
 }
 
 impl Described {
     /// The part of `value` the line shows: the band's entry of an EQ array, one entry for
-    /// all bands holding the same, else all of it.
-    fn shown<'a>(&self, value: &'a Value) -> Option<&'a Value> {
-        if let Some(band) = self.band {
-            return value.as_array().and_then(|bands| bands.get(band));
+    /// all bands holding the same, the touched bands' entries, else all of it.
+    fn shown(&self, value: &Value) -> Option<Value> {
+        let entries = value.as_array();
+        match &self.bands {
+            Bands::One(band) => entries.and_then(|entries| entries.get(*band)).cloned(),
+            Bands::All => {
+                let first = entries.and_then(|entries| entries.first());
+                let alike = entries.is_some_and(|entries| entries.iter().all(|e| Some(e) == first));
+                if alike {
+                    return first.cloned();
+                }
+                Some(value.clone())
+            }
+            Bands::Some(bands) => {
+                let entries = entries?;
+                let touched = bands.iter().filter_map(|band| entries.get(*band)).cloned();
+                Some(Value::Array(touched.collect()))
+            }
+            Bands::Whole => Some(value.clone()),
         }
-        let bands = value.as_array().filter(|_| self.all_bands);
-        let first = bands.and_then(|bands| bands.first());
-        let alike = bands.is_some_and(|bands| bands.iter().all(|band| Some(band) == first));
-        if alike {
-            return first;
-        }
-        Some(value)
     }
 
     /// `value` as the panel shows it.
@@ -100,7 +118,7 @@ impl Described {
         };
         match (self.conversion, shown.as_f64()) {
             (Some(conversion), Some(number)) => converted(conversion, number),
-            _ => texts::history_value(shown, self.unit.as_deref()),
+            _ => texts::history_value(&shown, self.unit.as_deref()),
         }
     }
 }
@@ -190,9 +208,8 @@ impl NeumannApp {
         let text = match lines.as_slice() {
             [line] => line.clone(),
             _ => {
-                let first = &entry.changes[0].path;
-                let shared = entry.changes.iter().all(|change| change.path == *first);
-                let setting = shared.then(|| self.describe(&entry.changes[0]).setting);
+                let setting = one_setting_on_each(&entry.changes)
+                    .then(|| self.describe(&entry.changes[0]).setting);
                 texts::history_changes(setting.as_deref(), entry.changes.len())
             }
         };
@@ -293,24 +310,29 @@ impl NeumannApp {
                 false => name.to_owned(),
             }
         });
-        let (setting, band, all_bands) = match (container_name, given.as_slice()) {
+        let places = change.after.as_array().map_or(0, Vec::len);
+        let (setting, bands) = match (container_name, given.as_slice()) {
             (Some(container), [band]) => {
                 let setting = texts::eq_change_setting(&container, band + 1, &label);
-                (setting, Some(*band), false)
+                (setting, Bands::One(*band))
+            }
+            (Some(container), [_, _, ..]) if given.len() == places => {
+                let setting = texts::eq_all_bands_setting(&container, &label);
+                (setting, Bands::All)
             }
             (Some(container), [_, _, ..]) => {
-                let setting = texts::eq_all_bands_setting(&container, &label);
-                (setting, None, true)
+                let numbers: Vec<usize> = given.iter().map(|band| band + 1).collect();
+                let setting = texts::eq_bands_setting(&container, &numbers, &label);
+                (setting, Bands::Some(given))
             }
-            _ => (label, None, false),
+            _ => (label, Bands::Whole),
         };
         Described {
             speaker,
             setting,
             unit: entry.and_then(|entry| entry.unit.clone()),
             conversion: entry.and_then(conversion_of),
-            band,
-            all_bands,
+            bands,
         }
     }
 
@@ -696,4 +718,19 @@ mod tests {
         };
         assert_eq!(command, Some(expected), "after {shown}");
     }
+}
+
+/// Whether the changes are one setting on as many speakers, as a group move writes it; the two
+/// parts of an EQ write that switches bands off and on are one speaker's.
+fn one_setting_on_each(changes: &[Change]) -> bool {
+    let Some(first) = changes.first() else {
+        return false;
+    };
+    let shared = changes.iter().all(|change| change.path == first.path);
+    let speakers_apart = changes.iter().enumerate().all(|(place, change)| {
+        changes[..place]
+            .iter()
+            .all(|earlier| earlier.speaker != change.speaker)
+    });
+    shared && speakers_apart
 }
