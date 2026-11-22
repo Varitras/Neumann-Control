@@ -1,6 +1,7 @@
 //! The window: owns the settings, one worker per speaker and the scan, and wires the views to
 //! them. Worker events are drained once per frame; workers wake the window when they have news.
 
+use std::collections::HashMap;
 use std::net::SocketAddrV6;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -140,6 +141,8 @@ pub struct NeumannApp {
     editing: bool,
     window: Option<WindowGeometry>,
     awaited_window: Option<AwaitedWindow>,
+    /// Own windows just opened at a place, in screen pixels, until they are seen there.
+    placing: HashMap<ViewportId, WindowGeometry>,
     /// Without a saved desk window, the window is sized to the desk until the user sizes it.
     window_fit: Option<WindowFit>,
     history: history::HistoryState,
@@ -214,6 +217,7 @@ impl NeumannApp {
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
             awaited_window: None,
+            placing: HashMap::new(),
             window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
             settings_path,
             settings,

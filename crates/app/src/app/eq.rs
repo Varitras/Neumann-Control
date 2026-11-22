@@ -159,6 +159,15 @@ impl NeumannApp {
 
     fn show_eq_window(&mut self, context: &Context, index: usize) -> Vec<EqAction> {
         let catalog = Catalog::embedded();
+        let Some(id) = self
+            .speaker_of(&self.eq_windows[index].key)
+            .map(eq_window_id)
+        else {
+            return Vec::new();
+        };
+        let viewport = ViewportId::from_hash_of(id);
+        let size = Vec2::from(eq_window::EQ_WINDOW_SIZE);
+        let opening = self.opening(context, viewport, WindowKind::Eq, index, size);
         let window = &self.eq_windows[index];
         let Some(speaker) = self.speaker_of(&window.key) else {
             return Vec::new();
@@ -286,7 +295,6 @@ impl NeumannApp {
                 })
                 .collect()
         });
-        let id = eq_window_id(speaker);
         let own_curves = bands
             .as_deref()
             .map(|bands| band_curves(bands, &frequencies))
@@ -454,9 +462,6 @@ impl NeumannApp {
             asking: window.asking_reset,
             crossover: shown.container.crossover,
         });
-        let viewport = ViewportId::from_hash_of(id);
-        let size = Vec2::from(eq_window::EQ_WINDOW_SIZE);
-        let opening = self.opening(context, viewport, WindowKind::Eq, index, size);
         let view = EqView {
             viewport,
             opening,

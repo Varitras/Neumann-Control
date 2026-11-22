@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportCommand, ViewportId};
+use eframe::egui::{pos2, vec2, Context, Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
 use super::{is_open, window_geometry, AwaitedWindow, NeumannApp};
@@ -151,6 +151,39 @@ fn unplaced(size: Vec2, monitor: Option<Vec2>) -> Option<WindowPlace> {
     })
 }
 
+/// Windows creates a window at the place given in points with the scale of the monitor it
+/// starts on; X11 and Wayland windows are left where the window manager puts them.
+const MOVES_NEW_WINDOWS_BACK: bool = cfg!(windows);
+
+/// Measured and asked-for places differ by up to this from rounding to whole pixels.
+const ONE_PIXEL: f32 = 1.0;
+
+/// Where a window opened at `intended` has to go when it is at `measured` (both in screen
+/// pixels), in its own scale `pixels_per_point`; `None` where it is.
+pub(super) fn misplaced(
+    intended: WindowGeometry,
+    measured: WindowGeometry,
+    pixels_per_point: f32,
+) -> Option<WindowPlace> {
+    let off = |one: f32, other: f32| (one - other).abs() > ONE_PIXEL;
+    let moved = off(intended.x, measured.x)
+        || off(intended.y, measured.y)
+        || off(intended.width, measured.width)
+        || off(intended.height, measured.height);
+    moved.then(|| place_of(intended, pixels_per_point))
+}
+
+/// A place (points, at `pixels_per_point`) in screen pixels.
+fn pixels_of(place: WindowPlace, position: Pos2, pixels_per_point: f32) -> WindowGeometry {
+    WindowGeometry {
+        x: position.x * pixels_per_point,
+        y: position.y * pixels_per_point,
+        width: place.size.x * pixels_per_point,
+        height: place.size.y * pixels_per_point,
+        maximized: place.maximized,
+    }
+}
+
 /// A saved geometry (screen pixels) as egui places a window (points).
 pub(super) fn place_of(geometry: WindowGeometry, pixels_per_point: f32) -> WindowPlace {
     let points = |pixels: f32| pixels / pixels_per_point;
@@ -166,7 +199,7 @@ impl NeumannApp {
     /// while open, else where the last of its kind was left, else at `default_size` over the
     /// middle of the main window.
     pub(super) fn opening(
-        &self,
+        &mut self,
         context: &Context,
         viewport: ViewportId,
         kind: WindowKind,
@@ -183,12 +216,27 @@ impl NeumannApp {
             .or_else(|| self.centred_place(context, default_size))
             .or_else(|| unplaced(default_size, monitor));
         let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
+        if let Opening::At(place) = opening {
+            self.note_placing(context, viewport, place);
+        }
         log::debug!(
             "{} window {index} opens {opening:?} on monitors {:?}",
             kind.key(),
             self.monitors
         );
         opening
+    }
+
+    /// A window opened at `place` (in the main window's scale) is checked once it is open.
+    fn note_placing(&mut self, context: &Context, viewport: ViewportId, place: WindowPlace) {
+        let Some(position) = place.position.filter(|_| MOVES_NEW_WINDOWS_BACK) else {
+            return;
+        };
+        if place.maximized {
+            return;
+        }
+        let pixels = pixels_of(place, position, context.pixels_per_point());
+        self.placing.insert(viewport, pixels);
     }
 
     /// Where the last `kind` window was left, if one was.
@@ -249,13 +297,26 @@ impl NeumannApp {
     ) {
         let last = self.settings.windows.get(kind.key()).copied();
         // The window's own scale: on another monitor it may differ from the main window's.
-        let geometry = context.input_for(viewport, |input| {
+        let (geometry, pixels_per_point) = context.input_for(viewport, |input| {
             let size = input.viewport_rect().size();
-            window_geometry(input.viewport(), size, input.pixels_per_point, last)
+            let geometry = window_geometry(input.viewport(), size, input.pixels_per_point, last);
+            (geometry, input.pixels_per_point)
         });
-        if let Some(geometry) = geometry {
-            keep_place(&mut self.settings.windows, kind, geometry);
+        let Some(geometry) = geometry else {
+            return;
+        };
+        let intended = self.placing.remove(&viewport);
+        if let Some(place) =
+            intended.and_then(|intended| misplaced(intended, geometry, pixels_per_point))
+        {
+            // Its place this frame is the one Windows chose, not the user's.
+            if let Some(position) = place.position {
+                context.send_viewport_cmd_to(viewport, ViewportCommand::OuterPosition(position));
+            }
+            context.send_viewport_cmd_to(viewport, ViewportCommand::InnerSize(place.size));
+            return;
         }
+        keep_place(&mut self.settings.windows, kind, geometry);
     }
 }
 
@@ -263,6 +324,36 @@ impl NeumannApp {
 mod tests {
     use super::*;
     use eframe::egui::ViewportInfo;
+
+    /// Windows converts a new window's place with the scale of the monitor it starts on: with
+    /// the main window at 100 % and that monitor at 150 %, a saved x of 3000 pixels became 4500.
+    /// The window is moved back in its own scale once it is open.
+    #[test]
+    fn a_window_opened_at_another_scale_is_moved_to_its_place() {
+        let intended = WindowGeometry {
+            x: 3000.0,
+            y: 200.0,
+            width: 600.0,
+            height: 400.0,
+            maximized: false,
+        };
+        let measured = WindowGeometry {
+            x: 4500.0,
+            y: 300.0,
+            width: 900.0,
+            height: 600.0,
+            ..intended
+        };
+        let place = misplaced(intended, measured, 1.5).expect("moved");
+        assert_eq!(place.position, Some(pos2(2000.0, 133.33333)));
+        assert_eq!(place.size, vec2(400.0, 266.66666));
+        assert_eq!(misplaced(intended, intended, 1.0), None);
+        let rounded = WindowGeometry {
+            x: 3000.4,
+            ..intended
+        };
+        assert_eq!(misplaced(rounded, intended, 1.0), None);
+    }
 
     /// A tall window centred over a main window low on the screen ends above the taskbar (the
     /// panel's foot once reached below the screen).
