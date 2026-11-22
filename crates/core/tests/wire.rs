@@ -165,8 +165,8 @@ fn path_displays_and_serializes_as_string() {
 }
 
 /// Measured on a KH 120 II: the speaker takes 29 JSON tokens and refuses 31 and more with 413
-/// (30 was not tried), and a write of a 20-band EQ list with the xid has 33. Without it the line fits; the reply is
-/// then matched by its path.
+/// (30 was not tried), and a write of a 20-band EQ list with the xid has 33. Without it the line
+/// fits; the reply is then matched by its path.
 #[test]
 fn a_twenty_band_eq_write_leaves_out_the_xid() {
     let twenty = Value::Array(vec![Value::Null; 20]);

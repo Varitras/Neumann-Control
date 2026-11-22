@@ -560,6 +560,8 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
         (error.code, error.description.as_str()),
         (DeviceError::REQUEST_TOO_LONG, "request too long")
     );
+    // The measured code: the constant alone is also what the simulator answers with.
+    assert_eq!(DeviceError::REQUEST_TOO_LONG, 413);
     assert_eq!(reply_xid(&refused), None);
     let ten = json!([true, false, false, false, false, false, false, false, false, false]);
     let two_lists = client.ask(&json!({"audio":{"out":{"eq2":{"enabled": ten, "boost": ten}}}}));

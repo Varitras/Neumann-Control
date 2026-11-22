@@ -232,6 +232,16 @@ fn scripted_speaker(script: impl FnOnce(&mut TcpStream, u64) + Send + 'static) -
     Client::connect(address).expect("fake speaker accepts")
 }
 
+/// A reply ending in a bare LF is read too: which ending the speakers send is not measured.
+#[test]
+fn a_reply_ending_in_a_bare_line_feed_is_read() {
+    let mut client = scripted_speaker(|stream, xid| {
+        let reply = level_reply(xid).replace(LINE_TERMINATOR, "\n");
+        let _ = stream.write_all(reply.as_bytes());
+    });
+    assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(1.0));
+}
+
 fn level_reply(xid: u64) -> String {
     format!(
         "{{\"audio\":{{\"out\":{{\"level\":1.0}}}},\"osc\":{{\"xid\":{xid}}}}}{LINE_TERMINATOR}"
