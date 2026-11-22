@@ -226,6 +226,38 @@ fn swap_is_offered_only_with_something_to_add() {
     assert!(swap.accesskit_node().is_disabled());
 }
 
+/// The KH 750 offers more settings to swap in than a low window shows; the list stood still
+/// and the last of them could not be reached.
+#[test]
+fn the_swap_list_scrolls_in_a_low_window() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], BTreeMap::new());
+    harness.set_size(LOW_WINDOW.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    right_click_button(&mut harness, texts::EQ.get());
+    last_menu_entry_comes_into_view(&mut harness, |harness| {
+        choose(harness, texts::SWAP_FOR.get());
+    });
+}
+
+/// The list behind "+ Add" in edit mode is the same long one.
+#[test]
+fn the_add_list_scrolls_in_a_low_window() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], BTreeMap::new());
+    start_editing(&mut harness);
+    harness.set_size(LOW_WINDOW.into());
+    harness.run_steps(2);
+    let add = harness.get_by_label(texts::ADD_ELEMENT.get());
+    add.scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    last_menu_entry_comes_into_view(&mut harness, |harness| {
+        choose(harness, texts::ADD_ELEMENT.get());
+    });
+}
+
 #[test]
 fn the_fixed_part_has_no_layout_menu() {
     let (_simulators, _directory, mut harness) =

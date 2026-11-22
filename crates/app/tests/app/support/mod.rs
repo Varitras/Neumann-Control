@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use eframe::egui;
-use egui_kittest::kittest::Queryable;
+use eframe::egui::{self, accesskit::Role};
+use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
@@ -849,4 +849,42 @@ pub fn slider_center(harness: &Harness<'static, NeumannApp>, label: &str) -> egu
         .get_by_role_and_label(egui::accesskit::Role::Slider, label)
         .rect()
         .center()
+}
+
+/// Lower than the KH 750's list of settings a menu offers.
+pub const LOW_WINDOW: [f32; 2] = [900.0, 400.0];
+
+/// Opens a submenu with `open`, then scrolls its last entry into the window. Its entries are
+/// the buttons it adds.
+pub fn last_menu_entry_comes_into_view(
+    harness: &mut Harness<'static, NeumannApp>,
+    open: impl FnOnce(&mut Harness<'static, NeumannApp>),
+) {
+    let buttons = |harness: &Harness<'static, NeumannApp>| -> Vec<(String, egui::Rect)> {
+        harness
+            .query_all_by_role(Role::Button)
+            .filter_map(|node| Some((node.accesskit_node().label()?, node.rect())))
+            .collect()
+    };
+    let before: Vec<String> = buttons(harness)
+        .into_iter()
+        .map(|(label, _)| label)
+        .collect();
+    open(harness);
+    let window = harness.ctx.content_rect();
+    let last = buttons(harness)
+        .into_iter()
+        .filter(|(label, _)| !before.contains(label))
+        .max_by(|one, other| one.1.bottom().total_cmp(&other.1.bottom()))
+        .map(|(label, _)| label)
+        .expect("entries in the submenu");
+    harness
+        .get_by_role_and_label(Role::Button, &last)
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    let rect = harness.get_by_role_and_label(Role::Button, &last).rect();
+    assert!(
+        window.contains_rect(rect),
+        "{last}: {rect:?} outside {window:?}"
+    );
 }
