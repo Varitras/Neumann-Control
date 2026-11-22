@@ -374,6 +374,26 @@ fn escape_during_number_edit_sends_nothing() {
     assert_eq!(numeric_value(&harness, STANDBY_TIME_LABEL), Some(60.0));
 }
 
+/// Escape during a drag on a number field ends it without a write, as Escape while typing does.
+#[test]
+fn escape_during_a_number_field_drag_writes_nothing() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    let start = number_field(&harness, DELAY_LABEL).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=10 {
+        harness.hover_at(start + egui::vec2(4.0 * frame as f32, 0.0));
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.step();
+    harness.drop_at(start + egui::vec2(40.0, 0.0));
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets(&simulator, DELAY_POINTER);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
 #[test]
 fn an_abandoned_name_draft_follows_the_device_again() {
     let (_simulator, _directory, mut harness) =
@@ -783,6 +803,40 @@ fn a_converted_delay_shows_only_the_converted_unit() {
 }
 
 const INPUT_MIX_POINTER: &str = "/audio/out/mixer/levels";
+
+/// A second mix change before the speaker answered the first keeps the first: the whole list
+/// is written from what was just sent, not from the last report.
+#[test]
+fn a_second_mix_edit_before_the_answer_keeps_the_first() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
+    let type_into = |harness: &mut Harness<'static, NeumannApp>, input: &str, text: &str| {
+        let field = || {
+            harness
+                .query_all_by_role_and_label(Role::SpinButton, input)
+                .next()
+        };
+        field().expect("the input's field").click();
+        harness.run_steps(1);
+        harness
+            .query_all_by_role_and_label(Role::SpinButton, input)
+            .next()
+            .unwrap()
+            .type_text(text);
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(2);
+    };
+    type_into(&mut harness, "Eingang A", "-20");
+    type_into(&mut harness, "Eingang B", "-10");
+    wait_until(&mut harness, "both mix writes", |_| {
+        sets(&simulator, INPUT_MIX_POINTER).len() == 2
+    });
+    assert_eq!(
+        sets(&simulator, INPUT_MIX_POINTER)[1],
+        json!([-20.0, -10.0])
+    );
+}
 
 #[test]
 fn the_input_mix_writes_the_whole_list() {
