@@ -30,6 +30,16 @@ const BYTE_ORDER_MARK: char = '\u{feff}';
 /// The second word of REW's two-word types (`LS Q`, `HP Q`): the variant with a Q.
 const Q_SUFFIX: &str = "Q";
 const FREQUENCY_KEY: &str = "FC";
+const GAIN_KEY: &str = "GAIN";
+const Q_KEY: &str = "Q";
+/// APO's tokens of the types the export writes; the import reads them too.
+const PEAK: &str = "PK";
+const LOW_PASS_Q: &str = "LPQ";
+const HIGH_PASS_Q: &str = "HPQ";
+const NOTCH: &str = "NO";
+const ALL_PASS: &str = "AP";
+const LOW_SHELF_Q: &str = "LSC";
+const HIGH_SHELF_Q: &str = "HSC";
 /// REW writes its all pass as two words (`All pass`), APO as `AP`.
 const REW_ALL_PASS: [&str; 2] = ["All", "pass"];
 /// The Q of REW's plain shelf (`LS`, `HS`; slope 1) and plain low and high pass (`LP`, `HP`),
@@ -153,17 +163,17 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
         }))
     };
     match upper.as_str() {
-        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Cookbook),
-        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Cookbook),
-        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
+        PEAK | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Cookbook),
+        "LP" | LOW_PASS_Q | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Cookbook),
+        "HP" | HIGH_PASS_Q | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
         // The speakers' band pass is the constant skirt form, APO's the 0 dB peak one.
         "BP" => Err(LineProblem::OtherForm(name.to_owned())),
-        "NO" => shaped(eq_type::NOTCH, false, QRule::Cookbook),
-        "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
-        "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
-        "HS" | "HSC" | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
+        NOTCH => shaped(eq_type::NOTCH, false, QRule::Cookbook),
+        ALL_PASS | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
+        "LS" | LOW_SHELF_Q | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
+        "HS" | HIGH_SHELF_Q | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
         "NONE" => Ok(None),
         _ => Err(LineProblem::UnknownType(name.to_owned())),
     }
@@ -345,9 +355,9 @@ impl Parameters {
             let word = tokens[place].to_ascii_uppercase();
             let value_at = |offset: usize| tokens.get(place + offset).map(|token| number(token));
             match word.as_str() {
-                "FC" => read.frequency = value_at(1).transpose()?,
-                "GAIN" => read.gain = value_at(1).transpose()?,
-                "Q" => read.q = value_at(1).transpose()?,
+                FREQUENCY_KEY => read.frequency = value_at(1).transpose()?,
+                GAIN_KEY => read.gain = value_at(1).transpose()?,
+                Q_KEY => read.q = value_at(1).transpose()?,
                 "BW" if tokens
                     .get(place + 1)
                     .is_some_and(|unit| unit.eq_ignore_ascii_case("oct")) =>
@@ -467,13 +477,13 @@ pub struct Export {
 /// than the speakers'), or a shelf beyond the cookbook form.
 fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
     match band.kind.as_str() {
-        eq_type::PARAMETRIC => Some(("PK", true, band.q)),
-        eq_type::LOWPASS => Some(("LPQ", false, band.q)),
-        eq_type::HIGHPASS => Some(("HPQ", false, band.q)),
-        eq_type::NOTCH => Some(("NO", false, band.q)),
-        eq_type::ALLPASS => Some(("AP", false, band.q)),
-        eq_type::LOSHELF => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
-        eq_type::HISHELF => Some(("HSC", true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::PARAMETRIC => Some((PEAK, true, band.q)),
+        eq_type::LOWPASS => Some((LOW_PASS_Q, false, band.q)),
+        eq_type::HIGHPASS => Some((HIGH_PASS_Q, false, band.q)),
+        eq_type::NOTCH => Some((NOTCH, false, band.q)),
+        eq_type::ALLPASS => Some((ALL_PASS, false, band.q)),
+        eq_type::LOSHELF => Some((LOW_SHELF_Q, true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::HISHELF => Some((HIGH_SHELF_Q, true, shelf_q_of_slope(band.q, band.boost)?)),
         _ => None,
     }
 }
