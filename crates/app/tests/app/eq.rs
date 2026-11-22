@@ -1463,6 +1463,35 @@ fn a_table_field_dragged_away_and_back_writes_nothing() {
     assert!(written.is_empty(), "{written:?}");
 }
 
+/// A refusal belongs to the EQ it was written to: it stood on under another EQ's tab.
+#[test]
+fn a_refusal_goes_with_a_switch_to_another_eq() {
+    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .type_text("30");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    let range = Refusal::OutOfRange {
+        min: -99.0,
+        max: 24.0,
+        unit: "dB".to_owned(),
+    };
+    let refusal = texts::describe_refusal(&range);
+    harness.get_by_label_contains(&refusal);
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(3);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
+}
+
 /// Leaving a table field by clicking another EQ's tab writes the value to the EQ it was typed in.
 #[test]
 fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
