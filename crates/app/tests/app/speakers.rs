@@ -345,8 +345,14 @@ fn rescan_updates_saved_address() {
         serial: Some(SIMULATED_SERIAL.to_owned()),
     };
     let path = settings_file(directory.path(), vec![stale]);
-    let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
+    // The scan at the start finds nothing, so only the user's scan can move the speaker: with
+    // it found from the start the test passed on the silent scan alone.
+    let shared: SharedScan = std::sync::Arc::new(std::sync::Mutex::new(Ok(Vec::new())));
+    let mut harness = harness_with_shared_scan(path.clone(), shared.clone());
     harness.get_by_label(&texts::speaker_count(1));
+    harness.run_steps(5);
+    assert!(!saved_at(&path, &simulator));
+    *shared.lock().unwrap() = Ok(vec![kh120_found(&simulator)]);
     harness.get_by_label(texts::SCAN.get()).click();
     // Not the name: the unconnected strip shows the announced name as well.
     wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
