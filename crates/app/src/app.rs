@@ -493,7 +493,7 @@ impl NeumannApp {
     /// The dialog shows the failure; after it was cancelled, the toolbar does.
     fn show_scan_failure(&mut self) {
         match &mut self.scan_choice {
-            Some(choice) => *choice = ScanChoice::Failed,
+            Some(choice) => *choice = choice.failed(),
             None => self.notice = Some(texts::SCAN_FAILED),
         }
     }

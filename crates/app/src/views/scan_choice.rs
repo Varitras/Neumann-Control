@@ -50,9 +50,10 @@ fn contents(
             busy::spinner(ui);
             ScanChoiceAction::None
         }
-        ScanChoice::Failed => {
+        ScanChoice::Failed(offers) => {
+            let action = rows(ui, offers);
             ui.colored_label(ui.visuals().error_fg_color, texts::SCAN_FAILED);
-            ScanChoiceAction::None
+            action
         }
         ScanChoice::Offered(offers) if offers.is_empty() => nothing_found(ui, notice),
         ScanChoice::Offered(offers) => rows(ui, offers),

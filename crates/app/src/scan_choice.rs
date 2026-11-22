@@ -13,7 +13,8 @@ use crate::targets::{entry_for, is_shown};
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScanChoice {
     Scanning,
-    Failed,
+    /// The last scan failed; the rows offered before it stay, with their checks.
+    Failed(Vec<Offer>),
     Offered(Vec<Offer>),
 }
 
@@ -63,9 +64,14 @@ impl ScanChoice {
         ScanChoice::Offered(offers)
     }
 
+    /// After a failed scan, like "Erneut suchen" with nothing found.
+    pub fn failed(&self) -> ScanChoice {
+        ScanChoice::Failed(self.offers().to_vec())
+    }
+
     /// Flips the check of one row; rows of speakers already shown stay unchecked.
     pub fn toggle(&mut self, index: usize) {
-        let ScanChoice::Offered(offers) = self else {
+        let (ScanChoice::Offered(offers) | ScanChoice::Failed(offers)) = self else {
             return;
         };
         let Some(offer) = offers.get_mut(index) else {
@@ -91,8 +97,8 @@ impl ScanChoice {
 
     fn offers(&self) -> &[Offer] {
         match self {
-            ScanChoice::Offered(offers) => offers,
-            ScanChoice::Scanning | ScanChoice::Failed => &[],
+            ScanChoice::Offered(offers) | ScanChoice::Failed(offers) => offers,
+            ScanChoice::Scanning => &[],
         }
     }
 }
@@ -245,7 +251,10 @@ mod tests {
 
     #[test]
     fn a_new_scan_after_nothing_offers_what_it_finds() {
-        for first in [ScanChoice::Failed, ScanChoice::Offered(Vec::new())] {
+        for first in [
+            ScanChoice::Failed(Vec::new()),
+            ScanChoice::Offered(Vec::new()),
+        ] {
             let again = first.again(&[found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)], &[]);
             assert_eq!(
                 again,
@@ -256,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_running_or_failed_scan_offers_nothing() {
-        for mut choice in [ScanChoice::Scanning, ScanChoice::Failed] {
+        for mut choice in [ScanChoice::Scanning, ScanChoice::Failed(Vec::new())] {
             choice.toggle(0);
             assert!(!choice.can_add());
             assert!(choice.chosen().is_empty());
