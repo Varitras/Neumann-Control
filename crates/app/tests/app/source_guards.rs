@@ -235,6 +235,20 @@ fn main_loads_untouched_without_the_lock() {
     );
 }
 
+/// The log starts at the level the settings ask for: placing the window, before the app
+/// existed to set it, wrote a debug line into every normal log.
+#[test]
+fn main_sets_the_log_level_before_the_window_opens() {
+    let main =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs")).unwrap();
+    let level = main.find("log_detail::apply(");
+    let window = main.find("eframe::run_native(");
+    assert!(
+        level.zip(window).is_some_and(|(level, window)| level < window),
+        "main.rs must call log_detail::apply before eframe::run_native"
+    );
+}
+
 /// An EQ preset is planned and saved from what the speaker will hold once its writes are
 /// through, not from its last report: a band write still on its way would otherwise be left
 /// out of a load or saved as it was.
