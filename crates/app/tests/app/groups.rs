@@ -555,7 +555,7 @@ fn a_settings_preset_of_another_model_keeps_its_name() {
         .iter()
         .map(|preset| preset.product.as_str())
         .collect();
-    assert_eq!(models, vec!["KH 120 II", "KH 750"]);
+    assert_eq!(models, vec![KH120_PRODUCT, KH750_PRODUCT]);
 }
 
 /// "None" in the groups window takes the colour off the group's strips, saved at once.
@@ -667,7 +667,7 @@ fn a_preset_loaded_on_a_member_reaches_its_linked_partners() {
     scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
-        .get_by_label(&texts::preset_entry("Pair", "KH 120 II"))
+        .get_by_label(&texts::preset_entry("Pair", KH120_PRODUCT))
         .click();
     harness.run_steps(6);
     harness.get_by_label(texts::WRITE_PRESET.get()).click();

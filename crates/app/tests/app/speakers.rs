@@ -38,18 +38,21 @@ fn another_serials_announcement_does_not_name_a_remembered_speaker() {
     let mut remembered = manual_for(&simulator);
     remembered.serial = Some("OTHER".to_owned());
     let path = settings_file(directory.path(), vec![remembered]);
-    let found = announced(&simulator, "Kitchen", "KH 120 II", SIMULATED_SERIAL);
+    let found = announced(&simulator, "Kitchen", KH120_PRODUCT, SIMULATED_SERIAL);
     let mut harness = harness(path, vec![found]);
     harness.run_steps(20);
     assert!(harness.query_by_label_contains("Kitchen").is_none());
 }
 
 fn kh750_found(simulator: &Simulator) -> Found {
-    announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
+    announced(simulator, KH750_NAME, KH750_PRODUCT, KH750_SERIAL)
 }
 
 /// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
 const SILENCE_SETTLE: Duration = Duration::from_millis(300);
+/// The manual entry's replies come this late, so it connects only after the chosen one for the
+/// second address started.
+const LATE_CONNECT_REPLY: Duration = Duration::from_millis(300);
 /// A third of the reply timeout a joined worker could wait for: far below it, far above two
 /// frames.
 const STALL_LIMIT: Duration = Duration::from_millis((RESPONSE_TIMEOUT.as_millis() / 3) as u64);
@@ -66,7 +69,7 @@ fn app_time(harness: &Harness<'static, NeumannApp>) -> f64 {
 }
 
 fn kh120_found(simulator: &Simulator) -> Found {
-    announced(simulator, KH120_NAME, "KH 120 II", SIMULATED_SERIAL)
+    announced(simulator, KH120_NAME, KH120_PRODUCT, SIMULATED_SERIAL)
 }
 
 fn saved_at(path: &Path, simulator: &Simulator) -> bool {
@@ -85,7 +88,7 @@ fn scan_shows_choices_without_adding_speakers() {
     harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, KH750_NAME);
     harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
-    harness.get_by_label("KH 750");
+    harness.get_by_label(KH750_PRODUCT);
     harness.get_by_label(&mask_host(&simulator.address()));
     harness.run_steps(5);
     harness.get_by_label(&texts::speaker_count(0));
@@ -403,8 +406,7 @@ fn add_address_saves_the_speaker_and_shows_it() {
 #[test]
 fn a_manual_speaker_found_at_a_second_address_is_shown_once() {
     let manual_simulator = Simulator::start(SimModel::Kh120Ii);
-    // The manual entry connects only after the chosen one for the second address started.
-    manual_simulator.set_reply_delay(Duration::from_millis(300));
+    manual_simulator.set_reply_delay(LATE_CONNECT_REPLY);
     let second_simulator = Simulator::start(SimModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&manual_simulator)]);

@@ -154,14 +154,14 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
     let path = settings_file(directory.path(), Vec::new());
     let found = Found {
         name: String::new(),
-        product: Some("KH 120 II".to_owned()),
+        product: Some(KH120_PRODUCT.to_owned()),
         serial: Some(SIMULATED_SERIAL.to_owned()),
         address: simulator.address(),
     };
     let mut harness = harness(path, vec![found]);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     // Without an announced name the dialog names the speaker by its announced model.
-    scan_and_add(&mut harness, &["KH 120 II"]);
+    scan_and_add(&mut harness, &[KH120_PRODUCT]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
@@ -903,7 +903,7 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
-        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .get_by_label(&texts::preset_entry("Evening", KH120_PRODUCT))
         .click();
     // The preview grows the dialog, which centres itself again over a few frames.
     harness.run_steps(6);
@@ -981,7 +981,7 @@ fn a_settings_preset_waits_for_its_unread_values() {
 fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
     let same = SettingsPreset {
         name: "Same".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [(paths::OUTPUT_LEVEL.to_owned(), json!(100.0))].into(),
     };
     let (simulator, _directory, mut harness) =
@@ -990,7 +990,7 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
         &mut harness,
         device_name(SimModel::Kh120Ii),
         "Same",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     harness.get_by_label(texts::PRESET_UNCHANGED.get());
     simulator.stop();
@@ -1014,7 +1014,7 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
 fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
     let other = SettingsPreset {
         name: "Other".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [("audio/out/not/here".to_owned(), json!(1.0))].into(),
     };
     let (_simulator, _directory, mut harness) =
@@ -1023,7 +1023,7 @@ fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
         &mut harness,
         device_name(SimModel::Kh120Ii),
         "Other",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     assert!(harness
         .query_by_label(texts::PRESET_UNCHANGED.get())
@@ -1036,7 +1036,7 @@ fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
 fn a_skipped_setting_is_named_by_its_label() {
     let old = SettingsPreset {
         name: "Old".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [(paths::IDENTIFY.to_owned(), json!(true))].into(),
     };
     let (_simulator, _directory, mut harness) =
@@ -1045,7 +1045,7 @@ fn a_skipped_setting_is_named_by_its_label() {
         &mut harness,
         device_name(SimModel::Kh120Ii),
         "Old",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     let catalog = neumann_control_core::catalog::Catalog::embedded();
     let path = neumann_control_core::ssc::wire::SscPath::parse(paths::IDENTIFY).unwrap();
@@ -1062,7 +1062,7 @@ fn a_skipped_setting_is_named_by_its_label() {
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
     let far = SettingsPreset {
         name: "Far".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [
             (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
             (paths::DELAY.to_owned(), json!(99_999)),
@@ -1075,7 +1075,7 @@ fn a_settings_preset_with_a_refused_value_writes_nothing() {
         &mut harness,
         device_name(SimModel::Kh120Ii),
         "Far",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     let range = Refusal::OutOfRange {
         min: 0.0,
@@ -1257,7 +1257,7 @@ fn deleting_a_settings_preset_asks_first() {
     scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
-        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .get_by_label(&texts::preset_entry("Evening", KH120_PRODUCT))
         .click();
     harness.run_steps(6);
     harness.get_by_label(texts::DELETE_PRESET.get()).click();

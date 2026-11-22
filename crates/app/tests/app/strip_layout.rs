@@ -20,8 +20,8 @@ use neumann_control_core::simulator::SimModel;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::json;
 
-const MONITOR: &str = "KH 120 II";
-const SUBWOOFER: &str = "KH 750";
+const MONITOR: &str = KH120_PRODUCT;
+const SUBWOOFER: &str = KH750_PRODUCT;
 
 fn element(text: &str) -> StripElement {
     StripElement::Path(SscPath::parse(text).unwrap())

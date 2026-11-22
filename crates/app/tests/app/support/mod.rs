@@ -54,8 +54,8 @@ pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
-const KH120_PRODUCT: &str = "KH 120 II";
-const KH750_PRODUCT: &str = "KH 750";
+pub const KH120_PRODUCT: &str = "KH 120 II";
+pub const KH750_PRODUCT: &str = "KH 750";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);

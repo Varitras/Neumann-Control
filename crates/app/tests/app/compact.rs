@@ -20,8 +20,8 @@ fn press_compact_shortcut(harness: &mut Harness<'static, NeumannApp>) {
     harness.run_steps(2);
 }
 
-const MONITOR: &str = "KH 120 II";
-const SUBWOOFER: &str = "KH 750";
+const MONITOR: &str = KH120_PRODUCT;
+const SUBWOOFER: &str = KH750_PRODUCT;
 
 fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
     harness

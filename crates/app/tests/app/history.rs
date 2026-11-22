@@ -140,7 +140,7 @@ fn a_refused_take_back_leaves_the_entry_open() {
 fn a_speaker_left_out_of_a_take_back_is_named_once() {
     let evening = SettingsPreset {
         name: "Evening".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [
             (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
             ("audio/out/delay".to_owned(), json!(10)),
@@ -153,7 +153,7 @@ fn a_speaker_left_out_of_a_take_back_is_named_once() {
         &mut harness,
         device_name(SimModel::Kh120Ii),
         "Evening",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the preset written", |_| {
