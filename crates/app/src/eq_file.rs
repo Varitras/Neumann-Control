@@ -19,6 +19,12 @@ use crate::eq_response::{shelf_q_of_slope, shelf_slope_of_q};
 pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
 
 const COMMENT: char = '#';
+/// Frequencies and gains keep three decimals in the file. A shelf's Q is its slope converted,
+/// and three decimals of it came back as another slope; with nine, the slope read back rounds
+/// to what was exported (`SLOPE_DECIMALS`), also for a steep shelf.
+const VALUE_DECIMALS: usize = 3;
+const Q_DECIMALS: usize = 9;
+const SLOPE_DECIMALS: i32 = 6;
 const FILTER_COMMAND: &str = "filter";
 const BYTE_ORDER_MARK: char = '\u{feff}';
 /// The second word of REW's two-word types (`LS Q`, `HP Q`): the variant with a Q.
@@ -306,7 +312,7 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
     };
     let q = match file_type.q {
         QRule::Cookbook => cookbook_q?,
-        QRule::Shelf => shelf_slope_of_q(cookbook_q?, boost),
+        QRule::Shelf => rounded(shelf_slope_of_q(cookbook_q?, boost), SLOPE_DECIMALS),
         QRule::Unused => FIRST_ORDER_Q,
     };
     // A bandwidth of 0 octaves gives an infinite Q, which would reach the speaker as `null` and
@@ -525,13 +531,22 @@ fn filter_line(number: usize, token: &str, gain: bool, q: f64, band: &Band) -> S
     if gain {
         line.push_str(&format!(" Gain {} dB", trimmed(band.boost)));
     }
-    line.push_str(&format!(" Q {}", trimmed(q)));
+    line.push_str(&format!(" Q {}", trimmed_to(q, Q_DECIMALS)));
     line
 }
 
-/// Up to three decimals with a point, no trailing zeros and no `-0`.
+fn rounded(value: f64, decimals: i32) -> f64 {
+    let scale = 10f64.powi(decimals);
+    (value * scale).round() / scale
+}
+
 fn trimmed(value: f64) -> String {
-    let text = format!("{value:.3}");
+    trimmed_to(value, VALUE_DECIMALS)
+}
+
+/// Up to `decimals` decimals with a point, no trailing zeros and no `-0`.
+fn trimmed_to(value: f64, decimals: usize) -> String {
+    let text = format!("{value:.decimals$}");
     let text = text.trim_end_matches('0').trim_end_matches('.');
     match text {
         "-0" => "0".to_owned(),
@@ -956,7 +971,7 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
                 "Filter 1: ON PK Fc 1230 Hz Gain -3 dB Q 0.7",
                 "# Filter 1: flat level 1.5 dB not exported",
                 "# Filter 2: off",
-                "Filter 3: ON LSC Fc 80 Hz Gain 4 dB Q 0.589",
+                "Filter 3: ON LSC Fc 80 Hz Gain 4 dB Q 0.589259145",
                 "Filter 4: ON HPQ Fc 30.5 Hz Q 0.5",
             ]
         );
@@ -976,6 +991,7 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
         let bands = vec![
             band("LOSHELF", 4.0, 80.0, 0.7),
             band("HISHELF", -6.5, 8000.0, 0.9),
+            band("LOSHELF", 6.0, 200.0, 5.7),
             band("PARAMETRIC", -3.0, 1230.0, 0.7),
         ];
         let text = export(&bands, "EQ 3").text;
