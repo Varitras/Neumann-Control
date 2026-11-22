@@ -727,6 +727,28 @@ fn bands_switched_on_and_off_at_once_read_as_such_in_the_history() {
     assert!(harness.query_by_label_contains("null").is_none());
 }
 
+/// A speaker first known by its address gets its serial at a reconnect: its open EQ window
+/// stays. The test of the window's id alone did not show that the window survives.
+#[test]
+fn an_open_eq_window_stays_when_the_speaker_gets_its_serial() {
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        simulator.set_value(neumann_control_app::paths::SERIAL, json!(7));
+    });
+    simulator.set_value(neumann_control_app::paths::SERIAL, json!("SIM0001234"));
+    simulator.inject(Fault::CloseConnection);
+    let settings = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    wait_until(&mut harness, "the serial kept", |_| {
+        neumann_control_core::settings::load(&settings)
+            .manual
+            .iter()
+            .any(|entry| entry.serial.as_deref() == Some("SIM0001234"))
+    });
+    harness.run_steps(3);
+    harness.get_by_label(texts::EQ_COMPUTED.get());
+}
+
 /// A preset taken while the speaker reported a value outside the range: loading it writes no
 /// leaf, not the ones before the refused one, and says why.
 #[test]

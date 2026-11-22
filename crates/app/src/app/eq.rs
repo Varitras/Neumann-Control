@@ -981,10 +981,10 @@ mod tests {
         SpeakerKey::Serial(serial.to_owned())
     }
 
-    /// A speaker first known by its address reports its serial: its own windows stay the same
-    /// windows, the EQ window and "All values" alike.
+    /// A speaker first known by its address reports its serial: its own windows keep their
+    /// ids, the EQ window and "All values" alike (the app test checks that they stay open).
     #[test]
-    fn a_speakers_windows_stay_when_it_gets_its_serial() {
+    fn a_speakers_window_ids_stay_when_it_gets_its_serial() {
         let address: std::net::SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
         let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
         let windows = |speaker: &SpeakerState| {
