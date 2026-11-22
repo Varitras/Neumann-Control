@@ -6,6 +6,7 @@ use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::eq::Leaf;
 use neumann_control_app::eq_file;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
@@ -19,6 +20,8 @@ const ENABLED_LABEL: &str = "Ein";
 const GAIN_POINTER: &str = "/audio/out/eq2/gain";
 const BOOST_POINTER: &str = "/audio/out/eq2/boost";
 const FREQUENCY_POINTER: &str = "/audio/out/eq2/frequency";
+const ENABLED_POINTER: &str = "/audio/out/eq2/enabled";
+const Q_POINTER: &str = "/audio/out/eq2/q";
 
 /// Ten bands spread over the range, so every point has its own place.
 fn spread(simulator: &Simulator) {
@@ -704,7 +707,7 @@ fn bands_switched_on_and_off_at_once_read_as_such_in_the_history() {
     harness.run_steps(6);
     scroll_to_and_click(&mut harness, texts::WRITE_PRESET.get());
     wait_until(&mut harness, "both parts written", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+        sets(&simulator, ENABLED_POINTER).len() == 2
     });
     close_eq(&mut harness);
     harness.run_steps(2);
@@ -903,27 +906,25 @@ fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
         0.7,
     ));
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
         .click();
     wait_until(&mut harness, "all six leaves written", |_| {
-        ["enabled", "type", "frequency", "q", "gain", "boost"]
+        Leaf::ALL
+            .map(Leaf::name)
             .iter()
             .all(|leaf| !sets(&simulator, &format!("/audio/out/eq2/{leaf}")).is_empty())
     });
     assert_eq!(
-        sets(&simulator, "/audio/out/eq2/enabled"),
+        sets(&simulator, ENABLED_POINTER),
         vec![json!(vec![false; 10])]
     );
     assert_eq!(
         sets(&simulator, FREQUENCY_POINTER),
         vec![json!(vec![100.0; 10])]
     );
-    assert_eq!(
-        sets(&simulator, "/audio/out/eq2/q"),
-        vec![json!(vec![0.7; 10])]
-    );
+    assert_eq!(sets(&simulator, Q_POINTER), vec![json!(vec![0.7; 10])]);
     assert_eq!(sets(&simulator, GAIN_POINTER), vec![json!(vec![0.0; 10])]);
     let history: Vec<_> = harness.state().history().entries().cloned().collect();
     assert_eq!(history.len(), 1);
@@ -1185,14 +1186,14 @@ fn taking_back_an_import_switches_its_new_band_off_first() {
         .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
         .click();
     wait_until(&mut harness, "the import written", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+        sets(&simulator, ENABLED_POINTER).len() == 2
     });
     barrier(&simulator);
     harness.run_steps(3);
     let written = simulator.requests().len();
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "the take-back", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() >= 3
+        sets(&simulator, ENABLED_POINTER).len() >= 3
     });
     barrier(&simulator);
     let requests = simulator.requests();
@@ -1231,7 +1232,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     harness.get_by_label(&texts::eq_preset_band(1));
     harness.get_by_label(&texts::eq_preset_band(10));
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     // Slow answers space the import's writes as a loaded CI runner did: the boost had arrived,
     // the frequency not yet.
     simulator.set_reply_delay(std::time::Duration::from_millis(200));
@@ -1240,7 +1241,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
         .click();
     // Band 1 goes on only after its other leaves: the switching on is the last write.
     wait_until(&mut harness, "the import written", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+        sets(&simulator, ENABLED_POINTER).len() == 2
     });
     barrier(&simulator);
     let mut switched_off = vec![json!(false); 10];
@@ -1248,7 +1249,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     let mut switched_on = vec![Value::Null; 10];
     switched_on[0] = json!(true);
     assert_eq!(
-        sets(&simulator, "/audio/out/eq2/enabled"),
+        sets(&simulator, ENABLED_POINTER),
         vec![json!(switched_off), json!(switched_on)]
     );
     assert_eq!(sets(&simulator, BOOST_POINTER)[0][0], json!(-4.0));
@@ -1271,7 +1272,7 @@ fn a_file_the_speaker_would_refuse_writes_nothing() {
         .click();
     harness.run_steps(2);
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
 }
 
@@ -1383,7 +1384,8 @@ fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
         .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
         .click();
     wait_until(&mut harness, "all six leaves of EQ 3 written", |_| {
-        ["enabled", "type", "frequency", "q", "gain", "boost"]
+        Leaf::ALL
+            .map(Leaf::name)
             .iter()
             .all(|leaf| !sets(&simulator, &format!("/audio/out/eq3/{leaf}")).is_empty())
     });
@@ -1473,7 +1475,7 @@ fn the_wheel_during_a_point_drag_leaves_q_alone() {
     harness.drop_at(start + egui::vec2(0.0, -6.5));
     harness.run_steps(3);
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/q").is_empty());
+    assert!(sets(&simulator, Q_POINTER).is_empty());
 }
 
 /// Two points on one spot: the wheel turns the one drawn on top, not both.
@@ -1495,11 +1497,11 @@ fn the_wheel_over_overlapping_points_turns_one_band() {
         modifiers: egui::Modifiers::NONE,
     });
     wait_until(&mut harness, "a Q write", |_| {
-        !sets(&simulator, "/audio/out/eq2/q").is_empty()
+        !sets(&simulator, Q_POINTER).is_empty()
     });
     harness.run_steps(40);
     barrier(&simulator);
-    let written: Vec<Value> = sets(&simulator, "/audio/out/eq2/q");
+    let written: Vec<Value> = sets(&simulator, Q_POINTER);
     let bands: usize = written
         .iter()
         .map(|set| {
@@ -1675,7 +1677,7 @@ fn the_history_names_the_output_of_a_kh750_eq_change() {
     wait_until(&mut harness, "the band write", |_| {
         simulator.requests().iter().any(|request| {
             request
-                .pointer("/audio/out/eq2/boost")
+                .pointer(BOOST_POINTER)
                 .is_some_and(|value| !value.is_null())
         })
     });
