@@ -91,6 +91,9 @@ pub struct MeterState {
     start_time: f64,
     peak: f64,
     peak_since: f64,
+    /// The readout's last step time and the bar then, kept when a reading after the step
+    /// starts a new stretch of the bar's way.
+    stepped: (f64, f64),
 }
 
 impl Default for MeterState {
@@ -101,12 +104,17 @@ impl Default for MeterState {
             start_time: 0.0,
             peak: METER_FLOOR_DB,
             peak_since: 0.0,
+            stepped: (0.0, METER_FLOOR_DB),
         }
     }
 }
 
 impl MeterState {
     pub fn update(&mut self, level: f64, now: f64) {
+        let step = self.readout_step(now);
+        if step >= self.start_time {
+            self.stepped = (step, self.shown(step));
+        }
         self.start = self.shown(now);
         self.start_time = now;
         self.level = level;
@@ -154,17 +162,33 @@ impl MeterState {
     /// While the hold lasts it is the held peak itself; afterwards it follows the falling bar
     /// in steps of `READOUT_REFRESH_SECONDS`, so a new peak still shows at once.
     pub fn readout(&self, now: f64, floor: f64) -> Option<i32> {
-        let hold_end = self.peak_since + PEAK_HOLD_SECONDS;
-        let db = if now < hold_end {
+        let db = if now < self.hold_end() {
             self.peak
         } else {
-            let step = (now / READOUT_REFRESH_SECONDS).floor() * READOUT_REFRESH_SECONDS;
-            self.shown(step.max(hold_end))
+            self.bar_at(self.readout_step(now))
         };
         if db <= floor {
             return None;
         }
         Some(db.round() as i32)
+    }
+
+    fn hold_end(&self) -> f64 {
+        self.peak_since + PEAK_HOLD_SECONDS
+    }
+
+    /// The time whose bar the readout shows at `now` once the hold ran out.
+    fn readout_step(&self, now: f64) -> f64 {
+        let step = (now / READOUT_REFRESH_SECONDS).floor() * READOUT_REFRESH_SECONDS;
+        step.max(self.hold_end())
+    }
+
+    /// The bar at `time`, also at a step before the newest reading.
+    fn bar_at(&self, time: f64) -> f64 {
+        if time < self.start_time && time == self.stepped.0 {
+            return self.stepped.1;
+        }
+        self.shown(time)
     }
 
     pub fn reset(&mut self) {
