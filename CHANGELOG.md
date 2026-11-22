@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- The band colours in the settings wrap to the window's width and stand in even columns; a
+  narrow window no longer cuts off the last bands.
 - A value the speaker confirms differently than it was sent counts at once, also while another
   write to the same setting is on its way: the next change starts from it, and taking a change
   back writes it, not the value sent.
