@@ -14,8 +14,8 @@
   narrow window no longer cuts off the last bands.
 - The lists behind "Swap for…" and "+ Add" on a strip scroll when the window is lower than
   the list; with a KH 750 the last settings were out of reach.
-- A scroll bar's handle now shows at all times, not only under the mouse pointer. Text inputs
-  are a shade darker (white in the light theme) to match.
+- A scroll bar's handle now shows at all times, not only under the mouse pointer. To match,
+  text inputs are darker in the dark theme and white in the light theme.
 - Text and cursor in a text field sit in its middle, not slightly above it.
 - A value the speaker confirms differently than it was sent counts at once, also while another
   write to the same setting is on its way: the next change starts from it, and taking a change
