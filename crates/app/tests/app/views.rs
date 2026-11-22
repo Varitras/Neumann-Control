@@ -367,6 +367,28 @@ fn unreachable_strip_is_disabled() {
         .is_disabled());
 }
 
+/// A knob or fader that cannot be used offers no Shift or double click in its hint.
+#[test]
+fn a_control_that_cannot_be_used_offers_no_gestures() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    let name = device_name(SimulatedModel::Kh120Ii);
+    open_panel_on(&mut harness, name, neumann_control_app::panel_tabs::PanelTab::Standby);
+    simulator.stop();
+    wait_until(&mut harness, "the unreachable text", |harness| {
+        harness.query_all_by_label(texts::UNREACHABLE.get()).next().is_some()
+    });
+    let knob = slider_center(&harness, STANDBY_TIME_LABEL);
+    harness.hover_at(knob);
+    harness.run_steps(10);
+    assert!(harness
+        .query_by_label_contains(texts::CONTROL_HINT.get())
+        .is_none());
+    let fader = slider_center(&harness, texts::LEVEL.get());
+    harness.hover_at(fader);
+    harness.run_steps(10);
+    assert!(harness.query_by_label(texts::FADER_HINT.get()).is_none());
+}
+
 #[test]
 fn out_of_range_level_is_not_written_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
