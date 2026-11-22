@@ -131,6 +131,22 @@ fn own_window_place(
     place_of(fit_into(geometry, monitors, least), pixels_per_point)
 }
 
+/// The `index`-th open window of `kind` (from 0) where the last of its kind was left (`saved`,
+/// screen pixels).
+fn saved_window(
+    saved: WindowGeometry,
+    index: usize,
+    monitors: &[MonitorArea],
+    pixels_per_point: f32,
+    kind: WindowKind,
+) -> WindowPlace {
+    let place = own_window_place(saved, monitors, pixels_per_point, kind);
+    let Opening::At(place) = cascaded(Opening::At(place), index) else {
+        return place;
+    };
+    place
+}
+
 /// The least window size in screen pixels.
 fn least_size(pixels_per_point: f32) -> (f32, f32) {
     (
@@ -504,13 +520,37 @@ mod tests {
 
     #[test]
     fn a_further_open_window_is_set_off_from_the_first() {
-        let place = place_of(GEOMETRY, 1.0);
-        assert_eq!(cascaded(Opening::At(place), 0), Opening::At(place));
-        let Opening::At(second) = cascaded(Opening::At(place), 2) else {
-            panic!("still a place");
+        let screen = [MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        }];
+        let kind = WindowKind::Panel;
+        let first = saved_window(GEOMETRY, 0, &screen, 1.0, kind);
+        assert_eq!(first, place_of(GEOMETRY, 1.0));
+        let third = saved_window(GEOMETRY, 2, &screen, 1.0, kind);
+        assert_eq!(third.position, Some(pos2(10.0, 20.0) + CASCADE_STEP * 2.0));
+        assert_eq!(third.size, first.size);
+    }
+
+    /// The offset came after the fit onto the monitor: a window of a kind left at the screen's
+    /// edge opened its further ones partly past it.
+    #[test]
+    fn a_further_window_at_the_screen_edge_stays_on_the_screen() {
+        let screen = [MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        }];
+        let corner = WindowGeometry {
+            x: 1320.0,
+            y: 680.0,
+            ..GEOMETRY
         };
-        assert_eq!(second.position, Some(pos2(10.0, 20.0) + CASCADE_STEP * 2.0));
-        assert_eq!(second.size, place.size);
-        assert_eq!(cascaded(Opening::Open, 2), Opening::Open);
+        let third = saved_window(corner, 2, &screen, 1.0, WindowKind::Panel);
+        let end = third.position.unwrap() + third.size;
+        assert!(end.x <= 1920.0 && end.y <= 1080.0, "{third:?}");
     }
 }
