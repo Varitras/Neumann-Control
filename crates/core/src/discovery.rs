@@ -343,6 +343,14 @@ mod tests {
         .name
     }
 
+    /// mdns-sd 0.22 hands over a name read from the network with its escapes, so "Mon. L"
+    /// arrives as `Mon\. L`; the desk shows the name as the speaker has it.
+    #[test]
+    fn a_dot_or_backslash_in_the_device_name_shows_without_its_escape() {
+        assert_eq!(announced_name(r"Mon\. L._ssc._tcp.local.", None), "Mon. L");
+        assert_eq!(announced_name(r"A\\B._ssc._tcp.local.", None), r"A\B");
+    }
+
     #[test]
     fn a_trailing_dash_serial_is_stripped_from_the_instance_name() {
         assert_eq!(
