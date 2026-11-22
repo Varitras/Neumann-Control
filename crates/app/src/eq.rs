@@ -480,6 +480,15 @@ mod tests {
         assert_eq!(snapped_frequency(23999.0), 24000.0);
     }
 
+    /// A speaker can report 0 Hz for a band: its logarithm overflowed the digit count, a panic
+    /// in a debug build and not a number in a release build.
+    #[test]
+    fn a_reported_frequency_of_zero_does_not_overflow_the_snap() {
+        assert_eq!(snapped_frequency(0.0), 0.0);
+        assert_eq!(snapped_frequency(-5.0), -5.0);
+        assert!(snapped_frequency(f64::NAN).is_nan());
+    }
+
     #[test]
     fn a_band_path_finds_its_container() {
         let catalog = neumann_control_core::catalog::Catalog::embedded();
