@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportCommand, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
-use super::{is_open, window_geometry, NeumannApp};
+use super::{is_open, window_geometry, AwaitedWindow, NeumannApp};
 use crate::views::{
     all_values, eq_window, groups_window, panel, preset_dialog, settings_dialog, Opening,
     WindowPlace,
@@ -215,7 +215,7 @@ impl NeumannApp {
 
     /// The main window to `geometry`, through egui as every size the fit asks for: set on the
     /// winit window directly, beside egui's commands, it came late or not at all under Wayland.
-    pub(super) fn restore_window(&self, context: &Context, geometry: WindowGeometry) {
+    pub(super) fn restore_window(&mut self, context: &Context, geometry: WindowGeometry) {
         let place = self.on_a_monitor(context, geometry);
         if let Some(position) = place.position {
             context.send_viewport_cmd(ViewportCommand::OuterPosition(position));
@@ -226,6 +226,8 @@ impl NeumannApp {
         let maximized = context.input(|input| input.viewport().maximized == Some(true));
         if place.maximized != maximized {
             context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
+            let now = context.input(|input| input.time);
+            self.awaited_window = Some(AwaitedWindow::new(geometry, now));
         }
     }
 

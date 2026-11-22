@@ -139,6 +139,7 @@ pub struct NeumannApp {
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
     editing: bool,
     window: Option<WindowGeometry>,
+    awaited_window: Option<AwaitedWindow>,
     /// Without a saved desk window, the window is sized to the desk until the user sizes it.
     window_fit: Option<WindowFit>,
     history: history::HistoryState,
@@ -212,6 +213,7 @@ impl NeumannApp {
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
+            awaited_window: None,
             window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
             settings_path,
             settings,
@@ -1140,6 +1142,48 @@ pub fn window_geometry(
     })
 }
 
+/// How long a window manager may take to maximize or restore the window as asked; one that
+/// ignores the request leaves the window as it is.
+const MAXIMIZE_WAIT_SECONDS: f64 = 1.0;
+
+/// A maximize or restore the app asked for that the window manager has not applied yet: X11 and
+/// Wayland apply it frames later, Windows at once.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AwaitedWindow {
+    pub window: WindowGeometry,
+    /// `input.time` after which the window counts as measured again.
+    pub until: f64,
+}
+
+impl AwaitedWindow {
+    pub fn new(window: WindowGeometry, now: f64) -> AwaitedWindow {
+        AwaitedWindow {
+            window,
+            until: now + MAXIMIZE_WAIT_SECONDS,
+        }
+    }
+}
+
+/// The main window's geometry for this frame: the one asked for while `awaited` has not
+/// arrived, so that the rectangle measured before it is never kept as the normal place; else
+/// `window_geometry`'s.
+pub fn next_window(
+    viewport: &ViewportInfo,
+    size: Vec2,
+    pixels_per_point: f32,
+    last: Option<WindowGeometry>,
+    awaited: &mut Option<AwaitedWindow>,
+    now: f64,
+) -> Option<WindowGeometry> {
+    *awaited = awaited.filter(|awaited| {
+        viewport.maximized != Some(awaited.window.maximized) && now < awaited.until
+    });
+    match awaited {
+        Some(awaited) => Some(awaited.window),
+        None => window_geometry(viewport, size, pixels_per_point, last),
+    }
+}
+
 impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
         let pause = self
@@ -1165,9 +1209,10 @@ impl eframe::App for NeumannApp {
         self.poll_scan();
         self.finish_logic_history();
         let pixels_per_point = context.pixels_per_point();
+        let (last, awaited) = (self.window, &mut self.awaited_window);
         self.window = context.input(|input| {
             let size = input.viewport_rect().size();
-            window_geometry(input.viewport(), size, pixels_per_point, self.window)
+            next_window(input.viewport(), size, pixels_per_point, last, awaited, now)
         });
     }
 
@@ -1320,6 +1365,57 @@ mod tests {
         );
         let first = window_geometry(&wayland, SIZE, 1.0, None).unwrap();
         assert_eq!((first.width, first.height), (800.0, 500.0));
+    }
+
+    /// X11 and Wayland maximize frames after the request: a mode switch onto a maximized window
+    /// kept the old mode's rectangle, measured in between, as the new mode's normal place.
+    #[test]
+    fn a_late_maximize_keeps_the_place_asked_for() {
+        let target = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = Some(AwaitedWindow {
+            window: target,
+            until: 1.0,
+        });
+        let not_yet = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        let first = next_window(&not_yet, SIZE, 1.0, Some(target), &mut awaited, 0.1);
+        assert_eq!(first, Some(target));
+        let arrived = ViewportInfo {
+            maximized: Some(true),
+            ..viewport()
+        };
+        let second = next_window(&arrived, SIZE, 1.0, first, &mut awaited, 0.2);
+        assert_eq!(second, Some(target));
+        assert_eq!(awaited, None);
+    }
+
+    /// A window manager that ignores the request leaves the window as it is: after a while its
+    /// measured place counts again.
+    #[test]
+    fn an_ignored_maximize_is_given_up() {
+        let target = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = Some(AwaitedWindow {
+            window: target,
+            until: 1.0,
+        });
+        let ignored = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        let measured = window_geometry(&ignored, SIZE, 1.0, Some(target));
+        assert_eq!(
+            next_window(&ignored, SIZE, 1.0, Some(target), &mut awaited, 1.5),
+            measured
+        );
+        assert_eq!(awaited, None);
     }
 
     /// A window not open has no geometry: neither a size of its own nor the last one is kept
