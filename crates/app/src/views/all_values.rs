@@ -3,7 +3,7 @@
 //! fresh read.
 
 use eframe::egui::{
-    self, Context, Id, Label, ScrollArea, TextEdit, Ui, ViewportBuilder, ViewportClass, ViewportId,
+    self, Context, Id, Label, ScrollArea, Ui, ViewportBuilder, ViewportClass, ViewportId,
 };
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::speaker::Command;
@@ -13,6 +13,7 @@ use super::{escape_closes, placed, Opening};
 use crate::all_values::{rows, Row};
 use crate::state::{AllValuesState, SpeakerState};
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 use eframe::egui::Vec2;
 
 const WINDOW_ID: &str = "all_values";
@@ -65,7 +66,7 @@ fn contents(
 ) {
     ui.horizontal(|ui| {
         let label = ui.label(texts::ALL_VALUES_FILTER_LABEL);
-        ui.add(TextEdit::singleline(&mut speaker.all_values_filter).desired_width(FILTER_WIDTH))
+        ui.add(text_field(&mut speaker.all_values_filter).desired_width(FILTER_WIDTH))
             .labelled_by(label.id);
         if ui
             .add_enabled(

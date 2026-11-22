@@ -1,11 +1,12 @@
 //! The "+ Adresse" dialog: one IPv6 address (link-local with `%index`), port fixed to 45.
 
-use eframe::egui::{Id, Key, Modal, TextEdit, Ui};
+use eframe::egui::{Id, Key, Modal, Ui};
 use neumann_control_core::address::{parse_address, AddressError, SSC_PORT};
 use neumann_control_core::settings::ManualSpeaker;
 
 use crate::targets::is_listed;
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 
 const MODAL_ID: &str = "add_address";
 const FIELD_WIDTH: f32 = 260.0;
@@ -46,7 +47,7 @@ fn contents(ui: &mut Ui, form: &mut AddAddressForm, listed: &[ManualSpeaker]) ->
         .horizontal(|ui| {
             let field = ui
                 .add(
-                    TextEdit::singleline(&mut form.text)
+                    text_field(&mut form.text)
                         .hint_text(texts::ADDRESS_HINT)
                         .desired_width(FIELD_WIDTH),
                 )

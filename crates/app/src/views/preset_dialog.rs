@@ -3,12 +3,13 @@
 //! of the panel; the EQ window's over its own contents. They only draw and report.
 
 use eframe::egui::{
-    self, Button, Context, Grid, Id, Modal, RichText, ScrollArea, TextEdit, Ui, Vec2,
-    ViewportBuilder, ViewportClass, ViewportCommand, ViewportId,
+    self, Button, Context, Grid, Id, Modal, RichText, ScrollArea, Ui, Vec2, ViewportBuilder,
+    ViewportClass, ViewportCommand, ViewportId,
 };
 
 use super::{escape_closes, placed, Opening};
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 
 const SAVE_ID: &str = "preset_save";
 const LOAD_ID: &str = "preset_load";
@@ -91,7 +92,7 @@ pub fn save_body(
 ) -> SaveAction {
     ui.heading(title);
     let label = ui.label(texts::PRESET_NAME);
-    ui.add(TextEdit::singleline(name)).labelled_by(label.id);
+    ui.add(text_field(name)).labelled_by(label.id);
     let mut action = SaveAction::None;
     ScrollArea::vertical()
         .max_height(LIST_HEIGHT)

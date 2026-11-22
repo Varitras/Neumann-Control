@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Button, Checkbox, ComboBox, Key, TextEdit, Ui};
+use eframe::egui::{Button, Checkbox, ComboBox, Key, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
@@ -12,6 +12,7 @@ use super::number_field::{self, NumberField};
 use crate::display::{capped, conversion_of};
 use crate::state::SpeakerState;
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 use crate::writes::{self, Intent};
 
 /// Drag speed for numbers without a step in the catalog, in units per point.
@@ -198,7 +199,7 @@ impl Fields<'_> {
             draft.text = latest.as_deref().map(capped).unwrap_or_default();
         }
         let label = ui.label(entry.label(texts::language()));
-        let field = TextEdit::singleline(&mut draft.text)
+        let field = text_field(&mut draft.text)
             .id(field_id)
             .desired_width(ui.available_width());
         let field = ui.add_enabled(enabled, field).labelled_by(label.id);
