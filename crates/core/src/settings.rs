@@ -237,7 +237,7 @@ pub struct DeskSettings {
     pub theme: ThemeChoice,
     #[serde(deserialize_with = "or_default")]
     pub meter_floor: MeterFloor,
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "or_shown")]
     pub show_response_times: bool,
     /// The master strip at the end of the desk and the master row in the compact mode.
     #[serde(deserialize_with = "or_default")]
@@ -368,12 +368,15 @@ impl DeskSettings {
     }
 }
 
+/// The response times show unless switched off, also where the switch cannot be read.
+const SHOW_RESPONSE_TIMES: bool = true;
+
 impl Default for DeskSettings {
     fn default() -> DeskSettings {
         DeskSettings {
             theme: ThemeChoice::System,
             meter_floor: MeterFloor::Minus120,
-            show_response_times: true,
+            show_response_times: SHOW_RESPONSE_TIMES,
             show_master: false,
             language: LanguageChoice::System,
             compact: false,
@@ -524,6 +527,22 @@ where
     D: Deserializer<'de>,
     T: DeserializeOwned + Default,
 {
+    understood_or(deserializer, T::default)
+}
+
+/// Like `or_default` for the response time switch, whose default is on.
+fn or_shown<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    understood_or(deserializer, || SHOW_RESPONSE_TIMES)
+}
+
+fn understood_or<'de, D, T>(deserializer: D, fallback: impl FnOnce() -> T) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(T::deserialize(value).unwrap_or_else(|error| {
         log::warn!(
@@ -531,7 +550,7 @@ where
             error.classify()
         );
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
-        T::default()
+        fallback()
     }))
 }
 
