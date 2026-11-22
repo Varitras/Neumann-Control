@@ -221,4 +221,24 @@ mod tests {
         );
         assert!(!context.style_of(Theme::Light).visuals.dark_mode);
     }
+
+    /// The least step between two greys that reads as two shades, not one.
+    const VISIBLE_STEP: i32 = 16;
+
+    /// egui paints the resting scroll handle in the inactive widget fill and its track in the
+    /// extreme background; both were the field colour, so the handle showed only under the
+    /// pointer.
+    #[test]
+    fn the_scroll_handle_stands_out_from_its_track_at_rest() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let visuals = style(theme).visuals;
+            let handle = visuals.widgets.inactive.bg_fill;
+            let track = visuals.extreme_bg_color;
+            let step = (0..3)
+                .map(|channel| (i32::from(handle[channel]) - i32::from(track[channel])).abs())
+                .max()
+                .unwrap_or(0);
+            assert!(step >= VISIBLE_STEP, "{theme:?}: {handle:?} on {track:?}");
+        }
+    }
 }
