@@ -23,7 +23,7 @@ use crate::window_fit::WindowFit;
 impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
         if self.speakers.is_empty() {
-            ui.weak(texts::NO_SPEAKERS);
+            ui.weak(texts::NO_SPEAKERS_COMPACT);
             self.watch_fit(ui.ctx());
             return;
         }
