@@ -2,6 +2,9 @@ use neumann_control_core::ssc::wire::{
     device_error, extract, parse_line, reply_xid, request_line, token_count, DeviceError, SscPath,
     WireError, MAX_REQUEST_TOKENS,
 };
+
+/// A device code the app does not handle, as a recording holds it.
+const PARTIAL_SUCCESS: i64 = 210;
 use serde_json::{json, Value};
 
 const FIXTURES: &str = include_str!("fixtures/recorded_replies.json");
@@ -39,7 +42,7 @@ fn nested_404_is_found_at_any_depth() {
     for (_, reply) in replies {
         let tree = parse_line(reply.as_bytes()).unwrap();
         let error = device_error(&tree).unwrap_or_else(|| panic!("no error in {reply}"));
-        assert_eq!(error.code, 404, "{reply}");
+        assert_eq!(error.code, DeviceError::NOT_FOUND, "{reply}");
         assert_eq!(error.description, "address not found", "{reply}");
     }
 }
@@ -52,7 +55,7 @@ fn bundle_reply_keeps_value_and_error() {
         extract(&tree, &path("audio/out/level")),
         Some(&json!(100.0))
     );
-    assert_eq!(device_error(&tree).unwrap().code, 404);
+    assert_eq!(device_error(&tree).unwrap().code, DeviceError::NOT_FOUND);
 }
 
 #[test]
@@ -62,7 +65,7 @@ fn duplicate_osc_members_are_merged() {
     )
     .unwrap();
     assert_eq!(reply_xid(&tree), Some(7));
-    assert_eq!(device_error(&tree).unwrap().code, 210);
+    assert_eq!(device_error(&tree).unwrap().code, PARTIAL_SUCCESS);
 }
 
 #[test]
@@ -89,7 +92,7 @@ fn set_replies_report_their_errors() {
 #[test]
 fn flat_error_pair_is_found() {
     let tree = parse_line(br#"{"osc":{"error":[404,{"desc":"address not found"}]}}"#).unwrap();
-    assert_eq!(device_error(&tree).unwrap().code, 404);
+    assert_eq!(device_error(&tree).unwrap().code, DeviceError::NOT_FOUND);
 }
 
 #[test]
@@ -161,8 +164,8 @@ fn path_displays_and_serializes_as_string() {
     assert!(serde_json::from_str::<SscPath>(r#""a//b""#).is_err());
 }
 
-/// Measured on a KH 120 II: the speaker refuses a request of more than 29 JSON tokens with 413,
-/// and a write of a 20-band EQ list with the xid has 33. Without it the line fits; the reply is
+/// Measured on a KH 120 II: the speaker takes 29 JSON tokens and refuses 31 and more with 413
+/// (30 was not tried), and a write of a 20-band EQ list with the xid has 33. Without it the line fits; the reply is
 /// then matched by its path.
 #[test]
 fn a_twenty_band_eq_write_leaves_out_the_xid() {
@@ -181,7 +184,7 @@ fn a_twenty_band_eq_write_leaves_out_the_xid() {
 }
 
 /// `audio/out/eq2/enabled` with n values and the xid is 13 + n tokens: 16 values are exactly
-/// the 29 the speaker takes, 17 are one too many.
+/// the 29 the speaker takes, 17 go over that measured limit.
 #[test]
 fn the_xid_stays_up_to_exactly_the_token_limit() {
     let at_limit = Value::Array(vec![Value::Null; 16]);

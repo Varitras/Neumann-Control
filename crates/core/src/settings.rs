@@ -35,8 +35,9 @@ pub struct Settings {
     pub window: Option<WindowGeometry>,
     #[serde(deserialize_with = "or_default")]
     pub compact_window: Option<WindowGeometry>,
-    /// The windows of their own (device panel, EQ, all values) as the user left them, by kind
-    /// and speaker, in screen pixels like `window`.
+    /// The windows of their own (device panel, EQ, all values, settings, presets, groups) as the
+    /// user left them, one place per kind keyed by its name, in screen pixels like `window`.
+    /// Earlier versions kept one per speaker; the app drops those keys once the kind moves.
     #[serde(
         deserialize_with = "readable_entries",
         skip_serializing_if = "BTreeMap::is_empty"
@@ -447,10 +448,6 @@ pub enum DelayUnit {
     #[default]
     Milliseconds,
     Meters,
-}
-
-impl DelayUnit {
-    pub const ALL: [DelayUnit; 2] = [DelayUnit::Milliseconds, DelayUnit::Meters];
 }
 
 /// The lowest level a meter shows, in 10 dB steps; quiet room volume reads about -90 dB on the

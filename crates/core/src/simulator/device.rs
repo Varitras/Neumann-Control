@@ -52,7 +52,7 @@ const NOT_ACCEPTABLE: ErrorKind = ErrorKind {
     description: "not acceptable",
 };
 const REQUEST_TOO_LONG: ErrorKind = ErrorKind {
-    code: 413,
+    code: DeviceError::REQUEST_TOO_LONG,
     description: "request too long",
 };
 const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {

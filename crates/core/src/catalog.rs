@@ -394,8 +394,9 @@ pub struct EqContainer {
     pub class: ModelClass,
     #[serde(default)]
     pub writable_on: Vec<String>,
-    /// A crossover between the speaker's outputs: flattening it would remove the split, so it
-    /// is never reset to flat.
+    /// A crossover between the speaker's outputs: flattening it removes the split, so with
+    /// **Protect crossovers** on it is not made flat or reset and takes no presets or import;
+    /// without it these come with a warning.
     #[serde(default)]
     pub crossover: bool,
     /// The input whose signal alone passes this container (a crossover: "A" or "B"); `None`
@@ -472,6 +473,8 @@ pub const EQ_FREQUENCY_MIN_HZ: f64 = 10.0;
 pub const EQ_FREQUENCY_MAX_HZ: f64 = 24000.0;
 const EQ_GAIN_MIN_DB: f64 = -99.0;
 const EQ_GAIN_MAX_DB: f64 = 24.0;
+const EQ_Q_MIN: f64 = 0.1;
+const EQ_Q_MAX: f64 = 16.0;
 
 /// The leaves with their limits (osc/limits, the same on both models, 2026-10-19).
 const EQ_LEAVES: [EqLeaf; 6] = [
@@ -520,8 +523,8 @@ const EQ_LEAVES: [EqLeaf; 6] = [
         label: "Güte (Q)",
         label_en: "Q",
         kind: Kind::Number,
-        min: Some(0.1),
-        max: Some(16.0),
+        min: Some(EQ_Q_MIN),
+        max: Some(EQ_Q_MAX),
         unit: None,
         options: &[],
     },

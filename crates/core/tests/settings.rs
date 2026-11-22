@@ -34,7 +34,7 @@ fn sample() -> Settings {
     }
 }
 
-/// The windows of their own keep their places across a restart, by kind and speaker.
+/// The windows of their own keep their places across a restart, one per kind.
 #[test]
 fn window_places_survive_a_save() {
     let directory = tempfile::tempdir().unwrap();
@@ -47,11 +47,9 @@ fn window_places_survive_a_save() {
         height: 480.0,
         maximized: false,
     };
-    settings
-        .windows
-        .insert("eq serial:SIM0001234".to_owned(), place);
+    settings.windows.insert("eq".to_owned(), place);
     save(&settings, &path).unwrap();
-    assert_eq!(load(&path).windows["eq serial:SIM0001234"], place);
+    assert_eq!(load(&path).windows["eq"], place);
 }
 
 #[test]
@@ -483,7 +481,7 @@ fn like_windows_follows_the_system_language() {
 }
 
 #[test]
-fn crossovers_stay_protected_unless_opened_on_purpose() {
+fn a_stored_crossover_choice_is_kept_and_nonsense_falls_back_to_protected() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"Protected"}}"#).unwrap();
@@ -573,7 +571,7 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
     assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }
 
-/// A file from before the setting shows the master, as the app did then.
+/// A file from before the setting hides the master, as a new install does.
 #[test]
 fn a_file_without_the_master_choice_hides_it() {
     let directory = tempfile::tempdir().unwrap();

@@ -17,7 +17,8 @@ use crate::ssc::client::{LINE_TERMINATOR, MAX_LINE_BYTES};
 use crate::ssc::wire::parse_line;
 use device::{encode_line, SimulatedDevice};
 
-const FOREIGN_XID_OFFSET: u64 = 1000;
+/// `Fault::ForeignXidFirst` answers first with the request's xid plus this.
+pub const FOREIGN_XID_OFFSET: u64 = 1000;
 /// The simulators' ports: below every system's dynamic range (Linux from 32768, Windows from
 /// 49152). On port 0 the system handed a stopped simulator's port to the next one started (Linux
 /// soon), and a test that expected it unreachable, or restarted it there, met another.

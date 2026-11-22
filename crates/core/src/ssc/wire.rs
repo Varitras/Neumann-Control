@@ -100,6 +100,8 @@ impl DeviceError {
     pub const NOT_ACCEPTABLE: i64 = 406;
     /// An `osc/schema` or `osc/limits` address the speaker does not know.
     pub const PARAMETER_NOT_FOUND: i64 = 454;
+    /// The request has more JSON tokens than the speaker takes.
+    pub const REQUEST_TOO_LONG: i64 = 413;
 }
 
 /// Merges `incoming` into `target`: objects recursively, anything else is replaced.

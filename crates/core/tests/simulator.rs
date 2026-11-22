@@ -2,7 +2,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv6Addr, SocketAddrV6, TcpStream};
 use std::time::Duration;
 
-use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimModel, Simulator, FOREIGN_XID_OFFSET};
+use neumann_control_core::ssc::client::MAX_LINE_BYTES;
 use neumann_control_core::ssc::wire::{device_error, parse_line, reply_xid, DeviceError};
 use serde_json::{json, Value};
 
@@ -11,8 +12,6 @@ const READ_TIMEOUT: Duration = Duration::from_secs(3);
 const SILENCE_TIMEOUT: Duration = Duration::from_millis(400);
 // Longer than the simulator's read poll interval, so the first half is seen on its own.
 const PARTIAL_LINE_PAUSE: Duration = Duration::from_millis(200);
-const LINE_LIMIT_BYTES: usize = 1_048_576;
-const FOREIGN_XID_OFFSET: u64 = 1000;
 const SLOW_REPLY_DELAY: Duration = Duration::from_secs(2);
 const KH_120_II: &str = "KH 120 II";
 const KH_750: &str = "KH 750";
@@ -249,7 +248,10 @@ fn simulator_schema_root_lists_top_level() {
     assert_eq!(level["warnings"], Value::Null);
     assert_eq!(level.as_object().unwrap().len(), 6);
     let unknown = Client::connect(&simulator).ask(&json!({"osc":{"schema":[{"nowhere":null}]}}));
-    assert_eq!(device_error(&unknown).unwrap().code, 454);
+    assert_eq!(
+        device_error(&unknown).unwrap().code,
+        DeviceError::PARAMETER_NOT_FOUND
+    );
 }
 
 fn count_leaves(client: &mut Client, prefix: &[&str], level: &Value) -> usize {
@@ -409,10 +411,10 @@ fn fault_overlong_line_exceeds_the_limit() {
     client
         .reader
         .by_ref()
-        .take(LINE_LIMIT_BYTES as u64 + 1)
+        .take(MAX_LINE_BYTES as u64 + 1)
         .read_to_end(&mut received)
         .unwrap();
-    assert_eq!(received.len(), LINE_LIMIT_BYTES + 1);
+    assert_eq!(received.len(), MAX_LINE_BYTES + 1);
     assert!(!received.contains(&b'\n'));
 }
 
@@ -556,14 +558,14 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
     let error = device_error(&refused).expect("33 tokens are refused");
     assert_eq!(
         (error.code, error.description.as_str()),
-        (413, "request too long")
+        (DeviceError::REQUEST_TOO_LONG, "request too long")
     );
     assert_eq!(reply_xid(&refused), None);
     let ten = json!([true, false, false, false, false, false, false, false, false, false]);
     let two_lists = client.ask(&json!({"audio":{"out":{"eq2":{"enabled": ten, "boost": ten}}}}));
     assert_eq!(
         device_error(&two_lists).map(|error| error.code),
-        Some(413),
+        Some(DeviceError::REQUEST_TOO_LONG),
         "31 tokens"
     );
     let with_mute = client
