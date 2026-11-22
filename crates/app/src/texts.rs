@@ -1067,6 +1067,16 @@ pub fn setting_refusal(leaf: &str, reason: &str) -> String {
 }
 
 /// What a write of every band touched: "EQ 2 · Pegel, alle Bänder".
+/// Some bands of a container (numbers from 1): "EQ 2 Bänder 2, 4 · Ein".
+pub fn eq_bands_setting(container: &str, bands: &[usize], leaf: &str) -> String {
+    let numbers: Vec<String> = bands.iter().map(usize::to_string).collect();
+    let numbers = numbers.join(", ");
+    pick(
+        format!("{container} Bänder {numbers} · {leaf}"),
+        format!("{container} bands {numbers} · {leaf}"),
+    )
+}
+
 pub fn eq_all_bands_setting(container: &str, leaf: &str) -> String {
     pick(
         format!("{container} · {leaf}, alle Bänder"),

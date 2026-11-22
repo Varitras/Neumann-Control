@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 
 const GAIN_LABEL: &str = "Pegel";
 const BOOST_LABEL: &str = "Anhebung";
+const ENABLED_LABEL: &str = "Ein";
 const GAIN_POINTER: &str = "/audio/out/eq2/gain";
 const BOOST_POINTER: &str = "/audio/out/eq2/boost";
 const FREQUENCY_POINTER: &str = "/audio/out/eq2/frequency";
@@ -676,6 +677,47 @@ fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(sets(&simulator, BOOST_POINTER)[1], json!(vec![0.0; 10]));
     harness.run_steps(2);
     assert_eq!(harness.state().history().len(), entries_before + 1);
+}
+
+/// Bands switched on and off at once go out as two writes to one speaker, the off part first:
+/// the history called them "2 speakers", each part "all bands", with `null` for the bands it
+/// left alone.
+#[test]
+fn bands_switched_on_and_off_at_once_read_as_such_in_the_history() {
+    let alternating: Vec<bool> = (0..10).map(|band| band % 2 == 0).collect();
+    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq2/enabled", json!(alternating));
+    });
+    save_eq_preset(&mut harness, "Mixed");
+    let opposite: Vec<bool> = alternating.iter().map(|on| !on).collect();
+    simulator.set_value("audio/out/eq2/enabled", json!(opposite));
+    wait_until(&mut harness, "the bands switched over", |harness| {
+        harness.query_by_label(&texts::eq_band(1)).is_none()
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Mixed", 10))
+        .click();
+    harness.run_steps(6);
+    scroll_to_and_click(&mut harness, texts::WRITE_PRESET.get());
+    wait_until(&mut harness, "both parts written", |_| {
+        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+    });
+    close_eq(&mut harness);
+    harness.run_steps(2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    harness.run_steps(2);
+    harness
+        .get_by_label_contains(&texts::history_changes(None, 2))
+        .hover();
+    let off = texts::eq_bands_setting("EQ 2", &[2, 4, 6, 8, 10], ENABLED_LABEL);
+    wait_until(&mut harness, "the tooltip", |harness| {
+        harness.query_by_label_contains(&off).is_some()
+    });
+    assert!(harness.query_by_label_contains("null").is_none());
 }
 
 /// A preset taken while the speaker reported a value outside the range: loading it writes no
