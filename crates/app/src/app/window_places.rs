@@ -2,7 +2,7 @@
 //! user last left one of their kind, for every speaker alike. Kept in the settings by kind, in
 //! screen pixels like the main window.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use eframe::egui::{pos2, vec2, Context, Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
@@ -75,6 +75,20 @@ fn keep_place(
     let per_speaker = format!("{} ", kind.key());
     windows.retain(|key, _| !key.starts_with(&per_speaker));
     windows.insert(kind.key().to_owned(), geometry);
+}
+
+/// Keeps `geometry` of the `kind` window on `viewport` as its kind's place when that window
+/// moved or changed size since the frame before (`seen`): of several open windows of a kind,
+/// the one the user handled last is kept, not the one drawn last.
+fn note_place(
+    seen: &mut HashMap<ViewportId, WindowGeometry>,
+    windows: &mut BTreeMap<String, WindowGeometry>,
+    kind: WindowKind,
+    viewport: ViewportId,
+    geometry: WindowGeometry,
+) {
+    seen.insert(viewport, geometry);
+    keep_place(windows, kind, geometry);
 }
 
 /// The `index`-th open window of a kind (from 0), set off from the others; before it is fitted
@@ -347,6 +361,29 @@ impl NeumannApp {
 mod tests {
     use super::*;
     use eframe::egui::ViewportInfo;
+
+    /// Every open window of a kind noted its place each frame, and the one drawn last won: the
+    /// panel the user moved lost its place to another panel that stood still.
+    #[test]
+    fn of_two_windows_of_a_kind_the_one_moved_keeps_its_place() {
+        let (first, second) = (ViewportId::from_hash_of(1), ViewportId::from_hash_of(2));
+        let other = WindowGeometry {
+            x: 900.0,
+            ..GEOMETRY
+        };
+        let moved = WindowGeometry {
+            y: 300.0,
+            ..GEOMETRY
+        };
+        let mut seen = HashMap::new();
+        let mut windows = BTreeMap::new();
+        let kind = WindowKind::Panel;
+        note_place(&mut seen, &mut windows, kind, first, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, second, other);
+        note_place(&mut seen, &mut windows, kind, first, moved);
+        note_place(&mut seen, &mut windows, kind, second, other);
+        assert_eq!(windows[kind.key()], moved);
+    }
 
     /// Windows converts a new window's place with the scale of the monitor it starts on: with
     /// the main window at 100 % and that monitor at 150 %, a saved x of 3000 pixels became 4500.
