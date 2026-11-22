@@ -192,6 +192,9 @@ mod tests {
     #[test]
     fn serial_like_digits_are_masked_when_the_serial_is_unknown() {
         assert_eq!(mask_serial_like("KH 750 3712345678"), "KH 750 …678");
+        // From eight digits on: a seven-digit number stays.
+        assert_eq!(mask_serial_like("KH 750 1234567"), "KH 750 1234567");
+        assert_eq!(mask_serial_like("KH 750 12345678"), "KH 750 …678");
         assert_eq!(mask_serial_like("KH 120 II 2024"), "KH 120 II 2024");
     }
 }
