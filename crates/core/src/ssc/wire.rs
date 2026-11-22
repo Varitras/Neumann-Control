@@ -200,9 +200,7 @@ pub fn parse_line(line: &[u8]) -> Result<Value, WireError> {
 /// that itself starts with `osc` shares that object. A request the id would push over
 /// `MAX_REQUEST_TOKENS` (a 20-band EQ list) goes without it; its reply is matched by its path.
 pub fn request_line(path: &SscPath, value: Value, xid: u64) -> String {
-    let nested = path.segments().iter().rev().fold(value, |inner, segment| {
-        Value::Object(Map::from_iter([(segment.clone(), inner)]))
-    });
+    let nested = nest(path.segments(), value);
     let mut request = serde_json::json!({ OSC_KEY: { XID_KEY: xid } });
     merge(&mut request, nested.clone());
     if token_count(&request) > MAX_REQUEST_TOKENS {
@@ -228,11 +226,22 @@ pub fn token_count(value: &Value) -> usize {
 
 /// The value at `path` if present and not `null`.
 pub fn extract<'a>(tree: &'a Value, path: &SscPath) -> Option<&'a Value> {
-    let found = path
-        .segments()
-        .iter()
-        .try_fold(tree, |node, segment| node.get(segment))?;
+    let found = descend(tree, path.segments())?;
     (!found.is_null()).then_some(found)
+}
+
+/// `value` at the end of an address tree: `{a:{b:value}}` for the segments `a`, `b`.
+pub fn nest(segments: &[String], value: Value) -> Value {
+    segments.iter().rev().fold(value, |inner, segment| {
+        Value::Object(Map::from_iter([(segment.clone(), inner)]))
+    })
+}
+
+/// The node at `segments` down `tree`, `null` included.
+pub fn descend<'a>(tree: &'a Value, segments: &[String]) -> Option<&'a Value> {
+    segments
+        .iter()
+        .try_fold(tree, |node, segment| node.get(segment))
 }
 
 /// The transaction id echoed in `osc/xid`, if it is a non-negative integer.

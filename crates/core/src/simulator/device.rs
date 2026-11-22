@@ -4,7 +4,9 @@
 use serde_json::{json, Map, Number, Value};
 
 use super::SimModel;
-use crate::ssc::wire::{merge, token_count, DeviceError, SscPath, MAX_REQUEST_TOKENS};
+use crate::ssc::wire::{
+    descend, merge, nest, token_count, DeviceError, SscPath, MAX_REQUEST_TOKENS,
+};
 
 const OSC_KEY: &str = "osc";
 const XID_KEY: &str = "xid";
@@ -147,7 +149,7 @@ impl SimulatedDevice {
 
     pub fn value(&self, path: &str) -> Option<Value> {
         let path = SscPath::parse(path).ok()?;
-        lookup(&self.tree, path.segments()).cloned()
+        descend(&self.tree, path.segments()).cloned()
     }
 
     pub fn set_value(&mut self, path: &str, value: Value) {
@@ -259,7 +261,7 @@ impl SimulatedDevice {
         value: Value,
         bundled: bool,
     ) -> Result<Value, Value> {
-        let current = match lookup(&self.tree, path) {
+        let current = match descend(&self.tree, path) {
             Some(found) if !found.is_object() => found.clone(),
             found => {
                 let node = if found.is_none() {
@@ -345,7 +347,7 @@ impl SimulatedDevice {
         if self.refused_schemas.contains(&path) {
             return introspection_error(SCHEMA_KEY, &NOT_ALLOWED);
         }
-        let Some(node) = lookup(&tree, &path) else {
+        let Some(node) = descend(&tree, &path) else {
             return introspection_error(SCHEMA_KEY, &PARAMETER_NOT_FOUND);
         };
         let described = if node.is_object() {
@@ -362,7 +364,7 @@ impl SimulatedDevice {
             Err(refusal) => return refusal,
         };
         let tree = self.address_tree();
-        let Some(node) = lookup(&tree, &path).filter(|node| !node.is_object()) else {
+        let Some(node) = descend(&tree, &path).filter(|node| !node.is_object()) else {
             return introspection_error(LIMITS_KEY, &PARAMETER_NOT_FOUND);
         };
         // Only the type is reproduced; the other fields (units, range, options) are not
@@ -394,17 +396,6 @@ pub fn encode_line(body: &Value, xid: Option<&Value>) -> String {
     let mut tagged = body.clone();
     merge(&mut tagged, json!({ OSC_KEY: { XID_KEY: xid } }));
     tagged.to_string()
-}
-
-fn lookup<'a>(tree: &'a Value, path: &[String]) -> Option<&'a Value> {
-    path.iter()
-        .try_fold(tree, |node, segment| node.get(segment))
-}
-
-fn nest(path: &[String], value: Value) -> Value {
-    path.iter().rev().fold(value, |inner, segment| {
-        Value::Object(Map::from_iter([(segment.clone(), inner)]))
-    })
 }
 
 /// Flattens a request into (path, value) pairs, stopping at non-object values and `{}`.
