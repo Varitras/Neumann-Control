@@ -87,7 +87,12 @@ fn note_place(
     viewport: ViewportId,
     geometry: WindowGeometry,
 ) {
-    if seen.insert(viewport, geometry) != Some(geometry) {
+    // First seen it stands where it was opened, not where the user put it; it only gives its
+    // kind a first place.
+    let before = seen.insert(viewport, geometry);
+    let moved = before.is_some_and(|before| before != geometry);
+    let unplaced = !windows.contains_key(kind.key());
+    if moved || unplaced {
         keep_place(windows, kind, geometry);
     }
 }
