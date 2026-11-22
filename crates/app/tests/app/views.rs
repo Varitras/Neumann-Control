@@ -1287,17 +1287,21 @@ fn each_strip_is_a_group_named_after_what_it_shows() {
 /// gave the window counted for nothing, was not saved and was undone once speakers came.
 #[test]
 fn a_size_given_to_the_empty_first_window_is_the_users() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join(settings::SETTINGS_FILE);
-    settings::save(&settings::Settings::default(), &path).unwrap();
-    let mut harness = harness(path.clone(), Vec::new());
-    harness.run_steps(5);
-    harness.set_size(eframe::egui::vec2(1000.0, 700.0));
-    harness.run_steps(5);
-    eframe::App::on_exit(harness.state_mut());
-    let window = settings::load(&path).window_of_mode();
-    let size = window.map(|window| (window.width, window.height));
-    assert_eq!(size, Some((1000.0, 700.0)));
+    for compact in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(settings::SETTINGS_FILE);
+        let mut first_start = settings::Settings::default();
+        first_start.desk.compact = compact;
+        settings::save(&first_start, &path).unwrap();
+        let mut harness = harness(path.clone(), Vec::new());
+        harness.run_steps(5);
+        harness.set_size(eframe::egui::vec2(1000.0, 700.0));
+        harness.run_steps(5);
+        eframe::App::on_exit(harness.state_mut());
+        let window = settings::load(&path).window_of_mode();
+        let size = window.map(|window| (window.width, window.height));
+        assert_eq!(size, Some((1000.0, 700.0)), "compact {compact}");
+    }
 }
 
 /// Own windows note their places in memory only; leaving the app saves them. It saved only once

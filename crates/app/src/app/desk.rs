@@ -92,12 +92,19 @@ impl NeumannApp {
         }
     }
 
+    /// Nothing to fit the window to (no speakers): the window is right as it is, so a size the
+    /// user gives it ends the fit, as with speakers.
+    pub(super) fn watch_fit(&mut self, context: &Context) {
+        self.fit_window(context, Vec2::ZERO, Vec2::ZERO);
+    }
+
     pub(super) fn show_desk(&mut self, ui: &mut Ui) {
         let no_speakers = self.speakers.is_empty();
         if no_speakers {
             ui.weak(texts::NO_SPEAKERS);
             // The Windows strip needs no speaker.
             if !self.system_strip_on() {
+                self.watch_fit(ui.ctx());
                 return;
             }
         }

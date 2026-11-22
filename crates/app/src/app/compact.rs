@@ -24,6 +24,7 @@ impl NeumannApp {
     pub(super) fn show_compact(&mut self, ui: &mut Ui) {
         if self.speakers.is_empty() {
             ui.weak(texts::NO_SPEAKERS);
+            self.watch_fit(ui.ctx());
             return;
         }
         let catalog = Catalog::embedded();
