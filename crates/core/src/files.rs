@@ -24,3 +24,21 @@ pub fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     name.push(suffix);
     PathBuf::from(name)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A replace that fails leaves the old file and no temporary one beside it: the temporary
+    /// file stayed next to the user's file.
+    #[test]
+    fn a_failed_replace_leaves_no_temporary_file() {
+        let directory = tempfile::tempdir().unwrap();
+        // A folder in the way: the temporary file is written, the rename fails.
+        let target = directory.path().join("export.txt");
+        fs::create_dir(&target).unwrap();
+        assert!(replace(&target, b"new").is_err());
+        let left: Vec<_> = fs::read_dir(directory.path()).unwrap().collect();
+        assert_eq!(left.len(), 1, "{left:?}");
+    }
+}
