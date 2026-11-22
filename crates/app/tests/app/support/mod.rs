@@ -266,11 +266,11 @@ fn build_scaled(
         })
 }
 
-/// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
-/// whether the app listens.
 /// Where a pressed shortcut goes, and how the app is woken for it.
 type Listening = Option<(mpsc::Sender<DeskShortcut>, Wake)>;
 
+/// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
+/// whether the app listens.
 #[derive(Clone, Default)]
 pub struct FakeGlobalKeys {
     listening: Arc<Mutex<Listening>>,
@@ -468,7 +468,6 @@ pub fn wait_for_level(harness: &mut Harness<'static, NeumannApp>, value: f64) {
 /// more mean anything the frame sent has arrived.
 pub const BARRIER_REQUESTS: usize = 2;
 
-/// Waits without drawing frames, so the window sends nothing new meanwhile.
 /// The speaker answered every write sent so far and the app read the answers: a write only
 /// received when the speaker goes away counts as not written, and closes its change.
 pub fn writes_answered(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
@@ -476,6 +475,7 @@ pub fn writes_answered(harness: &mut Harness<'static, NeumannApp>, simulator: &S
     harness.run_steps(2);
 }
 
+/// Waits without drawing frames, so the window sends nothing new meanwhile.
 pub fn barrier(simulator: &Simulator) {
     let start = simulator.requests().len();
     let deadline = Instant::now() + WAIT_LIMIT;
@@ -711,12 +711,16 @@ pub fn delay_sets(simulator: &Simulator) -> Vec<Value> {
     sets(simulator, &format!("/{}", paths::DELAY))
 }
 
-/// The harness clock moves about half a second per frame, more than egui allows between the
-/// two clicks of a double click, so the allowance is widened for the test.
+/// The harness clock moves a quarter second per frame, more than egui allows between the two
+/// clicks of a double click, so the allowance is widened for the test.
+pub const TEST_DOUBLE_CLICK_SECONDS: f64 = 2.0;
+/// egui_kittest's default step.
+pub const FRAME_SECONDS: f64 = 0.25;
+
 pub fn double_click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
-    harness
-        .ctx
-        .options_mut(|options| options.input_options.max_double_click_delay = 2.0);
+    harness.ctx.options_mut(|options| {
+        options.input_options.max_double_click_delay = TEST_DOUBLE_CLICK_SECONDS;
+    });
     harness.hover_at(position);
     for pressed in [true, false, true, false] {
         harness.event(egui::Event::PointerButton {

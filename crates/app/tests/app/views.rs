@@ -1,4 +1,5 @@
-//! The speaker strip in the real window: values, fader, buttons, unreachable state.
+//! The desk in the real window: strip values, fader, knobs and buttons, the unreachable state,
+//! the All values window, the settings window, the language and the first window size.
 
 use crate::support::*;
 use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
@@ -382,7 +383,8 @@ fn out_of_range_level_is_not_written_back() {
 
 const KH120II_LEAF_COUNT: usize = 50;
 const STANDBY_LEAF_COUNT: usize = 4;
-/// A refusal text as the worker produces it from a lost connection, address included.
+/// A failure text with connection detail and an address in it: the worker masks the address,
+/// and the window still shows only its own text.
 const RAW_FAILURE: &str = "connection error: could not read from fe80::2a36:38ff:fe12:3456%7";
 
 fn all_values_window(
@@ -1146,7 +1148,7 @@ fn played_input_channels_are_marked_with_the_source() {
         2
     );
     drop((simulator, analog));
-    // The switch is polled every 30 s, so the speaker reports AES3 L from the start.
+    // The switch is read on connecting, so this speaker reports AES3 L from the start.
     let left = Simulator::start(SimModel::Kh120Ii);
     left.set_value("ui/input_select", serde_json::json!("AES3 L"));
     let directory = tempfile::tempdir().unwrap();

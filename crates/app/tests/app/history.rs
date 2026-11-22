@@ -416,9 +416,10 @@ fn a_typed_value_stays_when_the_speaker_gets_its_serial() {
 fn ctrl_z_in_a_text_field_does_not_take_back() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
-    // Past the widened double-click allowance (2 s at 0.25 s a frame), so the mute click does not
-    // count as the first click of the double click.
-    harness.run_steps(12);
+    // Past the widened double-click allowance, so the mute click does not count as the first
+    // click of the double click.
+    let past_double_click = (TEST_DOUBLE_CLICK_SECONDS / FRAME_SECONDS) as usize + 4;
+    harness.run_steps(past_double_click);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.get_by_role(Role::TextInput);
