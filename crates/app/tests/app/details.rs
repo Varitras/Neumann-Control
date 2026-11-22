@@ -1179,6 +1179,19 @@ fn a_run_without_the_lock_saves_nothing() {
     harness.get_by_label(texts::SETTINGS_NOT_LOCKED.get());
 }
 
+/// A run that cannot write its folder writes no log: the settings do not offer the detailed
+/// log, whose hint promised a log file.
+#[test]
+fn a_run_without_the_lock_offers_no_detailed_log() {
+    let (_simulator, _directory, mut harness) =
+        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+    harness.state_mut().save_nothing();
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SHOW_MASTER.get());
+    assert!(harness.query_by_label(texts::DETAILED_LOG.get()).is_none());
+}
+
 /// Choosing back the reported option before the speaker answered the first choice: it starts
 /// from the value just sent, as switches do, so both choices go out.
 #[test]
