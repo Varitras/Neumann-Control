@@ -161,16 +161,24 @@ fn compact_rows_are_one_line_high_and_follow_each_other() {
             .center()
             .y
     };
+    // Compact mode has no "Scan": the switch happened.
+    assert!(harness.query_by_label(texts::SCAN.get()).is_none());
     let group = center(&harness, &texts::group_level(GROUP_NAME));
     let master = center(&harness, texts::MASTER_LEVEL.get());
-    // Neighbouring rows: their faders are about one row apart, not a window height.
-    assert!(master - group < 60.0, "group {group}, master {master}");
+    // Neighbouring rows, the master below: their faders are about one row apart, not a window
+    // height.
+    let apart = master - group;
+    assert!(
+        (0.0..60.0).contains(&apart),
+        "group {group}, master {master}"
+    );
 }
 
 #[test]
 fn compact_columns_line_up_between_speaker_and_master_rows() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
+    assert!(harness.query_by_label(texts::SCAN.get()).is_none());
     let bars: Vec<f32> = harness
         .query_all_by_label(texts::INPUT_METERS.get())
         .map(|node| node.rect().left())
@@ -198,16 +206,23 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
     let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.set_size(WINDOW_MIN_SIZE.into());
     // The widest toolbar: with the average response time, which comes after a measurement.
+    // While dimmed "Dim" comes on top; that does not fit yet (an open question of layout).
     wait_until(&mut harness, "the average response time", |harness| {
         harness.query_by_label_contains("Ø ").is_some()
     });
     harness.run_steps(2);
+    let response_time = harness
+        .query_by_label_contains("Ø ")
+        .and_then(|node| node.value())
+        .expect("the average response time");
     let toolbar = [
         texts::SCAN.get(),
         texts::ADD_ADDRESS.get(),
         texts::GROUPS.get(),
+        &response_time,
         texts::CUSTOMIZE_STRIPS.get(),
         texts::COMPACT.get(),
+        texts::HISTORY.get(),
         texts::SETTINGS.get(),
         texts::HELP.get(),
     ];
@@ -221,8 +236,12 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
             "{} at {rect:?}",
             toolbar[index]
         );
-        for other in &rects[index + 1..] {
-            assert!(!rect.intersects(*other), "{rect:?} and {other:?}");
+        for (later, other) in rects.iter().enumerate().skip(index + 1) {
+            let (one, two) = (toolbar[index], toolbar[later]);
+            assert!(
+                !rect.intersects(*other),
+                "{one} {rect:?} and {two} {other:?}"
+            );
         }
     }
     if let Some(count) = harness.query_by_label(&texts::speaker_count(1)) {
