@@ -23,8 +23,8 @@ const EQ_WINDOW_ID: &str = "eq_window";
 pub(crate) const EQ_WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 pub(crate) const EQ_WINDOW_MIN_SIZE: [f32; 2] = [640.0, 480.0];
 const LEGEND_SWATCH: f32 = 10.0;
+const SWATCH_ROUNDING: f32 = 2.0;
 const SUM_SWATCH_LENGTH: f32 = 18.0;
-const SUM_SWATCH_WIDTH: f32 = 2.5;
 const SUM_SWATCH_DASH: f32 = 3.0;
 const IMPORT_ID: &str = "eq_import";
 const IMPORT_LIST_HEIGHT: f32 = 240.0;
@@ -190,9 +190,7 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
     }
     ui.horizontal(|ui| {
         for (index, (label, color)) in view.tabs.iter().enumerate() {
-            let (swatch, _) =
-                ui.allocate_exact_size(vec2(LEGEND_SWATCH, LEGEND_SWATCH), egui::Sense::hover());
-            ui.painter().rect_filled(swatch, 2.0, *color);
+            color_swatch(ui, *color);
             if ui
                 .selectable_label(index == view.container, label)
                 .clicked()
@@ -205,9 +203,7 @@ fn contents(ui: &mut Ui, view: &EqView) -> Vec<EqAction> {
             ui.label(RichText::new(name).strong());
         }
         for (name, color) in view.compared {
-            let (swatch, _) =
-                ui.allocate_exact_size(vec2(LEGEND_SWATCH, LEGEND_SWATCH), egui::Sense::hover());
-            ui.painter().rect_filled(swatch, 2.0, *color);
+            color_swatch(ui, *color);
             ui.label(texts::compared_curve(name));
         }
     });
@@ -438,11 +434,18 @@ fn reset_question(ui: &mut Ui, reset: &ResetOffer, kind: ResetKind) -> Option<Eq
         .then_some(EqAction::ResetCancel)
 }
 
+/// A curve's colour in the legend.
+fn color_swatch(ui: &mut Ui, color: egui::Color32) {
+    let size = vec2(LEGEND_SWATCH, LEGEND_SWATCH);
+    let (swatch, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    ui.painter().rect_filled(swatch, SWATCH_ROUNDING, color);
+}
+
 /// A short piece of the sum's line, solid or dashed, so the legend tells the inputs apart.
 fn sum_swatch(ui: &mut Ui, dashed: bool) {
     let (rect, _) =
         ui.allocate_exact_size(vec2(SUM_SWATCH_LENGTH, LEGEND_SWATCH), egui::Sense::hover());
-    let stroke = Stroke::new(SUM_SWATCH_WIDTH, ui.visuals().text_color());
+    let stroke = Stroke::new(eq_graph::SUM_WIDTH, ui.visuals().text_color());
     let line = [rect.left_center(), rect.right_center()];
     match dashed {
         true => {

@@ -34,7 +34,7 @@ const LABEL_GAP_BELOW: f32 = 2.0;
 const LABEL_GAP_LEFT: f32 = 3.0;
 const GRID_WIDTH: f32 = 1.0;
 const CURVE_WIDTH: f32 = 1.5;
-const SUM_WIDTH: f32 = 2.5;
+pub(super) const SUM_WIDTH: f32 = 2.5;
 const DASH_LENGTH: f32 = 6.0;
 const BAND_CURVE_WIDTH: f32 = 1.0;
 const CHOSEN_CURVE_WIDTH: f32 = 1.5;
@@ -46,6 +46,7 @@ const DASH_GAP: f32 = 4.0;
 /// Big enough for a two-digit number inside.
 const POINT_RADIUS: f32 = 7.0;
 const SELECTED_RING: f32 = 3.0;
+const SELECTED_RING_WIDTH: f32 = 1.0;
 const POINT_GRAB: f32 = 14.0;
 /// Less pointer travel than this, in points, leaves an axis of a dragged point as it was.
 const AXIS_STILL: f32 = 0.5;
@@ -431,7 +432,7 @@ fn paint_point(ui: &Ui, graph: &Graph, band: usize, point: &GraphPoint, center: 
         painter.circle_stroke(
             center,
             POINT_RADIUS + SELECTED_RING,
-            Stroke::new(1.0, point.color),
+            Stroke::new(SELECTED_RING_WIDTH, point.color),
         );
     }
     painter.circle_filled(center, POINT_RADIUS, point.color);
