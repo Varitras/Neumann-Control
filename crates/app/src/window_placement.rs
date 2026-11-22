@@ -9,6 +9,14 @@ use winit::window::Window;
 
 /// The smallest window in points, in both modes.
 pub const WINDOW_MIN_SIZE: [f32; 2] = [480.0, 360.0];
+
+/// The main window's least size in screen pixels.
+pub fn least_size(pixels_per_point: f32) -> (f32, f32) {
+    (
+        WINDOW_MIN_SIZE[0] * pixels_per_point,
+        WINDOW_MIN_SIZE[1] * pixels_per_point,
+    )
+}
 /// The window size in points of a mode that never had a window of its own.
 pub const DESK_WINDOW_SIZE: [f32; 2] = [900.0, 600.0];
 pub const COMPACT_WINDOW_SIZE: [f32; 2] = [640.0, 360.0];
@@ -42,8 +50,7 @@ pub fn monitor_areas(window: &Window) -> Vec<MonitorArea> {
 /// pixels once the window exists: points need the scale, which is known only on a monitor.
 pub fn place_window(window: &Window, saved: WindowGeometry) {
     let scale = window.scale_factor() as f32;
-    let min_size = (WINDOW_MIN_SIZE[0] * scale, WINDOW_MIN_SIZE[1] * scale);
-    let geometry = fit_into(saved, &monitor_areas(window), min_size);
+    let geometry = fit_into(saved, &monitor_areas(window), least_size(scale));
     log::debug!("placing the window: saved {saved:?}, asked {geometry:?} at scale {scale}");
     window.set_outer_position(PhysicalPosition::new(geometry.x, geometry.y));
     // The size granted arrives as a resize event like any other.
@@ -113,7 +120,7 @@ fn clamp_start(start: f32, monitor_start: f32, monitor_length: f32, window_lengt
 mod tests {
     use super::*;
 
-    const MIN_SIZE: (f32, f32) = (480.0, 360.0);
+    const MIN_SIZE: (f32, f32) = (WINDOW_MIN_SIZE[0], WINDOW_MIN_SIZE[1]);
     const LAPTOP: MonitorArea = MonitorArea {
         x: 0.0,
         y: 0.0,

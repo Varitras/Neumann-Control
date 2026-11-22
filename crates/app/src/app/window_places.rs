@@ -13,7 +13,7 @@ use crate::views::{
     WindowPlace,
 };
 use crate::window_fit::SCREEN_MARGIN;
-use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
+use crate::window_placement::{fit_into, least_size, MonitorArea};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WindowKind {
@@ -156,14 +156,6 @@ fn saved_window(
 ) -> WindowPlace {
     let shifted = cascaded(saved, index, pixels_per_point);
     own_window_place(shifted, monitors, pixels_per_point, kind)
-}
-
-/// The least window size in screen pixels.
-fn least_size(pixels_per_point: f32) -> (f32, f32) {
-    (
-        WINDOW_MIN_SIZE[0] * pixels_per_point,
-        WINDOW_MIN_SIZE[1] * pixels_per_point,
-    )
 }
 
 /// A window of `size` where the main window's place is unknown (Wayland tells no program where
