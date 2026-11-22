@@ -1648,6 +1648,46 @@ fn a_refusal_goes_with_a_switch_to_another_eq() {
     assert!(harness.query_by_label_contains(&refusal).is_none());
 }
 
+/// An undo from the EQ window is a write too: an older refusal goes with it.
+#[test]
+fn a_refusal_goes_with_an_undo_in_the_eq_window() {
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    writes_answered(&mut harness, &simulator);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .type_text("30");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    let range = Refusal::OutOfRange {
+        min: -99.0,
+        max: 24.0,
+        unit: "dB".to_owned(),
+    };
+    let refusal = texts::describe_refusal(&range);
+    harness.get_by_label_contains(&refusal);
+    harness
+        .get_by_role_and_label(Role::Button, texts::UNDO.get())
+        .click();
+    wait_until(&mut harness, "the band written back", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+    harness.run_steps(2);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
+}
+
 /// Leaving a table field by clicking another EQ's tab writes the value to the EQ it was typed in.
 #[test]
 fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
