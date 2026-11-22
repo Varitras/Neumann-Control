@@ -231,31 +231,19 @@ mod tests {
             ("a.svg", "image/svg+xml"),
             ("a.gif", "image/gif"),
         ] {
-            let manual = render(
-                &format!(
-                    "![x]({name})
-"
-                ),
-                read,
-            )
-            .unwrap();
+            let manual = render(&format!("![x]({name})\n"), read).unwrap();
             assert!(
                 manual.contains(&format!("data:{media_type};base64,")),
                 "{name}"
             );
         }
-        assert!(render(
-            "![x](a.txt)
-",
-            read
-        )
-        .is_err());
+        assert!(render("![x](a.txt)\n", read).is_err());
     }
 
     #[test]
     fn web_addresses_stay_as_they_are() {
-        let markdown = "[site](https://example.com/a) [mail](mailto:a@example.com)                         ![logo](https://example.com/logo.png)
-";
+        let markdown = "[site](https://example.com/a) [mail](mailto:a@example.com) \
+                        ![logo](https://example.com/logo.png)\n";
         let manual = render(markdown, no_files).unwrap();
         assert!(
             manual.contains("href=\"https://example.com/a\""),
@@ -279,14 +267,7 @@ mod tests {
 
     #[test]
     fn tables_are_tables() {
-        let manual = render(
-            "| File | Content |
-|---|---|
-| a | b |
-",
-            no_files,
-        )
-        .unwrap();
+        let manual = render("| File | Content |\n|---|---|\n| a | b |\n", no_files).unwrap();
         assert!(manual.contains("<table>"), "{manual}");
     }
 
