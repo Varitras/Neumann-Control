@@ -3,7 +3,7 @@
 
 use std::net::SocketAddrV6;
 
-use neumann_control_core::discovery::Found;
+use neumann_control_core::discovery::{same_speaker, Found};
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::ManualSpeaker;
 
@@ -103,14 +103,6 @@ impl ScanChoice {
             ScanChoice::Offered(offers) | ScanChoice::Failed(offers) => offers,
             ScanChoice::Scanning => &[],
         }
-    }
-}
-
-/// By serial when both announce one, else by address.
-fn same_speaker(one: &Found, other: &Found) -> bool {
-    match (&one.serial, &other.serial) {
-        (Some(one), Some(other)) => one == other,
-        _ => one.address == other.address,
     }
 }
 

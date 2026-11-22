@@ -54,13 +54,6 @@ pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
         found.into_iter().partition(|entry| entry.serial.is_some());
     let mut merged: Vec<Found> = Vec::new();
     for candidate in known.into_iter().chain(unknown) {
-        let at_known_address = candidate.serial.is_none()
-            && merged
-                .iter()
-                .any(|entry| entry.address == candidate.address);
-        if at_known_address {
-            continue;
-        }
         let existing = merged
             .iter_mut()
             .find(|entry| same_speaker(entry, &candidate));
@@ -86,11 +79,12 @@ fn replaces(candidate: &SocketAddrV6, held: &SocketAddrV6) -> bool {
     }
 }
 
-fn same_speaker(left: &Found, right: &Found) -> bool {
-    match (&left.serial, &right.serial) {
-        (Some(left_serial), Some(right_serial)) => left_serial == right_serial,
-        (None, None) => left.address == right.address,
-        _ => false,
+/// By serial when both announce one, else by address: an address joins two results only while
+/// one has no serial (the speaker answered before its TXT record named it).
+pub fn same_speaker(one: &Found, other: &Found) -> bool {
+    match (&one.serial, &other.serial) {
+        (Some(one), Some(other)) => one == other,
+        _ => one.address == other.address,
     }
 }
 
