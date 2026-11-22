@@ -9,6 +9,7 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::groups::linkable_label;
 use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::texts;
+use neumann_control_app::views::groups_window::GROUPS_WINDOW_MIN_SIZE;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{
     self, ColorChoice, GroupSettings, GroupStrip, Linkable, Settings, SETTINGS_FILE,
@@ -676,3 +677,42 @@ fn a_preset_loaded_on_a_member_reaches_its_linked_partners() {
     });
     assert_eq!(level_sets(&kh120), [100.0]);
 }
+
+/// The strip colour stood on one row, with an own colour about 520 points wide; the groups
+/// window may be 420 narrow and cut off the end of it.
+#[test]
+fn the_strip_colour_row_wraps_in_a_narrow_groups_window() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let group = GroupSettings {
+        name: GROUP_NAME.to_owned(),
+        color: 0,
+        color_choice: ColorChoice::Own(OWN_COLOUR.to_owned()),
+        members: Vec::new(),
+        linked: Vec::new(),
+        strip: GroupStrip::Shown,
+    };
+    let narrow = settings::WindowGeometry {
+        x: 16.0,
+        y: 16.0,
+        width: GROUPS_WINDOW_MIN_SIZE[0],
+        height: GROUPS_WINDOW_MIN_SIZE[1],
+        maximized: false,
+    };
+    let mut saved = Settings {
+        groups: vec![group],
+        ..Settings::default()
+    };
+    saved.windows.insert("groups".to_owned(), narrow);
+    settings::save(&saved, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    open_groups(&mut harness);
+    let window = harness.get_by_role(Role::Window).rect();
+    let right_edge = window.left() + GROUPS_WINDOW_MIN_SIZE[0];
+    // The test's window grows to what it holds; the system's window keeps its size and cuts.
+    let swatch = harness.get_by_role(Role::ColorWell).rect();
+    assert!(swatch.right() <= right_edge, "{swatch:?} past {right_edge}");
+}
+
+/// Any colour, as an own choice stores it.
+const OWN_COLOUR: &str = "#3080ff";
