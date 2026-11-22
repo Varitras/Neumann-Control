@@ -21,6 +21,9 @@ pub struct Tokens {
     pub card: Color32,
     pub border: Color32,
     pub field: Color32,
+    /// Sunk below the fields: text inputs and scroll tracks, so a scroll handle in the field
+    /// colour shows on its track.
+    pub inset: Color32,
     pub hover: Color32,
     pub text: Color32,
     pub text_dim: Color32,
@@ -51,6 +54,7 @@ impl Tokens {
             card: Color32::from_gray(44),
             border: Color32::from_gray(64),
             field: Color32::from_gray(56),
+            inset: Color32::from_gray(28),
             hover: Color32::from_gray(72),
             text: Color32::from_gray(222),
             text_dim: Color32::from_gray(160),
@@ -74,6 +78,7 @@ impl Tokens {
             card: Color32::WHITE,
             border: Color32::from_rgb(210, 210, 218),
             field: Color32::from_rgb(236, 236, 240),
+            inset: Color32::WHITE,
             hover: Color32::from_rgb(224, 224, 230),
             text: Color32::from_rgb(24, 24, 28),
             text_dim: Color32::from_rgb(92, 92, 102),
@@ -121,7 +126,7 @@ fn visuals(tokens: &Tokens, theme: Theme) -> Visuals {
     visuals.window_fill = tokens.card;
     visuals.window_stroke = Stroke::new(1.0, tokens.border);
     visuals.window_corner_radius = CornerRadius::same(RADIUS_LARGE);
-    visuals.extreme_bg_color = tokens.field;
+    visuals.extreme_bg_color = tokens.inset;
     visuals.override_text_color = Some(tokens.text);
     visuals.weak_text_color = Some(tokens.text_dim);
     visuals.error_fg_color = tokens.danger;
