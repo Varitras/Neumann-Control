@@ -205,6 +205,19 @@ fn local_control_mode_refuses_every_set_with_401() {
     assert_eq!(read, json!({"audio":{"out":{"level":100.0}}}));
 }
 
+/// Measured on a KH 120 II in LOCAL: a set of the read-only `ui/control_mode` still answers
+/// 405, the speaker checks writability before the switch. The simulator answered 401.
+#[test]
+fn local_control_mode_still_refuses_a_read_only_path_with_405() {
+    let simulator = start_kh120();
+    simulator.set_value("ui/control_mode", json!("LOCAL"));
+    let refused = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
+    assert_eq!(
+        device_error(&refused).map(|error| error.code),
+        Some(DeviceError::READ_ONLY)
+    );
+}
+
 #[test]
 fn valid_set_is_stored_and_echoed() {
     let simulator = start_kh120();
