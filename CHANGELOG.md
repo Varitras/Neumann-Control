@@ -12,6 +12,8 @@
 
 - The band colours in the settings wrap to the window's width and stand in even columns; a
   narrow window no longer cuts off the last bands.
+- The lists behind "Swap for…" and "+ Add" on a strip scroll when the window is lower than
+  the list; with a KH 750 the last settings were out of reach.
 - A value the speaker confirms differently than it was sent counts at once, also while another
   write to the same setting is on its way: the next change starts from it, and taking a change
   back writes it, not the value sent.
