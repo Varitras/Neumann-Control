@@ -77,16 +77,15 @@ fn keep_place(
     windows.insert(kind.key().to_owned(), geometry);
 }
 
-/// The `index`-th open window of a kind (from 0), set off from the others.
-pub(super) fn cascaded(opening: Opening, index: usize) -> Opening {
-    let Opening::At(place) = opening else {
-        return opening;
-    };
-    let offset = CASCADE_STEP * index as f32;
-    Opening::At(WindowPlace {
-        position: place.position.map(|position| position + offset),
-        ..place
-    })
+/// The `index`-th open window of a kind (from 0), set off from the others; before it is fitted
+/// onto a monitor, so that the offset never takes it past the screen's edge.
+fn cascaded(geometry: WindowGeometry, index: usize, pixels_per_point: f32) -> WindowGeometry {
+    let offset = CASCADE_STEP * index as f32 * pixels_per_point;
+    WindowGeometry {
+        x: geometry.x + offset.x,
+        y: geometry.y + offset.y,
+        ..geometry
+    }
 }
 
 /// A window of `size` centred over the main window `main` (both in points), in screen pixels.
@@ -140,11 +139,8 @@ fn saved_window(
     pixels_per_point: f32,
     kind: WindowKind,
 ) -> WindowPlace {
-    let place = own_window_place(saved, monitors, pixels_per_point, kind);
-    let Opening::At(place) = cascaded(Opening::At(place), index) else {
-        return place;
-    };
-    place
+    let shifted = cascaded(saved, index, pixels_per_point);
+    own_window_place(shifted, monitors, pixels_per_point, kind)
 }
 
 /// The least window size in screen pixels.
@@ -228,10 +224,10 @@ impl NeumannApp {
         }
         let monitor = context.input_for(ViewportId::ROOT, |input| input.viewport().monitor_size);
         let place = self
-            .saved_place(context, kind)
-            .or_else(|| self.centred_place(context, default_size))
+            .saved_place(context, kind, index)
+            .or_else(|| self.centred_place(context, default_size, index))
             .or_else(|| unplaced(default_size, monitor));
-        let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
+        let opening = place.map_or(Opening::Default, Opening::At);
         if let Opening::At(place) = opening {
             self.note_placing(context, viewport, place);
         }
@@ -255,24 +251,35 @@ impl NeumannApp {
         self.placing.insert(viewport, pixels);
     }
 
-    /// Where the last `kind` window was left, if one was.
-    fn saved_place(&self, context: &Context, kind: WindowKind) -> Option<WindowPlace> {
+    /// Where the last `kind` window was left, if one was, for the `index`-th open one.
+    fn saved_place(
+        &self,
+        context: &Context,
+        kind: WindowKind,
+        index: usize,
+    ) -> Option<WindowPlace> {
         let saved = self.settings.windows.get(kind.key())?;
         // On a monitor there is now: the saved one may have been unplugged since.
-        Some(own_window_place(
+        let pixels_per_point = context.pixels_per_point();
+        Some(saved_window(
             *saved,
+            index,
             &self.monitors,
-            context.pixels_per_point(),
+            pixels_per_point,
             kind,
         ))
     }
 
-    /// A window of `size` over the middle of the main window, once the main window's place is
-    /// known.
-    fn centred_place(&self, context: &Context, size: Vec2) -> Option<WindowPlace> {
+    /// The `index`-th window of `size` over the middle of the main window, once the main
+    /// window's place is known.
+    fn centred_place(&self, context: &Context, size: Vec2, index: usize) -> Option<WindowPlace> {
         let main = context.input_for(ViewportId::ROOT, |input| input.viewport().outer_rect)?;
         let pixels_per_point = context.pixels_per_point();
-        let geometry = centred(main, size, pixels_per_point);
+        let geometry = cascaded(
+            centred(main, size, pixels_per_point),
+            index,
+            pixels_per_point,
+        );
         let placed = above_the_taskbar(geometry, &self.monitors, pixels_per_point);
         Some(place_of(placed, pixels_per_point))
     }
