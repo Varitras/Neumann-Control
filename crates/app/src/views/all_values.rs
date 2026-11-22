@@ -86,7 +86,7 @@ fn contents(
                 ui.label(texts::ALL_VALUES_LOADING);
             });
         }
-        AllValuesState::Failed(_) => {
+        AllValuesState::Failed => {
             ui.colored_label(ui.visuals().error_fg_color, texts::ALL_VALUES_FAILED);
         }
         AllValuesState::Loaded(reports) => {

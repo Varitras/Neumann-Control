@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use neumann_control_core::discovery::Found;
-use neumann_control_core::mask::{mask_host, mask_serial, mask_serial_in, mask_serial_like};
+use neumann_control_core::mask::{
+    mask_device_text, mask_host, mask_serial, mask_serial_in, mask_serial_like,
+};
 use neumann_control_core::schema_walk::LeafReport;
 use neumann_control_core::settings::KnownSpeaker;
 use neumann_control_core::speaker::{Command, Event, Identity};
@@ -82,7 +84,8 @@ pub enum AllValuesState {
     Idle,
     Loading,
     Loaded(Vec<LeafReport>),
-    Failed(String),
+    /// The reason went to the log, like a failed full scan's.
+    Failed,
 }
 
 /// What the strip says about the speaker; worded only when drawn, so it follows the language.
@@ -630,11 +633,11 @@ impl SpeakerState {
                 self.finish_all_values(AllValuesState::Loaded(reports));
             }
             Event::AllValuesFailed(reason) => {
+                log::warn!("reading every value failed: {}", mask_device_text(&reason));
                 if self.full_scan == FullScanState::Running {
-                    log::warn!("full scan ended early: {reason}");
                     self.full_scan = FullScanState::Failed(ScanFailure::Reading);
                 }
-                self.finish_all_values(AllValuesState::Failed(reason));
+                self.finish_all_values(AllValuesState::Failed);
             }
             Event::ResponseTime(time) => self.response_time = Some(time),
         }
@@ -1540,10 +1543,7 @@ mod tests {
         assert_eq!(speaker.all_values, AllValuesState::Loaded(reports));
         speaker.read_all_values();
         speaker.apply(Event::AllValuesFailed("refused".to_owned()), 1.0);
-        assert_eq!(
-            speaker.all_values,
-            AllValuesState::Failed("refused".to_owned())
-        );
+        assert_eq!(speaker.all_values, AllValuesState::Failed);
     }
 
     #[test]
@@ -1634,6 +1634,15 @@ mod tests {
         assert_eq!(speaker.latest(&path), Some(&json!(false)));
         assert_eq!(speaker.all_values, AllValuesState::Idle);
         assert_eq!(speaker.full_scan, FullScanState::Idle);
+    }
+
+    /// "Alle Werte" alone kept the reason, which no window shows, and logged it nowhere.
+    #[test]
+    fn a_failed_read_of_every_value_keeps_no_raw_reason() {
+        let mut speaker = state();
+        speaker.read_all_values();
+        speaker.apply(Event::AllValuesFailed("fe80::1 refused".to_owned()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Failed);
     }
 
     /// The walk's own reason is English and may name an address; the panel words the failure
