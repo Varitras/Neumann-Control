@@ -1422,3 +1422,29 @@ fn the_band_colours_wrap_in_columns_in_a_narrow_settings_window() {
         );
     }
 }
+
+/// The least offset between two centres that shows on screen.
+const VISIBLE_OFFSET: f32 = 0.25;
+
+/// egui puts a field's text at the top of its frame, which is a button's height, so the text
+/// and the cursor sat above the middle.
+#[test]
+fn the_typed_text_sits_in_the_middle_of_its_field() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut harness = harness(path, Vec::new());
+    harness.get_by_label(texts::ADD_ADDRESS.get()).click();
+    harness.run_steps(2);
+    harness
+        .get_by_label(texts::ADDRESS_FIELD.get())
+        .type_text("fe80::1");
+    harness.run_steps(2);
+    let field = harness.get_by_label(texts::ADDRESS_FIELD.get()).rect();
+    let text = harness
+        .query_all_by_role(Role::TextRun)
+        .map(|node| node.rect())
+        .find(|rect| field.contains_rect(*rect))
+        .expect("the typed text inside the field");
+    let offset = (text.center().y - field.center().y).abs();
+    assert!(offset < VISIBLE_OFFSET, "{text:?} in {field:?}");
+}

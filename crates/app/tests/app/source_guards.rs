@@ -145,6 +145,27 @@ fn no_view_draws_egui_s_own_spinner() {
     assert!(found.is_empty(), "egui's spinner drawn at: {found:?}");
 }
 
+/// egui puts a field's text at the top of its frame; `ui_kit::text_field` centres it. A field
+/// made straight from egui sat its text and cursor above the middle.
+#[test]
+fn every_text_field_comes_from_the_ui_kit() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rust_files(&source, &mut files);
+    let own = Path::new("ui_kit").join("text_field.rs");
+    let mut found = Vec::new();
+    for file in files.iter().filter(|file| !file.ends_with(&own)) {
+        let text = fs::read_to_string(file).unwrap();
+        for call in ["TextEdit::", "text_edit_singleline", "text_edit_multiline"] {
+            for (start, _) in production_code(&text).match_indices(call) {
+                let line = text[..start].lines().count();
+                found.push(format!("{}:{line}", file.display()));
+            }
+        }
+    }
+    assert!(found.is_empty(), "egui's own text field at: {found:?}");
+}
+
 /// The arguments of the call whose name ends at `start` in `text`, up to its closing parenthesis.
 fn call_arguments(text: &str, start: usize) -> &str {
     let open = start + 1;
