@@ -128,6 +128,20 @@ mod tests {
     use super::*;
     use eframe::egui::vec2;
 
+    /// A window of whole pixels, as egui gives it in points (pixels / scale, with float noise),
+    /// already fits a content of its own size: the noise above a whole pixel asked for one more.
+    #[test]
+    fn a_window_of_whole_pixels_fits_its_own_size() {
+        for pixels_per_point in [1.25_f32, 1.5, 1.75] {
+            for pixels in 1000..1800 {
+                let current = Vec2::splat(pixels as f32 / pixels_per_point);
+                let mut fit = WindowFit::default();
+                let asked = fit.next(current, current, None, pixels_per_point);
+                assert_eq!(asked, None, "{pixels} px at {pixels_per_point}");
+            }
+        }
+    }
+
     /// Measured on Linux: the window swung between 720×658 and 726×655 for good. Measured by
     /// the room of the scroll area (16 and 45 points less than the window), both sizes want the
     /// same window, whatever the scroll bars did there.
