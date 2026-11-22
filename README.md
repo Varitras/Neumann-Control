@@ -190,7 +190,8 @@ added, a strip that widens once its model is known) until you size it yourself; 
 app keeps the size you chose.
 
 The toolbar shows the number of speakers (not in the narrowest window) and the average response
-time of the connected ones.
+time of the connected ones. So that it fits, the desk's window is at least 660 pixels wide at
+100 % scaling; the compact window can be narrower.
 
 ### Faders and knobs
 

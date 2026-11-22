@@ -86,6 +86,8 @@
   to the place it was left, in that monitor's scale.
 - The log no longer holds a detailed line about the window's place when **Detailed log** is
   off.
+- The desk's window can no longer be made so narrow that the toolbar's buttons and the average
+  response time run over each other; the compact window can still be narrower.
 - Compact mode without speakers says how to get back to the desk, where speakers are added; it
   named buttons compact mode does not have.
 - The history names the bands an EQ change switched on or off and the one speaker it went to;
