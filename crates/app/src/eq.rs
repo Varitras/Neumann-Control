@@ -172,8 +172,13 @@ pub const GAIN_GRID_DB: f64 = 0.5;
 pub const Q_STEP: f64 = 0.1;
 const FREQUENCY_DIGITS: i32 = 3;
 
-/// `frequency` rounded to `FREQUENCY_DIGITS` significant digits (1230 Hz, 47.3 Hz).
+/// `frequency` rounded to `FREQUENCY_DIGITS` significant digits (1230 Hz, 47.3 Hz). A value with
+/// no logarithm (0 Hz from a speaker) comes back as it is.
 pub fn snapped_frequency(frequency: f64) -> f64 {
+    let has_digits = frequency.is_finite() && frequency > 0.0;
+    if !has_digits {
+        return frequency;
+    }
     let magnitude = frequency.abs().log10().floor() as i32;
     let unit = 10f64.powi(magnitude + 1 - FREQUENCY_DIGITS);
     let snapped = (frequency / unit).round() * unit;
