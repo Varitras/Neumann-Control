@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use neumann_control_core::simulator::{Fault, SimModel, Simulator};
 use neumann_control_core::ssc::client::{
-    Client, NodeKind, SscError, MAX_LINE_BYTES, MAX_READ_DURATION, MAX_RESPONSE_BYTES,
-    MAX_RESPONSE_LINES,
+    Client, NodeKind, SscError, LINE_TERMINATOR, MAX_LINE_BYTES, MAX_READ_DURATION,
+    MAX_RESPONSE_BYTES, MAX_RESPONSE_LINES,
 };
 use neumann_control_core::ssc::wire::{DeviceError, SscPath};
 use serde_json::{json, Value};
@@ -183,8 +183,9 @@ fn limits_of_unknown_path_is_device_error_454() {
     assert_eq!(device_code(error), DeviceError::PARAMETER_NOT_FOUND);
 }
 
-const SHORT_LINE: &str = "{\"x\":1}
-";
+fn short_line() -> String {
+    format!("{{\"x\":1}}{LINE_TERMINATOR}")
+}
 const BIG_LINE_BYTES: usize = 900 * 1024;
 const BIG_LINE_COUNT: usize = 5;
 const _: () = assert!(BIG_LINE_BYTES < MAX_LINE_BYTES);
@@ -218,8 +219,7 @@ fn scripted_speaker(script: impl FnOnce(&mut TcpStream, u64) + Send + 'static) -
 
 fn level_reply(xid: u64) -> String {
     format!(
-        "{{\"audio\":{{\"out\":{{\"level\":1.0}}}},\"osc\":{{\"xid\":{xid}}}}}
-"
+        "{{\"audio\":{{\"out\":{{\"level\":1.0}}}},\"osc\":{{\"xid\":{xid}}}}}{LINE_TERMINATOR}"
     )
 }
 
@@ -241,7 +241,7 @@ fn assert_protocol_and_closed(mut client: Client) {
 fn too_many_lines_closes_connection() {
     let client = scripted_speaker(|stream, _| {
         for _ in 0..=MAX_RESPONSE_LINES {
-            if stream.write_all(SHORT_LINE.as_bytes()).is_err() {
+            if stream.write_all(short_line().as_bytes()).is_err() {
                 break;
             }
         }
@@ -252,11 +252,7 @@ fn too_many_lines_closes_connection() {
 #[test]
 fn too_many_bytes_closes_connection() {
     let client = scripted_speaker(|stream, _| {
-        let line = format!(
-            "{}
-",
-            padded_object(BIG_LINE_BYTES)
-        );
+        let line = format!("{}{LINE_TERMINATOR}", padded_object(BIG_LINE_BYTES));
         for _ in 0..BIG_LINE_COUNT {
             if stream.write_all(line.as_bytes()).is_err() {
                 break;
@@ -279,11 +275,7 @@ fn unterminated_stream_over_line_limit_closes_connection() {
 #[test]
 fn line_of_exactly_the_limit_is_accepted() {
     let mut client = scripted_speaker(|stream, xid| {
-        let line = format!(
-            "{}
-",
-            padded_object(MAX_LINE_BYTES)
-        );
+        let line = format!("{}{LINE_TERMINATOR}", padded_object(MAX_LINE_BYTES));
         let _ = stream.write_all(line.as_bytes());
         let _ = stream.write_all(level_reply(xid).as_bytes());
     });
@@ -293,11 +285,7 @@ fn line_of_exactly_the_limit_is_accepted() {
 #[test]
 fn line_one_byte_over_the_limit_closes_connection() {
     let client = scripted_speaker(|stream, _| {
-        let line = format!(
-            "{}
-",
-            padded_object(MAX_LINE_BYTES + 1)
-        );
+        let line = format!("{}{LINE_TERMINATOR}", padded_object(MAX_LINE_BYTES + 1));
         let _ = stream.write_all(line.as_bytes());
     });
     assert_protocol_and_closed(client);
@@ -306,10 +294,7 @@ fn line_one_byte_over_the_limit_closes_connection() {
 #[test]
 fn device_that_keeps_talking_is_cut_after_ten_seconds() {
     let client = scripted_speaker(|stream, _| {
-        let line = format!(
-            "{{\"osc\":{{\"xid\":{FOREIGN_XID}}}}}
-"
-        );
+        let line = format!("{{\"osc\":{{\"xid\":{FOREIGN_XID}}}}}{LINE_TERMINATOR}");
         for _ in 0..TALKING_LINES {
             if stream.write_all(line.as_bytes()).is_err() {
                 break;
