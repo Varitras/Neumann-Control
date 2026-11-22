@@ -5,7 +5,7 @@
 
 use eframe::egui::{
     self, vec2, Align, Button, Color32, ComboBox, CornerRadius, CursorIcon, DragAndDrop, Label,
-    Layout, PointerButton, Rect, Response, RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
+    Layout, PointerButton, Rect, Response, RichText, Role, Sense, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{DeskSettings, StripElement};
@@ -14,6 +14,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
+use super::group_strip;
 use super::knob;
 use super::layout_menu::{self, Offer};
 use super::meters::{self, Meters};
@@ -112,12 +113,12 @@ pub fn show(
     catalog: &Catalog,
     desk: &DeskSettings,
     view: StripView,
-    group_color: Option<Color32>,
+    color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
     let name = texts::strip_region(&speaker.display_name());
     named_region(ui, &name, |ui| {
-        contents(ui, speaker, catalog, desk, view, group_color, member)
+        contents(ui, speaker, catalog, desk, view, color, member)
     })
 }
 
@@ -127,7 +128,7 @@ fn contents(
     catalog: &Catalog,
     desk: &DeskSettings,
     view: StripView,
-    group_color: Option<Color32>,
+    color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
     let StripView {
@@ -185,69 +186,56 @@ fn contents(
     };
     let mut fader = Rect::NOTHING;
     let mut edit_group = false;
-    let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
-    let frame = egui::Frame::new()
-        .fill(tokens.card)
-        // A member of a group is framed in the group's colour.
-        .stroke(Stroke::new(
-            BORDER_WIDTH,
-            group_color.unwrap_or(tokens.border),
-        ))
-        .corner_radius(CornerRadius::same(STRIP_RADIUS))
-        .inner_margin(STRIP_MARGIN)
-        .show(ui, |ui| {
-            // The desk lays strips out in a row; the content of one strip stacks.
-            ui.vertical(|ui| {
-                ui.set_width(inner_width);
-                if speaker.status == Status::Unreachable {
-                    ui.multiply_opacity(UNREACHABLE_OPACITY);
-                }
-                let header = ui.horizontal(|ui| {
-                    grip(ui, member, &tokens);
-                    name(ui, speaker)
-                });
-                if let Some(group) = group {
-                    edit_group = group_menu(ui, header.response.rect, group);
-                }
-                let open_panel = header.inner;
-                leds(ui, speaker, &tokens);
-                elements(
-                    ui,
-                    speaker,
-                    &arrange(Area::Above),
-                    &mut commands,
-                    &mut wishes,
-                );
-                // While editing the fader is as still as the other controls.
-                fader = ui
-                    .add_enabled_ui(!editing, |ui| {
-                        level(ui, speaker, catalog, desk, &mut commands, &tokens);
-                    })
-                    .response
-                    .rect;
-                if desk.show_response_times {
-                    response_time(ui, speaker);
-                }
-                elements(
-                    ui,
-                    speaker,
-                    &arrange(Area::Below),
-                    &mut commands,
-                    &mut wishes,
-                );
-                if let (true, Some(offers)) = (editing, offers) {
-                    let applies = match desk.layouts_per_speaker {
-                        true => texts::APPLIES_TO_THIS_SPEAKER.get().to_owned(),
-                        false => texts::applies_to_every(speaker.product()),
-                    };
-                    edit_controls(ui, &applies, offers, &mut wishes);
-                }
-                message(ui, speaker, &tokens);
-                let details = ui.button(texts::DETAILS).clicked();
-                open_panel || details
-            })
-            .inner
+    // Framed in the strip's colour (its own, else its group's); none leaves the plain border.
+    let color = color.unwrap_or(tokens.border);
+    let frame = group_strip::framed(ui, STRIP_WIDTH, color, |ui| {
+        if speaker.status == Status::Unreachable {
+            ui.multiply_opacity(UNREACHABLE_OPACITY);
+        }
+        let header = ui.horizontal(|ui| {
+            grip(ui, member, &tokens);
+            name(ui, speaker)
         });
+        if let Some(group) = group {
+            edit_group = group_menu(ui, header.response.rect, group);
+        }
+        let open_panel = header.inner;
+        leds(ui, speaker, &tokens);
+        elements(
+            ui,
+            speaker,
+            &arrange(Area::Above),
+            &mut commands,
+            &mut wishes,
+        );
+        // While editing the fader is as still as the other controls.
+        fader = ui
+            .add_enabled_ui(!editing, |ui| {
+                level(ui, speaker, catalog, desk, &mut commands, &tokens);
+            })
+            .response
+            .rect;
+        if desk.show_response_times {
+            response_time(ui, speaker);
+        }
+        elements(
+            ui,
+            speaker,
+            &arrange(Area::Below),
+            &mut commands,
+            &mut wishes,
+        );
+        if let (true, Some(offers)) = (editing, offers) {
+            let applies = match desk.layouts_per_speaker {
+                true => texts::APPLIES_TO_THIS_SPEAKER.get().to_owned(),
+                false => texts::applies_to_every(speaker.product()),
+            };
+            edit_controls(ui, &applies, offers, &mut wishes);
+        }
+        message(ui, speaker, &tokens);
+        let details = ui.button(texts::DETAILS).clicked();
+        open_panel || details
+    });
     if landing.is_some() && ui.input(|input| input.pointer.primary_released()) {
         wishes.layout = landing;
         DragAndDrop::clear_payload(ui.ctx());
