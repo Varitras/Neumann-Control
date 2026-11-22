@@ -650,12 +650,21 @@ fn a_falling_meter_does_not_repaint_at_once() {
         harness.query_all_by_label_contains(&high).next().is_some()
     });
     simulators[0].set_value("m/in/level", json!([-119.0, -119.0]));
-    // A new reading wakes the window at once; the frames of the fall after it must not.
-    wait_until(&mut harness, "a frame booked after a pause", |harness| {
-        let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
-        !delay.is_zero() && delay < Duration::MAX
+    // The fall takes about 19 frames at a quarter second each; while it lasts, every frame asks
+    // for the next one after a pause. Asked only for some frame, the test also passed once the
+    // fall was over and only the readings woke the window.
+    wait_until(&mut harness, "the fall begun", |harness| {
+        harness.query_all_by_label_contains(&high).next().is_none()
     });
+    for _ in 0..FRAMES_OF_THE_FALL {
+        harness.step();
+        let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+        assert!(!delay.is_zero() && delay < Duration::MAX, "{delay:?}");
+    }
 }
+
+/// Frames checked while the bar falls, well within its fall of about 19.
+const FRAMES_OF_THE_FALL: usize = 8;
 
 #[test]
 fn no_strip_moves_while_values_change() {
