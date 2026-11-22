@@ -656,6 +656,20 @@ fn an_unreadable_response_time_switch_keeps_its_default() {
     );
 }
 
+/// A map field that is no map (a later version's list, a hand edit) is left out alone: the
+/// remembered speakers beside it stay.
+#[test]
+fn a_map_field_that_is_no_map_keeps_the_speakers() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"manual":[{"address":"fe80::1%7","port":45}],"windows":[1,2],"known":"x"}"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load_checked(&path);
+    assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
+    assert_eq!(loaded.settings.manual.len(), 1);
+    assert!(loaded.settings.windows.is_empty() && loaded.settings.known.is_empty());
+}
+
 #[test]
 fn compact_layouts_round_trip() {
     let directory = tempfile::tempdir().unwrap();
