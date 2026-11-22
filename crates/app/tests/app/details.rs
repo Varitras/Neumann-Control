@@ -71,7 +71,7 @@ fn kh120ii_standby_enabled_is_checkbox() {
     assert_eq!(role_of(&harness, STANDBY_LABEL), Role::CheckBox);
     harness.get_by_label(STANDBY_LABEL).click();
     wait_until(&mut harness, "standby off on the device", |_| {
-        simulator.value("device/standby/enabled") == Some(Value::Bool(false))
+        simulator.value(paths::STANDBY_ENABLED) == Some(Value::Bool(false))
     });
 }
 
@@ -79,7 +79,7 @@ fn kh120ii_standby_enabled_is_checkbox() {
 fn temperature_is_shown_in_celsius() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh750, PanelTab::Device);
-    simulator.set_value("device/temperature", json!(313));
+    simulator.set_value(paths::TEMPERATURE, json!(313));
     wait_until(&mut harness, "40 °C", |harness| {
         harness.query_by_label("40 °C").is_some()
     });
@@ -149,7 +149,7 @@ fn control_mode_is_shown_read_only_on_both_models() {
 #[test]
 fn an_announced_model_gives_no_write_controls_or_model_rows() {
     let simulator = Simulator::start(SimModel::Kh120Ii);
-    simulator.set_value("device/identity/product", json!(""));
+    simulator.set_value(paths::PRODUCT, json!(""));
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let found = Found {
@@ -241,7 +241,7 @@ fn numeric_value(harness: &Harness<'static, NeumannApp>, label: &str) -> Option<
 fn out_of_range_device_value_is_not_written_back() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -255,7 +255,7 @@ fn out_of_range_device_value_is_not_written_back() {
 fn visiting_a_number_field_does_not_write_its_rounded_text() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(100.123456));
+    simulator.set_value(paths::DELAY, json!(100.123456));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(100.123456)
     });
@@ -291,7 +291,7 @@ fn an_arrow_key_step_in_a_number_field_is_written() {
 fn visiting_an_out_of_range_number_field_writes_nothing() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -418,8 +418,8 @@ fn the_panel_header_cuts_long_device_texts() {
     const LONG: usize = 1000;
     let (_simulator, _directory, mut harness) =
         connected_speaker_with(SimModel::Kh120Ii, |simulator| {
-            simulator.set_value("device/identity/product", json!("M".repeat(LONG)));
-            simulator.set_value("device/identity/version", json!("7".repeat(LONG)));
+            simulator.set_value(paths::PRODUCT, json!("M".repeat(LONG)));
+            simulator.set_value(paths::FIRMWARE_VERSION, json!("7".repeat(LONG)));
         });
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Overview);
     let limit = neumann_control_app::display::VALUE_CHARACTER_LIMIT;
@@ -442,7 +442,7 @@ fn enter_in_an_untouched_name_field_does_not_undo_a_rename() {
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
-    simulator.set_value("device/name", json!("Renamed"));
+    simulator.set_value(paths::DEVICE_NAME, json!("Renamed"));
     // The name is polled slowly: up to one slow interval, then its answer.
     wait_until(&mut harness, "the new name in the field", |harness| {
         let shown = harness.get_by_role(Role::TextInput).value();
@@ -622,7 +622,7 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
     // One sample is 0.0208333… ms, which no decimal text holds exactly.
-    simulator.set_value("audio/out/delay", json!(1));
+    simulator.set_value(paths::DELAY, json!(1));
     wait_until(&mut harness, "the reported delay", |harness| {
         harness.query_by_label_contains("0,02").is_some()
     });
@@ -638,7 +638,7 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
 fn a_panel_drag_outside_the_range_writes_nothing() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -659,7 +659,7 @@ fn a_panel_drag_outside_the_range_writes_nothing() {
 fn a_panel_drag_back_to_its_start_writes_nothing() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(100.123456));
+    simulator.set_value(paths::DELAY, json!(100.123456));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(100.123456)
     });
@@ -688,7 +688,7 @@ fn eq_rows_are_not_in_the_device_panel() {
 fn the_panel_shows_the_temperature_trend_of_a_kh750() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh750, PanelTab::Device);
-    simulator.set_value("device/temperature", json!(313));
+    simulator.set_value(paths::TEMPERATURE, json!(313));
     wait_until(&mut harness, "the trend at 40 °C", |harness| {
         harness
             .query_all_by_label_contains(&texts::temperature_trend("40 °C"))
@@ -704,14 +704,14 @@ fn the_temperature_line_names_its_range() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh750, PanelTab::Device);
     // Below the simulator's 37 °C, so it is the lowest of the session.
-    simulator.set_value("device/temperature", json!(300));
+    simulator.set_value(paths::TEMPERATURE, json!(300));
     wait_until(&mut harness, "27 °C", |harness| {
         harness
             .query_all_by_label_contains(&texts::temperature_trend("27 °C"))
             .next()
             .is_some()
     });
-    simulator.set_value("device/temperature", json!(316));
+    simulator.set_value(paths::TEMPERATURE, json!(316));
     let range = texts::trend_range("27 °C", "43 °C");
     let line = format!("{} ({range})", texts::temperature_trend("43 °C"));
     wait_until(&mut harness, "the range at the line", |harness| {
@@ -847,7 +847,7 @@ fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
         let name = path.file_name().unwrap().to_str().unwrap().to_owned();
         assert!(name.starts_with("scan-KH-120-II-1_7_3-"), "{name}");
         let text = std::fs::read_to_string(&path).unwrap();
-        assert!(text.contains("audio/out/level"), "{name}");
+        assert!(text.contains(paths::OUTPUT_LEVEL), "{name}");
         assert!(!text.contains(SIMULATED_SERIAL), "{name} holds the serial");
         assert!(!text.contains(KH120_DEVICE_NAME), "{name} holds the name");
     }
@@ -890,11 +890,11 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(saved.presets.len(), 1);
     let preset = &saved.presets[0];
     assert_eq!(preset.name, "Evening");
-    assert!(preset.values.contains_key("audio/out/level"));
-    assert!(!preset.values.contains_key("audio/out/delay"));
-    assert!(!preset.values.contains_key("device/name"));
+    assert!(preset.values.contains_key(paths::OUTPUT_LEVEL));
+    assert!(!preset.values.contains_key(paths::DELAY));
+    assert!(!preset.values.contains_key(paths::DEVICE_NAME));
 
-    simulator.set_value("audio/out/level", json!(70.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
     wait_for_level(&mut harness, 70.0);
     let entries_before = harness.state().history().len();
     if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
@@ -946,7 +946,7 @@ fn delay_row(harness: &Harness<'static, NeumannApp>) -> Option<String> {
 fn a_settings_preset_waits_for_its_unread_values() {
     let (simulator, directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
-    simulator.remove_value("audio/out/delay");
+    simulator.remove_value(paths::DELAY);
     scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
     harness.run_steps(3);
     harness
@@ -972,11 +972,9 @@ fn a_settings_preset_waits_for_its_unread_values() {
     harness.run_steps(3);
     let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.presets.len(), 1);
-    assert!(saved.presets[0].values.contains_key("audio/out/level"));
+    assert!(saved.presets[0].values.contains_key(paths::OUTPUT_LEVEL));
 }
 
-/// A stored preset can hold a value this speaker refuses (another model's range, a file edited
-/// by hand). Loading it then writes nothing, not the part before the refused value.
 /// The speaker goes while the load dialog shows a preset it holds: nothing is known to be on it
 /// any more, and the dialog says why.
 #[test]
@@ -984,7 +982,7 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
     let same = SettingsPreset {
         name: "Same".to_owned(),
         product: "KH 120 II".to_owned(),
-        values: [("audio/out/level".to_owned(), json!(100.0))].into(),
+        values: [(paths::OUTPUT_LEVEL.to_owned(), json!(100.0))].into(),
     };
     let (simulator, _directory, mut harness) =
         connected_speaker_with_presets(SimModel::Kh120Ii, vec![same]);
@@ -1058,14 +1056,16 @@ fn a_skipped_setting_is_named_by_its_label() {
     harness.get_by_label(&texts::preset_skipped(&[label]));
 }
 
+/// A stored preset can hold a value this speaker refuses (another model's range, a file edited
+/// by hand). Loading it then writes nothing, not the part before the refused value.
 #[test]
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
     let far = SettingsPreset {
         name: "Far".to_owned(),
         product: "KH 120 II".to_owned(),
         values: [
-            ("audio/out/level".to_owned(), json!(90.0)),
-            ("audio/out/delay".to_owned(), json!(99_999)),
+            (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
+            (paths::DELAY.to_owned(), json!(99_999)),
         ]
         .into(),
     };
@@ -1372,7 +1372,7 @@ fn the_name_is_edited_on_the_overview_and_shown_on_the_device_tab() {
 fn a_delay_field_shows_its_milliseconds_rounded() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(184));
+    simulator.set_value(paths::DELAY, json!(184));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(184.0)
     });
