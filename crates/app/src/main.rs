@@ -62,11 +62,11 @@ fn start_log(directory: &Path) {
     let Ok(file) = File::create(directory.join(LOG_FILE)) else {
         return;
     };
-    let config = ConfigBuilder::new()
+    let configuration = ConfigBuilder::new()
         .add_filter_allow_str(LOG_TARGET_PREFIX)
         .build();
     // Up to debug: `main` lowers the level to info unless the detailed log is on.
-    let _ = WriteLogger::init(LevelFilter::Debug, config, file);
+    let _ = WriteLogger::init(LevelFilter::Debug, configuration, file);
     log::info!("neumann-control {} started", env!("APP_VERSION"));
     // A window app has no console: a crash would leave no trace but in the log.
     let report = std::panic::take_hook();

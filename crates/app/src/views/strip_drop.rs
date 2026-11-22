@@ -73,18 +73,13 @@ fn comes_after(pointer: Pos2, rect: Rect) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths;
     use eframe::egui::{pos2, vec2};
     use neumann_control_core::ssc::wire::SscPath;
 
     fn path(text: &str) -> StripElement {
         StripElement::Path(SscPath::parse(text).unwrap())
     }
-
-    const DELAY: &str = "audio/out/delay";
-    const STANDBY: &str = "device/standby/auto_standby_time";
-    const MUTE: &str = "audio/out/mute";
-    const IDENTIFY: &str = "device/identification/visual";
-    const PHASE: &str = "audio/out/phaseinversion";
 
     fn at(x: f32, y: f32) -> Rect {
         Rect::from_min_size(pos2(x, y), vec2(40.0, 20.0))
@@ -100,18 +95,18 @@ mod tests {
         };
         let geometry = Geometry {
             slots: vec![
-                slot(Area::Above, path(DELAY), at(0.0, 40.0)),
-                slot(Area::Above, path(STANDBY), at(60.0, 40.0)),
-                slot(Area::Below, path(MUTE), at(0.0, 220.0)),
-                slot(Area::Below, path(IDENTIFY), at(60.0, 220.0)),
+                slot(Area::Above, path(paths::DELAY), at(0.0, 40.0)),
+                slot(Area::Above, path(paths::STANDBY_TIME), at(60.0, 40.0)),
+                slot(Area::Below, path(paths::MUTE), at(0.0, 220.0)),
+                slot(Area::Below, path(paths::IDENTIFY), at(60.0, 220.0)),
                 slot(Area::Below, StripElement::Eq, at(0.0, 250.0)),
             ],
             fader: Rect::from_min_max(pos2(0.0, 100.0), pos2(120.0, 200.0)),
             strip: Rect::from_min_max(pos2(0.0, 0.0), pos2(130.0, 300.0)),
         };
         let layout = StripLayout {
-            above: vec![path(DELAY), path(STANDBY)],
-            below: vec![path(MUTE), path(IDENTIFY), StripElement::Eq],
+            above: vec![path(paths::DELAY), path(paths::STANDBY_TIME)],
+            below: vec![path(paths::MUTE), path(paths::IDENTIFY), StripElement::Eq],
         };
         (geometry, layout)
     }
@@ -121,8 +116,8 @@ mod tests {
         let (geometry, layout) = strip();
         let on_mute = at(0.0, 220.0).center();
         assert_eq!(
-            landing(&geometry, &layout, &path(DELAY), on_mute),
-            LayoutChange::MoveTo(path(DELAY), Area::Below, 0)
+            landing(&geometry, &layout, &path(paths::DELAY), on_mute),
+            LayoutChange::MoveTo(path(paths::DELAY), Area::Below, 0)
         );
     }
 
@@ -131,8 +126,8 @@ mod tests {
         let (geometry, layout) = strip();
         let pointer = at(0.0, 220.0).center() + vec2(10.0, 0.0);
         assert_eq!(
-            landing(&geometry, &layout, &path(DELAY), pointer),
-            LayoutChange::MoveTo(path(DELAY), Area::Below, 1)
+            landing(&geometry, &layout, &path(paths::DELAY), pointer),
+            LayoutChange::MoveTo(path(paths::DELAY), Area::Below, 1)
         );
     }
 
@@ -140,8 +135,8 @@ mod tests {
     fn past_the_last_element_lands_at_the_end() {
         let (geometry, layout) = strip();
         assert_eq!(
-            landing(&geometry, &layout, &path(DELAY), pos2(100.0, 290.0)),
-            LayoutChange::MoveTo(path(DELAY), Area::Below, 3)
+            landing(&geometry, &layout, &path(paths::DELAY), pos2(100.0, 290.0)),
+            LayoutChange::MoveTo(path(paths::DELAY), Area::Below, 3)
         );
     }
 
@@ -155,8 +150,8 @@ mod tests {
         );
         let before_standby = at(60.0, 40.0).center();
         assert_eq!(
-            landing(&geometry, &layout, &path(MUTE), before_standby),
-            LayoutChange::MoveTo(path(MUTE), Area::Above, 1)
+            landing(&geometry, &layout, &path(paths::MUTE), before_standby),
+            LayoutChange::MoveTo(path(paths::MUTE), Area::Above, 1)
         );
     }
 
@@ -166,8 +161,8 @@ mod tests {
         let (geometry, layout) = strip();
         let on_itself = at(60.0, 220.0).center();
         assert_eq!(
-            landing(&geometry, &layout, &path(IDENTIFY), on_itself),
-            LayoutChange::MoveTo(path(IDENTIFY), Area::Below, 1)
+            landing(&geometry, &layout, &path(paths::IDENTIFY), on_itself),
+            LayoutChange::MoveTo(path(paths::IDENTIFY), Area::Below, 1)
         );
     }
 
@@ -175,11 +170,11 @@ mod tests {
     #[test]
     fn an_absent_element_keeps_its_stored_place() {
         let (geometry, mut layout) = strip();
-        layout.below.insert(1, path(PHASE));
+        layout.below.insert(1, path(paths::PHASE_INVERSION));
         let on_identify = at(60.0, 220.0).center();
         assert_eq!(
-            landing(&geometry, &layout, &path(DELAY), on_identify),
-            LayoutChange::MoveTo(path(DELAY), Area::Below, 2)
+            landing(&geometry, &layout, &path(paths::DELAY), on_identify),
+            LayoutChange::MoveTo(path(paths::DELAY), Area::Below, 2)
         );
     }
 }

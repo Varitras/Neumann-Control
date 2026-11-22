@@ -204,7 +204,7 @@ mod windows_help {
 
     const HTTPS_PORT: u16 = 443;
     /// Per step (name lookup, connect, send, receive), in milliseconds: the dialog waits on it.
-    const TIMEOUT_MS: i32 = 10_000;
+    const TIMEOUT_MILLISECONDS: i32 = 10_000;
     const READ_CHUNK: usize = 16 * 1024;
     /// ShellExecute's success is any value above 32.
     const SHELL_ERROR_LIMIT: isize = 32;
@@ -279,8 +279,13 @@ mod windows_help {
                 0,
             );
             let session = Handle::new(session, "WinHttpOpen")?;
-            let timeouts =
-                WinHttpSetTimeouts(session.0, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS);
+            let timeouts = WinHttpSetTimeouts(
+                session.0,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+            );
             check(timeouts, "WinHttpSetTimeouts")?;
             let connection = WinHttpConnect(session.0, host.as_ptr(), HTTPS_PORT, 0);
             let connection = Handle::new(connection, "WinHttpConnect")?;

@@ -855,19 +855,15 @@ impl NeumannApp {
             .collect()
     }
 
-    /// Puts the speakers checked for group `index` in it and the others out of it; true when
-    /// one moved.
-    fn apply_members(&mut self, index: usize, ids: &[String], members: &[MemberChoice]) -> bool {
+    /// Puts the speakers checked for group `index` in it and the others out of it.
+    fn apply_members(&mut self, index: usize, ids: &[String], members: &[MemberChoice]) {
         let groups = &mut self.settings.groups;
-        let mut moved = false;
         for (id, member) in ids.iter().zip(members) {
             let in_group = desk::group_of(groups, id) == Some(index);
             if member.checked != in_group {
                 set_membership(groups, id, member.checked.then_some(index));
-                moved = true;
             }
         }
-        moved
     }
 
     fn show_groups_window(&mut self, ui: &mut Ui) {
