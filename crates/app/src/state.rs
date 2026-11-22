@@ -1400,11 +1400,16 @@ mod tests {
                 description: String::new(),
             },
         };
+        // A 404 to a write is a refusal like any other, also from an old connection.
+        let absent = Event::WriteAbsent(mute.clone());
         let failed = Event::WriteFailed {
             path: mute.clone(),
             message: String::new(),
         };
-        for moved in [false, true] {
+        for (moved, refusal) in [false, true]
+            .into_iter()
+            .flat_map(|moved| [&rejected, &absent].map(|refusal| (moved, refusal)))
+        {
             let mut speaker = state();
             speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
             let mut writes = Vec::new();
@@ -1421,7 +1426,7 @@ mod tests {
             };
             answer(&mut speaker, &failed);
             assert!(speaker.predecessors.is_empty(), "moved: {moved}");
-            answer(&mut speaker, &rejected);
+            answer(&mut speaker, refusal);
             let expected = Predecessor {
                 write: writes[1],
                 later: vec![writes[2]],
