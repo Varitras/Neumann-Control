@@ -1028,6 +1028,9 @@ fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
         "Other",
         KH120_PRODUCT,
     );
+    // The preview is shown, with the skipped value named.
+    let skipped = texts::preset_skipped(&["audio/out/not/here".to_owned()]);
+    harness.get_by_label(&skipped);
     assert!(harness
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
