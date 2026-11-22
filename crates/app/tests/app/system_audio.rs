@@ -192,6 +192,34 @@ fn a_fader_move_sets_the_windows_volume() {
     assert!(sets[0] > 0.5 && sets[0] <= 1.0, "{sets:?}");
 }
 
+/// The fader is in percent, and so is the move it shows while dragged: it said "+12,0 dB".
+#[test]
+fn a_dragged_windows_fader_shows_its_move_in_percent() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_with(true, audio);
+    harness.run_steps(2);
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::SYSTEM_VOLUME.get())
+        .rect();
+    let from = fader.center();
+    harness.drag_at(from);
+    for frame in 1..=5 {
+        harness.hover_at(from + egui::vec2(0.0, -8.0 * frame as f32));
+        harness.step();
+    }
+    let moves: Vec<String> = harness
+        .query_all_by_role(Role::Label)
+        .filter_map(|node| node.value())
+        .filter(|text| text.starts_with('+'))
+        .collect();
+    harness.drop_at(from + egui::vec2(0.0, -40.0));
+    assert!(
+        moves.iter().any(|text| text.ends_with(" %"))
+            && !moves.iter().any(|text| text.ends_with("dB")),
+        "{moves:?}"
+    );
+}
+
 /// Dragged past the top, the volume ends at 100 %: Windows' scalar 1.
 #[test]
 fn a_fader_past_the_top_sets_full_volume() {
