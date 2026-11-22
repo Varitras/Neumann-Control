@@ -1011,12 +1011,14 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
     )
 }
 
-/// The Windows volume under its fader: "52 %".
 /// How far the Windows volume fader moved: "+10 %".
 pub fn percent_move(moved: f64) -> String {
+    // Adding 0 turns a -0 into 0: a move just below zero read "-0 %".
+    let moved = moved.round() + 0.0;
     number_text(format!("{moved:+.0} %"))
 }
 
+/// The Windows volume under its fader: "52 %".
 pub fn percent(value: f64) -> String {
     format!("{} %", number_text(value.round().to_string()))
 }
@@ -1303,5 +1305,11 @@ mod tests {
         set_language(Language::English);
         assert_eq!(readout(87.5, "dB SPL"), "87.5 dB SPL");
         set_language(Language::German);
+    }
+
+    #[test]
+    fn a_tiny_move_down_reads_no_minus_zero() {
+        assert_eq!(percent_move(-0.3), "+0 %");
+        assert_eq!(percent_move(10.4), "+10 %");
     }
 }
