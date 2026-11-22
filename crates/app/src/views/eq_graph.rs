@@ -550,7 +550,7 @@ mod tests {
         assert_eq!(topmost_band_at(&points, &axes, spot), Some(1));
         let beside = spot + vec2(10.0, 0.0);
         assert_eq!(topmost_band_at(&points, &axes, beside), None);
-        let mut off = points.clone();
+        let mut off = points;
         off[1].enabled = false;
         assert_eq!(topmost_band_at(&off, &axes, spot), Some(0));
     }
