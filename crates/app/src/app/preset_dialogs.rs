@@ -251,11 +251,12 @@ impl NeumannApp {
                 deleting = false;
             }
             LoadAction::Write => {
-                let speaker = &mut self.speakers[index];
+                let ids = self.member_ids();
                 for change in loading.changes {
                     let intent = Intent::restoring(&change.path, change.preset);
-                    if let Some(command) = speaker.state.request(intent, catalog, now) {
-                        speaker.handle.send(command);
+                    let state = &mut self.speakers[index].state;
+                    if let Some(command) = state.request(intent, catalog, now) {
+                        self.send_with_links(index, command, catalog, &ids, now);
                     }
                 }
                 return None;
