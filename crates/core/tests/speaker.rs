@@ -819,6 +819,20 @@ fn a_refused_container_schema_stays_in_its_own_report() {
         .any(|leaf| leaf.path == path("audio/out/level")));
 }
 
+/// A leaf whose limits the speaker refuses keeps its value in the report, without limits.
+#[test]
+fn a_refused_limits_query_leaves_the_value() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    simulator.refuse_limits("audio/out/level");
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+    let reports = read_all(&mut client, &|| false).expect("the walk goes on");
+    let level = reports
+        .iter()
+        .find(|leaf| leaf.path == path("audio/out/level"))
+        .expect("the level reported");
+    assert_eq!((level.value.is_ok(), &level.limits), (true, &None));
+}
+
 #[test]
 fn read_all_lists_every_leaf() {
     let simulator = Simulator::start(SimulatedModel::Kh120Ii);

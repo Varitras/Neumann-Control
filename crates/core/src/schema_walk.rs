@@ -190,3 +190,21 @@ fn child_path(parent: Option<&SscPath>, name: &str) -> Result<SscPath, WalkError
     SscPath::named_child(parent, name)
         .map_err(|_| WalkError::Refused(format!("schema names a node {name:?}, no path segment")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A device may name a node with the separator in it, or with no name: it would become
+    /// another path, so the walk refuses it.
+    #[test]
+    fn a_node_name_that_is_no_segment_is_refused() {
+        let parent = SscPath::parse("audio/out").unwrap();
+        assert!(child_path(Some(&parent), "a/b").is_err());
+        assert!(child_path(Some(&parent), "").is_err());
+        assert!(child_path(None, "x/y").is_err());
+        let level = child_path(Some(&parent), "level").unwrap();
+        assert_eq!(level, SscPath::parse("audio/out/level").unwrap());
+        assert_eq!(child_path(None, "audio").unwrap().segments(), ["audio"]);
+    }
+}

@@ -129,6 +129,7 @@ pub struct SimulatedDevice {
     read_only_for_model: &'static [&'static str],
     /// Containers whose `osc/schema` is refused, as a protected node of a firmware might be.
     refused_schemas: Vec<Vec<String>>,
+    refused_limits: Vec<Vec<String>>,
 }
 
 impl SimulatedDevice {
@@ -141,6 +142,7 @@ impl SimulatedDevice {
             tree: serde_json::from_str(source).expect("embedded value tree is valid JSON"),
             read_only_for_model,
             refused_schemas: Vec::new(),
+            refused_limits: Vec::new(),
         }
     }
 
@@ -168,6 +170,11 @@ impl SimulatedDevice {
     pub fn refuse_schema(&mut self, path: &str) {
         let path = SscPath::parse(path).expect("a valid SSC path");
         self.refused_schemas.push(path.segments().to_vec());
+    }
+
+    pub fn refuse_limits(&mut self, path: &str) {
+        let path = SscPath::parse(path).expect("a valid SSC path");
+        self.refused_limits.push(path.segments().to_vec());
     }
 
     pub fn remove_value(&mut self, path: &str) {
@@ -370,6 +377,9 @@ impl SimulatedDevice {
             Ok(path) => path,
             Err(refusal) => return refusal,
         };
+        if self.refused_limits.contains(&path) {
+            return introspection_error(LIMITS_KEY, &NOT_ALLOWED);
+        }
         let tree = self.address_tree();
         let Some(node) = descend(&tree, &path).filter(|node| !node.is_object()) else {
             return introspection_error(LIMITS_KEY, &PARAMETER_NOT_FOUND);

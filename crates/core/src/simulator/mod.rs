@@ -324,6 +324,11 @@ impl Simulator {
     pub fn refuse_schema(&self, path: &str) {
         self.shared.state().device.refuse_schema(path);
     }
+
+    /// `osc/limits` of `path` answers an error, as some paths do on the speakers.
+    pub fn refuse_limits(&self, path: &str) {
+        self.shared.state().device.refuse_limits(path);
+    }
 }
 
 impl Drop for Simulator {
