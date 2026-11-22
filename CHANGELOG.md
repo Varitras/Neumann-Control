@@ -16,7 +16,7 @@
 - Loading a preset no longer says the speaker already has its values when nothing could be
   compared: an EQ value went missing, the speaker is gone, or the preset holds only values this
   model does not have.
-- The Windows volume strip, when switched on in the settings, now shows also before any speaker
+- The Windows volume strip, when switched on in the settings, now also shows before any speaker
   is added.
 - Undo after a write the speaker answered with "not found" no longer sends the value it refused.
 - Undoing an EQ change writes nothing to a speaker if one of its old values cannot be written,

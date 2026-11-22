@@ -23,8 +23,8 @@ pub const FOREIGN_XID_OFFSET: u64 = 1000;
 /// 49152). On port 0 the system handed a stopped simulator's port to the next one started (Linux
 /// soon), and a test that expected it unreachable, or restarted it there, met another.
 const SIMULATOR_PORTS: std::ops::Range<u16> = 20_000..32_000;
-/// Each test process starts this far from the others: nextest runs every test in a process of
-/// its own (see `process_start`).
+/// The ports of one test process: each holds a range of its own for its life (nextest runs
+/// every test in a process of its own; see `process_start`).
 const PORTS_PER_PROCESS: u16 = 100;
 /// nextest's number for each test that runs at the same time, from 0; unset under `cargo test`.
 const NEXTEST_SLOT: &str = "NEXTEST_TEST_GLOBAL_SLOT";

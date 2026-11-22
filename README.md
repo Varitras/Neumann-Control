@@ -117,8 +117,8 @@ another's window forward.
 2. If the scan finds nothing, the dialog names the usual causes: the firewall must allow mDNS
    (UDP port 5353) for the app, and the computer and the speakers must be on the same network
    (see [Requirements](#requirements)). Its **Manual** button opens this manual. Without a scan,
-   press **+ Address** and enter the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
-   adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
+   press **+ Address** and enter the speaker's IPv6 address. A link-local address
+   (`fe80::...`) needs the index of the network adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
 
    ```powershell
    Get-NetAdapter | Select-Object Name, ifIndex
@@ -156,8 +156,8 @@ Each speaker has a channel strip:
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
   speaker's EQ window once the speaker has reported its model; on the KH 120 II and on the
   read-only models also **Auto standby** (greyed out where it cannot be changed), on the KH 750
-  **Mute A** and **Mute B** for its outputs A and B and its **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
-  stand level,
+  **Mute A** and **Mute B** for its outputs A and B and its **Temperature**. Above the fader
+  every model shows the same, so the faders of a mixed desk stand level,
 - **Details** at the foot, which opens the device panel.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
@@ -451,7 +451,7 @@ it). It sets:
 - on Windows, whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
   default device or a chosen one): a fader in percent, mute and a peak meter per channel, named
   after its speaker position (L, R, C, LFE, BL, BR, SL, SR …) as the device's format gives it. It
-  sets Windows' own volume, like the volume slider in the taskbar. The strip shows also before
+  sets Windows' own volume, like the volume slider in the taskbar. The strip also shows before
   any speaker is added.
 
 ### Help and updates
