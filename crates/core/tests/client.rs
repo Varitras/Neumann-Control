@@ -87,6 +87,21 @@ fn foreign_xid_line_is_skipped() {
     assert_eq!(client.get(&path("audio/out/mute")).unwrap(), json!(false));
 }
 
+/// A line for another request that holds the same path is still skipped: its value is not the
+/// answer. The skip went unseen while both lines held the same value.
+#[test]
+fn a_foreign_xid_line_with_the_path_is_skipped() {
+    let mut client = scripted_speaker(|stream, xid| {
+        let foreign = xid + 1000;
+        let other = format!(
+            "{{\"audio\":{{\"out\":{{\"level\":55.0}}}},\"osc\":{{\"xid\":{foreign}}}}}{LINE_TERMINATOR}"
+        );
+        let _ = stream.write_all(other.as_bytes());
+        let _ = stream.write_all(level_reply(xid).as_bytes());
+    });
+    assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(1.0));
+}
+
 #[test]
 fn reply_without_xid_is_accepted_when_it_has_the_path() {
     let (simulator, mut client) = start(SimulatedModel::Kh750);
