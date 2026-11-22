@@ -133,6 +133,24 @@ fn an_empty_scan_names_the_firewall_and_opens_the_manual() {
     );
 }
 
+/// Without the manual next to the program the dialog says so itself: the notice in the toolbar
+/// lay behind the dialog's backdrop, and the dialog did not change.
+#[test]
+fn a_missing_manual_is_named_in_the_scan_dialog() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut harness = harness(path, Vec::new());
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    harness.get_by_label(texts::MANUAL.get()).click();
+    harness.run_steps(2);
+    // One in the toolbar, one in the dialog.
+    let shown = harness
+        .query_all_by_label(texts::MANUAL_MISSING.get())
+        .count();
+    assert_eq!(shown, 2);
+}
+
 /// A speaker still starting up was missed: "Scan again" finds it without closing the dialog.
 #[test]
 fn scan_again_finds_a_speaker_the_first_scan_missed() {
