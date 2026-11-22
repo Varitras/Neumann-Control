@@ -381,6 +381,8 @@ fn out_of_range_level_is_not_written_back() {
     );
 }
 
+/// The fader's level grid in dB (its wheel step).
+const LEVEL_GRID_DB: f64 = 0.5;
 const KH120II_LEAF_COUNT: usize = 50;
 const STANDBY_LEAF_COUNT: usize = 4;
 /// A failure text with connection detail and an address in it: the worker masks the address,
@@ -1015,8 +1017,10 @@ fn fader_moves_ten_times_finer_with_shift() {
     let coarse = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::NONE);
     let fine = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::SHIFT);
     assert!(coarse > 10.0, "coarse {coarse}");
+    // Both are held on the level grid, so the tenth is off by up to one step.
+    let tenth = coarse / 10.0;
     assert!(
-        fine > 0.0 && fine <= coarse / 5.0,
+        fine > 0.0 && (fine - tenth).abs() <= LEVEL_GRID_DB,
         "coarse {coarse}, fine {fine}"
     );
 }
