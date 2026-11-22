@@ -37,11 +37,14 @@ pub fn viewport() -> ViewportId {
     ViewportId::from_hash_of(Id::unique(WINDOW_ID))
 }
 
-/// What the system has of the settings that depend on it (Linux has neither).
+/// Which of the settings that depend on the system or the run it offers (Linux has neither of
+/// the first two).
 #[derive(Clone, Copy)]
 pub struct Offered {
     pub global_shortcuts: bool,
     pub system_audio: bool,
+    /// The run writes a log (not without the folder's lock).
+    pub detailed_log: bool,
 }
 
 /// `curve_labels`: each curve's settings key with its name, as the EQ window's tabs say it.
@@ -137,8 +140,10 @@ fn contents(
     if offered.global_shortcuts {
         ui.checkbox(&mut desk.global_shortcuts, texts::GLOBAL_SHORTCUTS);
     }
-    ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
-        .on_hover_text(texts::DETAILED_LOG_HINT);
+    if offered.detailed_log {
+        ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
+            .on_hover_text(texts::DETAILED_LOG_HINT);
+    }
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
     if ui
         .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)

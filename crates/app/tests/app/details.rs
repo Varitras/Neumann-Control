@@ -1176,7 +1176,7 @@ fn a_run_without_the_lock_saves_nothing() {
     harness.run_steps(3);
     let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert!(saved.presets.is_empty());
-    harness.get_by_label(texts::SETTINGS_NOT_LOCKED.get());
+    harness.get_by_label(texts::FOLDER_NOT_WRITABLE.get());
 }
 
 /// A run that cannot write its folder writes no log: the settings do not offer the detailed

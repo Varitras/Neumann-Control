@@ -129,6 +129,8 @@ pub struct NeumannApp {
     /// that could be neither read nor set aside would be overwritten with what this run holds;
     /// without the folder's lock another app may hold the same file.
     unsaved_because: Option<texts::Text>,
+    /// `main` started the log; not in a run without the folder's lock.
+    writes_log: bool,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panels: Vec<OpenPanel>,
@@ -227,6 +229,7 @@ impl NeumannApp {
                 LoadOutcome::NotCopied => Some(texts::SETTINGS_NOT_COPIED),
                 LoadOutcome::Read | LoadOutcome::PartlyUnderstood | LoadOutcome::SetAside => None,
             },
+            writes_log: true,
             add_address: None,
             removal: None,
             panels: Vec::new(),
@@ -552,9 +555,10 @@ impl NeumannApp {
     /// For a run without the folder's lock: another app may hold the same settings file. What
     /// loading found stays said; it is the more particular reason.
     pub fn save_nothing(&mut self) {
+        self.writes_log = false;
         let reason = *self
             .unsaved_because
-            .get_or_insert(texts::SETTINGS_NOT_LOCKED);
+            .get_or_insert(texts::FOLDER_NOT_WRITABLE);
         self.notice = self.notice.or(Some(reason));
     }
 
@@ -934,6 +938,7 @@ impl NeumannApp {
         let offered = Offered {
             global_shortcuts: self.global_keys.offered(),
             system_audio: self.system_audio.offered(),
+            detailed_log: self.writes_log,
         };
         let action = settings_dialog::show(
             &context,
