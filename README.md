@@ -118,7 +118,8 @@ another's window forward.
    (UDP port 5353) for the app, and the computer and the speakers must be on the same network
    (see [Requirements](#requirements)). Its **Manual** button opens this manual. Without a scan,
    press **+ Address** and enter the speaker's IPv6 address. A link-local address
-   (`fe80::...`) needs the index of the network adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
+   (`fe80::...`) needs the index of the network adapter after a `%`, for example `fe80::1%7`.
+   Find the index in PowerShell:
 
    ```powershell
    Get-NetAdapter | Select-Object Name, ifIndex
@@ -281,8 +282,8 @@ and its own layouts are forgotten.
 - The group's name or **Details** at the foot of the group strip open the groups window on that
   group; right-click the group strip for **Delete group…**, which asks there first.
 - **Show group strip** (on by default): switched off, the group strip leaves the desk; the
-  members stay grouped and linked, and in the compact mode each gets its own row instead of the group's.
-  Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
+  members stay grouped and linked, and in the compact mode each gets its own row instead of the
+  group's. Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
   group, also while the group strip is off.
 - **Strip colour** in the group's settings keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
