@@ -74,7 +74,7 @@ fn contents(
             )
             .clicked()
         {
-            commands.push(speaker.read_all_values());
+            commands.extend(speaker.read_all_values());
         }
     });
     ui.separator();

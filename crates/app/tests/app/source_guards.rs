@@ -170,8 +170,8 @@ fn call_arguments(text: &str, start: usize) -> &str {
 const REPORT_READS: &[(&str, usize)] = &[
     // `display`: read-only rows.
     ("views/details.rs", 1),
-    // `display`, the clip LEDs, and the mute button's look (its toggle starts from `latest`).
-    ("views/strip.rs", 4),
+    // `display` and the mute button's look (its toggle starts from `latest`).
+    ("views/strip.rs", 2),
     // A container's band count, which a write does not change.
     ("app/eq.rs", 2),
     // A stored preset's own values, not the speaker's.

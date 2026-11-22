@@ -656,16 +656,29 @@ impl SpeakerState {
         self.status == Status::Connected && self.all_values != AllValuesState::Loading
     }
 
-    /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
-    pub fn read_all_values(&mut self) -> Command {
-        self.all_values = AllValuesState::Loading;
-        Command::ReadAll
+    /// "Komplett scannen" may start: only from a connected speaker, once at a time.
+    pub fn can_start_full_scan(&self) -> bool {
+        self.status == Status::Connected && self.full_scan != FullScanState::Running
     }
 
-    /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte".
-    pub fn start_full_scan(&mut self) -> Command {
+    /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
+    /// `None` while the full scan's read is out: its answer fills "Alle Werte" too.
+    pub fn read_all_values(&mut self) -> Option<Command> {
+        let reading = self.reading_every_value();
+        self.all_values = AllValuesState::Loading;
+        (!reading).then_some(Command::ReadAll)
+    }
+
+    /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte", whose read, when
+    /// out, it waits for instead of sending another.
+    pub fn start_full_scan(&mut self) -> Option<Command> {
+        let reading = self.reading_every_value();
         self.full_scan = FullScanState::Running;
-        Command::ReadAll
+        (!reading).then_some(Command::ReadAll)
+    }
+
+    fn reading_every_value(&self) -> bool {
+        self.all_values == AllValuesState::Loading || self.full_scan == FullScanState::Running
     }
 
     /// Closes the "Alle Werte" window and forgets its filter.
@@ -1532,7 +1545,7 @@ mod tests {
     #[test]
     fn all_values_go_from_loading_to_loaded_or_failed() {
         let mut speaker = state();
-        assert_eq!(speaker.read_all_values(), Command::ReadAll);
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
         assert_eq!(speaker.all_values, AllValuesState::Loading);
         let reports = vec![LeafReport {
             path: path("device/name"),
@@ -1634,6 +1647,24 @@ mod tests {
         assert_eq!(speaker.latest(&path), Some(&json!(false)));
         assert_eq!(speaker.all_values, AllValuesState::Idle);
         assert_eq!(speaker.full_scan, FullScanState::Idle);
+    }
+
+    /// "Alle Werte" and "Komplett scannen" send the same read: started while the other's read
+    /// is out, the second waits for that answer. Both buttons stayed enabled and each sent a
+    /// whole walk through the speaker.
+    #[test]
+    fn a_second_read_of_every_value_waits_for_the_first() {
+        let mut speaker = state();
+        speaker.status = Status::Connected;
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+        assert!(speaker.can_start_full_scan());
+        assert_eq!(speaker.start_full_scan(), None);
+        assert!(!speaker.can_start_full_scan() && !speaker.can_read_all_values());
+        speaker.apply(Event::AllValues(Vec::new()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Loaded(Vec::new()));
+        assert_eq!(speaker.full_scan, FullScanState::Read(Vec::new()));
+        assert_eq!(speaker.start_full_scan(), Some(Command::ReadAll));
+        assert_eq!(speaker.read_all_values(), None);
     }
 
     /// "Alle Werte" alone kept the reason, which no window shows, and logged it nowhere.

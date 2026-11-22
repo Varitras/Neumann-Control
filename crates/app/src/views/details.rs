@@ -14,7 +14,7 @@ use super::layout_menu;
 use crate::display::shown_value;
 use crate::panel_tabs::{also_in_overview, tab_of, tabs_for, PanelTab};
 use crate::paths;
-use crate::state::{FullScanState, SpeakerState, Status};
+use crate::state::{FullScanState, SpeakerState};
 use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
@@ -283,13 +283,12 @@ fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
 }
 
 fn full_scan_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {
-    let running = speaker.full_scan == FullScanState::Running;
-    let enabled = speaker.status == Status::Connected && !running;
+    let enabled = speaker.can_start_full_scan();
     if ui
         .add_enabled(enabled, Button::new(texts::FULL_SCAN))
         .clicked()
     {
-        commands.push(speaker.start_full_scan());
+        commands.extend(speaker.start_full_scan());
     }
 }
 
@@ -316,7 +315,7 @@ fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec
         )
         .clicked()
     {
-        commands.push(speaker.read_all_values());
+        commands.extend(speaker.read_all_values());
     }
 }
 
