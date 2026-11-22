@@ -948,6 +948,12 @@ fn a_full_reset_is_not_offered_on_a_protected_crossover() {
 }
 
 /// The EQ window's file dialog hands out `files` from now on.
+/// Ten band frequencies from 40 Hz up, all within the speakers' range: a preset or import
+/// writes the whole frequency list, and the spread's tenth band lies above it.
+fn in_range_frequencies() -> Vec<f64> {
+    (0..10).map(|band| 40.0 * 2f64.powi(band)).collect()
+}
+
 fn use_files(harness: &mut Harness<'static, NeumannApp>, files: &FakeFiles) {
     harness.state_mut().set_file_dialog(Box::new(files.clone()));
 }
@@ -980,7 +986,7 @@ fn import_file(
 #[test]
 fn an_import_preview_of_a_speaker_gone_says_why() {
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
@@ -1018,7 +1024,7 @@ fn boost_reads(simulator: &Simulator) -> usize {
 #[test]
 fn an_import_preview_of_a_container_gone_stays_and_says_why() {
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     import_file(
@@ -1048,7 +1054,7 @@ fn an_import_preview_of_a_container_gone_stays_and_says_why() {
 #[test]
 fn an_import_keeps_what_changed_in_untouched_bands_meanwhile() {
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     import_file(
@@ -1147,7 +1153,7 @@ fn a_preset_compared_with_a_value_gone_is_not_called_the_same() {
 #[test]
 fn an_import_refused_while_away_can_be_written_once_back() {
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2
@@ -1166,7 +1172,7 @@ fn an_import_refused_while_away_can_be_written_once_back() {
         refused(harness)
     });
     let back = Simulator::start_on(SimulatedModel::Kh120Ii, address).unwrap();
-    let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let frequencies = in_range_frequencies();
     back.set_value("audio/out/eq2/frequency", json!(frequencies));
     wait_until(&mut harness, "writable again", |harness| !refused(harness));
 }
@@ -1176,8 +1182,7 @@ fn an_import_refused_while_away_can_be_written_once_back() {
 #[test]
 fn taking_back_an_import_switches_its_new_band_off_first() {
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        // The whole frequency list is written, so every band must be in the speakers' range.
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
         let mut enabled = vec![false; 10];
         enabled[0] = true;
@@ -1223,10 +1228,8 @@ fn taking_back_an_import_switches_its_new_band_off_first() {
 
 #[test]
 fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
-    // The whole frequency list is written, so every band must be in the speakers' range (the
-    // spread's tenth band is above it).
     let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Preamp: -3 dB\r\nFilter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
@@ -1697,7 +1700,7 @@ fn the_history_names_the_output_of_a_kh750_eq_change() {
 fn an_eq_export_of_a_kh750_names_the_output() {
     let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     let files = FakeFiles::default();
-    harness.state_mut().set_file_dialog(Box::new(files.clone()));
+    use_files(&mut harness, &files);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
         .click();
