@@ -35,9 +35,7 @@ pub fn status_leds(speaker: &SpeakerState) -> StatusLeds {
         Status::Connecting => ConnectionLed::Connecting,
         Status::Unreachable => ConnectionLed::Off,
     };
-    // Without a connection the last report is history, not the speaker's state now.
-    let connected = speaker.status == Status::Connected;
-    let reported = |path: &str| speaker.values.get(&paths::path(path)).filter(|_| connected);
+    let reported = |path: &str| reported(speaker, path);
     let clip = [paths::INPUT_CLIP, paths::OUTPUT_CLIP]
         .into_iter()
         .filter_map(reported)
@@ -50,6 +48,13 @@ pub fn status_leds(speaker: &SpeakerState) -> StatusLeds {
         warning,
         local,
     }
+}
+
+/// The speaker's report of a state now (clip, warning, LOCAL); `None` without a connection,
+/// where the last report is history. The strip's clip lamps read it as the LEDs do.
+pub fn reported<'a>(speaker: &'a SpeakerState, path: &str) -> Option<&'a Value> {
+    let connected = speaker.status == Status::Connected;
+    speaker.values.get(&paths::path(path)).filter(|_| connected)
 }
 
 /// The mean of the connected speakers' response times; none while no speaker has one.
@@ -129,6 +134,8 @@ mod tests {
         let leds = status_leds(&speaker);
         assert_eq!(leds.connection, ConnectionLed::Off);
         assert!(!leds.clip && !leds.warning && !leds.local, "{leds:?}");
+        // The strip's clip lamps stayed lit with the last report.
+        assert_eq!(reported(&speaker, paths::INPUT_CLIP), None);
     }
 
     fn report(speaker: &mut SpeakerState, path: &str, value: Value) {

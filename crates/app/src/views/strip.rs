@@ -26,7 +26,7 @@ use crate::input_source::input_source;
 use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
-use crate::status_leds::{status_leds, ConnectionLed};
+use crate::status_leds::{self, status_leds, ConnectionLed};
 use crate::strip_layout::{self, Area, LayoutChange, StripLayout};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -748,7 +748,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
             name: texts::INPUT_METERS.get(),
             channels: texts::INPUT_CHANNELS,
             levels: input_levels,
-            clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+            clips: status_leds::reported(speaker, paths::INPUT_CLIP),
             played,
         },
     };
@@ -764,7 +764,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
             name: texts::OUTPUT_METERS.get(),
             channels: texts::OUTPUT_CHANNELS,
             levels: &speaker.output_meters,
-            clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+            clips: status_leds::reported(speaker, paths::OUTPUT_CLIP),
             played: &[],
         },
     };
