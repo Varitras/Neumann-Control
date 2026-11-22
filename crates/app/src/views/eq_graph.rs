@@ -490,15 +490,19 @@ fn paint_band_curves(ui: &Ui, graph: &Graph, axes: &Axes) {
 /// The band whose point is under the pointer, if any.
 fn hovered_band(ui: &Ui, graph: &Graph, axes: &Axes) -> Option<usize> {
     let pointer = ui.input(|input| input.pointer.hover_pos())?;
-    graph
-        .points
+    topmost_band_at(graph.points, axes, pointer)
+}
+
+/// The band a click or drag at `pointer` takes: of points on one spot the one drawn last, on
+/// top, within its grab square. The highlight took the first within a wider circle, so it
+/// showed another band than the one a gesture changed.
+fn topmost_band_at(points: &[GraphPoint], axes: &Axes, pointer: Pos2) -> Option<usize> {
+    points
         .iter()
         .enumerate()
+        .rev()
         .filter(|(_, point)| point.enabled)
-        .find(|(_, point)| {
-            let home = pos2(axes.x(point.frequency), axes.y(point.gain + point.boost));
-            home.distance(pointer) <= POINT_GRAB
-        })
+        .find(|(_, point)| grab_rect(home(axes, point)).contains(pointer))
         .map(|(band, _)| band)
 }
 
@@ -517,4 +521,36 @@ fn paint_area(ui: &Ui, axes: &Axes, frequencies: &[f64], db: &[f64], color: Colo
         }
     }
     ui.painter().add(Shape::mesh(mesh));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(frequency: f64, boost: f64) -> GraphPoint {
+        GraphPoint {
+            color: Color32::WHITE,
+            frequency,
+            gain: 0.0,
+            boost,
+            q: 1.0,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn of_points_on_one_spot_the_top_one_is_taken() {
+        let axes = Axes {
+            rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 300.0)),
+            db_span: 12.0,
+        };
+        let points = [point(1000.0, 3.0), point(1000.0, 3.0), point(100.0, 0.0)];
+        let spot = home(&axes, &points[0]);
+        assert_eq!(topmost_band_at(&points, &axes, spot), Some(1));
+        let beside = spot + vec2(10.0, 0.0);
+        assert_eq!(topmost_band_at(&points, &axes, beside), None);
+        let mut off = points.clone();
+        off[1].enabled = false;
+        assert_eq!(topmost_band_at(&off, &axes, spot), Some(0));
+    }
 }
