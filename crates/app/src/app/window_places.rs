@@ -382,6 +382,35 @@ mod tests {
         assert_eq!(windows[kind.key()], moved);
     }
 
+    /// A window that just opened, set off from the first, has not been handled by the user: the
+    /// kind's place stays, and the next window opens there, not 30 points further each time.
+    #[test]
+    fn a_window_just_opened_does_not_take_its_kinds_place() {
+        let (first, second) = (ViewportId::from_hash_of(1), ViewportId::from_hash_of(2));
+        let cascaded = WindowGeometry {
+            x: GEOMETRY.x + 30.0,
+            ..GEOMETRY
+        };
+        let mut seen = HashMap::new();
+        let mut windows = BTreeMap::new();
+        let kind = WindowKind::Panel;
+        keep_place(&mut windows, kind, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, first, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, second, cascaded);
+        assert_eq!(windows[kind.key()], GEOMETRY);
+        // Moved by the user, it is the kind's place.
+        let moved = WindowGeometry {
+            y: 500.0,
+            ..cascaded
+        };
+        note_place(&mut seen, &mut windows, kind, second, moved);
+        assert_eq!(windows[kind.key()], moved);
+        // The first window of a kind with no place yet gives it one.
+        let mut fresh = BTreeMap::new();
+        note_place(&mut HashMap::new(), &mut fresh, kind, first, GEOMETRY);
+        assert_eq!(fresh[kind.key()], GEOMETRY);
+    }
+
     /// Windows converts a new window's place with the scale of the monitor it starts on: with
     /// the main window at 100 % and that monitor at 150 %, a saved x of 3000 pixels became 4500.
     /// The window is moved back in its own scale once it is open.
