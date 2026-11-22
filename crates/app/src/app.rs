@@ -221,7 +221,7 @@ impl NeumannApp {
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
-            awaited_window: None,
+            awaited_window: AwaitedWindow::at_start(settings.window_of_mode()),
             placing: HashMap::new(),
             seen_places: HashMap::new(),
             window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
@@ -1185,6 +1185,15 @@ impl AwaitedWindow {
             until: now + MAXIMIZE_WAIT_SECONDS,
         }
     }
+
+    /// A start in a maximized window: `place_window` asks for it, and X11 and Wayland report
+    /// the default size in the frames before, which was kept as the normal place.
+    pub fn at_start(window: Option<WindowGeometry>) -> Option<AwaitedWindow> {
+        let start = 0.0;
+        window
+            .filter(|window| window.maximized)
+            .map(|window| AwaitedWindow::new(window, start))
+    }
 }
 
 /// The main window's geometry for this frame: the one asked for while `awaited` has not
@@ -1402,6 +1411,27 @@ mod tests {
 
     /// X11 and Wayland maximize frames after the request: a mode switch onto a maximized window
     /// kept the old mode's rectangle, measured in between, as the new mode's normal place.
+    /// Started maximized on X11 or Wayland, the frames before the maximize arrives showed the
+    /// default size, which was kept as the normal place.
+    #[test]
+    fn a_maximized_start_waits_for_its_maximize() {
+        let saved = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = AwaitedWindow::at_start(Some(saved));
+        let not_yet = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        assert_eq!(
+            next_window(&not_yet, SIZE, 1.0, None, &mut awaited, 0.1),
+            Some(saved)
+        );
+        assert_eq!(AwaitedWindow::at_start(Some(LAST_NORMAL)), None);
+        assert_eq!(AwaitedWindow::at_start(None), None);
+    }
+
     #[test]
     fn a_late_maximize_keeps_the_place_asked_for() {
         let target = WindowGeometry {

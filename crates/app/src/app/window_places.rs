@@ -307,6 +307,9 @@ impl NeumannApp {
         // Only a change: under Wayland "not maximized" to a window that is not maximized brought
         // the compositor's old size back over the one just asked for.
         let maximized = context.input(|input| input.viewport().maximized == Some(true));
+        // A switch back before the window manager applied the one before ends that wait too:
+        // its window would be noted as this mode's.
+        self.awaited_window = None;
         if place.maximized != maximized {
             context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
             let now = context.input(|input| input.time);

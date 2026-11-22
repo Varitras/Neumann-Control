@@ -11,6 +11,9 @@ use crate::window_placement::WINDOW_MIN_SIZE;
 const TOLERANCE: f32 = 1.0;
 /// Less than this apart, two sizes are the same whole pixels.
 const HALF_PIXEL: f32 = 0.5;
+/// Points times scale land this far above a whole pixel from float noise alone (egui gives the
+/// window's pixels divided by its scale); it is no pixel more.
+const PIXEL_NOISE: f32 = 0.001;
 /// Below this a window short of the content is float noise, not a pixel.
 const SHORT_BY: f32 = 0.01;
 /// Kept free around a window on the screen (points), for the taskbar.
@@ -106,7 +109,8 @@ fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
 /// `size` grown to whole pixels: the window takes whole pixels, and a fraction short of the
 /// content brings up scroll bars.
 fn whole_pixels(size: Vec2, pixels_per_point: f32) -> Vec2 {
-    (size * pixels_per_point).ceil() / pixels_per_point
+    let pixels = size * pixels_per_point - Vec2::splat(PIXEL_NOISE);
+    pixels.ceil() / pixels_per_point
 }
 
 /// `current` smaller than `wanted` in either direction, by more than float noise.
