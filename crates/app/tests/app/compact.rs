@@ -10,7 +10,7 @@ use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::window_placement::{COMPACT_WINDOW_SIZE, WINDOW_MIN_SIZE};
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
-use neumann_control_core::simulator::SimulatedModel;
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::ssc::wire::DeviceError;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -203,20 +203,43 @@ fn mute_stays_reachable_in_the_narrowest_compact_window() {
 
 #[test]
 fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    for language in [
+        settings::LanguageChoice::German,
+        settings::LanguageChoice::English,
+    ] {
+        toolbar_fits_the_narrowest_window(language);
+    }
+}
+
+/// The widest toolbar in `language`: with the average response time, which comes after a
+/// measurement, and "Dim" while dimmed. At 480 points both ran under the left buttons.
+fn toolbar_fits_the_narrowest_window(language: settings::LanguageChoice) {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    simulator.set_reply_delay(REPLY_DELAY);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
+    let mut stored = settings::load(&path);
+    stored.desk.language = language;
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
     harness.set_size(WINDOW_MIN_SIZE.into());
-    // The widest toolbar: with the average response time, which comes after a measurement. The
-    // buttons do not overlap; the average itself and "Dim" while dimmed still run under the
-    // left buttons here, which the layout does not solve yet.
     wait_until(&mut harness, "the average response time", |harness| {
         harness.query_by_label_contains("Ø ").is_some()
     });
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::D);
+    wait_for_label(&mut harness, texts::DIM.get());
     harness.run_steps(2);
+    let response_time = harness
+        .query_by_label_contains("Ø ")
+        .and_then(|node| node.value())
+        .expect("the average response time");
     let toolbar = [
         texts::SCAN.get(),
         texts::ADD_ADDRESS.get(),
         texts::GROUPS.get(),
+        &response_time,
         texts::CUSTOMIZE_STRIPS.get(),
+        texts::DIM.get(),
         texts::COMPACT.get(),
         texts::HISTORY.get(),
         texts::SETTINGS.get(),
