@@ -3,7 +3,7 @@ use std::net::{Ipv6Addr, SocketAddrV6, TcpListener, TcpStream};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator};
 use neumann_control_core::ssc::client::{
     Client, NodeKind, SscError, LINE_TERMINATOR, MAX_LINE_BYTES, MAX_READ_DURATION,
     MAX_RESPONSE_BYTES, MAX_RESPONSE_LINES,
@@ -17,7 +17,7 @@ fn path(text: &str) -> SscPath {
     SscPath::parse(text).expect("a valid path")
 }
 
-fn start(model: SimModel) -> (Simulator, Client) {
+fn start(model: SimulatedModel) -> (Simulator, Client) {
     let simulator = Simulator::start(model);
     let client = Client::connect(simulator.address()).expect("simulator accepts");
     (simulator, client)
@@ -32,13 +32,13 @@ fn device_code(error: SscError) -> i64 {
 
 #[test]
 fn get_returns_value() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(100.0));
 }
 
 #[test]
 fn set_returns_confirmed_value() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     let confirmed = client.set(&path("audio/out/mute"), json!(true)).unwrap();
     assert_eq!(confirmed, json!(true));
     assert_eq!(simulator.value("audio/out/mute"), Some(json!(true)));
@@ -46,7 +46,7 @@ fn set_returns_confirmed_value() {
 
 #[test]
 fn missing_path_is_device_error_404() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let error = client.get(&path("audio/out5/level")).unwrap_err();
     assert_eq!(device_code(error), DeviceError::NOT_FOUND);
     assert!(!client.is_closed());
@@ -54,7 +54,7 @@ fn missing_path_is_device_error_404() {
 
 #[test]
 fn read_only_set_is_device_error_405() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let error = client
         .set(&path("device/identity/serial"), json!("X"))
         .unwrap_err();
@@ -63,7 +63,7 @@ fn read_only_set_is_device_error_405() {
 
 #[test]
 fn wrong_type_set_is_device_error_406() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let error = client
         .set(&path("audio/out/level"), json!("loud"))
         .unwrap_err();
@@ -73,7 +73,7 @@ fn wrong_type_set_is_device_error_406() {
 // A line without an id is the reply only when it answers the requested path or carries an error.
 #[test]
 fn xidless_line_without_the_path_is_skipped() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::StaleLineFirst);
     let mute = client.get(&path("audio/out/mute")).unwrap();
     assert_eq!(mute, json!(false));
@@ -81,7 +81,7 @@ fn xidless_line_without_the_path_is_skipped() {
 
 #[test]
 fn foreign_xid_line_is_skipped() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::ForeignXidFirst);
     assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(100.0));
     assert_eq!(client.get(&path("audio/out/mute")).unwrap(), json!(false));
@@ -89,7 +89,7 @@ fn foreign_xid_line_is_skipped() {
 
 #[test]
 fn reply_without_xid_is_accepted_when_it_has_the_path() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::NoXidEcho);
     assert_eq!(client.get(&path("audio/out/level")).unwrap(), json!(100.0));
 }
@@ -98,7 +98,7 @@ fn reply_without_xid_is_accepted_when_it_has_the_path() {
 /// too long request does (it carries no xid).
 #[test]
 fn a_refusal_without_xid_is_the_reply() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::NoXidEcho);
     let error = client
         .set(&path("device/identity/serial"), json!("X"))
@@ -109,7 +109,7 @@ fn a_refusal_without_xid_is_the_reply() {
 
 #[test]
 fn overlong_line_closes_connection() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::OverlongLine);
     let error = client.get(&path("audio/out/level")).unwrap_err();
     assert!(matches!(error, SscError::Protocol(_)), "got {error:?}");
@@ -118,7 +118,7 @@ fn overlong_line_closes_connection() {
 
 #[test]
 fn silent_device_times_out() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::Silence);
     let started = Instant::now();
     let error = client.get(&path("audio/out/level")).unwrap_err();
@@ -130,7 +130,7 @@ fn silent_device_times_out() {
 
 #[test]
 fn closed_connection_is_connection_error() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::CloseConnection);
     let error = client.get(&path("audio/out/level")).unwrap_err();
     assert!(matches!(error, SscError::Connection(_)), "got {error:?}");
@@ -139,7 +139,7 @@ fn closed_connection_is_connection_error() {
 
 #[test]
 fn closed_client_refuses_further_requests() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::CloseConnection);
     let _ = client.get(&path("audio/out/level"));
     let error = client.get(&path("audio/out/level")).unwrap_err();
@@ -148,7 +148,7 @@ fn closed_client_refuses_further_requests() {
 
 #[test]
 fn error_text_never_shows_the_interface_identifier() {
-    let (simulator, mut client) = start(SimModel::Kh750);
+    let (simulator, mut client) = start(SimulatedModel::Kh750);
     simulator.inject(Fault::CloseConnection);
     let error = client.get(&path("audio/out/level")).unwrap_err();
     let text = error.to_string();
@@ -160,7 +160,7 @@ fn error_text_never_shows_the_interface_identifier() {
 
 #[test]
 fn schema_root_and_audio_level() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let root = client.schema(None).unwrap();
     assert!(root.contains(&("audio".to_owned(), NodeKind::Container)));
     let audio = client.schema(Some(&path("audio"))).unwrap();
@@ -171,14 +171,14 @@ fn schema_root_and_audio_level() {
 
 #[test]
 fn limits_returns_the_dict() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let limits = client.limits(&path("audio/out/level")).unwrap();
     assert_eq!(limits["type"], json!("Number"));
 }
 
 #[test]
 fn limits_of_unknown_path_is_device_error_454() {
-    let (_simulator, mut client) = start(SimModel::Kh750);
+    let (_simulator, mut client) = start(SimulatedModel::Kh750);
     let error = client.limits(&path("audio/out5/level")).unwrap_err();
     assert_eq!(device_code(error), DeviceError::PARAMETER_NOT_FOUND);
 }
@@ -335,7 +335,7 @@ fn the_read_budgets_are_the_specified_ones() {
 
 #[test]
 fn every_get_carries_its_own_xid() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
     for _ in 0..3 {
         client.get(&path("audio/out/level")).unwrap();

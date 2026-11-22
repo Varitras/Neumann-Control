@@ -9,7 +9,7 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::system_audio::{AudioDevice, AudioState};
 use neumann_control_app::texts;
 use neumann_control_core::settings::{self, SystemAudioSettings};
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 
 const DEVICE_NAME: &str = "Studio monitors";
 const DEVICE_ID: &str = "{0.0.0.00000000}.{fake}";
@@ -51,7 +51,7 @@ fn desk_on(
     device: Option<&str>,
     audio: FakeAudio,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(REPLY_DELAY);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);

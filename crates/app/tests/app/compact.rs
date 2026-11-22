@@ -10,7 +10,7 @@ use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::window_placement::{COMPACT_WINDOW_SIZE, WINDOW_MIN_SIZE};
 use neumann_control_core::settings::{self, CompactButton, SETTINGS_FILE};
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::simulator::SimulatedModel;
 use neumann_control_core::ssc::wire::DeviceError;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -34,7 +34,7 @@ fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
 /// stays, and so does what was typed.
 #[test]
 fn ctrl_k_in_a_text_field_keeps_the_desk() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.get_by_role(Role::TextInput);
@@ -47,7 +47,7 @@ fn ctrl_k_in_a_text_field_keeps_the_desk() {
 /// it: back on the desk the strip shows the level, not the old text to be entered by mistake.
 #[test]
 fn a_typed_value_does_not_come_back_with_its_view() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.get_by_role(Role::TextInput).type_text("5");
@@ -96,7 +96,7 @@ fn drag_level(harness: &mut Harness<'static, NeumannApp>, label: &str, by: f32) 
 
 #[test]
 fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     harness.get_by_label(texts::GROUPS.get());
     press_compact_shortcut(&mut harness);
@@ -115,7 +115,7 @@ fn the_shortcut_switches_to_compact_and_back_and_is_saved() {
 
 #[test]
 fn a_compact_row_writes_its_level_once_when_let_go() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, texts::LEVEL.get(), -40.0);
     wait_until(&mut harness, "a level set", |_| {
@@ -169,7 +169,7 @@ fn compact_rows_are_one_line_high_and_follow_each_other() {
 
 #[test]
 fn compact_columns_line_up_between_speaker_and_master_rows() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     let bars: Vec<f32> = harness
         .query_all_by_label(texts::INPUT_METERS.get())
@@ -181,7 +181,7 @@ fn compact_columns_line_up_between_speaker_and_master_rows() {
 
 #[test]
 fn mute_stays_reachable_in_the_narrowest_compact_window() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     harness.set_size(WINDOW_MIN_SIZE.into());
     harness.run_steps(2);
@@ -195,7 +195,7 @@ fn mute_stays_reachable_in_the_narrowest_compact_window() {
 
 #[test]
 fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.set_size(WINDOW_MIN_SIZE.into());
     // The widest toolbar: with the average response time, which comes after a measurement.
     wait_until(&mut harness, "the average response time", |harness| {
@@ -236,7 +236,7 @@ fn the_toolbar_does_not_overlap_itself_in_the_narrowest_window() {
 
 #[test]
 fn a_compact_row_says_why_a_write_was_refused() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value("ui/control_mode", serde_json::json!("LOCAL"));
     press_compact_shortcut(&mut harness);
     drag_level(&mut harness, texts::LEVEL.get(), -40.0);
@@ -263,7 +263,7 @@ fn a_group_row_says_why_a_members_write_was_refused() {
 /// the row, so each is opened by a test of its own.
 #[test]
 fn a_compact_row_opens_the_eq() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
@@ -275,7 +275,7 @@ fn a_compact_row_opens_the_eq() {
 
 #[test]
 fn a_compact_row_opens_the_details() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press_compact_shortcut(&mut harness);
     harness
         .get_by_role_and_label(Role::Button, texts::DETAILS.get())
@@ -287,7 +287,8 @@ fn a_compact_row_opens_the_details() {
 
 #[test]
 fn a_compact_button_is_hidden_and_another_added_by_right_click() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     press_compact_shortcut(&mut harness);
     right_click_button(&mut harness, texts::MUTE.get());
     let menus = harness.query_all_by_label(texts::ADD_BUTTON.get()).count();
@@ -309,7 +310,8 @@ fn a_compact_button_is_hidden_and_another_added_by_right_click() {
 
 #[test]
 fn a_compact_button_moves_right_and_the_default_comes_back() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     press_compact_shortcut(&mut harness);
     right_click_button(&mut harness, texts::MUTE.get());
     choose(&mut harness, texts::MOVE_RIGHT.get());
@@ -323,7 +325,8 @@ fn a_compact_button_moves_right_and_the_default_comes_back() {
 /// With no button left the rest of the row still offers adding one.
 #[test]
 fn a_row_without_buttons_still_offers_adding() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     press_compact_shortcut(&mut harness);
     for button in [texts::MUTE, texts::EQ, texts::DETAILS] {
         right_click_button(&mut harness, button.get());
@@ -338,7 +341,7 @@ fn a_row_without_buttons_still_offers_adding() {
 
 #[test]
 fn compact_buttons_are_chosen_per_model() {
-    let models = [SimModel::Kh120Ii, SimModel::Kh750];
+    let models = [SimulatedModel::Kh120Ii, SimulatedModel::Kh750];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
     press_compact_shortcut(&mut harness);
     let row_of = |harness: &Harness<'static, NeumannApp>, name: &str| {

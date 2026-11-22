@@ -15,13 +15,13 @@ use neumann_control_core::address::parse_address;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::mask::mask_serial;
 use neumann_control_core::settings::{self, Language, LanguageChoice};
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::speaker::Event;
 use serde_json::Value;
 
 #[test]
 fn strip_shows_name_and_level_and_panel_the_masked_serial() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(KH120_DEVICE_NAME);
     harness.get_by_label(&readout(100.0));
     harness.get_by_label(&texts::speaker_count(1));
@@ -33,7 +33,7 @@ fn strip_shows_name_and_level_and_panel_the_masked_serial() {
 
 #[test]
 fn fader_drag_sends_once_on_release() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let rect = harness
         .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
         .rect();
@@ -67,7 +67,7 @@ fn fader_drag_sends_once_on_release() {
 
 #[test]
 fn fader_value_is_shown_at_the_handle_while_dragging() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let start = harness
         .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
         .rect()
@@ -93,7 +93,7 @@ fn fader_value_is_shown_at_the_handle_while_dragging() {
 
 #[test]
 fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let center = harness
         .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
         .rect()
@@ -122,7 +122,7 @@ fn wheel_over_fader_sends_one_set_after_the_wheel_went_quiet() {
 
 #[test]
 fn escape_during_a_drag_sends_nothing() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let start = harness
         .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
         .rect()
@@ -159,7 +159,7 @@ fn escape_during_a_drag_sends_nothing() {
 
 #[test]
 fn a_drag_replaces_wheel_steps_not_yet_sent() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let start = harness
         .get_by_role_and_label(Role::Slider, texts::LEVEL.get())
         .rect()
@@ -190,7 +190,7 @@ fn a_drag_replaces_wheel_steps_not_yet_sent() {
 
 #[test]
 fn mute_button_sends_set() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute on the device", |_| {
         simulator.value("audio/out/mute") == Some(Value::Bool(true))
@@ -199,7 +199,7 @@ fn mute_button_sends_set() {
 
 #[test]
 fn identify_button_sends_set() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::IDENTIFY.get()).click();
     wait_until(&mut harness, "identification on the device", |_| {
         simulator.value("device/identification/visual") == Some(Value::Bool(true))
@@ -208,7 +208,7 @@ fn identify_button_sends_set() {
 
 #[test]
 fn panel_opens_from_strip_name_and_closes_on_escape() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
@@ -221,7 +221,7 @@ fn panel_opens_from_strip_name_and_closes_on_escape() {
 /// A button reached with Tab takes no keys: one Escape closes the window, as without it.
 #[test]
 fn one_escape_closes_a_panel_while_a_button_has_the_focus() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(2);
@@ -262,7 +262,7 @@ const DRAG_STEPS: usize = 5;
 
 #[test]
 fn the_details_button_opens_the_panel() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
     harness
@@ -275,7 +275,7 @@ fn the_details_button_opens_the_panel() {
 #[test]
 fn two_panels_stay_open_side_by_side() {
     let (_simulators, _directory, mut harness) = desk_of(
-        &[SimModel::Kh120Ii, SimModel::Kh750],
+        &[SimulatedModel::Kh120Ii, SimulatedModel::Kh750],
         std::collections::BTreeMap::new(),
     );
     open_panel(&mut harness, KH120_DEVICE_NAME);
@@ -297,7 +297,7 @@ fn two_panels_stay_open_side_by_side() {
 /// A window beside the desk stays open while you work on the desk.
 #[test]
 fn a_click_on_the_desk_keeps_the_panel_open() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     let below_the_strip = egui::pos2(20.0, EXPANDED_WINDOW_SIZE[1] - 20.0);
     harness.hover_at(below_the_strip);
@@ -315,7 +315,7 @@ fn a_click_on_the_desk_keeps_the_panel_open() {
 
 #[test]
 fn panel_closes_when_its_speaker_goes_away() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     simulator.stop();
     wait_until(&mut harness, "the panel to close", |harness| {
@@ -327,7 +327,7 @@ fn panel_closes_when_its_speaker_goes_away() {
 /// input meters, so their caption stays below them instead of on the scale.
 #[test]
 fn a_speaker_never_reached_keeps_its_meters_and_caption_apart() {
-    let reserved = Simulator::start(SimModel::Kh120Ii);
+    let reserved = Simulator::start(SimulatedModel::Kh120Ii);
     let entry = manual_for(&reserved);
     reserved.stop();
     let directory = tempfile::tempdir().unwrap();
@@ -348,7 +348,7 @@ fn a_speaker_never_reached_keeps_its_meters_and_caption_apart() {
 
 #[test]
 fn unreachable_strip_is_disabled() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.stop();
     wait_until(&mut harness, "the unreachable text", |harness| {
         harness.query_by_label(texts::UNREACHABLE.get()).is_some()
@@ -369,7 +369,7 @@ fn unreachable_strip_is_disabled() {
 
 #[test]
 fn out_of_range_level_is_not_written_back() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value("audio/out/level", serde_json::json!(130.0));
     wait_for_level(&mut harness, 130.0);
     harness.run_steps(10);
@@ -388,7 +388,7 @@ const STANDBY_LEAF_COUNT: usize = 4;
 const RAW_FAILURE: &str = "connection error: could not read from fe80::2a36:38ff:fe12:3456%7";
 
 fn all_values_window(
-    model: SimModel,
+    model: SimulatedModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker(model);
     open_panel_on(&mut harness, device_name(model), PanelTab::Device);
@@ -415,7 +415,7 @@ fn filter_all_values(harness: &mut Harness<'static, NeumannApp>, text: &str) {
 /// A window of its own like the EQ and the panel: Escape closes it.
 #[test]
 fn all_values_closes_on_escape() {
-    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = all_values_window(SimulatedModel::Kh120Ii);
     let title = texts::all_values_title(KH120_DEVICE_NAME);
     harness.get_by_label(&title);
     harness.key_press(egui::Key::Escape);
@@ -425,7 +425,7 @@ fn all_values_closes_on_escape() {
 
 #[test]
 fn all_values_lists_50_leaves_for_kh120ii() {
-    let (_simulator, _directory, harness) = all_values_window(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = all_values_window(SimulatedModel::Kh120Ii);
     harness.get_by_label(&texts::all_values_title(KH120_DEVICE_NAME));
     harness.get_by_label(&texts::all_values_count(
         KH120II_LEAF_COUNT,
@@ -435,7 +435,7 @@ fn all_values_lists_50_leaves_for_kh120ii() {
 
 #[test]
 fn filter_narrows_rows() {
-    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = all_values_window(SimulatedModel::Kh120Ii);
     filter_all_values(&mut harness, "standby");
     harness.get_by_label(&texts::all_values_count(
         STANDBY_LEAF_COUNT,
@@ -447,7 +447,7 @@ fn filter_narrows_rows() {
 
 #[test]
 fn known_column_marks_catalog_paths() {
-    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = all_values_window(SimulatedModel::Kh120Ii);
     filter_all_values(&mut harness, paths::STANDBY_ENABLED);
     harness.get_by_label(texts::ALL_VALUES_KNOWN.get());
     filter_all_values(&mut harness, "restore");
@@ -459,7 +459,7 @@ fn known_column_marks_catalog_paths() {
 
 #[test]
 fn serial_is_masked_in_the_table() {
-    let (_simulator, _directory, mut harness) = all_values_window(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = all_values_window(SimulatedModel::Kh120Ii);
     filter_all_values(&mut harness, paths::SERIAL);
     harness.get_by_label(paths::SERIAL);
     harness.get_by_label(&mask_serial(SIMULATED_SERIAL));
@@ -485,8 +485,8 @@ fn failure_is_shown() {
 
 #[test]
 fn strip_content_stacks_top_down() {
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let second = Simulator::start(SimModel::Kh750);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let second = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(
         directory.path(),
@@ -536,7 +536,7 @@ fn strip_content_stacks_top_down() {
 
 #[test]
 fn strip_shows_leds_knobs_fader_and_buttons() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh120Ii);
     for label in [
         texts::LED_CONNECTION,
         texts::LED_CLIP,
@@ -554,7 +554,7 @@ fn strip_shows_leds_knobs_fader_and_buttons() {
 
 #[test]
 fn kh750_standby_knob_can_be_turned() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     let standby = harness.get_by_role_and_label(Role::Slider, STANDBY_TIME_LABEL);
     assert!(!standby.accesskit_node().is_disabled());
     let delay = harness.get_by_role_and_label(Role::Slider, DELAY_LABEL);
@@ -563,7 +563,7 @@ fn kh750_standby_knob_can_be_turned() {
 
 #[test]
 fn knob_drag_writes_once_on_release() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     barrier(&simulator);
     assert!(
@@ -583,7 +583,7 @@ fn knob_drag_writes_once_on_release() {
 
 #[test]
 fn escape_during_knob_drag_sends_nothing() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     harness.key_press(egui::Key::Escape);
     harness.step();
@@ -595,7 +595,7 @@ fn escape_during_knob_drag_sends_nothing() {
 
 #[test]
 fn knob_wheel_writes_after_idle() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let center = harness
         .get_by_role_and_label(Role::Slider, DELAY_LABEL)
         .rect()
@@ -621,8 +621,8 @@ fn knob_wheel_writes_after_idle() {
 
 #[test]
 fn desk_scrolls_when_narrow() {
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let second = Simulator::start(SimModel::Kh750);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let second = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(
         directory.path(),
@@ -649,7 +649,7 @@ fn desk_scrolls_when_narrow() {
 #[test]
 fn the_scroll_bar_does_not_cover_a_strips_foot() {
     let (_simulators, _directory, mut harness) = desk_of(
-        &[SimModel::Kh120Ii, SimModel::Kh750],
+        &[SimulatedModel::Kh120Ii, SimulatedModel::Kh750],
         std::collections::BTreeMap::new(),
     );
     harness.set_size(egui::vec2(300.0, 500.0));
@@ -680,7 +680,7 @@ fn the_scroll_bar_does_not_cover_a_strips_foot() {
 /// carries out the window's size commands itself.)
 #[test]
 fn a_first_window_fits_the_desk() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = directory
         .path()
@@ -707,10 +707,10 @@ fn a_first_window_fits_the_desk() {
 #[test]
 fn a_first_window_comes_to_rest_with_four_speakers() {
     let models = [
-        SimModel::Kh120Ii,
-        SimModel::Kh120Ii,
-        SimModel::Kh750,
-        SimModel::Kh750,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh750,
     ];
     let simulators: Vec<Simulator> = models
         .iter()
@@ -748,10 +748,10 @@ fn a_first_window_comes_to_rest_with_four_speakers() {
 #[test]
 fn a_first_window_at_125_percent_shows_the_desk_without_scroll_bars() {
     let models = [
-        SimModel::Kh120Ii,
-        SimModel::Kh120Ii,
-        SimModel::Kh750,
-        SimModel::Kh750,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh750,
     ];
     let simulators: Vec<Simulator> = models
         .iter()
@@ -791,7 +791,7 @@ fn open_settings(harness: &mut Harness<'static, NeumannApp>) {
 /// The window's X closes the settings already: a second, own Close button was one too many.
 #[test]
 fn the_settings_window_has_no_close_button_of_its_own() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
 }
@@ -799,7 +799,7 @@ fn the_settings_window_has_no_close_button_of_its_own() {
 /// A window of their own, the settings close on Escape as the other windows do.
 #[test]
 fn escape_closes_the_settings_window() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
@@ -808,7 +808,7 @@ fn escape_closes_the_settings_window() {
 
 #[test]
 fn settings_dialog_switches_theme_and_saves_on_change() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     // The harness starts dark, so light is the choice that shows an effect.
     harness.get_by_label(texts::THEME_LIGHT.get()).click();
@@ -832,7 +832,7 @@ fn settings_dialog_switches_theme_and_saves_on_change() {
 #[test]
 fn the_crossover_switch_is_saved() {
     use neumann_control_core::settings::CrossoverGuard;
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory
         .path()
         .join(neumann_control_core::settings::SETTINGS_FILE);
@@ -850,7 +850,7 @@ fn the_crossover_switch_is_saved() {
 #[test]
 fn the_delay_unit_switches_to_meters_and_is_saved() {
     let (_simulator, directory, mut harness) =
-        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
             simulator.set_value("audio/out/delay", serde_json::json!(480));
         });
     harness.get_by_label("10,00 ms");
@@ -874,7 +874,7 @@ fn the_delay_unit_switches_to_meters_and_is_saved() {
 /// The meter range in 10 dB steps, from a list.
 #[test]
 fn a_meter_floor_between_the_old_steps_is_chosen_and_saved() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     harness
         .get_by_role_and_label(Role::ComboBox, texts::METER_RANGE.get())
@@ -892,7 +892,7 @@ fn a_meter_floor_between_the_old_steps_is_chosen_and_saved() {
 /// "Show master" off hides the master strip on the desk and its row in the compact mode.
 #[test]
 fn the_master_can_be_hidden() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let master = texts::MASTER_LEVEL.get();
     assert!(harness.query_by_label(master).is_some());
     open_settings(&mut harness);
@@ -912,7 +912,7 @@ fn the_master_can_be_hidden() {
 
 #[test]
 fn english_applies_at_once_and_is_saved() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     harness.get_by_label(texts::LANGUAGE_ENGLISH).click();
     harness.run_steps(2);
@@ -931,7 +931,7 @@ fn english_applies_at_once_and_is_saved() {
 
 #[test]
 fn toolbar_shows_average_response_time_until_turned_off() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     wait_until(&mut harness, "the average response time", |harness| {
         harness.query_by_label_contains("Ø ").is_some()
     });
@@ -945,7 +945,7 @@ fn toolbar_shows_average_response_time_until_turned_off() {
 
 #[test]
 fn knob_value_is_shown_beside_it_while_dragging() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let unit = " ms";
     let shown = |harness: &Harness<'static, NeumannApp>| {
         harness
@@ -1011,7 +1011,7 @@ fn level_change_while_dragging(
 
 #[test]
 fn fader_moves_ten_times_finer_with_shift() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let coarse = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::NONE);
     let fine = level_change_while_dragging(&mut harness, 40.0, egui::Modifiers::SHIFT);
     assert!(coarse > 10.0, "coarse {coarse}");
@@ -1023,7 +1023,7 @@ fn fader_moves_ten_times_finer_with_shift() {
 
 #[test]
 fn double_click_on_the_level_readout_enters_a_value() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -1039,7 +1039,7 @@ fn double_click_on_the_level_readout_enters_a_value() {
 
 #[test]
 fn double_click_on_the_delay_knob_takes_milliseconds() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness
         .get_by_role_and_label(Role::Slider, DELAY_LABEL)
         .rect()
@@ -1058,11 +1058,11 @@ fn double_click_on_the_delay_knob_takes_milliseconds() {
 
 #[test]
 fn meter_groups_are_labelled_input_and_output() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     harness.get_by_label(texts::METER_INPUT_SHORT.get());
     harness.get_by_label(texts::METER_OUTPUT_SHORT.get());
     // The KH 120 II names its input by the rear switch instead.
-    let (_other, _other_directory, kh120) = connected_speaker(SimModel::Kh120Ii);
+    let (_other, _other_directory, kh120) = connected_speaker(SimulatedModel::Kh120Ii);
     kh120.get_by_label(texts::SOURCE_ANALOG.get());
     assert!(kh120
         .query_by_label(texts::METER_OUTPUT_SHORT.get())
@@ -1071,7 +1071,7 @@ fn meter_groups_are_labelled_input_and_output() {
 
 #[test]
 fn meter_captions_are_centred_under_their_meters() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     for (caption, group, last) in [
         (texts::METER_INPUT_SHORT, texts::INPUT_METERS, "B"),
         (texts::METER_OUTPUT_SHORT, texts::OUTPUT_METERS, "Sub"),
@@ -1094,7 +1094,7 @@ fn meter_captions_are_centred_under_their_meters() {
 #[test]
 fn meters_name_their_channels_as_the_speaker_does() {
     // The KH 750 describes its outputs as "[A, B, subwoofer]", its inputs as "[A,B]".
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     for (group, channel) in [
         (texts::INPUT_METERS, "A"),
         (texts::INPUT_METERS, "B"),
@@ -1109,7 +1109,7 @@ fn meters_name_their_channels_as_the_speaker_does() {
 
 #[test]
 fn fader_and_meter_groups_line_up_at_the_top() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     let top = |label: String| harness.get_by_label(&label).rect().top();
     let input = top(texts::meter_label(texts::INPUT_METERS.get(), "A"));
     let output = top(texts::meter_label(texts::OUTPUT_METERS.get(), "A"));
@@ -1126,7 +1126,7 @@ fn fader_and_meter_groups_line_up_at_the_top() {
 
 #[test]
 fn channel_names_do_not_touch() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh750);
     // The output B is the right one of the two.
     let b = harness
         .query_all_by_label("B")
@@ -1139,7 +1139,7 @@ fn channel_names_do_not_touch() {
 
 #[test]
 fn played_input_channels_are_marked_with_the_source() {
-    let (simulator, _directory, analog) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, analog) = connected_speaker(SimulatedModel::Kh120Ii);
     analog.get_by_label(texts::SOURCE_ANALOG.get());
     assert_eq!(
         analog
@@ -1149,7 +1149,7 @@ fn played_input_channels_are_marked_with_the_source() {
     );
     drop((simulator, analog));
     // The switch is read on connecting, so this speaker reports AES3 L from the start.
-    let left = Simulator::start(SimModel::Kh120Ii);
+    let left = Simulator::start(SimulatedModel::Kh120Ii);
     left.set_value("ui/input_select", serde_json::json!("AES3 L"));
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&left)]);
@@ -1161,7 +1161,7 @@ fn played_input_channels_are_marked_with_the_source() {
         aes3.query_all_by_label(texts::PLAYED_CHANNEL.get()).count(),
         1
     );
-    let (_other, _other_directory, kh750) = connected_speaker(SimModel::Kh750);
+    let (_other, _other_directory, kh750) = connected_speaker(SimulatedModel::Kh750);
     kh750.get_by_label(texts::METER_INPUT_SHORT.get());
     assert_eq!(
         kh750
@@ -1173,7 +1173,7 @@ fn played_input_channels_are_marked_with_the_source() {
 
 #[test]
 fn input_source_caption_stays_on_one_line() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let caption = harness.get_by_label(texts::SOURCE_ANALOG.get()).rect();
     assert!(caption.width() > caption.height(), "{caption:?}");
     let level = harness.get_by_label(&readout(100.0)).rect();
@@ -1185,7 +1185,7 @@ fn input_source_caption_stays_on_one_line() {
 
 #[test]
 fn the_strip_knob_captions_stay_apart() {
-    let (_simulator, _directory, harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let caption = |label: &str| harness.get_by_role_and_label(Role::Label, label).rect();
     let (delay, standby) = (caption(DELAY_LABEL), caption(STANDBY_TIME_LABEL));
     assert!(!delay.intersects(standby), "{delay:?} {standby:?}");
@@ -1199,7 +1199,7 @@ fn the_strip_knob_captions_stay_apart() {
 
 #[test]
 fn each_meter_channel_shows_its_peak_readout() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value("m/in/level", serde_json::json!([-18.2, -40.4]));
     wait_for_label(&mut harness, &texts::meter_readout(Some(-18)));
     harness.get_by_label(&texts::meter_readout(Some(-40)));
@@ -1251,7 +1251,7 @@ fn an_untouchable_settings_file_is_not_written_over() {
 /// is process-wide, which tests running side by side share, so `log_detail` tests that part.
 #[test]
 fn the_detailed_log_is_switched_in_the_settings() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_settings(&mut harness);
     scroll_to_and_click(&mut harness, texts::DETAILED_LOG.get());
     harness.run_steps(2);
@@ -1310,7 +1310,7 @@ fn a_size_given_to_the_empty_first_window_is_the_users() {
 /// the main window was no longer fitted to its content, so those places were lost.
 #[test]
 fn leaving_saves_the_settings_while_the_window_is_still_fitted() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(settings::SETTINGS_FILE);
     // No window of its own: the main window is fitted to the desk.

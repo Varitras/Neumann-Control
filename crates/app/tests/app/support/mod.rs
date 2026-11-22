@@ -28,7 +28,7 @@ use neumann_control_core::settings::{
     self, ColorChoice, CrossoverGuard, DeskSettings, GroupSettings, GroupStrip, Language, Linkable,
     ManualSpeaker, Settings, SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
 };
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -497,7 +497,7 @@ pub fn level_sets(simulator: &Simulator) -> Vec<f64> {
 }
 
 pub fn connected_speaker(
-    model: SimModel,
+    model: SimulatedModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     connected_speaker_with(model, |_| {})
 }
@@ -505,7 +505,7 @@ pub fn connected_speaker(
 /// Like `connected_speaker`, with settings presets in the file the app starts from (one written
 /// by hand or by another version can hold what the app would not save).
 pub fn connected_speaker_with_presets(
-    model: SimModel,
+    model: SimulatedModel,
     presets: Vec<SettingsPreset>,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
@@ -539,7 +539,7 @@ pub fn open_stored_preset(
 
 /// Like `connected_speaker`, with values set on the simulator before the app first reads them.
 pub fn connected_speaker_with(
-    model: SimModel,
+    model: SimulatedModel,
     prepare: impl FnOnce(&Simulator),
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
@@ -591,10 +591,10 @@ pub fn serials_remembered(path: &Path, count: usize) -> bool {
             .all(|entry| entry.serial.as_deref() == Some(SIMULATED_SERIAL))
 }
 
-pub fn device_name(model: SimModel) -> &'static str {
+pub fn device_name(model: SimulatedModel) -> &'static str {
     match model {
-        SimModel::Kh120Ii => KH120_DEVICE_NAME,
-        SimModel::Kh750 => KH750_DEVICE_NAME,
+        SimulatedModel::Kh120Ii => KH120_DEVICE_NAME,
+        SimulatedModel::Kh750 => KH750_DEVICE_NAME,
     }
 }
 
@@ -671,8 +671,8 @@ pub fn two_speakers(
     tempfile::TempDir,
     Harness<'static, NeumannApp>,
 ) {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh120 = Simulator::start(SimulatedModel::Kh120Ii);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     let mut first = manual_for(&kh120);
@@ -764,7 +764,10 @@ pub fn turn_knob(
 
 /// One simulator per model, each with its own serial (the app keeps one strip per serial), all
 /// on the desk with `strip_layouts` stored, connected and read once.
-pub fn desk_of(models: &[SimModel], strip_layouts: BTreeMap<String, StoredStripLayout>) -> Desk {
+pub fn desk_of(
+    models: &[SimulatedModel],
+    strip_layouts: BTreeMap<String, StoredStripLayout>,
+) -> Desk {
     desk_prepared(models, strip_layouts, |_| {})
 }
 
@@ -777,7 +780,7 @@ pub type Desk = (
 
 /// Like `desk_of`, with the simulators changed before the app first reads them.
 pub fn desk_prepared(
-    models: &[SimModel],
+    models: &[SimulatedModel],
     strip_layouts: BTreeMap<String, StoredStripLayout>,
     prepare: impl FnOnce(&[Simulator]),
 ) -> Desk {

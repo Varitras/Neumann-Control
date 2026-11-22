@@ -11,7 +11,7 @@ use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::simulator::SimulatedModel;
 use serde_json::json;
 
 fn click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
@@ -23,7 +23,7 @@ fn click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
 
 #[test]
 fn a_click_on_a_fader_without_moving_writes_nothing() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(90.3));
     wait_for_level(&mut harness, 90.3);
     let center = slider_center(&harness, texts::LEVEL.get());
@@ -55,7 +55,7 @@ fn a_click_on_a_group_fader_without_moving_writes_nothing() {
 
 #[test]
 fn a_typed_level_outside_the_range_is_refused_not_clamped() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -78,7 +78,7 @@ fn a_typed_level_outside_the_range_is_refused_not_clamped() {
 
 #[test]
 fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
     // The panel scrolls: a wheel the standby time knob did not take would bring the standby
     // level knob below it under the pointer.
@@ -153,7 +153,7 @@ fn a_group_raises_its_quieter_members_when_the_loudest_is_at_its_limit() {
 
 #[test]
 fn scrolling_the_panel_from_a_gap_never_turns_a_knob() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Device);
     harness.set_size(egui::vec2(1200.0, 420.0));
     harness.run_steps(2);
@@ -176,7 +176,7 @@ fn scrolling_the_panel_from_a_gap_never_turns_a_knob() {
 
 #[test]
 fn a_knob_on_an_out_of_range_value_turned_further_out_writes_nothing() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         harness.query_by_label_contains("125,00 ms").is_some()
@@ -194,7 +194,7 @@ fn a_knob_on_an_out_of_range_value_turned_further_out_writes_nothing() {
 
 #[test]
 fn a_fader_on_an_out_of_range_level_pushed_further_out_writes_nothing() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(125.0));
     wait_for_level(&mut harness, 125.0);
     let start = slider_center(&harness, texts::LEVEL.get());
@@ -215,7 +215,7 @@ fn a_fader_on_an_out_of_range_level_pushed_further_out_writes_nothing() {
 
 #[test]
 fn a_typed_delay_outside_the_range_is_refused_on_the_strip_knob() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = slider_center(&harness, DELAY_LABEL);
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -232,7 +232,7 @@ fn a_typed_delay_outside_the_range_is_refused_on_the_strip_knob() {
 
 #[test]
 fn a_typed_level_just_outside_the_range_is_refused_too() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -251,7 +251,7 @@ fn a_typed_level_just_outside_the_range_is_refused_too() {
 /// own in the middle of it.
 #[test]
 fn the_wheel_during_a_knob_drag_writes_nothing_of_its_own() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let end = turn_knob(&mut harness, DELAY_LABEL, 90.0, 150.0);
     wheel(&mut harness, 3.0);
     harness.run_steps(40);

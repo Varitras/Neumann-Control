@@ -2,7 +2,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv6Addr, SocketAddrV6, TcpStream};
 use std::time::Duration;
 
-use neumann_control_core::simulator::{Fault, SimModel, Simulator, FOREIGN_XID_OFFSET};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator, FOREIGN_XID_OFFSET};
 use neumann_control_core::ssc::client::MAX_LINE_BYTES;
 use neumann_control_core::ssc::wire::{device_error, parse_line, reply_xid, DeviceError};
 use serde_json::{json, Value};
@@ -56,16 +56,16 @@ impl Client {
     }
 }
 
-fn model_of(name: &str) -> SimModel {
+fn model_of(name: &str) -> SimulatedModel {
     match name {
-        KH_120_II => SimModel::Kh120Ii,
-        KH_750 => SimModel::Kh750,
+        KH_120_II => SimulatedModel::Kh120Ii,
+        KH_750 => SimulatedModel::Kh750,
         other => panic!("unknown model {other}"),
     }
 }
 
 fn start_kh120() -> Simulator {
-    Simulator::start(SimModel::Kh120Ii)
+    Simulator::start(SimulatedModel::Kh120Ii)
 }
 
 /// The reply with its transaction id removed, and an `osc` object left empty by that dropped.
@@ -157,7 +157,7 @@ fn simulator_refuses_read_only_set_with_405() {
 
 #[test]
 fn simulator_refuses_standby_enabled_set_on_kh750_only() {
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let refused = Client::connect(&kh750).ask(&json!({"device":{"standby":{"enabled":false}}}));
     assert_eq!(device_error(&refused).unwrap().code, DeviceError::READ_ONLY);
     let kh120 = start_kh120();
@@ -168,7 +168,7 @@ fn simulator_refuses_standby_enabled_set_on_kh750_only() {
 
 #[test]
 fn control_mode_set_answers_405_on_both_models() {
-    for model in [SimModel::Kh120Ii, SimModel::Kh750] {
+    for model in [SimulatedModel::Kh120Ii, SimulatedModel::Kh750] {
         let simulator = Simulator::start(model);
         let reply = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
         assert_eq!(
@@ -180,7 +180,7 @@ fn control_mode_set_answers_405_on_both_models() {
 
 #[test]
 fn auto_standby_set_answers_405_on_kh750() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let reply = Client::connect(&simulator).ask(&json!({"ui":{"auto_standby":"OFF"}}));
     assert_eq!(
         device_error(&reply).map(|error| error.code),
@@ -282,8 +282,8 @@ fn count_leaves(client: &mut Client, prefix: &[&str], level: &Value) -> usize {
 #[test]
 fn simulator_trees_have_the_measured_leaf_counts() {
     for (model, expected) in [
-        (SimModel::Kh120Ii, KH_120_II_LEAVES),
-        (SimModel::Kh750, KH_750_LEAVES),
+        (SimulatedModel::Kh120Ii, KH_120_II_LEAVES),
+        (SimulatedModel::Kh750, KH_750_LEAVES),
     ] {
         let simulator = Simulator::start(model);
         let mut client = Client::connect(&simulator);
@@ -299,7 +299,7 @@ fn simulator_trees_have_the_measured_leaf_counts() {
 
 #[test]
 fn simulator_reports_limits_type_and_identity() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let mut client = Client::connect(&simulator);
     let number = client.ask(&json!({"osc":{"limits":[{"audio":{"out":{"level":null}}}]}}));
     assert_eq!(
@@ -450,8 +450,8 @@ fn stop_closes_connections_and_refuses_new_ones() {
 #[test]
 fn a_simulator_takes_a_port_no_other_one_is_given() {
     const LINUX_DYNAMIC_PORTS_FROM: u16 = 32_768;
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let second = Simulator::start(SimModel::Kh120Ii);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let second = Simulator::start(SimulatedModel::Kh120Ii);
     for simulator in [&first, &second] {
         assert!(
             simulator.address().port() < LINUX_DYNAMIC_PORTS_FROM,
@@ -462,7 +462,7 @@ fn a_simulator_takes_a_port_no_other_one_is_given() {
     assert_ne!(first.address(), second.address());
     let address = first.address();
     first.stop();
-    let restarted = Simulator::start_on(SimModel::Kh120Ii, address).expect("still free");
+    let restarted = Simulator::start_on(SimulatedModel::Kh120Ii, address).expect("still free");
     let reply = Client::connect(&restarted).ask(&json!({"osc":{"ping":null}}));
     assert_eq!(reply, json!({"osc":{"ping":null}}));
 }
@@ -473,7 +473,7 @@ fn start_on_rebinds_the_same_address() {
     let address: SocketAddrV6 = first.address();
     assert_eq!(*address.ip(), Ipv6Addr::LOCALHOST);
     first.stop();
-    let second = Simulator::start_on(SimModel::Kh120Ii, address).expect("port is free again");
+    let second = Simulator::start_on(SimulatedModel::Kh120Ii, address).expect("port is free again");
     assert_eq!(second.address(), address);
     let reply = Client::connect(&second).ask(&json!({"osc":{"ping":null}}));
     assert_eq!(reply, json!({"osc":{"ping":null}}));
@@ -578,7 +578,7 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
 
 #[test]
 fn a_delayed_reply_does_not_hold_up_other_callers() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(SLOW_REPLY_DELAY);
     let mut client = Client::connect(&simulator);
     client.send(&json!({"audio": {"out": {"mute": null}}}));

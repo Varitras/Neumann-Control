@@ -3,7 +3,7 @@
 
 use serde_json::{json, Map, Number, Value};
 
-use super::SimModel;
+use super::SimulatedModel;
 use crate::ssc::wire::{
     descend, merge, nest, token_count, DeviceError, SscPath, DESCRIPTION_KEY, ERROR_KEY,
     MAX_REQUEST_TOKENS, OSC_KEY, PATH_SEPARATOR, XID_KEY,
@@ -132,10 +132,10 @@ pub struct SimulatedDevice {
 }
 
 impl SimulatedDevice {
-    pub fn new(model: SimModel) -> SimulatedDevice {
+    pub fn new(model: SimulatedModel) -> SimulatedDevice {
         let (source, read_only_for_model) = match model {
-            SimModel::Kh120Ii => (KH_120_II_TREE, READ_ONLY_KH_120_II),
-            SimModel::Kh750 => (KH_750_TREE, READ_ONLY_KH_750),
+            SimulatedModel::Kh120Ii => (KH_120_II_TREE, READ_ONLY_KH_120_II),
+            SimulatedModel::Kh750 => (KH_750_TREE, READ_ONLY_KH_750),
         };
         SimulatedDevice {
             tree: serde_json::from_str(source).expect("embedded value tree is valid JSON"),

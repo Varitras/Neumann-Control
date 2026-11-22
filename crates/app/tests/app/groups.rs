@@ -13,7 +13,7 @@ use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{
     self, ColorChoice, GroupSettings, GroupStrip, Linkable, Settings, SETTINGS_FILE,
 };
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use serde_json::Value;
 
 #[test]
@@ -229,7 +229,7 @@ fn a_failed_save_is_told_in_the_toolbar() {
 
 #[test]
 fn a_group_added_in_the_window_takes_a_speaker_in_its_panel() {
-    let (simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_groups(&mut harness);
     harness.get_by_label(texts::NO_GROUPS.get());
     harness.get_by_label(texts::ADD_GROUP.get()).click();
@@ -326,8 +326,8 @@ fn escape_while_dragging_keeps_the_order() {
 
 #[test]
 fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh120 = Simulator::start(SimulatedModel::Kh120Ii);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     // Added by address and never connected yet: no serial is known.
@@ -389,7 +389,7 @@ fn group_mute_leaves_an_unreachable_member_alone() {
 
 #[test]
 fn a_new_group_never_repeats_the_name_or_colour_of_another() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     open_groups(&mut harness);
     for _ in 0..2 {

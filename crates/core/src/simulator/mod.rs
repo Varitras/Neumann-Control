@@ -37,7 +37,7 @@ const READ_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const WAKE_TIMEOUT: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SimModel {
+pub enum SimulatedModel {
     Kh120Ii,
     Kh750,
 }
@@ -232,7 +232,7 @@ pub struct Simulator {
 impl Simulator {
     /// Starts on a port of the IPv6 loopback address that no other simulator of this process
     /// gets, also once this one is stopped: a test can restart it there with `start_on`.
-    pub fn start(model: SimModel) -> Simulator {
+    pub fn start(model: SimulatedModel) -> Simulator {
         let span = SIMULATOR_PORTS.end - SIMULATOR_PORTS.start;
         let slot = std::env::var(NEXTEST_SLOT).ok();
         let process_start = process_start(slot.as_deref(), std::process::id());
@@ -249,7 +249,7 @@ impl Simulator {
     }
 
     /// Starts on `address`, e.g. the one a stopped simulator had, to model a restart.
-    pub fn start_on(model: SimModel, address: SocketAddrV6) -> io::Result<Simulator> {
+    pub fn start_on(model: SimulatedModel, address: SocketAddrV6) -> io::Result<Simulator> {
         let listener = TcpListener::bind(address)?;
         let SocketAddr::V6(bound) = listener.local_addr()? else {
             return Err(io::Error::other("listener is not IPv6"));
