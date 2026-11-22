@@ -283,8 +283,8 @@ and its own layouts are forgotten.
   group; right-click the group strip for **Delete group…**, which asks there first.
 - **Show group strip** (on by default): switched off, the group strip leaves the desk; the
   members stay grouped and linked, and in the compact mode each gets its own row instead of the
-  group's. Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
-  group, also while the group strip is off.
+  group's. Right-click a member's name for **Edit group "…"…**, which opens the groups window on
+  its group, also while the group strip is off.
 - **Strip colour** in the group's settings keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
