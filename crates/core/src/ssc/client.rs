@@ -173,7 +173,8 @@ impl Connection {
     }
 }
 
-fn is_timeout(error: &io::Error) -> bool {
+/// A read that ran into its timeout, as Windows (`TimedOut`) and Linux (`WouldBlock`) say it.
+pub(crate) fn is_timeout(error: &io::Error) -> bool {
     matches!(
         error.kind(),
         io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut

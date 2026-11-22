@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
-use crate::ssc::client::{LINE_TERMINATOR, MAX_LINE_BYTES};
+use crate::ssc::client::{is_timeout, LINE_TERMINATOR, MAX_LINE_BYTES};
 use crate::ssc::wire::parse_line;
 use device::{encode_line, SimulatedDevice};
 
@@ -156,7 +156,7 @@ impl Shared {
             match reader.read_until(b'\n', &mut line) {
                 Ok(0) => break,
                 Ok(_) => {}
-                Err(error) if is_poll_timeout(&error) => {
+                Err(error) if is_timeout(&error) => {
                     if self.stopping.load(Ordering::SeqCst) {
                         break;
                     }
@@ -206,13 +206,6 @@ impl Shared {
             shared.connections().streams.remove(&id);
         }));
     }
-}
-
-fn is_poll_timeout(error: &io::Error) -> bool {
-    matches!(
-        error.kind(),
-        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-    )
 }
 
 fn overlong_line() -> String {

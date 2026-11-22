@@ -261,17 +261,7 @@ impl SimulatedDevice {
         let current = match descend(&self.tree, path) {
             Some(found) if !found.is_object() => found.clone(),
             found => {
-                let node = if found.is_none() {
-                    &path[..self.first_missing_depth(path)]
-                } else {
-                    path
-                };
-                // Recorded: inside a bundle the 404 sits at the parent of the failing node.
-                let node = if bundled && node.len() > 1 {
-                    &node[..node.len() - 1]
-                } else {
-                    node
-                };
+                let node = self.not_found_node(path, found.is_some(), bundled);
                 return Err(error_entry(node, &NOT_FOUND));
             }
         };
@@ -290,6 +280,26 @@ impl SimulatedDevice {
         let resulting = resulting_value(&current, value);
         self.store(path, resulting.clone());
         Ok(nest(path, resulting))
+    }
+
+    /// Where a 404 for `path` is reported: at its first missing segment, or at `path` itself
+    /// when it names a container.
+    fn not_found_node<'a>(
+        &self,
+        path: &'a [String],
+        container: bool,
+        bundled: bool,
+    ) -> &'a [String] {
+        let node = match container {
+            true => path,
+            false => &path[..self.first_missing_depth(path)],
+        };
+        // Recorded: inside a bundle the 404 sits at the parent of the failing node.
+        let inside_bundle = bundled && node.len() > 1;
+        match inside_bundle {
+            true => &node[..node.len() - 1],
+            false => node,
+        }
     }
 
     fn first_missing_depth(&self, path: &[String]) -> usize {
