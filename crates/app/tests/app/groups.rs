@@ -636,3 +636,40 @@ fn the_panels_group_tab_edits_the_speakers_group() {
     harness.get_by_label(texts::MANAGE_GROUPS.get()).click();
     wait_for_label(&mut harness, texts::ADD_GROUP.get());
 }
+
+/// A preset loaded on one member writes a linked setting to the others too, as every other
+/// write of one speaker does: the partner kept its old level.
+#[test]
+fn a_preset_loaded_on_a_member_reaches_its_linked_partners() {
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Level]);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    let field = || texts::PRESET_NAME.get();
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .type_text("Pair");
+    harness.run_steps(1);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    kh120.set_value("audio/out/level", serde_json::json!(70.0));
+    kh750.set_value("audio/out/level", serde_json::json!(70.0));
+    wait_until(&mut harness, "both at 70", |harness| {
+        harness.query_all_by_label(&readout(70.0)).count() >= 2
+    });
+    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry("Pair", "KH 120 II"))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    wait_until(&mut harness, "the partner's level written", |_| {
+        level_sets(&kh750) == [100.0]
+    });
+    assert_eq!(level_sets(&kh120), [100.0]);
+}
