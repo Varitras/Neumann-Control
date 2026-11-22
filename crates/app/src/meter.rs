@@ -209,6 +209,23 @@ mod tests {
         assert_eq!(meter.readout(1.8, -120.0), Some(-3));
     }
 
+    /// Readings keep coming while the bar falls: the number still steps every quarter second.
+    /// It changed with every reading, since the step's time lay before the newest one.
+    #[test]
+    fn the_readout_steps_while_readings_keep_arriving() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        let mut readouts = Vec::new();
+        for tenth in 1..=20 {
+            let now = f64::from(tenth) / 10.0;
+            meter.update(-160.0, now);
+            readouts.push(meter.readout(now + 0.02, -120.0));
+        }
+        // From -6 dB at 0.1 s down 24 dB/s; the hold ran out at 1.5 s.
+        assert_eq!(&readouts[14..17], [Some(-40), Some(-40), Some(-40)]);
+        assert_eq!(readouts[17], Some(-46));
+    }
+
     /// Playback stopped: the speaker reports silence ten times a second while the bar still
     /// falls; the number and the peak line follow the bar instead of the silence.
     #[test]
