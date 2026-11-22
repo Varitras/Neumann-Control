@@ -1447,6 +1447,54 @@ fn a_point_grabbed_beside_its_centre_writes_only_the_moved_axis() {
     assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
 }
 
+/// A drag cut off by the band switching off leaves its state behind, unseen by its end: the
+/// next drag of that point starts afresh instead of taking the old offset.
+#[test]
+fn a_drag_cut_off_by_switching_the_band_off_leaves_no_offset_for_the_next_one() {
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    // Grabbed off its centre: this gesture's offset is far from the next one's.
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    let grabbed = point + egui::vec2(-6.0, -6.0);
+    harness.drag_at(grabbed);
+    for frame in 1..=5 {
+        harness.hover_at(grabbed + egui::vec2(25.0 * frame as f32, 0.0));
+        harness.step();
+    }
+    let mut enabled = vec![true; 10];
+    enabled[1] = false;
+    simulator.set_value("audio/out/eq2/enabled", json!(enabled));
+    wait_until(&mut harness, "the point gone", |harness| {
+        harness.query_by_label(&texts::eq_band(2)).is_none()
+    });
+    harness.drop_at(point + egui::vec2(125.0, 0.0));
+    harness.run_steps(3);
+    simulator.set_value("audio/out/eq2/enabled", json!(vec![true; 10]));
+    wait_until(&mut harness, "the point back", |harness| {
+        harness.query_by_label(&texts::eq_band(2)).is_some()
+    });
+    barrier(&simulator);
+    // The same move on band 2 and, as the measure, on band 3, which no gesture was cut off on.
+    for band in [2, 3] {
+        let boosts_before = sets(&simulator, BOOST_POINTER).len();
+        let point = harness.get_by_label(&texts::eq_band(band)).rect().center();
+        drag(
+            &mut harness,
+            point + egui::vec2(6.0, 6.0),
+            egui::vec2(0.0, -20.0),
+        );
+        wait_until(&mut harness, "the boost write", |_| {
+            sets(&simulator, BOOST_POINTER).len() > boosts_before
+        });
+        barrier(&simulator);
+    }
+    let boosts = sets(&simulator, BOOST_POINTER);
+    let [.., band_2, band_3] = boosts.as_slice() else {
+        panic!("{boosts:?}");
+    };
+    assert_eq!(band_2[1], band_3[2], "{boosts:?}");
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
 #[test]
 fn a_point_dragged_away_and_back_writes_nothing() {
     let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
