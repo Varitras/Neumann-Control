@@ -211,6 +211,21 @@ mod tests {
         assert_eq!(meter.peak(1.5), meter.shown(1.5));
     }
 
+    /// After the hold a reading above the falling bar, though below the old peak, is held anew.
+    #[test]
+    fn a_reading_above_the_falling_bar_is_held_anew() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        meter.update(-60.0, 1.0);
+        // The hold ran out at 1.5 s; the bar falls 24 dB/s from -6 dB at 1.0 s: -30 dB at 2 s.
+        meter.update(-20.0, 2.0);
+        // The bar falls again; the new peak stays until its own hold ends at 3.5 s.
+        meter.update(-60.0, 2.2);
+        assert!(meter.shown(3.0) < -30.0);
+        assert_eq!(meter.peak(3.0), -20.0);
+        assert_eq!(meter.peak(3.5), meter.shown(3.5));
+    }
+
     #[test]
     fn readout_rounds_the_held_peak() {
         let mut meter = MeterState::default();
