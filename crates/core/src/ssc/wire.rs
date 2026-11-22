@@ -6,11 +6,11 @@ use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Number, Value};
 
-const PATH_SEPARATOR: char = '/';
-const OSC_KEY: &str = "osc";
-const XID_KEY: &str = "xid";
-const ERROR_KEY: &str = "error";
-const DESCRIPTION_KEY: &str = "desc";
+pub(crate) const PATH_SEPARATOR: char = '/';
+pub(crate) const OSC_KEY: &str = "osc";
+pub(crate) const XID_KEY: &str = "xid";
+pub(crate) const ERROR_KEY: &str = "error";
+pub(crate) const DESCRIPTION_KEY: &str = "desc";
 
 /// The largest request the speakers take, in JSON tokens: every object, array, key and scalar.
 /// Measured on a KH 120 II (2026-10-20): 29 tokens taken, 31 and more refused with 413
@@ -59,6 +59,17 @@ impl SscPath {
         let mut segments = self.0.clone();
         segments.push(segment.to_owned());
         SscPath(segments)
+    }
+
+    /// A node a device named below `parent` (none: the root); a name that is empty or holds
+    /// the separator would silently become another path.
+    pub fn named_child(parent: Option<&SscPath>, segment: &str) -> Result<SscPath, WireError> {
+        if segment.is_empty() || segment.contains(PATH_SEPARATOR) {
+            return Err(WireError::InvalidPath);
+        }
+        let mut segments = parent.map_or_else(Vec::new, |parent| parent.0.clone());
+        segments.push(segment.to_owned());
+        Ok(SscPath(segments))
     }
 }
 

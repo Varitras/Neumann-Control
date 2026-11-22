@@ -5,15 +5,11 @@ use std::collections::VecDeque;
 use serde_json::Value;
 
 use crate::ssc::client::{Client, NodeKind, SscError};
-use crate::ssc::wire::SscPath;
+use crate::ssc::wire::{SscPath, OSC_KEY};
 
 /// Bounds the walk, because the tree comes from a network device that can describe anything.
 pub const MAX_SCHEMA_NODES: usize = 500;
 pub const MAX_SCHEMA_DEPTH: usize = 10;
-
-/// Holds the protocol's own methods (`osc/schema`, `osc/limits`, ...), not device values.
-const PROTOCOL_CONTAINER: &str = "osc";
-const PATH_SEPARATOR: char = '/';
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LeafReport {
@@ -118,7 +114,8 @@ impl Walk {
             Err(error) => return self.refused_container(container, error),
         };
         for (name, kind) in nodes {
-            if container.is_none() && name == PROTOCOL_CONTAINER {
+            // `osc` holds the protocol's own methods (`osc/schema`, ...), not device values.
+            if container.is_none() && name == OSC_KEY {
                 continue;
             }
             self.visited += 1;
@@ -189,16 +186,7 @@ fn report(
     })
 }
 
-/// A node name holding the separator would silently become several segments.
 fn child_path(parent: Option<&SscPath>, name: &str) -> Result<SscPath, WalkError> {
-    if name.contains(PATH_SEPARATOR) {
-        return Err(WalkError::Refused(format!(
-            "schema names a node with a '{PATH_SEPARATOR}'"
-        )));
-    }
-    let text = match parent {
-        Some(parent) => format!("{parent}{PATH_SEPARATOR}{name}"),
-        None => name.to_owned(),
-    };
-    SscPath::parse(&text).map_err(|error| WalkError::Refused(error.to_string()))
+    SscPath::named_child(parent, name)
+        .map_err(|_| WalkError::Refused(format!("schema names a node {name:?}, no path segment")))
 }

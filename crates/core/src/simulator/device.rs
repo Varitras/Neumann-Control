@@ -5,18 +5,15 @@ use serde_json::{json, Map, Number, Value};
 
 use super::SimModel;
 use crate::ssc::wire::{
-    descend, merge, nest, token_count, DeviceError, SscPath, MAX_REQUEST_TOKENS,
+    descend, merge, nest, token_count, DeviceError, SscPath, DESCRIPTION_KEY, ERROR_KEY,
+    MAX_REQUEST_TOKENS, OSC_KEY, PATH_SEPARATOR, XID_KEY,
 };
 
-const OSC_KEY: &str = "osc";
-const XID_KEY: &str = "xid";
-const ERROR_KEY: &str = "error";
 const SCHEMA_KEY: &str = "schema";
 const LIMITS_KEY: &str = "limits";
 const VERSION_KEY: &str = "version";
 const PING_KEY: &str = "ping";
 const FEATURE_KEY: &str = "feature";
-const PATH_SEPARATOR: &str = "/";
 
 const OSC_VERSION: &str = "1.1";
 const OSC_PATTERN_FEATURE: &str = "*?";
@@ -314,7 +311,7 @@ impl SimulatedDevice {
     }
 
     fn is_read_only(&self, path: &[String]) -> bool {
-        let joined = path.join(PATH_SEPARATOR);
+        let joined = path.join(&PATH_SEPARATOR.to_string());
         READ_ONLY_COMMON.contains(&joined.as_str())
             || self.read_only_for_model.contains(&joined.as_str())
     }
@@ -413,7 +410,7 @@ fn collect_leaves(members: &Map<String, Value>, prefix: &[String]) -> Vec<(Vec<S
 }
 
 fn error_pair(kind: &ErrorKind) -> Value {
-    json!([kind.code, { "desc": kind.description }])
+    json!([kind.code, { DESCRIPTION_KEY: kind.description }])
 }
 
 fn error_entry(node: &[String], kind: &ErrorKind) -> Value {
