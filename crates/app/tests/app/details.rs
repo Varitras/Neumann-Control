@@ -1043,6 +1043,32 @@ fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
         .is_none());
 }
 
+/// A skipped setting the catalog knows is named as everywhere else in the dialog: it was
+/// listed by its protocol path.
+#[test]
+fn a_skipped_setting_is_named_by_its_label() {
+    let old = SettingsPreset {
+        name: "Old".to_owned(),
+        product: "KH 120 II".to_owned(),
+        values: [(paths::IDENTIFY.to_owned(), json!(true))].into(),
+    };
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimModel::Kh120Ii, vec![old]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimModel::Kh120Ii),
+        "Old",
+        "KH 120 II",
+    );
+    let catalog = neumann_control_core::catalog::Catalog::embedded();
+    let path = neumann_control_core::ssc::wire::SscPath::parse(paths::IDENTIFY).unwrap();
+    let label = paths::catalog_entry(catalog, &path)
+        .unwrap()
+        .label(texts::language())
+        .to_owned();
+    harness.get_by_label(&texts::preset_skipped(&[label]));
+}
+
 #[test]
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
     let far = SettingsPreset {
