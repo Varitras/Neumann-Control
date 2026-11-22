@@ -569,12 +569,16 @@ impl SpeakerState {
             Event::Written { path, value } => {
                 let pending = self.pending.get(&path);
                 let sent = pending.and_then(|pending| pending.sent.front().cloned());
+                // What the speaker confirmed of this path's writes so far, this one included:
+                // `values` stands still while writes are on their way.
+                let confirmed = pending.map(|pending| merged(pending.base.as_ref(), &value));
                 let answered = self.settle(&path, Answer::Held(&value));
                 if self.pending.contains_key(&path) {
                     self.follow_confirmation(&path, answered, sent, &value);
                 } else {
                     // A band write may confirm only its own entry; the others stay as known.
-                    let value = merged(self.values.get(&path), &value);
+                    let confirmed = confirmed.unwrap_or(value);
+                    let value = merged(self.values.get(&path), &confirmed);
                     self.take_reported(path, value, now);
                 }
             }
