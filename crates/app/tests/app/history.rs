@@ -13,9 +13,6 @@ use neumann_control_core::settings::SettingsPreset;
 use neumann_control_core::simulator::SimModel;
 use serde_json::{json, Value};
 
-/// Long enough that the speaker's confirmation of a write is still out when the test acts.
-const UNCONFIRMED_WRITE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
-
 fn entries(harness: &Harness<'static, NeumannApp>) -> Vec<Entry> {
     harness.state().history().entries().cloned().collect()
 }

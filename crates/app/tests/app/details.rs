@@ -33,7 +33,8 @@ fn speaker_with_panel(
     (simulator, directory, harness)
 }
 
-/// The name field sits in "Device", below the outputs, input and standby: scrolled to first.
+/// The name field sits on the Overview tab below the colour choice and the overview rows:
+/// scrolled to first.
 fn click_name_field(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_role(Role::TextInput).scroll_to_me();
     harness.run_steps(SCROLL_FRAMES);
@@ -679,7 +680,7 @@ fn a_panel_drag_back_to_its_start_writes_nothing() {
 fn eq_rows_are_not_in_the_device_panel() {
     let (_simulator, _directory, harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    assert!(harness.query_by_label("Verstärkung").is_none());
+    assert!(harness.query_by_label("Anhebung").is_none());
     assert!(harness.query_by_label("Güte (Q)").is_none());
 }
 
@@ -1005,7 +1006,7 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
 }
@@ -1119,7 +1120,7 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
     // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     let mute = texts::MUTE.get();
     harness.get_by_role_and_label(Role::CheckBox, mute).click();
     harness.run_steps(1);
@@ -1141,7 +1142,7 @@ fn the_save_dialog_shows_a_write_still_on_its_way() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
     // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click();
@@ -1213,7 +1214,7 @@ fn choosing_back_before_the_answer_writes_both_choices() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimModel::Kh120Ii, PanelTab::Inputs);
     // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     for option in ["DIGITAL ONLY", "ANALOG ONLY"] {
         harness
             .get_by_role_and_label(Role::ComboBox, "Eingangs-Interface")

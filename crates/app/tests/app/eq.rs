@@ -261,7 +261,7 @@ fn a_band_change_reads_as_one_band_in_the_history() {
     let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
-    wait_until(&mut harness, "the gain write", |_| {
+    wait_until(&mut harness, "the boost write", |_| {
         !sets(&simulator, BOOST_POINTER).is_empty()
     });
     close_eq(&mut harness);
@@ -993,7 +993,7 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .is_none());
     harness.get_by_label(&texts::eq_preset_band(1));
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
 }
@@ -1103,7 +1103,7 @@ fn a_preset_already_on_a_speaker_gone_says_why() {
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
 }

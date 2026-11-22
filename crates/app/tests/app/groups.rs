@@ -508,7 +508,7 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Mute]);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Outputs);
     // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
-    kh120.set_reply_delay(std::time::Duration::from_secs(2));
+    kh120.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click();

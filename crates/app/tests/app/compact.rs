@@ -380,8 +380,6 @@ fn a_right_click_on_a_compact_group_row_deletes_the_group() {
         .is_empty());
 }
 
-/// Compact without a saved window of its own is fitted to its rows, as the first desk is: it
-/// used to open at a fixed size, cut off on the right and with empty space below.
 /// What the window is told in the frame the compact shortcut arrives in.
 fn commands_of_a_mode_switch(harness: &mut Harness<'static, NeumannApp>) -> Vec<ViewportCommand> {
     harness.input_mut().events.push(egui::Event::Key {
@@ -441,6 +439,8 @@ fn back_from_compact_the_desk_has_its_size_again() {
     assert_eq!(harness.ctx.content_rect().size(), desk);
 }
 
+/// Compact without a saved window of its own is fitted to its rows, as the first desk is: it
+/// used to open at a fixed size, cut off on the right and with empty space below.
 #[test]
 fn compact_without_a_saved_window_fits_its_rows() {
     let (_kh120, _kh750, _directory, mut harness) = two_speakers(Vec::new());

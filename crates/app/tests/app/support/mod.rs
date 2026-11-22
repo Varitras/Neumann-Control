@@ -60,6 +60,14 @@ const KH750_PRODUCT: &str = "KH 750";
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);
 
+/// Long enough to keep a write unconfirmed while a test acts, short of the client's response
+/// timeout, after which the write would count as failed.
+pub const UNCONFIRMED_WRITE_DELAY: Duration = Duration::from_secs(2);
+const _: () = assert!(
+    UNCONFIRMED_WRITE_DELAY.as_millis()
+        < neumann_control_core::ssc::client::RESPONSE_TIMEOUT.as_millis()
+);
+
 /// What every scan finds; a test may change it while the app runs.
 pub type SharedScan = Arc<Mutex<ScanResult>>;
 
