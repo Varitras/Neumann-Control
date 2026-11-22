@@ -457,3 +457,18 @@ fn compact_without_a_saved_window_fits_its_rows() {
     }
     assert_eq!(harness.query_all_by_role(Role::ScrollBar).count(), 0);
 }
+
+/// Compact mode has no "Scan" and no "+ Address": without speakers it names the way back to the
+/// desk instead of buttons that are not there.
+#[test]
+fn compact_mode_without_speakers_names_the_way_back() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let mut first_start = settings::Settings::default();
+    first_start.desk.compact = true;
+    settings::save(&first_start, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    harness.run_steps(3);
+    assert!(harness.query_by_label(texts::SCAN.get()).is_none());
+    harness.get_by_label(texts::NO_SPEAKERS_COMPACT.get());
+}

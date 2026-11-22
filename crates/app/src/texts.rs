@@ -151,6 +151,10 @@ pub const NO_SPEAKERS: Text = Text::new(
     "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.",
     "No speakers. “Scan” finds them on the network, “+ Address” adds one by hand.",
 );
+pub const NO_SPEAKERS_COMPACT: Text = Text::new(
+    "Keine Lautsprecher. „Kompakt“ (Strg+K) führt zurück zum Pult, dort „Suchen“ oder „+ Adresse“.",
+    "No speakers. “Compact” (Ctrl+K) goes back to the desk, where “Scan” or “+ Address” add them.",
+);
 
 pub const MUTE: Text = Text::new("Stumm", "Mute");
 pub const IDENTIFY: Text = Text::new("Ident.", "Ident.");
