@@ -19,11 +19,25 @@ use crate::eq_response::{shelf_q_of_slope, shelf_slope_of_q};
 pub const MAX_FILE_BYTES: u64 = 1024 * 1024;
 
 const COMMENT: char = '#';
+/// Frequencies and gains keep three decimals in the file (`trimmed`). A shelf's Q is its slope
+/// converted, and three decimals of it came back as another slope; with nine (`trimmed_q`), the
+/// slope read back rounds to what was exported, also for a steep shelf.
+const SLOPE_DECIMALS: i32 = 6;
 const FILTER_COMMAND: &str = "filter";
 const BYTE_ORDER_MARK: char = '\u{feff}';
 /// The second word of REW's two-word types (`LS Q`, `HP Q`): the variant with a Q.
 const Q_SUFFIX: &str = "Q";
 const FREQUENCY_KEY: &str = "FC";
+const GAIN_KEY: &str = "GAIN";
+const Q_KEY: &str = "Q";
+/// APO's tokens of the types the export writes; the import reads them too.
+const PEAK: &str = "PK";
+const LOW_PASS_Q: &str = "LPQ";
+const HIGH_PASS_Q: &str = "HPQ";
+const NOTCH: &str = "NO";
+const ALL_PASS: &str = "AP";
+const LOW_SHELF_Q: &str = "LSC";
+const HIGH_SHELF_Q: &str = "HSC";
 /// REW writes its all pass as two words (`All pass`), APO as `AP`.
 const REW_ALL_PASS: [&str; 2] = ["All", "pass"];
 /// The Q of REW's plain shelf (`LS`, `HS`; slope 1) and plain low and high pass (`LP`, `HP`),
@@ -147,17 +161,17 @@ fn file_type(name: &str) -> Result<Option<FileType>, LineProblem> {
         }))
     };
     match upper.as_str() {
-        "PK" | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Cookbook),
-        "LP" | "LPQ" | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Cookbook),
-        "HP" | "HPQ" | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
+        PEAK | "PEQ" | "MODAL" | "PK Q" => shaped(eq_type::PARAMETRIC, true, QRule::Cookbook),
+        "LP" | LOW_PASS_Q | "LP Q" => shaped(eq_type::LOWPASS, false, QRule::Cookbook),
+        "HP" | HIGH_PASS_Q | "HP Q" => shaped(eq_type::HIGHPASS, false, QRule::Cookbook),
         "LP1" => shaped(eq_type::LO6DB, false, QRule::Unused),
         "HP1" => shaped(eq_type::HI6DB, false, QRule::Unused),
         // The speakers' band pass is the constant skirt form, APO's the 0 dB peak one.
         "BP" => Err(LineProblem::OtherForm(name.to_owned())),
-        "NO" => shaped(eq_type::NOTCH, false, QRule::Cookbook),
-        "AP" | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
-        "LS" | "LSC" | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
-        "HS" | "HSC" | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
+        NOTCH => shaped(eq_type::NOTCH, false, QRule::Cookbook),
+        ALL_PASS | "ALL PASS" => shaped(eq_type::ALLPASS, false, QRule::Cookbook),
+        "LS" | LOW_SHELF_Q | "LS Q" => shaped(eq_type::LOSHELF, true, QRule::Shelf),
+        "HS" | HIGH_SHELF_Q | "HS Q" => shaped(eq_type::HISHELF, true, QRule::Shelf),
         "NONE" => Ok(None),
         _ => Err(LineProblem::UnknownType(name.to_owned())),
     }
@@ -306,7 +320,7 @@ fn filter_of(rest: &str) -> Result<Option<Filter>, LineProblem> {
     };
     let q = match file_type.q {
         QRule::Cookbook => cookbook_q?,
-        QRule::Shelf => shelf_slope_of_q(cookbook_q?, boost),
+        QRule::Shelf => rounded(shelf_slope_of_q(cookbook_q?, boost), SLOPE_DECIMALS),
         QRule::Unused => FIRST_ORDER_Q,
     };
     // A bandwidth of 0 octaves gives an infinite Q, which would reach the speaker as `null` and
@@ -339,9 +353,9 @@ impl Parameters {
             let word = tokens[place].to_ascii_uppercase();
             let value_at = |offset: usize| tokens.get(place + offset).map(|token| number(token));
             match word.as_str() {
-                "FC" => read.frequency = value_at(1).transpose()?,
-                "GAIN" => read.gain = value_at(1).transpose()?,
-                "Q" => read.q = value_at(1).transpose()?,
+                FREQUENCY_KEY => read.frequency = value_at(1).transpose()?,
+                GAIN_KEY => read.gain = value_at(1).transpose()?,
+                Q_KEY => read.q = value_at(1).transpose()?,
                 "BW" if tokens
                     .get(place + 1)
                     .is_some_and(|unit| unit.eq_ignore_ascii_case("oct")) =>
@@ -461,13 +475,13 @@ pub struct Export {
 /// than the speakers'), or a shelf beyond the cookbook form.
 fn apo_line_of(band: &Band) -> Option<(&'static str, bool, f64)> {
     match band.kind.as_str() {
-        eq_type::PARAMETRIC => Some(("PK", true, band.q)),
-        eq_type::LOWPASS => Some(("LPQ", false, band.q)),
-        eq_type::HIGHPASS => Some(("HPQ", false, band.q)),
-        eq_type::NOTCH => Some(("NO", false, band.q)),
-        eq_type::ALLPASS => Some(("AP", false, band.q)),
-        eq_type::LOSHELF => Some(("LSC", true, shelf_q_of_slope(band.q, band.boost)?)),
-        eq_type::HISHELF => Some(("HSC", true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::PARAMETRIC => Some((PEAK, true, band.q)),
+        eq_type::LOWPASS => Some((LOW_PASS_Q, false, band.q)),
+        eq_type::HIGHPASS => Some((HIGH_PASS_Q, false, band.q)),
+        eq_type::NOTCH => Some((NOTCH, false, band.q)),
+        eq_type::ALLPASS => Some((ALL_PASS, false, band.q)),
+        eq_type::LOSHELF => Some((LOW_SHELF_Q, true, shelf_q_of_slope(band.q, band.boost)?)),
+        eq_type::HISHELF => Some((HIGH_SHELF_Q, true, shelf_q_of_slope(band.q, band.boost)?)),
         _ => None,
     }
 }
@@ -525,13 +539,26 @@ fn filter_line(number: usize, token: &str, gain: bool, q: f64, band: &Band) -> S
     if gain {
         line.push_str(&format!(" Gain {} dB", trimmed(band.boost)));
     }
-    line.push_str(&format!(" Q {}", trimmed(q)));
+    line.push_str(&format!(" Q {}", trimmed_q(q)));
     line
+}
+
+fn rounded(value: f64, decimals: i32) -> f64 {
+    let scale = 10f64.powi(decimals);
+    (value * scale).round() / scale
 }
 
 /// Up to three decimals with a point, no trailing zeros and no `-0`.
 fn trimmed(value: f64) -> String {
-    let text = format!("{value:.3}");
+    without_trailing_zeros(&format!("{value:.3}"))
+}
+
+/// Like `trimmed` with nine decimals, for a Q.
+fn trimmed_q(value: f64) -> String {
+    without_trailing_zeros(&format!("{value:.9}"))
+}
+
+fn without_trailing_zeros(text: &str) -> String {
     let text = text.trim_end_matches('0').trim_end_matches('.');
     match text {
         "-0" => "0".to_owned(),
@@ -956,7 +983,7 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
                 "Filter 1: ON PK Fc 1230 Hz Gain -3 dB Q 0.7",
                 "# Filter 1: flat level 1.5 dB not exported",
                 "# Filter 2: off",
-                "Filter 3: ON LSC Fc 80 Hz Gain 4 dB Q 0.589",
+                "Filter 3: ON LSC Fc 80 Hz Gain 4 dB Q 0.589259145",
                 "Filter 4: ON HPQ Fc 30.5 Hz Q 0.5",
             ]
         );
@@ -967,6 +994,27 @@ Filter: ON PK Fc 100 Hz Gain 6 dB Q 1",
                 ExportNote::Off(2)
             ]
         );
+    }
+
+    /// The app's own export read back changes nothing: a shelf's Q, rounded to three decimals
+    /// in the file, came back as another slope, and every shelf was written anew.
+    #[test]
+    fn an_export_read_back_writes_nothing() {
+        let bands = vec![
+            band("LOSHELF", 4.0, 80.0, 0.7),
+            band("HISHELF", -6.5, 8000.0, 0.9),
+            band("LOSHELF", 6.0, 200.0, 5.7),
+            band("PARAMETRIC", -3.0, 1230.0, 0.7),
+        ];
+        let text = export(&bands, "EQ 3").text;
+        let preset = imported_preset("again", &parse(&text).unwrap(), &bands).unwrap();
+        let container = neumann_control_core::ssc::wire::SscPath::parse("audio/out/eq3").unwrap();
+        let held = Leaf::ALL
+            .iter()
+            .map(|leaf| (leaf.path(&container), leaf_array(*leaf, &bands)))
+            .collect();
+        let plan = crate::presets::eq_plan(&preset, &held, &container);
+        assert_eq!(plan.writes, Vec::new(), "{:?}", plan.differences);
     }
 
     /// First-order filters, inversion and a shelf too steep for its height have no APO line:

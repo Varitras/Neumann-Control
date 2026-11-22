@@ -4,18 +4,25 @@
 
 use eframe::egui::Vec2;
 
-use crate::window_placement::WINDOW_MIN_SIZE;
+use crate::window_placement::min_size;
 
 /// A difference below this is rounding, not a size to ask for, as long as the window is not
 /// short of the content: at 1.25 px/pt a whole pixel is less than this.
 const TOLERANCE: f32 = 1.0;
+/// Less than this apart, two sizes are the same whole pixels.
+const HALF_PIXEL: f32 = 0.5;
+/// Points times scale land this far above a whole pixel from float noise alone (egui gives the
+/// window's pixels divided by its scale); it is no pixel more.
+const PIXEL_NOISE: f32 = 0.001;
 /// Below this a window short of the content is float noise, not a pixel.
 const SHORT_BY: f32 = 0.01;
 /// Kept free around a window on the screen (points), for the taskbar.
 pub const SCREEN_MARGIN: f32 = 60.0;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WindowFit {
+    /// The mode's smallest window: the fit asks for no less.
+    least: Vec2,
     /// The size asked for and the size the window had then; until the window has one of them
     /// the request is under way.
     pending: Option<(Vec2, Vec2)>,
@@ -28,7 +35,25 @@ pub struct WindowFit {
     done: bool,
 }
 
+impl Default for WindowFit {
+    /// The compact mode's fit, whose least size is the smaller one.
+    fn default() -> WindowFit {
+        WindowFit::for_mode(true)
+    }
+}
+
 impl WindowFit {
+    /// A fit for the desk or the compact mode, never below its least size.
+    pub fn for_mode(compact: bool) -> WindowFit {
+        WindowFit {
+            least: Vec2::from(min_size(compact)),
+            pending: None,
+            settled: None,
+            granted_short: None,
+            done: false,
+        }
+    }
+
     /// The user sized the window (or the system gave it another size): from now on its size is
     /// a choice.
     pub fn is_over(&self) -> bool {
@@ -36,8 +61,8 @@ impl WindowFit {
     }
 
     /// The size to ask the window for this frame, if any. `current` is the window's inner size,
-    /// `wanted` what the desk needs, `screen` the monitor's size when known, all in points of
-    /// `pixels_per_point`.
+    /// `wanted` what the content of the current mode (desk or compact) needs, `screen` the
+    /// monitor's size when known, all in points of `pixels_per_point`.
     pub fn next(
         &mut self,
         current: Vec2,
@@ -49,10 +74,13 @@ impl WindowFit {
             return None;
         }
         if let Some((asked, before)) = self.pending {
-            if close(current, before) {
+            // Granted to the pixel first: a request less than a point more is also close to the
+            // size before, and waited for good.
+            let granted = same_pixels(current, asked, pixels_per_point);
+            if !granted && close(current, before) {
                 return None;
             }
-            if !close(current, asked) {
+            if !granted && !close(current, asked) {
                 log::debug!("window fit: over, asked {asked:?} and got {current:?}");
                 self.done = true;
                 return None;
@@ -66,7 +94,7 @@ impl WindowFit {
                 return None;
             }
         }
-        let wanted = whole_pixels(bounded(wanted, screen), pixels_per_point);
+        let wanted = whole_pixels(bounded(wanted, self.least, screen), pixels_per_point);
         let fits = close(current, wanted) && !short_of(current, wanted);
         // The system may grant a pixel less than asked; asking again would only repeat.
         if fits || self.granted_short == Some(wanted) {
@@ -90,8 +118,8 @@ pub fn wanted_size(window: Vec2, room: Vec2, content: Vec2) -> Vec2 {
     window + content - room
 }
 
-fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
-    let at_least = wanted.max(Vec2::from(WINDOW_MIN_SIZE));
+fn bounded(wanted: Vec2, least: Vec2, screen: Option<Vec2>) -> Vec2 {
+    let at_least = wanted.max(least);
     match screen {
         Some(screen) => at_least.min(screen - Vec2::splat(SCREEN_MARGIN)),
         None => at_least,
@@ -101,7 +129,8 @@ fn bounded(wanted: Vec2, screen: Option<Vec2>) -> Vec2 {
 /// `size` grown to whole pixels: the window takes whole pixels, and a fraction short of the
 /// content brings up scroll bars.
 fn whole_pixels(size: Vec2, pixels_per_point: f32) -> Vec2 {
-    (size * pixels_per_point).ceil() / pixels_per_point
+    let pixels = size * pixels_per_point - Vec2::splat(PIXEL_NOISE);
+    pixels.ceil() / pixels_per_point
 }
 
 /// `current` smaller than `wanted` in either direction, by more than float noise.
@@ -113,10 +142,30 @@ fn close(one: Vec2, other: Vec2) -> bool {
     (one - other).abs().max_elem() < TOLERANCE
 }
 
+/// The same size in the window's whole pixels.
+fn same_pixels(one: Vec2, other: Vec2, pixels_per_point: f32) -> bool {
+    ((one - other) * pixels_per_point).abs().max_elem() < HALF_PIXEL
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::window_placement::COMPACT_MIN_SIZE;
     use eframe::egui::vec2;
+
+    /// A window of whole pixels, as egui gives it in points (pixels / scale, with float noise),
+    /// already fits a content of its own size: the noise above a whole pixel asked for one more.
+    #[test]
+    fn a_window_of_whole_pixels_fits_its_own_size() {
+        for pixels_per_point in [1.25_f32, 1.5, 1.75] {
+            for pixels in 1000..1800 {
+                let current = Vec2::splat(pixels as f32 / pixels_per_point);
+                let mut fit = WindowFit::default();
+                let asked = fit.next(current, current, None, pixels_per_point);
+                assert_eq!(asked, None, "{pixels} px at {pixels_per_point}");
+            }
+        }
+    }
 
     /// Measured on Linux: the window swung between 720×658 and 726×655 for good. Measured by
     /// the room of the scroll area (16 and 45 points less than the window), both sizes want the
@@ -138,6 +187,23 @@ mod tests {
         let asked = fit.next(START, vec2(718.9, 654.6), SCREEN, 2.5).unwrap();
         assert!((asked.x - 719.2).abs() < 1e-3, "{asked:?}");
         assert!((asked.y - 654.8).abs() < 1e-3, "{asked:?}");
+    }
+
+    /// Above 100 % a request can be less than a point more than the window has. Granted, the new
+    /// size was still "close to" the old one, so the request counted as under way for good and
+    /// the window never grew with the desk again.
+    #[test]
+    fn a_request_less_than_a_point_more_is_seen_granted() {
+        const SCALE: f32 = 1.25;
+        let mut fit = WindowFit::default();
+        let current = vec2(640.0, 480.0);
+        let asked = fit
+            .next(current, vec2(640.3, 480.0), SCREEN, SCALE)
+            .expect("a request");
+        assert!((asked - current).max_elem() < TOLERANCE, "{asked:?}");
+        assert_eq!(fit.next(asked, vec2(640.3, 480.0), SCREEN, SCALE), None);
+        let grown = fit.next(asked, vec2(740.0, 480.0), SCREEN, SCALE);
+        assert!(grown.is_some(), "the fit hangs on its earlier request");
     }
 
     const START: Vec2 = Vec2::new(900.0, 600.0);
@@ -231,7 +297,7 @@ mod tests {
         let mut fit = WindowFit::default();
         assert_eq!(
             fit.next(START, vec2(200.0, 3000.0), SCREEN, 1.0),
-            Some(vec2(WINDOW_MIN_SIZE[0], 1080.0 - SCREEN_MARGIN))
+            Some(vec2(COMPACT_MIN_SIZE[0], 1080.0 - SCREEN_MARGIN))
         );
     }
 }

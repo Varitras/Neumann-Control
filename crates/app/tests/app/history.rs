@@ -10,11 +10,8 @@ use neumann_control_app::history::{is_open, Entry};
 use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_core::settings::SettingsPreset;
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::simulator::SimulatedModel;
 use serde_json::{json, Value};
-
-/// Long enough that the speaker's confirmation of a write is still out when the test acts.
-const UNCONFIRMED_WRITE_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
 fn entries(harness: &Harness<'static, NeumannApp>) -> Vec<Entry> {
     harness.state().history().entries().cloned().collect()
@@ -41,7 +38,7 @@ fn take_back(harness: &mut Harness<'static, NeumannApp>, id: u64) {
 
 #[test]
 fn a_fader_drag_is_one_history_entry() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
@@ -85,7 +82,7 @@ fn a_group_mute_leaves_an_unreachable_member_out_of_the_entry() {
 
 #[test]
 fn identify_is_not_recorded() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::IDENTIFY.get()).click();
     wait_until(&mut harness, "the identify write", |_| {
         !sets(&simulator, "/device/identification/visual").is_empty()
@@ -96,7 +93,7 @@ fn identify_is_not_recorded() {
 
 #[test]
 fn taking_back_writes_the_value_before() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
         sets(&simulator, MUTE_POINTER) == [json!(true)]
@@ -116,7 +113,7 @@ fn taking_back_writes_the_value_before() {
 /// stays open, so it can be taken back once the speaker accepts writes again.
 #[test]
 fn a_refused_take_back_leaves_the_entry_open() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
         sets(&simulator, MUTE_POINTER) == [json!(true)]
@@ -143,7 +140,7 @@ fn a_refused_take_back_leaves_the_entry_open() {
 fn a_speaker_left_out_of_a_take_back_is_named_once() {
     let evening = SettingsPreset {
         name: "Evening".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [
             (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
             ("audio/out/delay".to_owned(), json!(10)),
@@ -151,12 +148,12 @@ fn a_speaker_left_out_of_a_take_back_is_named_once() {
         .into(),
     };
     let (simulator, _directory, mut harness) =
-        connected_speaker_with_presets(SimModel::Kh120Ii, vec![evening]);
+        connected_speaker_with_presets(SimulatedModel::Kh120Ii, vec![evening]);
     open_stored_preset(
         &mut harness,
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         "Evening",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     harness.get_by_label(texts::WRITE_PRESET.get()).click();
     wait_until(&mut harness, "the preset written", |_| {
@@ -173,12 +170,12 @@ fn a_speaker_left_out_of_a_take_back_is_named_once() {
         .take_back_notice()
         .expect("a notice")
         .clone();
-    assert_eq!(notice.skipped, vec![device_name(SimModel::Kh120Ii)]);
+    assert_eq!(notice.skipped, vec![device_name(SimulatedModel::Kh120Ii)]);
 }
 
 #[test]
 fn a_take_back_is_itself_an_entry_that_can_be_taken_back() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
         !sets(&simulator, MUTE_POINTER).is_empty()
@@ -196,9 +193,39 @@ fn a_take_back_is_itself_an_entry_that_can_be_taken_back() {
     });
 }
 
+/// Ctrl+Z waits while a "changed since" question waits for its answer: it would take back the
+/// newest entry past the question.
+#[test]
+fn ctrl_z_waits_for_a_pending_question() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
+    wait_for_level(&mut harness, 90.0);
+    drag_fader_down(&mut harness);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    click_mute(&mut harness, &simulator, 1);
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    let level = entries(&harness)
+        .iter()
+        .find(|entry| {
+            entry.changes[0].path == neumann_control_app::paths::path(paths::OUTPUT_LEVEL)
+        })
+        .expect("the level entry")
+        .id;
+    take_back(&mut harness, level);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, MUTE_POINTER).len(), 1);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+}
+
 #[test]
 fn a_changed_value_asks_before_taking_back() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
@@ -256,7 +283,7 @@ fn mute_label() -> String {
 
 fn mute_change(before: bool, after: bool) -> String {
     texts::history_change(
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         &mute_label(),
         &texts::history_value(&json!(before), None),
         &texts::history_value(&json!(after), None),
@@ -280,7 +307,7 @@ fn click_mute(
 
 #[test]
 fn the_history_lists_the_newest_write_first() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
     wait_until(&mut harness, "the muted state", |_| {
         speaker_is_muted(&simulator)
@@ -308,14 +335,14 @@ fn speaker_is_muted(simulator: &neumann_control_core::simulator::Simulator) -> b
 
 #[test]
 fn the_empty_history_says_so() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::HISTORY.get()).click();
     wait_for_label(&mut harness, texts::NO_HISTORY.get());
 }
 
 #[test]
 fn ctrl_z_takes_back_the_newest_write() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "unmute", |_| {
@@ -325,7 +352,7 @@ fn ctrl_z_takes_back_the_newest_write() {
 
 #[test]
 fn a_take_back_before_the_speaker_confirmed_the_write_does_not_ask() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness.get_by_label(texts::MUTE.get()).click();
     wait_until(&mut harness, "mute", |_| {
@@ -343,7 +370,7 @@ fn a_take_back_before_the_speaker_confirmed_the_write_does_not_ask() {
 /// work then (keyboard and screen reader users move by Tab).
 #[test]
 fn ctrl_z_takes_back_while_a_button_has_the_focus() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(2);
@@ -360,7 +387,7 @@ fn ctrl_z_takes_back_while_a_button_has_the_focus() {
 #[test]
 fn ctrl_z_takes_back_after_the_speaker_got_its_serial() {
     let (simulator, directory, mut harness) =
-        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
             simulator.set_value("device/identity/serial", json!(7));
         });
     click_mute(&mut harness, &simulator, 1);
@@ -387,7 +414,7 @@ fn ctrl_z_takes_back_after_the_speaker_got_its_serial() {
 #[test]
 fn a_typed_value_stays_when_the_speaker_gets_its_serial() {
     let (simulator, directory, mut harness) =
-        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
             simulator.set_value("device/identity/serial", json!(7));
         });
     let position = harness.get_by_label(&readout(100.0)).rect().center();
@@ -417,11 +444,12 @@ fn a_typed_value_stays_when_the_speaker_gets_its_serial() {
 
 #[test]
 fn ctrl_z_in_a_text_field_does_not_take_back() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     click_mute(&mut harness, &simulator, 1);
-    // Past the widened double-click allowance (2 s at 0.25 s a frame), so the mute click does not
-    // count as the first click of the double click.
-    harness.run_steps(12);
+    // Past the widened double-click allowance, so the mute click does not count as the first
+    // click of the double click.
+    let past_double_click = (TEST_DOUBLE_CLICK_SECONDS / FRAME_SECONDS) as usize + 4;
+    harness.run_steps(past_double_click);
     let position = harness.get_by_label(&readout(100.0)).rect().center();
     double_click_at(&mut harness, position);
     harness.get_by_role(Role::TextInput);
@@ -435,7 +463,7 @@ fn ctrl_z_in_a_text_field_does_not_take_back() {
 /// window it opens.
 #[test]
 fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     // A slow answer, as under load: the test must wait for it before the speaker goes away.
     simulator.set_reply_delay(SLOW_ANSWER);
     click_mute(&mut harness, &simulator, 1);
@@ -443,14 +471,14 @@ fn ctrl_z_that_leaves_a_speaker_out_shows_the_notice() {
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     harness.run_steps(3);
-    let name = device_name(SimModel::Kh120Ii).to_owned();
+    let name = device_name(SimulatedModel::Kh120Ii).to_owned();
     harness.get_by_label(&texts::take_back_skipped(&[name]));
 }
 
 /// Cancel and Escape in the "changed since" question both leave the value as it is now.
 #[test]
 fn the_changed_since_question_cancels_by_button_and_escape() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);
@@ -475,7 +503,7 @@ fn the_changed_since_question_cancels_by_button_and_escape() {
 
 #[test]
 fn ctrl_z_on_a_changed_value_asks_and_reverts_on_confirm() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     simulator.set_value(paths::OUTPUT_LEVEL, json!(90.0));
     wait_for_level(&mut harness, 90.0);
     drag_fader_down(&mut harness);

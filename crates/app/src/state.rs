@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use neumann_control_core::discovery::Found;
-use neumann_control_core::mask::{mask_host, mask_serial, mask_serial_in, mask_serial_like};
+use neumann_control_core::mask::{
+    mask_device_text, mask_host, mask_serial, mask_serial_in, mask_serial_like,
+};
 use neumann_control_core::schema_walk::LeafReport;
 use neumann_control_core::settings::KnownSpeaker;
 use neumann_control_core::speaker::{Command, Event, Identity};
@@ -82,7 +84,8 @@ pub enum AllValuesState {
     Idle,
     Loading,
     Loaded(Vec<LeafReport>),
-    Failed(String),
+    /// The reason went to the log, like a failed full scan's.
+    Failed,
 }
 
 /// What the strip says about the speaker; worded only when drawn, so it follows the language.
@@ -138,6 +141,8 @@ pub struct SpeakerState {
     /// One per knob the user turned, so a sent value stays shown until the speaker reports it.
     pub knobs: BTreeMap<SscPath, GestureState>,
     pub all_values: AllValuesState,
+    /// A read of every value is out; its answer fills "Alle Werte" and the full scan alike.
+    reading_all: bool,
     /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
@@ -219,6 +224,7 @@ impl SpeakerState {
             fader: GestureState::default(),
             knobs: BTreeMap::new(),
             all_values: AllValuesState::Idle,
+            reading_all: false,
             all_values_filter: String::new(),
             response_time: None,
             written: Vec::new(),
@@ -367,7 +373,8 @@ impl SpeakerState {
             .and_then(|writes| writes.get_mut(path))?;
         let write = writes.pop_front()?;
         let later = writes.iter().copied().collect();
-        if matches!(event, Event::WriteRejected { .. }) {
+        // A 404 is a refusal too: the value before goes on to the later writes.
+        if matches!(event, Event::WriteRejected { .. } | Event::WriteAbsent(_)) {
             self.note_predecessor(Some(write), later, None);
         }
         if !done {
@@ -525,6 +532,7 @@ impl SpeakerState {
     /// a running read or scan can be asked again.
     pub fn forget_outstanding(&mut self) {
         self.drop_pending();
+        self.reading_all = false;
         if self.all_values == AllValuesState::Loading {
             self.all_values = AllValuesState::Idle;
         }
@@ -566,21 +574,34 @@ impl SpeakerState {
             Event::Written { path, value } => {
                 let pending = self.pending.get(&path);
                 let sent = pending.and_then(|pending| pending.sent.front().cloned());
+                // What the speaker confirmed of this path's writes so far, this one included:
+                // `values` stands still while writes are on their way.
+                let confirmed = pending.map(|pending| merged(pending.base.as_ref(), &value));
                 let answered = self.settle(&path, Answer::Held(&value));
                 if self.pending.contains_key(&path) {
                     self.follow_confirmation(&path, answered, sent, &value);
                 } else {
+                    // A band write may confirm only its own entry; the others stay as known.
+                    let confirmed = confirmed.unwrap_or(value);
+                    let value = merged(self.values.get(&path), &confirmed);
                     self.take_reported(path, value, now);
                 }
             }
             // A write on its way gets its own answer, which may still be `Written`.
             Event::Absent(path) => {
+                if let Some(meters) = self.meters_of(&path) {
+                    meters.clear();
+                }
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
+            // Refused like a rejection: later writes of the path keep the value before it.
             Event::WriteAbsent(path) => {
                 let refused = self.settle(&path, Answer::NotApplied);
+                let later = self.later_writes(&path);
+                self.note_predecessor(refused, later, None);
                 self.refused_writes.extend(refused);
+                self.rebuild_pending(&path);
                 self.values.remove(&path);
                 self.absent.insert(path);
             }
@@ -615,17 +636,19 @@ impl SpeakerState {
                 self.warnings.record(now, None);
             }
             Event::AllValues(reports) => {
+                self.reading_all = false;
                 if self.full_scan == FullScanState::Running {
                     self.full_scan = FullScanState::Read(reports.clone());
                 }
                 self.finish_all_values(AllValuesState::Loaded(reports));
             }
             Event::AllValuesFailed(reason) => {
+                self.reading_all = false;
+                log::warn!("reading every value failed: {}", mask_device_text(&reason));
                 if self.full_scan == FullScanState::Running {
-                    log::warn!("full scan ended early: {reason}");
                     self.full_scan = FullScanState::Failed(ScanFailure::Reading);
                 }
-                self.finish_all_values(AllValuesState::Failed(reason));
+                self.finish_all_values(AllValuesState::Failed);
             }
             Event::ResponseTime(time) => self.response_time = Some(time),
         }
@@ -644,16 +667,30 @@ impl SpeakerState {
         self.status == Status::Connected && self.all_values != AllValuesState::Loading
     }
 
-    /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
-    pub fn read_all_values(&mut self) -> Command {
-        self.all_values = AllValuesState::Loading;
-        Command::ReadAll
+    /// "Komplett scannen" may start: only from a connected speaker, once at a time.
+    pub fn can_start_full_scan(&self) -> bool {
+        self.status == Status::Connected && self.full_scan != FullScanState::Running
     }
 
-    /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte".
-    pub fn start_full_scan(&mut self) -> Command {
+    /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
+    /// `None` while the full scan's read is out: its answer fills "Alle Werte" too.
+    pub fn read_all_values(&mut self) -> Option<Command> {
+        self.all_values = AllValuesState::Loading;
+        self.read_every_value()
+    }
+
+    /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte", whose read, when
+    /// out, it waits for instead of sending another.
+    pub fn start_full_scan(&mut self) -> Option<Command> {
         self.full_scan = FullScanState::Running;
-        Command::ReadAll
+        self.read_every_value()
+    }
+
+    /// The read for "Alle Werte" or the full scan, unless one is out already; kept apart from the
+    /// window, which may close and open again while it is out.
+    fn read_every_value(&mut self) -> Option<Command> {
+        let out = std::mem::replace(&mut self.reading_all, true);
+        (!out).then_some(Command::ReadAll)
     }
 
     /// Closes the "Alle Werte" window and forgets its filter.
@@ -707,13 +744,22 @@ impl SpeakerState {
         }
     }
 
+    /// The meters `path` feeds, if it is a meter path.
+    fn meters_of(&mut self, path: &SscPath) -> Option<&mut Vec<MeterState>> {
+        match path.to_string().as_str() {
+            paths::INPUT_METER => Some(&mut self.input_meters),
+            paths::OUTPUT_METER => Some(&mut self.output_meters),
+            _ => None,
+        }
+    }
+
     fn feed_meters(&mut self, path: &SscPath, value: &Value, now: f64) {
-        let meters = match path.to_string().as_str() {
-            paths::INPUT_METER => &mut self.input_meters,
-            paths::OUTPUT_METER => &mut self.output_meters,
-            _ => return,
+        let Some(meters) = self.meters_of(path) else {
+            return;
         };
+        // No list is no reading: the meters go empty instead of standing at the last level.
         let Some(levels) = value.as_array() else {
+            meters.clear();
             return;
         };
         let levels = &levels[..levels.len().min(MAX_METER_CHANNELS)];
@@ -1062,8 +1108,8 @@ mod tests {
         assert_eq!(speaker.message, Some(Message::Unreachable));
     }
 
-    /// The connection went away with a write on its way: the worker fails it after reporting
-    /// the outage, and that failure still counts for the write.
+    /// The connection went away with a write on its way: the outage counts it as failed, and the
+    /// worker's failure for it afterwards does not count it twice.
     #[test]
     fn a_write_outstanding_at_an_outage_counts_as_failed() {
         let mut speaker = state();
@@ -1080,6 +1126,73 @@ mod tests {
             1.1,
         );
         assert!(speaker.refused_writes.contains(&write));
+    }
+
+    /// A meter path that answers no list, or turns 404, has no reading: its meters go empty
+    /// instead of standing at the last level for good.
+    #[test]
+    fn meters_without_a_reading_go_empty() {
+        let meter = path(paths::INPUT_METER);
+        let readings = |value: Value| Event::Value {
+            path: meter.clone(),
+            value,
+        };
+        for gone in [readings(json!("no list")), Event::Absent(meter.clone())] {
+            let mut speaker = state();
+            speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+            speaker.apply(readings(json!([-10.0, -20.0])), 0.0);
+            assert_eq!(speaker.input_meters.len(), 2);
+            let shown = format!("{gone:?}");
+            speaker.apply(gone, 0.1);
+            assert!(speaker.input_meters.is_empty(), "after {shown}");
+        }
+    }
+
+    /// A band write confirmed with only its own entry (the others `null`) fills the rest from what
+    /// was known, also for the last write of the path: stored as it came, the other bands read
+    /// as `null` until the next slow poll.
+    #[test]
+    fn a_sparse_confirmation_of_the_last_write_keeps_the_other_entries() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let gain = path("audio/out/eq2/gain");
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, -3.0]),
+        };
+        speaker.apply(reported, 0.0);
+        speaker.record_written(&gain, &json!([1.0, null]));
+        let confirmed = Event::Written {
+            path: gain.clone(),
+            value: json!([1.0, null]),
+        };
+        speaker.apply(confirmed, 0.5);
+        assert_eq!(speaker.values.get(&gain), Some(&json!([1.0, -3.0])));
+    }
+
+    /// Two band writes of one path on their way, each confirmed for its own band only: the
+    /// speaker holds both. The last confirmation was filled from the value before the first
+    /// write, which took the first band back.
+    #[test]
+    fn two_sparse_confirmations_of_one_path_keep_both_bands() {
+        let mut speaker = state();
+        speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
+        let gain = path("audio/out/eq2/gain");
+        let reported = Event::Value {
+            path: gain.clone(),
+            value: json!([0.0, -3.0]),
+        };
+        speaker.apply(reported, 0.0);
+        speaker.record_written(&gain, &json!([1.0, null]));
+        speaker.record_written(&gain, &json!([null, 2.0]));
+        for confirmed in [json!([1.0, null]), json!([null, 2.0])] {
+            let confirmed = Event::Written {
+                path: gain.clone(),
+                value: confirmed,
+            };
+            speaker.apply(confirmed, 0.5);
+        }
+        assert_eq!(speaker.values.get(&gain), Some(&json!([1.0, 2.0])));
     }
 
     /// A speaker removed and added again is a new state, but its history stays: its writes are
@@ -1295,11 +1408,16 @@ mod tests {
                 description: String::new(),
             },
         };
+        // A 404 to a write is a refusal like any other, also from an old connection.
+        let absent = Event::WriteAbsent(mute.clone());
         let failed = Event::WriteFailed {
             path: mute.clone(),
             message: String::new(),
         };
-        for moved in [false, true] {
+        for (moved, refusal) in [false, true]
+            .into_iter()
+            .flat_map(|moved| [&rejected, &absent].map(|refusal| (moved, refusal)))
+        {
             let mut speaker = state();
             speaker.apply(Event::Connected(identity("left", "KH 120 II")), 0.0);
             let mut writes = Vec::new();
@@ -1316,7 +1434,7 @@ mod tests {
             };
             answer(&mut speaker, &failed);
             assert!(speaker.predecessors.is_empty(), "moved: {moved}");
-            answer(&mut speaker, &rejected);
+            answer(&mut speaker, refusal);
             let expected = Predecessor {
                 write: writes[1],
                 later: vec![writes[2]],
@@ -1469,7 +1587,7 @@ mod tests {
     #[test]
     fn all_values_go_from_loading_to_loaded_or_failed() {
         let mut speaker = state();
-        assert_eq!(speaker.read_all_values(), Command::ReadAll);
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
         assert_eq!(speaker.all_values, AllValuesState::Loading);
         let reports = vec![LeafReport {
             path: path("device/name"),
@@ -1480,10 +1598,7 @@ mod tests {
         assert_eq!(speaker.all_values, AllValuesState::Loaded(reports));
         speaker.read_all_values();
         speaker.apply(Event::AllValuesFailed("refused".to_owned()), 1.0);
-        assert_eq!(
-            speaker.all_values,
-            AllValuesState::Failed("refused".to_owned())
-        );
+        assert_eq!(speaker.all_values, AllValuesState::Failed);
     }
 
     #[test]
@@ -1574,6 +1689,48 @@ mod tests {
         assert_eq!(speaker.latest(&path), Some(&json!(false)));
         assert_eq!(speaker.all_values, AllValuesState::Idle);
         assert_eq!(speaker.full_scan, FullScanState::Idle);
+    }
+
+    /// "Alle Werte" and "Komplett scannen" send the same read: started while the other's read
+    /// is out, the second waits for that answer. Both buttons stayed enabled and each sent a
+    /// whole walk through the speaker.
+    #[test]
+    fn a_second_read_of_every_value_waits_for_the_first() {
+        let mut speaker = state();
+        speaker.status = Status::Connected;
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+        assert!(speaker.can_start_full_scan());
+        assert_eq!(speaker.start_full_scan(), None);
+        assert!(!speaker.can_start_full_scan() && !speaker.can_read_all_values());
+        speaker.apply(Event::AllValues(Vec::new()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Loaded(Vec::new()));
+        assert_eq!(speaker.full_scan, FullScanState::Read(Vec::new()));
+        assert_eq!(speaker.start_full_scan(), Some(Command::ReadAll));
+        assert_eq!(speaker.read_all_values(), None);
+    }
+
+    /// "Alle Werte" closed and opened again while its read is out waits for that read: the
+    /// window's state said nothing was out, and a second walk went to the speaker.
+    #[test]
+    fn a_read_of_every_value_reopened_waits_for_the_one_out() {
+        let mut speaker = state();
+        speaker.status = Status::Connected;
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+        speaker.close_all_values();
+        assert_eq!(speaker.read_all_values(), None);
+        assert_eq!(speaker.start_full_scan(), None);
+        speaker.apply(Event::AllValues(Vec::new()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Loaded(Vec::new()));
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+    }
+
+    /// "Alle Werte" alone kept the reason, which no window shows, and logged it nowhere.
+    #[test]
+    fn a_failed_read_of_every_value_keeps_no_raw_reason() {
+        let mut speaker = state();
+        speaker.read_all_values();
+        speaker.apply(Event::AllValuesFailed("fe80::1 refused".to_owned()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Failed);
     }
 
     /// The walk's own reason is English and may name an address; the panel words the failure

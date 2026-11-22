@@ -34,7 +34,7 @@ fn sample() -> Settings {
     }
 }
 
-/// The windows of their own keep their places across a restart, by kind and speaker.
+/// The windows of their own keep their places across a restart, one per kind.
 #[test]
 fn window_places_survive_a_save() {
     let directory = tempfile::tempdir().unwrap();
@@ -47,11 +47,9 @@ fn window_places_survive_a_save() {
         height: 480.0,
         maximized: false,
     };
-    settings
-        .windows
-        .insert("eq serial:SIM0001234".to_owned(), place);
+    settings.windows.insert("eq".to_owned(), place);
     save(&settings, &path).unwrap();
-    assert_eq!(load(&path).windows["eq serial:SIM0001234"], place);
+    assert_eq!(load(&path).windows["eq"], place);
 }
 
 #[test]
@@ -82,12 +80,28 @@ fn save_replaces_existing_file() {
     assert_eq!(load(&path), sample());
 }
 
+/// What desk settings that cannot be read load as: the defaults, with the crossovers protected.
+fn unread_desk() -> DeskSettings {
+    DeskSettings {
+        crossovers: CrossoverGuard::Protected,
+        ..DeskSettings::default()
+    }
+}
+
+/// What a file that cannot be read loads as.
+fn unread_settings() -> Settings {
+    Settings {
+        desk: unread_desk(),
+        ..Settings::default()
+    }
+}
+
 #[test]
 fn malformed_file_is_moved_aside() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, "{ not json").unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert!(!path.exists());
     assert_eq!(
         fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
@@ -105,7 +119,7 @@ fn existing_bad_file_is_never_overwritten() {
     )
     .unwrap();
     fs::write(&path, "second").unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert_eq!(
         fs::read_to_string(directory.path().join(format!("{SETTINGS_FILE}.bad"))).unwrap(),
         "first"
@@ -200,7 +214,7 @@ fn a_desk_of_the_wrong_type_keeps_the_speakers() {
     let loaded = load_checked(&path);
     assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
     assert_eq!(loaded.settings.manual.len(), 1);
-    assert_eq!(loaded.settings.desk, DeskSettings::default());
+    assert_eq!(loaded.settings.desk, unread_desk());
 }
 
 /// A file that can be neither read nor moved aside (held open by another program) must not
@@ -385,7 +399,7 @@ fn an_unreadable_file_is_moved_aside_not_taken_for_missing() {
     let path = directory.path().join(SETTINGS_FILE);
     // A folder in its place cannot be read, and is not "not found" either.
     fs::create_dir(&path).unwrap();
-    assert_eq!(load(&path), Settings::default());
+    assert_eq!(load(&path), unread_settings());
     assert!(!path.exists());
     let set_aside = directory.path().join(format!("{SETTINGS_FILE}.bad"));
     assert!(set_aside.is_dir());
@@ -467,7 +481,7 @@ fn like_windows_follows_the_system_language() {
 }
 
 #[test]
-fn crossovers_stay_protected_unless_opened_on_purpose() {
+fn a_stored_crossover_choice_is_kept_and_nonsense_falls_back_to_protected() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     fs::write(&path, r#"{"manual":[],"desk":{"crossovers":"Protected"}}"#).unwrap();
@@ -557,7 +571,7 @@ fn the_eq_display_keeps_its_choices_and_falls_back_on_nonsense() {
     assert_eq!(load(&path).eq_display.band_curves, BandCurves::All);
 }
 
-/// A file from before the setting shows the master, as the app did then.
+/// A file from before the setting hides the master, as a new install does.
 #[test]
 fn a_file_without_the_master_choice_hides_it() {
     let directory = tempfile::tempdir().unwrap();
@@ -628,6 +642,34 @@ fn an_unreadable_strip_element_is_left_out_and_keeps_a_copy() {
     assert_eq!(fs::read_to_string(copy).unwrap(), text);
 }
 
+/// A switch that cannot be read takes the same default as one not there: the response times
+/// were shown when the key was missing and hidden when its value was not understood.
+#[test]
+fn an_unreadable_response_time_switch_keeps_its_default() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    fs::write(&path, r#"{"desk": {"show_response_times": "yes"}}"#).unwrap();
+    let desk = load(&path).desk;
+    assert_eq!(
+        desk.show_response_times,
+        DeskSettings::default().show_response_times
+    );
+}
+
+/// A map field that is no map (a later version's list, a hand edit) is left out alone: the
+/// remembered speakers beside it stay.
+#[test]
+fn a_map_field_that_is_no_map_keeps_the_speakers() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let text = r#"{"manual":[{"address":"fe80::1%7","port":45}],"windows":[1,2],"known":"x"}"#;
+    fs::write(&path, text).unwrap();
+    let loaded = load_checked(&path);
+    assert_eq!(loaded.outcome, LoadOutcome::PartlyUnderstood);
+    assert_eq!(loaded.settings.manual.len(), 1);
+    assert!(loaded.settings.windows.is_empty() && loaded.settings.known.is_empty());
+}
+
 #[test]
 fn compact_layouts_round_trip() {
     let directory = tempfile::tempdir().unwrap();
@@ -688,6 +730,27 @@ fn every_settings_map_keeps_its_readable_entries() {
         fs::write(&path, text).unwrap();
         assert_eq!(count(&load(&path)), 1, "{text}");
     }
+}
+
+/// Open is the choice of a fresh install, not of a file that cannot be read: an unreadable desk
+/// block or a file set aside left the crossovers open, against "not understood is protected".
+#[test]
+fn crossovers_are_protected_when_their_settings_cannot_be_read() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    assert_eq!(load(&path).desk.crossovers, CrossoverGuard::Open, "no file");
+    fs::write(&path, r#"{"manual":[],"desk":7}"#).unwrap();
+    assert_eq!(
+        load(&path).desk.crossovers,
+        CrossoverGuard::Protected,
+        "desk"
+    );
+    fs::write(&path, "not json").unwrap();
+    assert_eq!(
+        load(&path).desk.crossovers,
+        CrossoverGuard::Protected,
+        "file"
+    );
 }
 
 /// Out of the box the master strip is hidden and the crossovers may be changed; a crossover value

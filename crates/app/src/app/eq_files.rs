@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 
 use neumann_control_core::catalog::Catalog;
+use neumann_control_core::files;
 use neumann_control_core::settings::EqPreset;
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -12,11 +13,12 @@ use serde_json::Value;
 use super::eq::PendingImport;
 use super::NeumannApp;
 use crate::eq::{bands_of, output_group, several_outputs};
-use crate::eq_file::{self, MAX_FILE_BYTES};
+use crate::eq_file::{self, Imported, MAX_FILE_BYTES};
 use crate::presets::eq_plan;
 use crate::texts;
 
-/// Characters Windows does not allow in a file name; a container label like "A/B" has some.
+/// Characters Windows does not allow in a file name. The suggested name is made of the model and
+/// the EQ's label, which come from the speaker and the catalog and are not checked for them.
 const FORBIDDEN_IN_FILE_NAMES: [char; 9] = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
 const FILE_NAME_REPLACEMENT: char = '-';
 const FILE_EXTENSION: &str = "txt";
@@ -28,16 +30,16 @@ impl NeumannApp {
             return;
         };
         let file = file_name(&path);
-        let pending = match self.imported_preset(index, &path, &file) {
-            Ok((preset, notes)) => PendingImport {
+        let pending = match self.read_import(index, &path, &file) {
+            Ok((imported, notes)) => PendingImport {
                 file,
-                preset: Some(preset),
+                imported: Some(imported),
                 notes,
                 refusal: None,
             },
             Err(refusal) => PendingImport {
                 file,
-                preset: None,
+                imported: None,
                 notes: Vec::new(),
                 refusal: Some(refusal),
             },
@@ -47,15 +49,33 @@ impl NeumannApp {
         window.import = Some(pending);
     }
 
-    /// The container after the import, with the notes on what the file holds beyond it.
-    fn imported_preset(
+    /// The file as read, checked once against the container, with the notes on what it holds
+    /// beyond it.
+    fn read_import(
         &self,
         index: usize,
         path: &Path,
         file: &str,
-    ) -> Result<(EqPreset, Vec<String>), String> {
+    ) -> Result<(Imported, Vec<String>), String> {
         let text = read_text(path, file)?;
         let imported = eq_file::parse(&text).map_err(|error| texts::eq_import_error(&error))?;
+        self.import_preset(index, file, &imported)?;
+        let mut notes = Vec::new();
+        if !imported.ignored.is_empty() {
+            notes.push(texts::eq_import_ignored(&imported.ignored));
+        }
+        Ok((imported, notes))
+    }
+
+    /// The container after the import, from the speaker's values now: the bands the file leaves
+    /// out keep what they have at this moment, not when the file was read. Preview and Write
+    /// both ask this, so one cannot offer what the other refuses.
+    pub(super) fn import_preset(
+        &self,
+        index: usize,
+        file: &str,
+        imported: &Imported,
+    ) -> Result<EqPreset, String> {
         let current = self
             .chosen_container(index)
             .and_then(|(container, _)| {
@@ -63,13 +83,8 @@ impl NeumannApp {
                 bands_of(&speaker.latest_values(), &container)
             })
             .ok_or_else(|| texts::EQ_NOT_REPORTED.get().to_owned())?;
-        let preset = eq_file::imported_preset(file, &imported, &current)
-            .map_err(|error| texts::eq_import_error(&error))?;
-        let mut notes = Vec::new();
-        if !imported.ignored.is_empty() {
-            notes.push(texts::eq_import_ignored(&imported.ignored));
-        }
-        Ok((preset, notes))
+        eq_file::imported_preset(file, imported, &current)
+            .map_err(|error| texts::eq_import_error(&error))
     }
 
     fn import_writes(&self, index: usize, preset: &EqPreset) -> Vec<(SscPath, Value)> {
@@ -85,12 +100,17 @@ impl NeumannApp {
     /// The previewed import as one history entry; the speaker's values are compared again, so
     /// only what still differs is written.
     pub(super) fn write_eq_import(&mut self, index: usize, now: f64) {
-        let Some(pending) = self.eq_windows[index].import.take() else {
+        let Some(pending) = &self.eq_windows[index].import else {
             return;
         };
-        let Some(preset) = pending.preset else {
+        let Some(imported) = &pending.imported else {
             return;
         };
+        // Refused, the preview stays open and says why.
+        let Ok(preset) = self.import_preset(index, &pending.file, imported) else {
+            return;
+        };
+        self.eq_windows[index].import = None;
         let writes = self.import_writes(index, &preset);
         self.write_eq_leaves(index, writes, now);
     }
@@ -104,7 +124,8 @@ impl NeumannApp {
             return;
         };
         let file = file_name(&path);
-        let report = match fs::write(&path, export.text) {
+        // Replaced whole: a write that breaks off must not cost the user's old filters.
+        let report = match files::replace(&path, export.text.as_bytes()) {
             Ok(()) => texts::eq_export_report(&file, &export.notes),
             Err(error) => texts::eq_file_unwritable(&file, &error.to_string()),
         };

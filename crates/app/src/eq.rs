@@ -46,23 +46,33 @@ impl Leaf {
     }
 }
 
-/// Where a write goes among several to one speaker: an EQ `enabled` write that only switches
-/// bands off first, one that switches any on last, everything else between.
-pub fn write_rank(path: &SscPath, value: &Value) -> u8 {
+/// Where a write goes among several to one speaker, in this order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WriteStage {
+    /// An EQ `enabled` write that only switches bands off.
+    SwitchOff,
+    /// Everything else.
+    Between,
+    /// An EQ `enabled` write that switches any band on.
+    SwitchOn,
+}
+
+/// Where a write goes among several to one speaker: switching off first, switching on last.
+pub fn write_rank(path: &SscPath, value: &Value) -> WriteStage {
     let Some(switches) = enabled_switches(path, value) else {
-        return 1;
+        return WriteStage::Between;
     };
     if switches.iter().any(|switch| switch.as_bool() == Some(true)) {
-        2
+        WriteStage::SwitchOn
     } else {
-        0
+        WriteStage::SwitchOff
     }
 }
 
 /// Where a take-back of `after` to `before` goes, by what it switches: only the places where
 /// the two differ count. A preset writes whole arrays, so its switching on holds bands that
 /// were on already, and the take-back of it switches the new ones off.
-pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> u8 {
+pub fn take_back_rank(path: &SscPath, before: &Value, after: &Value) -> WriteStage {
     let (Some(before_places), Some(after_places)) = (before.as_array(), after.as_array()) else {
         return write_rank(path, before);
     };
@@ -172,8 +182,13 @@ pub const GAIN_GRID_DB: f64 = 0.5;
 pub const Q_STEP: f64 = 0.1;
 const FREQUENCY_DIGITS: i32 = 3;
 
-/// `frequency` rounded to `FREQUENCY_DIGITS` significant digits (1230 Hz, 47.3 Hz).
+/// `frequency` rounded to `FREQUENCY_DIGITS` significant digits (1230 Hz, 47.3 Hz). A value with
+/// no logarithm (0 Hz from a speaker) comes back as it is.
 pub fn snapped_frequency(frequency: f64) -> f64 {
+    let has_digits = frequency.is_finite() && frequency > 0.0;
+    if !has_digits {
+        return frequency;
+    }
     let magnitude = frequency.abs().log10().floor() as i32;
     let unit = 10f64.powi(magnitude + 1 - FREQUENCY_DIGITS);
     let snapped = (frequency / unit).round() * unit;
@@ -439,6 +454,30 @@ mod tests {
         assert_eq!(bands_of(&values, &container()), None);
     }
 
+    /// A faulty report can make any leaf shorter or longer than the others, or give it the
+    /// wrong kind of entry: no band is read, and nothing indexes past an array.
+    #[test]
+    fn every_leaf_of_another_length_or_type_gives_no_bands() {
+        for leaf in Leaf::ALL {
+            let path = leaf.path(&container());
+            let held = two_bands()[&path].as_array().unwrap().clone();
+            let wrong = match held[0] {
+                Value::Bool(_) | Value::Number(_) => json!("x"),
+                _ => json!(1.0),
+            };
+            let changes = [
+                Value::Array(held[..1].to_vec()),
+                Value::Array([held.clone(), held[..1].to_vec()].concat()),
+                Value::Array(vec![held[0].clone(), wrong]),
+            ];
+            for changed in changes {
+                let mut values = two_bands();
+                values.insert(path.clone(), changed.clone());
+                assert_eq!(bands_of(&values, &container()), None, "{leaf:?} {changed}");
+            }
+        }
+    }
+
     #[test]
     fn the_crossovers_of_two_inputs_are_summed_apart() {
         let shared = [1.0, 2.0];
@@ -478,6 +517,15 @@ mod tests {
         assert_eq!(snapped_frequency(99.95), 100.0);
         assert_eq!(snapped_frequency(47.26), 47.3);
         assert_eq!(snapped_frequency(23999.0), 24000.0);
+    }
+
+    /// A speaker can report 0 Hz for a band: its logarithm overflowed the digit count, a panic
+    /// in a debug build and not a number in a release build.
+    #[test]
+    fn a_reported_frequency_of_zero_does_not_overflow_the_snap() {
+        assert_eq!(snapped_frequency(0.0), 0.0);
+        assert_eq!(snapped_frequency(-5.0), -5.0);
+        assert!(snapped_frequency(f64::NAN).is_nan());
     }
 
     #[test]

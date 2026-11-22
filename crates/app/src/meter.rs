@@ -91,6 +91,9 @@ pub struct MeterState {
     start_time: f64,
     peak: f64,
     peak_since: f64,
+    /// The readout's last step time and the bar then, kept when a reading after the step
+    /// starts a new stretch of the bar's way.
+    stepped: (f64, f64),
 }
 
 impl Default for MeterState {
@@ -101,12 +104,17 @@ impl Default for MeterState {
             start_time: 0.0,
             peak: METER_FLOOR_DB,
             peak_since: 0.0,
+            stepped: (0.0, METER_FLOOR_DB),
         }
     }
 }
 
 impl MeterState {
     pub fn update(&mut self, level: f64, now: f64) {
+        let step = self.readout_step(now);
+        if step >= self.start_time {
+            self.stepped = (step, self.shown(step));
+        }
         self.start = self.shown(now);
         self.start_time = now;
         self.level = level;
@@ -154,17 +162,33 @@ impl MeterState {
     /// While the hold lasts it is the held peak itself; afterwards it follows the falling bar
     /// in steps of `READOUT_REFRESH_SECONDS`, so a new peak still shows at once.
     pub fn readout(&self, now: f64, floor: f64) -> Option<i32> {
-        let hold_end = self.peak_since + PEAK_HOLD_SECONDS;
-        let db = if now < hold_end {
+        let db = if now < self.hold_end() {
             self.peak
         } else {
-            let step = (now / READOUT_REFRESH_SECONDS).floor() * READOUT_REFRESH_SECONDS;
-            self.shown(step.max(hold_end))
+            self.bar_at(self.readout_step(now))
         };
         if db <= floor {
             return None;
         }
         Some(db.round() as i32)
+    }
+
+    fn hold_end(&self) -> f64 {
+        self.peak_since + PEAK_HOLD_SECONDS
+    }
+
+    /// The time whose bar the readout shows at `now` once the hold ran out.
+    fn readout_step(&self, now: f64) -> f64 {
+        let step = (now / READOUT_REFRESH_SECONDS).floor() * READOUT_REFRESH_SECONDS;
+        step.max(self.hold_end())
+    }
+
+    /// The bar at `time`, also at a step before the newest reading.
+    fn bar_at(&self, time: f64) -> f64 {
+        if time < self.start_time && time == self.stepped.0 {
+            return self.stepped.1;
+        }
+        self.shown(time)
     }
 
     pub fn reset(&mut self) {
@@ -187,6 +211,21 @@ mod tests {
         assert_eq!(meter.peak(1.5), meter.shown(1.5));
     }
 
+    /// After the hold a reading above the falling bar, though below the old peak, is held anew.
+    #[test]
+    fn a_reading_above_the_falling_bar_is_held_anew() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        meter.update(-60.0, 1.0);
+        // The hold ran out at 1.5 s; the bar falls 24 dB/s from -6 dB at 1.0 s: -30 dB at 2 s.
+        meter.update(-20.0, 2.0);
+        // The bar falls again; the new peak stays until its own hold ends at 3.5 s.
+        meter.update(-60.0, 2.2);
+        assert!(meter.shown(3.0) < -30.0);
+        assert_eq!(meter.peak(3.0), -20.0);
+        assert_eq!(meter.peak(3.5), meter.shown(3.5));
+    }
+
     #[test]
     fn readout_rounds_the_held_peak() {
         let mut meter = MeterState::default();
@@ -207,6 +246,23 @@ mod tests {
         assert_eq!(meter.readout(1.75, -120.0), Some(-24));
         meter.update(-3.0, 1.8);
         assert_eq!(meter.readout(1.8, -120.0), Some(-3));
+    }
+
+    /// Readings keep coming while the bar falls: the number still steps every quarter second.
+    /// It changed with every reading, since the step's time lay before the newest one.
+    #[test]
+    fn the_readout_steps_while_readings_keep_arriving() {
+        let mut meter = MeterState::default();
+        meter.update(-6.0, 0.0);
+        let mut readouts = Vec::new();
+        for tenth in 1..=20 {
+            let now = f64::from(tenth) / 10.0;
+            meter.update(-160.0, now);
+            readouts.push(meter.readout(now + 0.02, -120.0));
+        }
+        // From -6 dB at 0.1 s down 24 dB/s; the hold ran out at 1.5 s.
+        assert_eq!(&readouts[14..17], [Some(-40), Some(-40), Some(-40)]);
+        assert_eq!(readouts[17], Some(-46));
     }
 
     /// Playback stopped: the speaker reports silence ten times a second while the bar still

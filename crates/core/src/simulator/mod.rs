@@ -7,24 +7,27 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{Ipv6Addr, Shutdown, SocketAddr, SocketAddrV6, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
-use crate::ssc::client::{LINE_TERMINATOR, MAX_LINE_BYTES};
+use crate::ssc::client::{is_timeout, LINE_TERMINATOR, MAX_LINE_BYTES};
 use crate::ssc::wire::parse_line;
 use device::{encode_line, SimulatedDevice};
 
-const FOREIGN_XID_OFFSET: u64 = 1000;
+/// `Fault::ForeignXidFirst` answers first with the request's xid plus this.
+pub const FOREIGN_XID_OFFSET: u64 = 1000;
 /// The simulators' ports: below every system's dynamic range (Linux from 32768, Windows from
 /// 49152). On port 0 the system handed a stopped simulator's port to the next one started (Linux
 /// soon), and a test that expected it unreachable, or restarted it there, met another.
 const SIMULATOR_PORTS: std::ops::Range<u16> = 20_000..32_000;
-/// Each test process starts this far from the others: nextest runs every test in a process of
-/// its own.
+/// The ports of one test process: each holds a range of its own for its life (nextest runs
+/// every test in a process of its own; see `process_start`).
 const PORTS_PER_PROCESS: u16 = 100;
+/// nextest's number for each test that runs at the same time, from 0; unset under `cargo test`.
+const NEXTEST_SLOT: &str = "NEXTEST_TEST_GLOBAL_SLOT";
 static SIMULATORS_STARTED: AtomicU16 = AtomicU16::new(0);
 const FILLER_BYTE: char = 'a';
 // Windows does not wake a blocked read when another handle of the socket is shut down, so
@@ -34,7 +37,7 @@ const READ_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const WAKE_TIMEOUT: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SimModel {
+pub enum SimulatedModel {
     Kh120Ii,
     Kh750,
 }
@@ -153,7 +156,7 @@ impl Shared {
             match reader.read_until(b'\n', &mut line) {
                 Ok(0) => break,
                 Ok(_) => {}
-                Err(error) if is_poll_timeout(&error) => {
+                Err(error) if is_timeout(&error) => {
                     if self.stopping.load(Ordering::SeqCst) {
                         break;
                     }
@@ -205,13 +208,6 @@ impl Shared {
     }
 }
 
-fn is_poll_timeout(error: &io::Error) -> bool {
-    matches!(
-        error.kind(),
-        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-    )
-}
-
 fn overlong_line() -> String {
     FILLER_BYTE.to_string().repeat(MAX_LINE_BYTES + 1)
 }
@@ -236,10 +232,10 @@ pub struct Simulator {
 impl Simulator {
     /// Starts on a port of the IPv6 loopback address that no other simulator of this process
     /// gets, also once this one is stopped: a test can restart it there with `start_on`.
-    pub fn start(model: SimModel) -> Simulator {
+    pub fn start(model: SimulatedModel) -> Simulator {
         let span = SIMULATOR_PORTS.end - SIMULATOR_PORTS.start;
-        let processes = u32::from(span / PORTS_PER_PROCESS);
-        let process_start = (std::process::id() % processes) as u16 * PORTS_PER_PROCESS;
+        let slot = std::env::var(NEXTEST_SLOT).ok();
+        let process_start = process_start(slot.as_deref(), std::process::id());
         for _ in 0..span {
             let started = SIMULATORS_STARTED.fetch_add(1, Ordering::Relaxed);
             let port = SIMULATOR_PORTS.start + process_start.wrapping_add(started) % span;
@@ -253,7 +249,7 @@ impl Simulator {
     }
 
     /// Starts on `address`, e.g. the one a stopped simulator had, to model a restart.
-    pub fn start_on(model: SimModel, address: SocketAddrV6) -> io::Result<Simulator> {
+    pub fn start_on(model: SimulatedModel, address: SocketAddrV6) -> io::Result<Simulator> {
         let listener = TcpListener::bind(address)?;
         let SocketAddr::V6(bound) = listener.local_addr()? else {
             return Err(io::Error::other("listener is not IPv6"));
@@ -328,6 +324,11 @@ impl Simulator {
     pub fn refuse_schema(&self, path: &str) {
         self.shared.state().device.refuse_schema(path);
     }
+
+    /// `osc/limits` of `path` answers an error, as some paths do on the speakers.
+    pub fn refuse_limits(&self, path: &str) {
+        self.shared.state().device.refuse_limits(path);
+    }
 }
 
 impl Drop for Simulator {
@@ -348,5 +349,47 @@ impl Drop for Simulator {
         for worker in workers {
             let _ = worker.join();
         }
+    }
+}
+
+/// Where this process's simulator ports start, as an offset into `SIMULATOR_PORTS`: from
+/// nextest's slot (under `cargo test` the process number) on, the first range no other process
+/// holds, kept for the life of the process.
+fn process_start(slot: Option<&str>, process_id: u32) -> u16 {
+    static CLAIMED: OnceLock<(u16, TcpListener)> = OnceLock::new();
+    let position = slot
+        .and_then(|slot| slot.parse::<u32>().ok())
+        .unwrap_or(process_id);
+    CLAIMED.get_or_init(|| claim_range(position)).0
+}
+
+/// The first range from `preferred` on whose last port can be bound, and that port's listener:
+/// while it is held, no other process takes the range. Slots alone repeat in every nextest run
+/// (`cargo mutants -j 4` starts four), process numbers repeat modulo the ranges.
+fn claim_range(preferred: u32) -> (u16, TcpListener) {
+    let processes = u32::from((SIMULATOR_PORTS.end - SIMULATOR_PORTS.start) / PORTS_PER_PROCESS);
+    for step in 0..processes {
+        let start = ((preferred + step) % processes) as u16 * PORTS_PER_PROCESS;
+        let guard = SIMULATOR_PORTS.start + start + PORTS_PER_PROCESS - 1;
+        if let Ok(listener) = TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, guard, 0, 0))
+        {
+            return (start, listener);
+        }
+    }
+    panic!("no simulator port range is free on the IPv6 loopback address");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// nextest's slots start at 0 in every run, so the runs of `cargo mutants -j 4` shared
+    /// ranges; process numbers repeat too. A range is held by one process at a time.
+    #[test]
+    fn a_range_another_process_holds_is_not_taken() {
+        const PREFERRED: u32 = 7;
+        let (first, _held) = claim_range(PREFERRED);
+        let (second, _also_held) = claim_range(PREFERRED);
+        assert_ne!(first, second);
     }
 }

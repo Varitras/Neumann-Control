@@ -141,7 +141,7 @@ pub fn parse_releases(body: &str) -> Result<Option<Release>, String> {
 }
 
 /// GitHub refuses API calls without one.
-const USER_AGENT: &str = concat!("neumann-control/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("neumann-control/", env!("APP_VERSION"));
 
 /// GitHub's status and body for the list of releases. A repository without releases lists
 /// none; anything but 200 is not an answer.
@@ -163,7 +163,7 @@ impl UpdateCheck {
         let result = Arc::new(Mutex::new(None));
         let answer = Arc::clone(&result);
         thread::spawn(move || {
-            let found = verdict(env!("CARGO_PKG_VERSION"), help.latest_release());
+            let found = verdict(env!("APP_VERSION"), help.latest_release());
             *answer
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(found);
@@ -204,7 +204,7 @@ mod windows_help {
 
     const HTTPS_PORT: u16 = 443;
     /// Per step (name lookup, connect, send, receive), in milliseconds: the dialog waits on it.
-    const TIMEOUT_MS: i32 = 10_000;
+    const TIMEOUT_MILLISECONDS: i32 = 10_000;
     const READ_CHUNK: usize = 16 * 1024;
     /// ShellExecute's success is any value above 32.
     const SHELL_ERROR_LIMIT: isize = 32;
@@ -279,8 +279,13 @@ mod windows_help {
                 0,
             );
             let session = Handle::new(session, "WinHttpOpen")?;
-            let timeouts =
-                WinHttpSetTimeouts(session.0, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS);
+            let timeouts = WinHttpSetTimeouts(
+                session.0,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+                TIMEOUT_MILLISECONDS,
+            );
             check(timeouts, "WinHttpSetTimeouts")?;
             let connection = WinHttpConnect(session.0, host.as_ptr(), HTTPS_PORT, 0);
             let connection = Handle::new(connection, "WinHttpConnect")?;

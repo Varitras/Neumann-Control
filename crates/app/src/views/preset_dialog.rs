@@ -3,12 +3,13 @@
 //! of the panel; the EQ window's over its own contents. They only draw and report.
 
 use eframe::egui::{
-    self, Button, Context, Grid, Id, Modal, RichText, ScrollArea, TextEdit, Ui, Vec2,
-    ViewportBuilder, ViewportClass, ViewportCommand, ViewportId,
+    self, Button, Context, Grid, Id, Modal, RichText, ScrollArea, Ui, Vec2, ViewportBuilder,
+    ViewportClass, ViewportCommand, ViewportId,
 };
 
 use super::{escape_closes, placed, Opening};
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 
 const SAVE_ID: &str = "preset_save";
 const LOAD_ID: &str = "preset_load";
@@ -52,6 +53,8 @@ pub struct SaveRow {
     pub label: String,
     pub value: String,
     pub chosen: bool,
+    /// The speaker has not answered this value; a preset cannot hold it.
+    pub unread: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,41 +90,50 @@ pub fn save_body(
     name: &mut String,
     replacing: bool,
 ) -> SaveAction {
-    {
-        ui.heading(title);
-        let label = ui.label(texts::PRESET_NAME);
-        ui.add(TextEdit::singleline(name)).labelled_by(label.id);
-        let mut action = SaveAction::None;
-        ScrollArea::vertical()
-            .max_height(LIST_HEIGHT)
-            .show(ui, |ui| {
-                for (place, row) in rows.iter().enumerate() {
-                    let mut chosen = row.chosen;
-                    let text = texts::preset_row(&row.label, &row.value);
-                    if ui.checkbox(&mut chosen, text).changed() {
-                        action = SaveAction::Toggle(place, chosen);
-                    }
+    ui.heading(title);
+    let label = ui.label(texts::PRESET_NAME);
+    ui.add(text_field(name)).labelled_by(label.id);
+    let mut action = SaveAction::None;
+    ScrollArea::vertical()
+        .max_height(LIST_HEIGHT)
+        .show(ui, |ui| {
+            for (place, row) in rows.iter().enumerate() {
+                let mut chosen = row.chosen;
+                let text = texts::preset_row(&row.label, &row.value);
+                if ui.checkbox(&mut chosen, text).changed() {
+                    action = SaveAction::Toggle(place, chosen);
                 }
-            });
-        let something = rows.is_empty() || rows.iter().any(|row| row.chosen);
-        let savable = !name.trim().is_empty() && something;
-        if replacing {
-            ui.colored_label(ui.visuals().warn_fg_color, texts::PRESET_REPLACES);
-        }
-        let save = match replacing {
-            true => texts::REPLACE_PRESET,
-            false => texts::SAVE,
-        };
-        ui.horizontal(|ui| {
-            if ui.add_enabled(savable, Button::new(save)).clicked() {
-                action = SaveAction::Save;
-            }
-            if ui.button(texts::CANCEL).clicked() {
-                action = SaveAction::Cancel;
             }
         });
-        action
+    let something = rows.is_empty() || rows.iter().any(|row| row.chosen);
+    // Saved without them, a preset would miss values the user checked, and replacing one of
+    // the name would lose its own.
+    let unread: Vec<&str> = rows
+        .iter()
+        .filter(|row| row.chosen && row.unread)
+        .map(|row| row.label.as_str())
+        .collect();
+    let savable = !name.trim().is_empty() && something && unread.is_empty();
+    if !unread.is_empty() {
+        let note = texts::preset_unread(&unread.join(", "));
+        ui.colored_label(ui.visuals().warn_fg_color, note);
     }
+    if replacing {
+        ui.colored_label(ui.visuals().warn_fg_color, texts::PRESET_REPLACES);
+    }
+    let save = match replacing {
+        true => texts::REPLACE_PRESET,
+        false => texts::SAVE,
+    };
+    ui.horizontal(|ui| {
+        if ui.add_enabled(savable, Button::new(save)).clicked() {
+            action = SaveAction::Save;
+        }
+        if ui.button(texts::CANCEL).clicked() {
+            action = SaveAction::Cancel;
+        }
+    });
+    action
 }
 
 /// One setting a loaded preset would write: what it is now and what it becomes.
@@ -151,7 +163,7 @@ impl Changes<'_> {
 
 pub struct LoadView<'a> {
     pub title: &'a str,
-    /// "Name (product)" per preset.
+    /// One line per preset: its name with its model, or with its band count for an EQ preset.
     pub presets: &'a [String],
     /// What the dialog says when `presets` is empty.
     pub empty: &'a str,
@@ -188,72 +200,70 @@ pub fn load(ui: &mut Ui, view: &LoadView) -> LoadAction {
 
 /// The load dialog's contents, wherever it is shown.
 pub fn load_body(ui: &mut Ui, view: &LoadView) -> LoadAction {
-    {
-        ui.heading(view.title);
-        let mut action = LoadAction::None;
-        if view.presets.is_empty() {
-            ui.weak(view.empty);
+    ui.heading(view.title);
+    let mut action = LoadAction::None;
+    if view.presets.is_empty() {
+        ui.weak(view.empty);
+    }
+    for (place, preset) in view.presets.iter().enumerate() {
+        if ui
+            .selectable_label(view.selected == Some(place), preset)
+            .clicked()
+        {
+            action = LoadAction::Select(place);
         }
-        for (place, preset) in view.presets.iter().enumerate() {
-            if ui
-                .selectable_label(view.selected == Some(place), preset)
-                .clicked()
-            {
-                action = LoadAction::Select(place);
-            }
+    }
+    if view.selected.is_some() {
+        ui.separator();
+        // With a refusal or skipped values nothing is known to be on the speaker already.
+        let compared = view.refusal.is_none() && view.skipped.is_empty();
+        if view.changes.is_empty() && compared {
+            ui.weak(texts::PRESET_UNCHANGED);
         }
-        if view.selected.is_some() {
-            ui.separator();
-            // With a refusal or skipped values nothing is known to be on the speaker already.
-            let compared = view.refusal.is_none() && view.skipped.is_empty();
-            if view.changes.is_empty() && compared {
-                ui.weak(texts::PRESET_UNCHANGED);
-            }
-            ScrollArea::vertical()
-                .max_height(LIST_HEIGHT)
-                .show(ui, |ui| changes(ui, view.changes));
-            if !view.skipped.is_empty() {
-                ui.weak(texts::preset_skipped(view.skipped));
-            }
+        ScrollArea::vertical()
+            .max_height(LIST_HEIGHT)
+            .show(ui, |ui| changes(ui, view.changes));
+        if !view.skipped.is_empty() {
+            ui.weak(texts::preset_skipped(view.skipped));
         }
-        if let Some(warning) = view.warning {
-            ui.colored_label(ui.visuals().warn_fg_color, warning);
-        }
-        if let Some(refusal) = view.refusal {
-            ui.colored_label(ui.visuals().error_fg_color, refusal);
-        }
-        // A deleted preset is gone for good: the delete is asked once more.
-        if let Some(name) = view.deleting {
-            ui.label(texts::delete_question(name));
-            ui.horizontal(|ui| {
-                if ui.button(texts::DELETE_PRESET).clicked() {
-                    action = LoadAction::ConfirmDelete;
-                }
-                if ui.button(texts::CANCEL).clicked() {
-                    action = LoadAction::CancelDelete;
-                }
-            });
-            return action;
-        }
+    }
+    if let Some(warning) = view.warning {
+        ui.colored_label(ui.visuals().warn_fg_color, warning);
+    }
+    if let Some(refusal) = view.refusal {
+        ui.colored_label(ui.visuals().error_fg_color, refusal);
+    }
+    // A deleted preset is gone for good: the delete is asked once more.
+    if let Some(name) = view.deleting {
+        ui.label(texts::delete_question(name));
         ui.horizontal(|ui| {
-            let writable =
-                view.selected.is_some() && !view.changes.is_empty() && view.refusal.is_none();
-            if ui
-                .add_enabled(writable, Button::new(texts::WRITE_PRESET))
-                .clicked()
-            {
-                action = LoadAction::Write;
+            if ui.button(texts::DELETE_PRESET).clicked() {
+                action = LoadAction::ConfirmDelete;
             }
-            let deletable = view.selected.is_some();
-            if ui
-                .add_enabled(deletable, Button::new(texts::DELETE_PRESET))
-                .clicked()
-            {
-                action = LoadAction::Delete;
+            if ui.button(texts::CANCEL).clicked() {
+                action = LoadAction::CancelDelete;
             }
         });
-        action
+        return action;
     }
+    ui.horizontal(|ui| {
+        let writable =
+            view.selected.is_some() && !view.changes.is_empty() && view.refusal.is_none();
+        if ui
+            .add_enabled(writable, Button::new(texts::WRITE_PRESET))
+            .clicked()
+        {
+            action = LoadAction::Write;
+        }
+        let deletable = view.selected.is_some();
+        if ui
+            .add_enabled(deletable, Button::new(texts::DELETE_PRESET))
+            .clicked()
+        {
+            action = LoadAction::Delete;
+        }
+    });
+    action
 }
 
 fn changes(ui: &mut Ui, changes: Changes) {

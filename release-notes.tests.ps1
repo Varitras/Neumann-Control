@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
     Checks release-notes.ps1 against small CHANGELOGs: a section with text is written, an empty
-    one (followed by the next heading, by only blank lines or by the end of the file) fails.
+    one (followed by the next heading, by only blank lines or by the end of the file) fails, also
+    when it is the last section.
     check.ps1 runs it.
 #>
 [CmdletBinding()]
@@ -21,7 +22,9 @@ $cases = @(
        Text = "# Changelog`n`n## [0.3.0] - 2026-11-01`n## [0.2.0] - 2026-10-27`n`n- Older.`n" }
     @{ Name = 'a section of blank lines'; Passes = $false
        Text = "# Changelog`n`n## [0.3.0] - 2026-11-01`n`n   `n`n## [0.2.0] - 2026-10-27`n`n- Older.`n" }
-    @{ Name = 'a section at the end of the file'; Passes = $false
+    @{ Name = 'a section with text at the end of the file'; Passes = $true
+       Text = "# Changelog`n`n## [0.2.0] - 2026-10-27`n`n- Older.`n`n## [0.3.0] - 2026-11-01`n`n- A change.`n" }
+    @{ Name = 'an empty section at the end of the file'; Passes = $false
        Text = "# Changelog`n`n## [0.2.0] - 2026-10-27`n`n- Older.`n`n## [0.3.0] - 2026-11-01" }
     @{ Name = 'no section'; Passes = $false
        Text = "# Changelog`n`n## [0.2.0] - 2026-10-27`n`n- Older.`n" }

@@ -6,11 +6,11 @@ use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Number, Value};
 
-const PATH_SEPARATOR: char = '/';
-const OSC_KEY: &str = "osc";
-const XID_KEY: &str = "xid";
-const ERROR_KEY: &str = "error";
-const DESCRIPTION_KEY: &str = "desc";
+pub(crate) const PATH_SEPARATOR: char = '/';
+pub(crate) const OSC_KEY: &str = "osc";
+pub(crate) const XID_KEY: &str = "xid";
+pub(crate) const ERROR_KEY: &str = "error";
+pub(crate) const DESCRIPTION_KEY: &str = "desc";
 
 /// The largest request the speakers take, in JSON tokens: every object, array, key and scalar.
 /// Measured on a KH 120 II (2026-10-20): 29 tokens taken, 31 and more refused with 413
@@ -60,6 +60,17 @@ impl SscPath {
         segments.push(segment.to_owned());
         SscPath(segments)
     }
+
+    /// A node a device named below `parent` (none: the root); a name that is empty or holds
+    /// the separator would silently become another path.
+    pub fn named_child(parent: Option<&SscPath>, segment: &str) -> Result<SscPath, WireError> {
+        if segment.is_empty() || segment.contains(PATH_SEPARATOR) {
+            return Err(WireError::InvalidPath);
+        }
+        let mut segments = parent.map_or_else(Vec::new, |parent| parent.0.clone());
+        segments.push(segment.to_owned());
+        Ok(SscPath(segments))
+    }
 }
 
 impl fmt::Display for SscPath {
@@ -89,7 +100,8 @@ pub struct DeviceError {
 }
 
 impl DeviceError {
-    /// "authorisation needed": every write while the rear CONTROL switch is on LOCAL.
+    /// "authorisation needed": every write of a writable path while the rear CONTROL switch is
+    /// on LOCAL (a read-only path still answers `READ_ONLY`).
     pub const LOCAL_MODE: i64 = 401;
     /// The speaker does not have the path.
     pub const NOT_FOUND: i64 = 404;
@@ -99,6 +111,8 @@ impl DeviceError {
     pub const NOT_ACCEPTABLE: i64 = 406;
     /// An `osc/schema` or `osc/limits` address the speaker does not know.
     pub const PARAMETER_NOT_FOUND: i64 = 454;
+    /// The request has more JSON tokens than the speaker takes.
+    pub const REQUEST_TOO_LONG: i64 = 413;
 }
 
 /// Merges `incoming` into `target`: objects recursively, anything else is replaced.
@@ -197,9 +211,7 @@ pub fn parse_line(line: &[u8]) -> Result<Value, WireError> {
 /// that itself starts with `osc` shares that object. A request the id would push over
 /// `MAX_REQUEST_TOKENS` (a 20-band EQ list) goes without it; its reply is matched by its path.
 pub fn request_line(path: &SscPath, value: Value, xid: u64) -> String {
-    let nested = path.segments().iter().rev().fold(value, |inner, segment| {
-        Value::Object(Map::from_iter([(segment.clone(), inner)]))
-    });
+    let nested = nest(path.segments(), value);
     let mut request = serde_json::json!({ OSC_KEY: { XID_KEY: xid } });
     merge(&mut request, nested.clone());
     if token_count(&request) > MAX_REQUEST_TOKENS {
@@ -225,11 +237,22 @@ pub fn token_count(value: &Value) -> usize {
 
 /// The value at `path` if present and not `null`.
 pub fn extract<'a>(tree: &'a Value, path: &SscPath) -> Option<&'a Value> {
-    let found = path
-        .segments()
-        .iter()
-        .try_fold(tree, |node, segment| node.get(segment))?;
+    let found = descend(tree, path.segments())?;
     (!found.is_null()).then_some(found)
+}
+
+/// `value` at the end of an address tree: `{a:{b:value}}` for the segments `a`, `b`.
+pub fn nest(segments: &[String], value: Value) -> Value {
+    segments.iter().rev().fold(value, |inner, segment| {
+        Value::Object(Map::from_iter([(segment.clone(), inner)]))
+    })
+}
+
+/// The node at `segments` down `tree`, `null` included.
+pub fn descend<'a>(tree: &'a Value, segments: &[String]) -> Option<&'a Value> {
+    segments
+        .iter()
+        .try_fold(tree, |node, segment| node.get(segment))
 }
 
 /// The transaction id echoed in `osc/xid`, if it is a non-negative integer.

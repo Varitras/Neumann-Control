@@ -15,13 +15,14 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
 $lines = [System.IO.File]::ReadAllLines((Resolve-Path $Changelog))
-$heading = "## [$Version]"
+$sectionPrefix = '## ['
+$heading = "$sectionPrefix$Version]"
 $start = [Array]::FindIndex($lines, [Predicate[string]] { param($line) $line.StartsWith($heading) })
 if ($start -lt 0) {
-    Write-Host "FAILED: CHANGELOG.md has no section $heading" -ForegroundColor Red
+    Write-Host "FAILED: $Changelog has no section $heading" -ForegroundColor Red
     exit 1
 }
-$end = [Array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($line) $line.StartsWith('## [') })
+$end = [Array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($line) $line.StartsWith($sectionPrefix) })
 if ($end -lt 0) { $end = $lines.Length }
 # PowerShell counts a range down when its end lies before its start: without lines between, the
 # headings themselves would become the section.

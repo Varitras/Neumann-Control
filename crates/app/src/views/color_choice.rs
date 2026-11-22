@@ -17,7 +17,8 @@ pub(super) fn edit(
     start: Color32,
 ) -> bool {
     let before = choice.clone();
-    ui.horizontal(|ui| {
+    // Next to the groups list the row has less room than the narrowest groups window gives.
+    ui.horizontal_wrapped(|ui| {
         ui.label(texts::STRIP_COLOR);
         if ui.radio(choice.is_default(), default_label).clicked() {
             *choice = ColorChoice::Default;

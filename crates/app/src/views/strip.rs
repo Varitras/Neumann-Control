@@ -1,10 +1,11 @@
-//! One speaker as a channel strip: name (opens the device panel), status LEDs, the elements of
-//! its model's layout above and below the level fader with meters, readout and response time,
-//! and the last message. The strip only reports gestures; `writes` decides what becomes a command.
+//! One speaker as a channel strip: name (opens the device panel), status LEDs, the elements of its
+//! layout (its model's, or the speaker's own) above and below the level fader with meters, readout
+//! and response time, and the last message. The strip only reports gestures; `writes` decides what
+//! becomes a command.
 
 use eframe::egui::{
     self, vec2, Align, Button, Color32, ComboBox, CornerRadius, CursorIcon, DragAndDrop, Label,
-    Layout, PointerButton, Rect, Response, RichText, Role, Sense, Stroke, Ui, Vec2, WidgetInfo,
+    Layout, PointerButton, Rect, Response, RichText, Role, Sense, Ui, Vec2, WidgetInfo,
 };
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{DeskSettings, StripElement};
@@ -13,6 +14,7 @@ use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
 
 use super::fader::{self, Orientation, Scale, FADER_HEIGHT};
+use super::group_strip;
 use super::knob;
 use super::layout_menu::{self, Offer};
 use super::meters::{self, Meters};
@@ -26,7 +28,7 @@ use crate::input_source::input_source;
 use crate::meter::MeterState;
 use crate::paths;
 use crate::state::{SpeakerState, Status};
-use crate::status_leds::{status_leds, ConnectionLed};
+use crate::status_leds::{self, status_leds, ConnectionLed};
 use crate::strip_layout::{self, Area, LayoutChange, StripLayout};
 use crate::texts;
 use crate::ui_kit::theme::Tokens;
@@ -111,12 +113,12 @@ pub fn show(
     catalog: &Catalog,
     desk: &DeskSettings,
     view: StripView,
-    group_color: Option<Color32>,
+    color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
     let name = texts::strip_region(&speaker.display_name());
     named_region(ui, &name, |ui| {
-        contents(ui, speaker, catalog, desk, view, group_color, member)
+        contents(ui, speaker, catalog, desk, view, color, member)
     })
 }
 
@@ -126,7 +128,7 @@ fn contents(
     catalog: &Catalog,
     desk: &DeskSettings,
     view: StripView,
-    group_color: Option<Color32>,
+    color: Option<Color32>,
     member: &str,
 ) -> StripResponse {
     let StripView {
@@ -184,69 +186,56 @@ fn contents(
     };
     let mut fader = Rect::NOTHING;
     let mut edit_group = false;
-    let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
-    let frame = egui::Frame::new()
-        .fill(tokens.card)
-        // A member of a group is framed in the group's colour.
-        .stroke(Stroke::new(
-            BORDER_WIDTH,
-            group_color.unwrap_or(tokens.border),
-        ))
-        .corner_radius(CornerRadius::same(STRIP_RADIUS))
-        .inner_margin(STRIP_MARGIN)
-        .show(ui, |ui| {
-            // The desk lays strips out in a row; the content of one strip stacks.
-            ui.vertical(|ui| {
-                ui.set_width(inner_width);
-                if speaker.status == Status::Unreachable {
-                    ui.multiply_opacity(UNREACHABLE_OPACITY);
-                }
-                let header = ui.horizontal(|ui| {
-                    grip(ui, member, &tokens);
-                    name(ui, speaker)
-                });
-                if let Some(group) = group {
-                    edit_group = group_menu(ui, header.response.rect, group);
-                }
-                let open_panel = header.inner;
-                leds(ui, speaker, &tokens);
-                elements(
-                    ui,
-                    speaker,
-                    &arrange(Area::Above),
-                    &mut commands,
-                    &mut wishes,
-                );
-                // While editing the fader is as still as the other controls.
-                fader = ui
-                    .add_enabled_ui(!editing, |ui| {
-                        level(ui, speaker, catalog, desk, &mut commands, &tokens);
-                    })
-                    .response
-                    .rect;
-                if desk.show_response_times {
-                    response_time(ui, speaker);
-                }
-                elements(
-                    ui,
-                    speaker,
-                    &arrange(Area::Below),
-                    &mut commands,
-                    &mut wishes,
-                );
-                if let (true, Some(offers)) = (editing, offers) {
-                    let applies = match desk.layouts_per_speaker {
-                        true => texts::APPLIES_TO_THIS_SPEAKER.get().to_owned(),
-                        false => texts::applies_to_every(speaker.product()),
-                    };
-                    edit_controls(ui, &applies, offers, &mut wishes);
-                }
-                message(ui, speaker, &tokens);
-                let details = ui.button(texts::DETAILS).clicked();
-                open_panel || details
-            })
-            .inner
+    // Framed in the strip's colour (its own, else its group's); none leaves the plain border.
+    let color = color.unwrap_or(tokens.border);
+    let frame = group_strip::framed(ui, STRIP_WIDTH, color, |ui| {
+        if speaker.status == Status::Unreachable {
+            ui.multiply_opacity(UNREACHABLE_OPACITY);
+        }
+        let header = ui.horizontal(|ui| {
+            grip(ui, member, &tokens);
+            name(ui, speaker)
         });
+        if let Some(group) = group {
+            edit_group = group_menu(ui, header.response.rect, group);
+        }
+        let open_panel = header.inner;
+        leds(ui, speaker, &tokens);
+        elements(
+            ui,
+            speaker,
+            &arrange(Area::Above),
+            &mut commands,
+            &mut wishes,
+        );
+        // While editing the fader is as still as the other controls.
+        fader = ui
+            .add_enabled_ui(!editing, |ui| {
+                level(ui, speaker, catalog, desk, &mut commands, &tokens);
+            })
+            .response
+            .rect;
+        if desk.show_response_times {
+            response_time(ui, speaker);
+        }
+        elements(
+            ui,
+            speaker,
+            &arrange(Area::Below),
+            &mut commands,
+            &mut wishes,
+        );
+        if let (true, Some(offers)) = (editing, offers) {
+            let applies = match desk.layouts_per_speaker {
+                true => texts::APPLIES_TO_THIS_SPEAKER.get().to_owned(),
+                false => texts::applies_to_every(speaker.product()),
+            };
+            edit_controls(ui, &applies, offers, &mut wishes);
+        }
+        message(ui, speaker, &tokens);
+        let details = ui.button(texts::DETAILS).clicked();
+        open_panel || details
+    });
     if landing.is_some() && ui.input(|input| input.pointer.primary_released()) {
         wishes.layout = landing;
         DragAndDrop::clear_payload(ui.ctx());
@@ -488,14 +477,11 @@ fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, layout_key: &str
 fn edit_controls(ui: &mut Ui, applies: &str, offers: &[Offer], wishes: &mut Wishes) {
     ui.label(RichText::new(applies).small().weak());
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(texts::ADD_ELEMENT, |ui| {
-            for offer in offers {
-                if ui.button(&offer.label).clicked() {
-                    let added = LayoutChange::Add(offer.element.clone(), Area::Below);
-                    wishes.layout = Some(added);
-                }
-            }
-        });
+        let chosen =
+            layout_menu::chosen_offer(ui, texts::ADD_ELEMENT, offers, |offer| &offer.label);
+        if let Some(offer) = chosen {
+            wishes.layout = Some(LayoutChange::Add(offer.element.clone(), Area::Below));
+        }
         if ui.button(texts::DEFAULT_LAYOUT).clicked() {
             wishes.layout = Some(LayoutChange::Reset);
         }
@@ -748,7 +734,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
             name: texts::INPUT_METERS.get(),
             channels: texts::INPUT_CHANNELS,
             levels: input_levels,
-            clips: speaker.values.get(&paths::path(paths::INPUT_CLIP)),
+            clips: status_leds::reported(speaker, paths::INPUT_CLIP),
             played,
         },
     };
@@ -764,7 +750,7 @@ fn meters(ui: &mut Ui, speaker: &SpeakerState, desk: &DeskSettings, tokens: &Tok
             name: texts::OUTPUT_METERS.get(),
             channels: texts::OUTPUT_CHANNELS,
             levels: &speaker.output_meters,
-            clips: speaker.values.get(&paths::path(paths::OUTPUT_CLIP)),
+            clips: status_leds::reported(speaker, paths::OUTPUT_CLIP),
             played: &[],
         },
     };

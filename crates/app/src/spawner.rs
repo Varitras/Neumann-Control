@@ -16,7 +16,8 @@ pub trait SpeakerSpawner {
     /// Starts a worker for `target`; `wake` runs after each of its events.
     fn spawn(&self, target: Target, wake: Arc<dyn Fn() + Send + Sync>) -> (SpeakerHandle, Events);
 
-    /// Starts a scan in the background; the receiver gets exactly one result.
+    /// Starts a scan in the background; the receiver gets at most one result, and a receiver
+    /// cut off means the scan could not run.
     fn scan(&self) -> Receiver<ScanResult>;
 }
 

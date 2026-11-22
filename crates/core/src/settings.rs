@@ -2,20 +2,19 @@
 
 use std::cell::Cell;
 use std::collections::BTreeMap;
-use std::ffi::OsString;
-use std::fs::{self, File};
-use std::io::{self, ErrorKind, Write};
+use std::fs;
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::files;
 use crate::ssc::wire::SscPath;
 
 pub const SETTINGS_FILE: &str = "settings.json";
 pub const LOG_FILE: &str = "neumann-control.log";
 
-const TEMPORARY_SUFFIX: &str = ".tmp";
 const QUARANTINE_SUFFIX: &str = ".bad";
 
 thread_local! {
@@ -36,14 +35,15 @@ pub struct Settings {
     pub window: Option<WindowGeometry>,
     #[serde(deserialize_with = "or_default")]
     pub compact_window: Option<WindowGeometry>,
-    /// The windows of their own (device panel, EQ, all values) as the user left them, by kind
-    /// and speaker, in screen pixels like `window`.
+    /// The windows of their own (device panel, EQ, all values, settings, presets, groups) as the
+    /// user left them, one place per kind keyed by its name, in screen pixels like `window`.
+    /// Earlier versions kept one per speaker; the app drops those keys once the kind moves.
     #[serde(
         deserialize_with = "readable_entries",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub windows: BTreeMap<String, WindowGeometry>,
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "readable_desk")]
     pub desk: DeskSettings,
     #[serde(deserialize_with = "readable_items")]
     pub groups: Vec<GroupSettings>,
@@ -238,7 +238,7 @@ pub struct DeskSettings {
     pub theme: ThemeChoice,
     #[serde(deserialize_with = "or_default")]
     pub meter_floor: MeterFloor,
-    #[serde(deserialize_with = "or_default")]
+    #[serde(deserialize_with = "or_shown")]
     pub show_response_times: bool,
     /// The master strip at the end of the desk and the master row in the compact mode.
     #[serde(deserialize_with = "or_default")]
@@ -359,12 +359,25 @@ pub struct StoredStripLayout {
     pub below: Vec<StripElement>,
 }
 
+impl DeskSettings {
+    /// The defaults for desk settings that could not be read: the crossovers stay protected.
+    fn unread() -> DeskSettings {
+        DeskSettings {
+            crossovers: CrossoverGuard::Protected,
+            ..DeskSettings::default()
+        }
+    }
+}
+
+/// The response times show unless switched off, also where the switch cannot be read.
+const SHOW_RESPONSE_TIMES: bool = true;
+
 impl Default for DeskSettings {
     fn default() -> DeskSettings {
         DeskSettings {
             theme: ThemeChoice::System,
             meter_floor: MeterFloor::Minus120,
-            show_response_times: true,
+            show_response_times: SHOW_RESPONSE_TIMES,
             show_master: false,
             language: LanguageChoice::System,
             compact: false,
@@ -435,10 +448,6 @@ pub enum DelayUnit {
     #[default]
     Milliseconds,
     Meters,
-}
-
-impl DelayUnit {
-    pub const ALL: [DelayUnit; 2] = [DelayUnit::Milliseconds, DelayUnit::Meters];
 }
 
 /// The lowest level a meter shows, in 10 dB steps; quiet room volume reads about -90 dB on the
@@ -515,6 +524,22 @@ where
     D: Deserializer<'de>,
     T: DeserializeOwned + Default,
 {
+    understood_or(deserializer, T::default)
+}
+
+/// Like `or_default` for the response time switch, whose default is on.
+fn or_shown<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    understood_or(deserializer, || SHOW_RESPONSE_TIMES)
+}
+
+fn understood_or<'de, D, T>(deserializer: D, fallback: impl FnOnce() -> T) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
     let value = serde_json::Value::deserialize(deserializer)?;
     Ok(T::deserialize(value).unwrap_or_else(|error| {
         log::warn!(
@@ -522,8 +547,17 @@ where
             error.classify()
         );
         NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
-        T::default()
+        fallback()
     }))
+}
+
+/// Like `or_default`, but an unreadable desk keeps the crossovers protected: open is the choice
+/// of a fresh install, not of a block that was not understood.
+fn readable_desk<'de, D>(deserializer: D) -> Result<DeskSettings, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    understood_or(deserializer, DeskSettings::unread)
 }
 
 /// A list keeps the entries this version can read; one it cannot is left out, not the list.
@@ -705,7 +739,11 @@ fn set_aside(path: &Path, may_write: bool) -> Loaded {
         true => LoadOutcome::SetAside,
         false => LoadOutcome::Untouchable,
     };
-    loaded(Settings::default(), outcome)
+    let settings = Settings {
+        desk: DeskSettings::unread(),
+        ..Settings::default()
+    };
+    loaded(settings, outcome)
 }
 
 /// How many values of the file `bytes` saving `settings` would lose: keys this version does not
@@ -753,13 +791,8 @@ fn carries_something(value: &serde_json::Value) -> bool {
 /// Writes through a temporary file in the same directory so a crash never
 /// leaves a truncated settings file behind.
 pub fn save(settings: &Settings, path: &Path) -> io::Result<()> {
-    let temporary = with_suffix(path, TEMPORARY_SUFFIX);
     let serialized = serde_json::to_vec_pretty(settings)?;
-    let mut file = File::create(&temporary)?;
-    file.write_all(&serialized)?;
-    file.sync_all()?;
-    drop(file);
-    fs::rename(&temporary, path)
+    files::replace(path, &serialized)
 }
 
 /// Copies the file aside, as `quarantine` would move it, keeping the original in place.
@@ -784,18 +817,12 @@ fn quarantine(path: &Path) -> bool {
 }
 
 fn free_quarantine_path(path: &Path) -> PathBuf {
-    let first = with_suffix(path, QUARANTINE_SUFFIX);
+    let first = files::with_suffix(path, QUARANTINE_SUFFIX);
     if !first.exists() {
         return first;
     }
     (1..)
-        .map(|number| with_suffix(&first, &format!(".{number}")))
+        .map(|number| files::with_suffix(&first, &format!(".{number}")))
         .find(|candidate| !candidate.exists())
         .expect("an unbounded range always yields a free name")
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut name: OsString = path.as_os_str().to_owned();
-    name.push(suffix);
-    PathBuf::from(name)
 }

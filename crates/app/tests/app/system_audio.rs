@@ -9,7 +9,7 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::system_audio::{AudioDevice, AudioState};
 use neumann_control_app::texts;
 use neumann_control_core::settings::{self, SystemAudioSettings};
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 
 const DEVICE_NAME: &str = "Studio monitors";
 const DEVICE_ID: &str = "{0.0.0.00000000}.{fake}";
@@ -51,7 +51,7 @@ fn desk_on(
     device: Option<&str>,
     audio: FakeAudio,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(REPLY_DELAY);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
@@ -65,6 +65,61 @@ fn desk_on(
     harness.set_size(TWO_STRIP_WINDOW.into());
     wait_for_level(&mut harness, 100.0);
     (simulator, directory, harness)
+}
+
+/// No speaker yet, the strip chosen or not, the master shown if there were any.
+fn empty_desk(shown: bool, audio: FakeAudio) -> (tempfile::TempDir, Harness<'static, NeumannApp>) {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut stored = settings::load(&path);
+    stored.system_audio = SystemAudioSettings {
+        shown,
+        device: None,
+    };
+    stored.desk.show_master = true;
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness_with_audio(path, audio);
+    harness.run_steps(3);
+    (directory, harness)
+}
+
+/// The strip needs no speaker: it was missing until one was added, with the desk saying only
+/// that there are none.
+#[test]
+fn the_strip_shows_on_a_desk_without_speakers() {
+    let (_directory, harness) = empty_desk(true, fake(Some(playing())));
+    harness.get_by_label(texts::NO_SPEAKERS.get());
+    harness.get_by_label(DEVICE_NAME);
+    assert!(harness.query_by_label(texts::MASTER.get()).is_none());
+}
+
+/// Without speakers a group has no member on the desk: its strip stays away like the master's.
+/// It showed beside the Windows strip with nothing to control.
+#[test]
+fn an_empty_desk_shows_no_group_strip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut stored = settings::load(&path);
+    stored.system_audio = SystemAudioSettings {
+        shown: true,
+        device: None,
+    };
+    let group = serde_json::json!({"name": "Front", "members": ["serial:SIM9999999"]});
+    stored.groups.push(serde_json::from_value(group).unwrap());
+    settings::save(&stored, &path).unwrap();
+    let mut harness = harness_with_audio(path, fake(Some(playing())));
+    harness.run_steps(3);
+    harness.get_by_label(DEVICE_NAME);
+    assert!(harness.query_by_label("Front").is_none());
+}
+
+#[test]
+fn a_desk_without_speakers_leaves_a_strip_switched_off_away() {
+    let audio = fake(Some(playing()));
+    let (_directory, harness) = empty_desk(false, audio.clone());
+    harness.get_by_label(texts::NO_SPEAKERS.get());
+    assert!(harness.query_by_label(DEVICE_NAME).is_none());
+    assert!(audio.0.lock().unwrap().asked.is_empty());
 }
 
 #[test]
@@ -137,6 +192,34 @@ fn a_fader_move_sets_the_windows_volume() {
     assert!(sets[0] > 0.5 && sets[0] <= 1.0, "{sets:?}");
 }
 
+/// The fader is in percent, and so is the move it shows while dragged: it said "+12,0 dB".
+#[test]
+fn a_dragged_windows_fader_shows_its_move_in_percent() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_with(true, audio);
+    harness.run_steps(2);
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::SYSTEM_VOLUME.get())
+        .rect();
+    let from = fader.center();
+    harness.drag_at(from);
+    for frame in 1..=5 {
+        harness.hover_at(from + egui::vec2(0.0, -8.0 * frame as f32));
+        harness.step();
+    }
+    let moves: Vec<String> = harness
+        .query_all_by_role(Role::Label)
+        .filter_map(|node| node.value())
+        .filter(|text| text.starts_with('+'))
+        .collect();
+    harness.drop_at(from + egui::vec2(0.0, -40.0));
+    assert!(
+        moves.iter().any(|text| text.ends_with(" %"))
+            && !moves.iter().any(|text| text.ends_with("dB")),
+        "{moves:?}"
+    );
+}
+
 /// Dragged past the top, the volume ends at 100 %: Windows' scalar 1.
 #[test]
 fn a_fader_past_the_top_sets_full_volume() {
@@ -171,6 +254,37 @@ fn mute_goes_to_the_chosen_device() {
         audio.0.lock().unwrap().set_on,
         vec![Some(DEVICE_ID.to_owned())]
     );
+}
+
+/// With a device chosen, the strip reads that device and its fader sets that device's volume,
+/// not those of Windows' default device.
+#[test]
+fn the_chosen_device_is_read_and_its_volume_set() {
+    let audio = fake(Some(playing()));
+    let (_simulator, _directory, mut harness) = desk_on(true, Some(DEVICE_ID), audio.clone());
+    harness.run_steps(2);
+    let asked = audio.0.lock().unwrap().asked.clone();
+    assert!(!asked.is_empty());
+    assert!(
+        asked
+            .iter()
+            .all(|device| device.as_deref() == Some(DEVICE_ID)),
+        "{asked:?}"
+    );
+    let fader = harness
+        .get_by_role_and_label(Role::Slider, texts::SYSTEM_VOLUME.get())
+        .rect();
+    let from = fader.center();
+    harness.drag_at(from);
+    for frame in 1..=5 {
+        harness.hover_at(from + egui::vec2(0.0, -8.0 * frame as f32));
+        harness.step();
+    }
+    harness.drop_at(from + egui::vec2(0.0, -40.0));
+    harness.run_steps(3);
+    let held = audio.0.lock().unwrap();
+    assert_eq!(held.volume_sets.len(), 1);
+    assert_eq!(held.set_on, vec![Some(DEVICE_ID.to_owned())]);
 }
 
 #[test]

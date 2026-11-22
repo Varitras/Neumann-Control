@@ -6,18 +6,22 @@ use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::eq::Leaf;
 use neumann_control_app::eq_file;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::CrossoverGuard;
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator};
 use serde_json::{json, Value};
 
 const GAIN_LABEL: &str = "Pegel";
 const BOOST_LABEL: &str = "Anhebung";
+const ENABLED_LABEL: &str = "Ein";
 const GAIN_POINTER: &str = "/audio/out/eq2/gain";
 const BOOST_POINTER: &str = "/audio/out/eq2/boost";
 const FREQUENCY_POINTER: &str = "/audio/out/eq2/frequency";
+const ENABLED_POINTER: &str = "/audio/out/eq2/enabled";
+const Q_POINTER: &str = "/audio/out/eq2/q";
 
 /// Ten bands spread over the range, so every point has its own place.
 fn spread(simulator: &Simulator) {
@@ -29,13 +33,13 @@ fn spread(simulator: &Simulator) {
 
 /// Opened from the strip: the KH 750's panel is taller than the test window, so its EQ button
 /// lies outside it.
-fn open_eq(model: SimModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
+fn open_eq(model: SimulatedModel) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     open_eq_with(model, |_| {})
 }
 
 /// Like `open_eq`, with values set on the simulator (after the spread) before the first read.
 fn open_eq_with(
-    model: SimModel,
+    model: SimulatedModel,
     prepare: impl FnOnce(&Simulator),
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker_with(model, |simulator| {
@@ -60,7 +64,7 @@ fn close_eq(harness: &mut Harness<'static, NeumannApp>) {
 /// A window of its own, the preset load dialog closes by its X too: its Close button went.
 #[test]
 fn the_preset_load_dialog_has_no_close_button_of_its_own() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
         .click();
@@ -71,7 +75,7 @@ fn the_preset_load_dialog_has_no_close_button_of_its_own() {
 /// The window's X closes it already: a second, own Close button was one too many.
 #[test]
 fn the_eq_window_has_no_close_button_of_its_own() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh120Ii);
     assert!(harness.query_by_label(texts::CLOSE.get()).is_none());
 }
 
@@ -113,9 +117,10 @@ fn gain_fields(harness: &Harness<'static, NeumannApp>) -> Vec<bool> {
 
 #[test]
 fn the_panels_eq_button_opens_the_window_with_both_containers() {
-    let (_simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, spread);
-    open_panel(&mut harness, device_name(SimModel::Kh120Ii));
-    click_panel_eq(&mut harness, device_name(SimModel::Kh120Ii));
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with(SimulatedModel::Kh120Ii, spread);
+    open_panel(&mut harness, device_name(SimulatedModel::Kh120Ii));
+    click_panel_eq(&mut harness, device_name(SimulatedModel::Kh120Ii));
     wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
     harness.get_by_label("EQ 2");
     harness.get_by_label("EQ 3");
@@ -124,7 +129,7 @@ fn the_panels_eq_button_opens_the_window_with_both_containers() {
 
 #[test]
 fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(3)).rect().center();
     drag(&mut harness, point, egui::vec2(30.0, -40.0));
     wait_until(&mut harness, "the band writes", |_| {
@@ -155,7 +160,7 @@ fn dragging_a_point_writes_frequency_and_boost_of_that_band_only() {
 fn a_drag_beyond_the_edge_stays_in_the_limits() {
     // With the band's level at -12 dB the top of the graph means a boost of 36 dB, past the
     // limit: only the boost's own limit keeps it at 24 dB, not the graph's edge.
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         let mut gains = simulator.value("audio/out/eq2/gain").unwrap();
         gains[9] = json!(-12.0);
         simulator.set_value("audio/out/eq2/gain", gains);
@@ -174,7 +179,7 @@ fn a_drag_beyond_the_edge_stays_in_the_limits() {
 
 #[test]
 fn a_typed_gain_out_of_range_is_refused() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness
         .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
         .next()
@@ -200,7 +205,7 @@ fn a_typed_gain_out_of_range_is_refused() {
 
 #[test]
 fn undo_of_a_band_edit_writes_that_band_back() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
     wait_until(&mut harness, "the boost write", |_| {
@@ -218,7 +223,7 @@ fn undo_of_a_band_edit_writes_that_band_back() {
 
 #[test]
 fn the_crossovers_of_the_outputs_can_be_edited() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     // "Ausgang A" is also a heading in the device panel; the choice is a button.
     harness
         .get_by_role_and_label(Role::Button, "Ausgang A")
@@ -231,7 +236,7 @@ fn the_crossovers_of_the_outputs_can_be_edited() {
 
 #[test]
 fn the_kh120_eq3_can_be_edited() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness.get_by_label("EQ 3").click();
     harness.run_steps(2);
     assert_eq!(gain_fields(&harness), vec![false; 20]);
@@ -239,7 +244,7 @@ fn the_kh120_eq3_can_be_edited() {
 
 #[test]
 fn the_crossover_is_shown_on_the_kh750() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh750);
     harness.get_by_label("Weiche A");
     harness.get_by_label("Weiche B");
     // Measured: `out` is the KH 750's own driver, `out1`/`out2` the sockets A and B.
@@ -248,7 +253,7 @@ fn the_crossover_is_shown_on_the_kh750() {
 
 #[test]
 fn an_unreachable_speaker_greys_the_window() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     simulator.stop();
     wait_until(&mut harness, "the fields greyed", |harness| {
         gain_fields(harness).iter().all(|disabled| *disabled)
@@ -257,10 +262,10 @@ fn an_unreachable_speaker_greys_the_window() {
 
 #[test]
 fn a_band_change_reads_as_one_band_in_the_history() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
-    wait_until(&mut harness, "the gain write", |_| {
+    wait_until(&mut harness, "the boost write", |_| {
         !sets(&simulator, BOOST_POINTER).is_empty()
     });
     close_eq(&mut harness);
@@ -272,7 +277,7 @@ fn a_band_change_reads_as_one_band_in_the_history() {
 
 #[test]
 fn the_strip_opens_the_eq_window() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh750);
     // With the panel closed, the strip's button is the only "EQ".
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
@@ -284,7 +289,7 @@ fn the_strip_opens_the_eq_window() {
 #[test]
 fn the_eq_button_waits_for_the_speakers_model() {
     // Never connected, the model is unknown: which containers it has is not known either.
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
     simulator.stop();
@@ -310,7 +315,8 @@ fn reset_buttons(harness: &Harness<'static, NeumannApp>) -> usize {
 
 #[test]
 fn reset_asks_then_flattens_gain_and_boost() {
-    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with(SimulatedModel::Kh120Ii, shaped);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
@@ -342,7 +348,8 @@ fn reset_asks_then_flattens_gain_and_boost() {
 
 #[test]
 fn a_reset_can_be_cancelled() {
-    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with(SimulatedModel::Kh120Ii, shaped);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ.get())
         .click();
@@ -365,7 +372,7 @@ fn a_reset_can_be_cancelled() {
 
 #[test]
 fn reset_is_not_offered_on_a_crossover() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     assert_eq!(reset_buttons(&harness), 1);
     harness.get_by_label("Weiche A").click();
     harness.run_steps(2);
@@ -374,7 +381,7 @@ fn reset_is_not_offered_on_a_crossover() {
 
 #[test]
 fn reset_is_not_offered_while_the_speaker_is_unreachable() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     assert_eq!(reset_buttons(&harness), 1);
     simulator.stop();
     wait_until(&mut harness, "the reset withdrawn", |harness| {
@@ -415,7 +422,7 @@ fn assert_band_2_written_back(simulator: &Simulator) {
 
 #[test]
 fn eq_undo_takes_back_the_speakers_last_eq_change() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     eq_change_then_mute(&mut harness, &simulator);
     harness.get_by_label_contains(&texts::eq_change_setting("EQ 2", 2, BOOST_LABEL));
     harness
@@ -429,7 +436,7 @@ fn eq_undo_takes_back_the_speakers_last_eq_change() {
 
 #[test]
 fn ctrl_z_in_the_eq_window_undoes_eq_only() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     eq_change_then_mute(&mut harness, &simulator);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "the band written back", |_| {
@@ -440,10 +447,45 @@ fn ctrl_z_in_the_eq_window_undoes_eq_only() {
     assert_band_2_written_back(&simulator);
 }
 
+/// As in the main window, Ctrl+Z waits while a "changed since" question waits for its answer:
+/// in the EQ window it took the EQ change back past the question.
+#[test]
+fn ctrl_z_in_the_eq_window_waits_for_a_pending_question() {
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    close_eq(&mut harness);
+    harness.run_steps(2);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::ArrowUp);
+    wait_until(&mut harness, "the level write", |_| {
+        !level_sets(&simulator).is_empty()
+    });
+    // Someone else turns the speaker meanwhile: taking the level back asks first.
+    simulator.set_value(neumann_control_app::paths::OUTPUT_LEVEL, json!(70.0));
+    wait_for_level(&mut harness, 70.0);
+    let level = harness.state().history().newest(0).expect("the level").id;
+    harness.state_mut().request_take_back(level);
+    wait_until(&mut harness, "the question", |harness| {
+        harness.state().take_back_question() == Some(level)
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .click();
+    wait_for_label(&mut harness, texts::EQ_COMPUTED.get());
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    harness.run_steps(5);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+    assert_eq!(harness.state().take_back_question(), Some(level));
+}
+
 /// As in the main window: a button reached with Tab does not keep Ctrl+Z from the EQ window.
 #[test]
 fn ctrl_z_in_the_eq_window_works_while_a_button_has_the_focus() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     eq_change_then_mute(&mut harness, &simulator);
     harness.key_press(egui::Key::Tab);
     harness.run_steps(2);
@@ -457,14 +499,15 @@ fn ctrl_z_in_the_eq_window_works_while_a_button_has_the_focus() {
 
 #[test]
 fn eq_undo_is_disabled_without_eq_changes() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh120Ii);
     let undo = harness.get_by_role_and_label(Role::Button, texts::UNDO.get());
     assert!(undo.accesskit_node().is_disabled());
 }
 
 #[test]
 fn a_reset_reads_as_all_bands_in_the_history() {
-    let (simulator, _directory, mut harness) = connected_speaker_with(SimModel::Kh120Ii, shaped);
+    let (simulator, _directory, mut harness) =
+        connected_speaker_with(SimulatedModel::Kh120Ii, shaped);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
     harness
@@ -498,7 +541,7 @@ fn a_reset_reads_as_all_bands_in_the_history() {
 
 /// A KH 750 with its EQ window open, crossover protection switched off in the settings.
 fn open_eq_with_open_crossovers() -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     simulator.set_reply_delay(REPLY_DELAY);
     spread(&simulator);
     let directory = tempfile::tempdir().unwrap();
@@ -606,7 +649,7 @@ fn type_eq_preset_name(harness: &mut Harness<'static, NeumannApp>, name: &str) {
 
 #[test]
 fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
-    let (simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
     let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert_eq!(saved.eq_presets.len(), 1);
@@ -643,11 +686,74 @@ fn an_eq_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
 
+/// Bands switched on and off at once go out as two writes to one speaker, the off part first:
+/// the history called them "2 speakers", each part "all bands", with `null` for the bands it
+/// left alone.
+#[test]
+fn bands_switched_on_and_off_at_once_read_as_such_in_the_history() {
+    let alternating: Vec<bool> = (0..10).map(|band| band % 2 == 0).collect();
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq2/enabled", json!(alternating));
+    });
+    save_eq_preset(&mut harness, "Mixed");
+    let opposite: Vec<bool> = alternating.iter().map(|on| !on).collect();
+    simulator.set_value("audio/out/eq2/enabled", json!(opposite));
+    wait_until(&mut harness, "the bands switched over", |harness| {
+        harness.query_by_label(&texts::eq_band(1)).is_none()
+    });
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::eq_preset_entry("Mixed", 10))
+        .click();
+    harness.run_steps(6);
+    scroll_to_and_click(&mut harness, texts::WRITE_PRESET.get());
+    wait_until(&mut harness, "both parts written", |_| {
+        sets(&simulator, ENABLED_POINTER).len() == 2
+    });
+    close_eq(&mut harness);
+    harness.run_steps(2);
+    harness.get_by_label(texts::HISTORY.get()).click();
+    harness.run_steps(2);
+    harness
+        .get_by_label_contains(&texts::history_changes(None, 2))
+        .hover();
+    let off = texts::eq_bands_setting("EQ 2", &[2, 4, 6, 8, 10], ENABLED_LABEL);
+    wait_until(&mut harness, "the tooltip", |harness| {
+        harness.query_by_label_contains(&off).is_some()
+    });
+    assert!(harness.query_by_label_contains("null").is_none());
+}
+
+/// A speaker first known by its address gets its serial at a reconnect: its open EQ window
+/// stays. The test of the window's id alone did not show that the window survives.
+#[test]
+fn an_open_eq_window_stays_when_the_speaker_gets_its_serial() {
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        simulator.set_value(neumann_control_app::paths::SERIAL, json!(7));
+    });
+    simulator.set_value(neumann_control_app::paths::SERIAL, json!("SIM0001234"));
+    simulator.inject(Fault::CloseConnection);
+    let settings = directory
+        .path()
+        .join(neumann_control_core::settings::SETTINGS_FILE);
+    wait_until(&mut harness, "the serial kept", |_| {
+        neumann_control_core::settings::load(&settings)
+            .manual
+            .iter()
+            .any(|entry| entry.serial.as_deref() == Some("SIM0001234"))
+    });
+    harness.run_steps(3);
+    harness.get_by_label(texts::EQ_COMPUTED.get());
+}
+
 /// A preset taken while the speaker reported a value outside the range: loading it writes no
 /// leaf, not the ones before the refused one, and says why.
 #[test]
 fn an_eq_preset_with_a_refused_value_writes_nothing() {
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         let mut frequencies = simulator.value("audio/out/eq2/frequency").unwrap();
         frequencies[0] = json!(30000.0);
         simulator.set_value("audio/out/eq2/frequency", frequencies);
@@ -683,9 +789,55 @@ fn an_eq_preset_with_a_refused_value_writes_nothing() {
     assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
 }
 
+/// Frequencies exactly halfway between two steps of the three-digit grid. A vertical drag must
+/// not write a frequency: the pixel round trip rounded some to the other step.
+#[test]
+fn a_vertical_drag_writes_no_frequency_even_halfway_between_steps() {
+    const HALFWAY: [f64; 10] = [
+        12.35, 25.25, 50.55, 101.5, 202.5, 404.5, 1235.0, 2465.0, 4935.0, 9875.0,
+    ];
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        simulator.set_value("audio/out/eq2/frequency", json!(HALFWAY));
+    });
+    for band in 1..=HALFWAY.len() {
+        let point = harness.get_by_label(&texts::eq_band(band)).rect().center();
+        drag(&mut harness, point, egui::vec2(0.0, -30.0));
+    }
+    wait_until(&mut harness, "the boost writes", |_| {
+        sets(&simulator, BOOST_POINTER).len() >= HALFWAY.len()
+    });
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER), Vec::<Value>::new());
+}
+
+/// Band 1 was outside the range before a drag moved it: its frequency cannot be taken back, so
+/// the boost is not either; taking back the rest alone left a band that never existed.
+#[test]
+fn a_take_back_with_a_refused_value_writes_nothing() {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let mut frequencies = simulator.value("audio/out/eq2/frequency").unwrap();
+        frequencies[0] = json!(30000.0);
+        simulator.set_value("audio/out/eq2/frequency", frequencies);
+    });
+    let point = harness.get_by_label(&texts::eq_band(1)).rect().center();
+    drag(&mut harness, point, egui::vec2(-60.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+            && !sets(&simulator, FREQUENCY_POINTER).is_empty()
+    });
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::Button, texts::UNDO.get())
+        .click();
+    harness.run_steps(4);
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, BOOST_POINTER).len(), 1);
+    assert_eq!(sets(&simulator, FREQUENCY_POINTER).len(), 1);
+}
+
 #[test]
 fn eq_presets_of_another_band_count_are_not_offered() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
     harness.get_by_label("EQ 3").click();
     harness.run_steps(2);
@@ -701,7 +853,7 @@ fn eq_presets_of_another_band_count_are_not_offered() {
 
 #[test]
 fn a_protected_crossover_has_no_eq_presets() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     harness.get_by_role_and_label(Role::Button, texts::EQ_PRESET_SAVE.get());
     harness.get_by_label("Weiche A").click();
     harness.run_steps(2);
@@ -724,7 +876,7 @@ fn with_open_crossovers_loading_an_eq_preset_warns() {
 
 #[test]
 fn a_switched_off_band_has_no_point_in_the_graph() {
-    let (_simulator, _directory, harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (_simulator, _directory, harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         let mut enabled = vec![true; 10];
         enabled[2] = false;
         simulator.set_value("audio/out/eq2/enabled", serde_json::json!(enabled));
@@ -735,7 +887,7 @@ fn a_switched_off_band_has_no_point_in_the_graph() {
 
 #[test]
 fn the_eq_display_is_chosen_and_reset_in_the_settings() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(REPLY_DELAY);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
@@ -764,7 +916,7 @@ fn the_eq_display_is_chosen_and_reset_in_the_settings() {
 
 #[test]
 fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         simulator.set_value("audio/out/eq2/gain", json!(vec![1.5; 10]));
         simulator.set_value("audio/out/eq2/q", json!(vec![2.0; 10]));
     });
@@ -780,27 +932,25 @@ fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
         0.7,
     ));
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
         .click();
     wait_until(&mut harness, "all six leaves written", |_| {
-        ["enabled", "type", "frequency", "q", "gain", "boost"]
+        Leaf::ALL
+            .map(Leaf::name)
             .iter()
             .all(|leaf| !sets(&simulator, &format!("/audio/out/eq2/{leaf}")).is_empty())
     });
     assert_eq!(
-        sets(&simulator, "/audio/out/eq2/enabled"),
+        sets(&simulator, ENABLED_POINTER),
         vec![json!(vec![false; 10])]
     );
     assert_eq!(
         sets(&simulator, FREQUENCY_POINTER),
         vec![json!(vec![100.0; 10])]
     );
-    assert_eq!(
-        sets(&simulator, "/audio/out/eq2/q"),
-        vec![json!(vec![0.7; 10])]
-    );
+    assert_eq!(sets(&simulator, Q_POINTER), vec![json!(vec![0.7; 10])]);
     assert_eq!(sets(&simulator, GAIN_POINTER), vec![json!(vec![0.0; 10])]);
     let history: Vec<_> = harness.state().history().entries().cloned().collect();
     assert_eq!(history.len(), 1);
@@ -810,7 +960,7 @@ fn a_full_reset_switches_every_band_off_and_back_to_the_start_values() {
 
 #[test]
 fn a_full_reset_is_not_offered_on_a_protected_crossover() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     harness.get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get());
     harness.get_by_label("Weiche A").click();
     harness.run_steps(2);
@@ -820,6 +970,12 @@ fn a_full_reset_is_not_offered_on_a_protected_crossover() {
 }
 
 /// The EQ window's file dialog hands out `files` from now on.
+/// Ten band frequencies from 40 Hz up, all within the speakers' range: a preset or import
+/// writes the whole frequency list, and the spread's tenth band lies above it.
+fn in_range_frequencies() -> Vec<f64> {
+    (0..10).map(|band| 40.0 * 2f64.powi(band)).collect()
+}
+
 fn use_files(harness: &mut Harness<'static, NeumannApp>, files: &FakeFiles) {
     harness.state_mut().set_file_dialog(Box::new(files.clone()));
 }
@@ -851,8 +1007,8 @@ fn import_file(
 /// written instead of "already on the speaker", and still lists what would change.
 #[test]
 fn an_import_preview_of_a_speaker_gone_says_why() {
-    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
@@ -870,16 +1026,95 @@ fn an_import_preview_of_a_speaker_gone_says_why() {
         .is_none());
     harness.get_by_label(&texts::eq_preset_band(1));
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
+}
+
+/// How often the speaker was asked for the boost array.
+fn boost_reads(simulator: &Simulator) -> usize {
+    simulator
+        .requests()
+        .iter()
+        .filter(|request| request.pointer(BOOST_POINTER).is_some_and(Value::is_null))
+        .count()
+}
+
+/// The container stops reporting a leaf while the import preview is open (a reconnect without
+/// the gain array): the preview says why and cannot write. Clicking Write closed it without
+/// writing anything.
+#[test]
+fn an_import_preview_of_a_container_gone_stays_and_says_why() {
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    import_file(
+        &mut harness,
+        &directory,
+        "room.txt",
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\n",
+    );
+    simulator.remove_value("audio/out/eq2/gain");
+    simulator.inject(Fault::CloseConnection);
+    // Said in the EQ window and in the preview.
+    wait_until(&mut harness, "the container gone", |harness| {
+        harness
+            .query_all_by_label(texts::EQ_NOT_REPORTED.get())
+            .count()
+            >= 1
+    });
+    harness.run_steps(2);
+    let write = harness.get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get());
+    assert!(write.accesskit_node().is_disabled());
+    barrier(&simulator);
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
+/// Bands the file leaves out are switched off with their other values as they are. A band that
+/// changed while the preview was open was written back to its value from when the file was read.
+#[test]
+fn an_import_keeps_what_changed_in_untouched_bands_meanwhile() {
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
+        simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
+    });
+    import_file(
+        &mut harness,
+        &directory,
+        "room.txt",
+        "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\n",
+    );
+    let mut boosts = simulator.value("audio/out/eq2/boost").unwrap();
+    boosts[2] = json!(5.0);
+    simulator.set_value("audio/out/eq2/boost", boosts);
+    // A reconnect reads the container at once; its own poll is slow.
+    let reads_before = boost_reads(&simulator);
+    simulator.inject(Fault::CloseConnection);
+    wait_until(&mut harness, "the boost read anew", |_| {
+        boost_reads(&simulator) > reads_before
+    });
+    harness.run_steps(4);
+    harness
+        .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
+        .click();
+    wait_until(&mut harness, "the import written", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    barrier(&simulator);
+    for boost in sets(&simulator, BOOST_POINTER) {
+        assert!(
+            matches!(boost[2], Value::Null) || boost[2] == json!(5.0),
+            "{boost}"
+        );
+    }
 }
 
 /// The speaker goes while the load dialog shows a preset it already holds: with nothing to
 /// write, the dialog still says why instead of "already on the speaker".
 #[test]
 fn a_preset_already_on_a_speaker_gone_says_why() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Same");
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
@@ -901,7 +1136,7 @@ fn a_preset_already_on_a_speaker_gone_says_why() {
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
 }
@@ -910,7 +1145,7 @@ fn a_preset_already_on_a_speaker_gone_says_why() {
 /// can be compared any more, so nothing is said to be on the speaker already.
 #[test]
 fn a_preset_compared_with_a_value_gone_is_not_called_the_same() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Same");
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
@@ -939,8 +1174,8 @@ fn a_preset_compared_with_a_value_gone_is_not_called_the_same() {
 /// the preview can be written, without reading the file again.
 #[test]
 fn an_import_refused_while_away_can_be_written_once_back() {
-    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2
@@ -958,8 +1193,8 @@ fn an_import_refused_while_away_can_be_written_once_back() {
     wait_until(&mut harness, "refused while away", |harness| {
         refused(harness)
     });
-    let back = Simulator::start_on(SimModel::Kh120Ii, address).unwrap();
-    let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let back = Simulator::start_on(SimulatedModel::Kh120Ii, address).unwrap();
+    let frequencies = in_range_frequencies();
     back.set_value("audio/out/eq2/frequency", json!(frequencies));
     wait_until(&mut harness, "writable again", |harness| !refused(harness));
 }
@@ -968,9 +1203,8 @@ fn an_import_refused_while_away_can_be_written_once_back() {
 /// goes off before its other values are written back, as the import switched it on last.
 #[test]
 fn taking_back_an_import_switches_its_new_band_off_first() {
-    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
-        // The whole frequency list is written, so every band must be in the speakers' range.
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
         let mut enabled = vec![false; 10];
         enabled[0] = true;
@@ -983,14 +1217,14 @@ fn taking_back_an_import_switches_its_new_band_off_first() {
         .get_by_role_and_label(Role::Button, texts::WRITE_PRESET.get())
         .click();
     wait_until(&mut harness, "the import written", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+        sets(&simulator, ENABLED_POINTER).len() == 2
     });
     barrier(&simulator);
     harness.run_steps(3);
     let written = simulator.requests().len();
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     wait_until(&mut harness, "the take-back", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() >= 3
+        sets(&simulator, ENABLED_POINTER).len() >= 3
     });
     barrier(&simulator);
     let requests = simulator.requests();
@@ -1016,10 +1250,8 @@ fn taking_back_an_import_switches_its_new_band_off_first() {
 
 #[test]
 fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
-    // The whole frequency list is written, so every band must be in the speakers' range (the
-    // spread's tenth band is above it).
-    let (simulator, directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
-        let frequencies: Vec<f64> = (0..10).map(|band| 40.0 * 2f64.powi(band)).collect();
+    let (simulator, directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
+        let frequencies = in_range_frequencies();
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
     });
     let text = "Preamp: -3 dB\r\nFilter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\r\n";
@@ -1029,7 +1261,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     harness.get_by_label(&texts::eq_preset_band(1));
     harness.get_by_label(&texts::eq_preset_band(10));
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     // Slow answers space the import's writes as a loaded CI runner did: the boost had arrived,
     // the frequency not yet.
     simulator.set_reply_delay(std::time::Duration::from_millis(200));
@@ -1038,7 +1270,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
         .click();
     // Band 1 goes on only after its other leaves: the switching on is the last write.
     wait_until(&mut harness, "the import written", |_| {
-        sets(&simulator, "/audio/out/eq2/enabled").len() == 2
+        sets(&simulator, ENABLED_POINTER).len() == 2
     });
     barrier(&simulator);
     let mut switched_off = vec![json!(false); 10];
@@ -1046,7 +1278,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
     let mut switched_on = vec![Value::Null; 10];
     switched_on[0] = json!(true);
     assert_eq!(
-        sets(&simulator, "/audio/out/eq2/enabled"),
+        sets(&simulator, ENABLED_POINTER),
         vec![json!(switched_off), json!(switched_on)]
     );
     assert_eq!(sets(&simulator, BOOST_POINTER)[0][0], json!(-4.0));
@@ -1058,7 +1290,7 @@ fn an_apo_file_is_previewed_then_written_as_one_history_entry() {
 
 #[test]
 fn a_file_the_speaker_would_refuse_writes_nothing() {
-    let (simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     // 5 Hz is below the speakers' 10 Hz.
     let text = "Filter 1: ON PK Fc 5 Hz Gain -4 dB Q 2\n";
     import_file(&mut harness, &directory, "low.txt", text);
@@ -1069,13 +1301,13 @@ fn a_file_the_speaker_would_refuse_writes_nothing() {
         .click();
     harness.run_steps(2);
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/enabled").is_empty());
+    assert!(sets(&simulator, ENABLED_POINTER).is_empty());
     assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
 }
 
 #[test]
 fn a_shelf_by_slope_in_the_file_is_named_and_refused() {
-    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let text =
         "Filter 1: ON PK Fc 120 Hz Gain -4 dB Q 2\nFilter 2: ON LSC 10.8 dB Fc 80 Hz Gain 3 dB\n";
     import_file(&mut harness, &directory, "shelf.txt", text);
@@ -1090,7 +1322,7 @@ fn a_shelf_by_slope_in_the_file_is_named_and_refused() {
 
 #[test]
 fn import_is_not_offered_on_a_protected_crossover_but_export_is() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     harness.get_by_role_and_label(Role::Button, texts::EQ_IMPORT.get());
     harness.get_by_label("Weiche A").click();
     harness.run_steps(2);
@@ -1102,7 +1334,7 @@ fn import_is_not_offered_on_a_protected_crossover_but_export_is() {
 
 #[test]
 fn the_export_saves_the_chosen_eq_as_apo_lines() {
-    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let path = directory.path().join("export.txt");
     let files = FakeFiles {
         save: Some(path.clone()),
@@ -1123,9 +1355,31 @@ fn the_export_saves_the_chosen_eq_as_apo_lines() {
     harness.get_by_label(&texts::eq_export_report("export.txt", &[])[0]);
 }
 
+/// A failed export must leave the file it was to replace: writing it in place lost the old
+/// filters once the write broke off (a full disk). A folder where the temporary file goes makes
+/// the write fail here.
+#[test]
+fn a_failed_export_keeps_the_file_it_was_to_replace() {
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    let path = directory.path().join("export.txt");
+    std::fs::write(&path, "old filters").unwrap();
+    std::fs::create_dir(directory.path().join("export.txt.tmp")).unwrap();
+    let files = FakeFiles {
+        save: Some(path.clone()),
+        ..FakeFiles::default()
+    };
+    use_files(&mut harness, &files);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
+        .click();
+    harness.run_steps(2);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "old filters");
+    harness.get_by_label_contains(&texts::eq_file_unwritable("export.txt", "")[0]);
+}
+
 #[test]
 fn a_cancelled_file_dialog_changes_nothing() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_IMPORT.get())
         .click();
@@ -1145,7 +1399,7 @@ fn a_cancelled_file_dialog_changes_nothing() {
 /// 20-band EQ 3 with the transaction id has more: "Reset" there was refused on the speaker.
 #[test]
 fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         simulator.set_value("audio/out/eq3/enabled", json!(vec![true; 20]));
         simulator.set_value("audio/out/eq3/q", json!(vec![2.0; 20]));
     });
@@ -1159,7 +1413,8 @@ fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
         .get_by_role_and_label(Role::Button, texts::EQ_FULL_RESET.get())
         .click();
     wait_until(&mut harness, "all six leaves of EQ 3 written", |_| {
-        ["enabled", "type", "frequency", "q", "gain", "boost"]
+        Leaf::ALL
+            .map(Leaf::name)
             .iter()
             .all(|leaf| !sets(&simulator, &format!("/audio/out/eq3/{leaf}")).is_empty())
     });
@@ -1178,7 +1433,7 @@ fn a_full_reset_of_the_twenty_band_eq_3_is_taken() {
 /// an upward drag changes the boost only.
 #[test]
 fn a_point_grabbed_beside_its_centre_writes_only_the_moved_axis() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(
         &mut harness,
@@ -1192,9 +1447,57 @@ fn a_point_grabbed_beside_its_centre_writes_only_the_moved_axis() {
     assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
 }
 
+/// A drag cut off by the band switching off leaves its state behind, unseen by its end: the
+/// next drag of that point starts afresh instead of taking the old offset.
+#[test]
+fn a_drag_cut_off_by_switching_the_band_off_leaves_no_offset_for_the_next_one() {
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    // Grabbed off its centre: this gesture's offset is far from the next one's.
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    let grabbed = point + egui::vec2(-6.0, -6.0);
+    harness.drag_at(grabbed);
+    for frame in 1..=5 {
+        harness.hover_at(grabbed + egui::vec2(25.0 * frame as f32, 0.0));
+        harness.step();
+    }
+    let mut enabled = vec![true; 10];
+    enabled[1] = false;
+    simulator.set_value("audio/out/eq2/enabled", json!(enabled));
+    wait_until(&mut harness, "the point gone", |harness| {
+        harness.query_by_label(&texts::eq_band(2)).is_none()
+    });
+    harness.drop_at(point + egui::vec2(125.0, 0.0));
+    harness.run_steps(3);
+    simulator.set_value("audio/out/eq2/enabled", json!(vec![true; 10]));
+    wait_until(&mut harness, "the point back", |harness| {
+        harness.query_by_label(&texts::eq_band(2)).is_some()
+    });
+    barrier(&simulator);
+    // The same move on band 2 and, as the measure, on band 3, which no gesture was cut off on.
+    for band in [2, 3] {
+        let boosts_before = sets(&simulator, BOOST_POINTER).len();
+        let point = harness.get_by_label(&texts::eq_band(band)).rect().center();
+        drag(
+            &mut harness,
+            point + egui::vec2(6.0, 6.0),
+            egui::vec2(0.0, -20.0),
+        );
+        wait_until(&mut harness, "the boost write", |_| {
+            sets(&simulator, BOOST_POINTER).len() > boosts_before
+        });
+        barrier(&simulator);
+    }
+    let boosts = sets(&simulator, BOOST_POINTER);
+    let [.., band_2, band_3] = boosts.as_slice() else {
+        panic!("{boosts:?}");
+    };
+    assert_eq!(band_2[1], band_3[2], "{boosts:?}");
+    assert!(sets(&simulator, FREQUENCY_POINTER).is_empty());
+}
+
 #[test]
 fn a_point_dragged_away_and_back_writes_nothing() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let start = harness.get_by_label(&texts::eq_band(2)).rect().center() + egui::vec2(4.0, -3.0);
     harness.drag_at(start);
     for offset in [(10.0, -10.0), (30.0, -30.0), (10.0, -10.0), (0.0, 0.0)] {
@@ -1210,7 +1513,7 @@ fn a_point_dragged_away_and_back_writes_nothing() {
 
 #[test]
 fn escape_during_a_point_drag_writes_nothing() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let start = harness.get_by_label(&texts::eq_band(2)).rect().center();
     harness.drag_at(start);
     for frame in 1..=3 {
@@ -1230,7 +1533,7 @@ fn escape_during_a_point_drag_writes_nothing() {
 
 #[test]
 fn the_wheel_during_a_point_drag_leaves_q_alone() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     let start = harness.get_by_label(&texts::eq_band(2)).rect().center();
     harness.drag_at(start);
     // Just past egui's drag threshold, so the pointer is still over the point's resting place.
@@ -1249,13 +1552,13 @@ fn the_wheel_during_a_point_drag_leaves_q_alone() {
     harness.drop_at(start + egui::vec2(0.0, -6.5));
     harness.run_steps(3);
     barrier(&simulator);
-    assert!(sets(&simulator, "/audio/out/eq2/q").is_empty());
+    assert!(sets(&simulator, Q_POINTER).is_empty());
 }
 
 /// Two points on one spot: the wheel turns the one drawn on top, not both.
 #[test]
 fn the_wheel_over_overlapping_points_turns_one_band() {
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         let mut frequencies: Vec<f64> = (0..10).map(|band| 50.0 * 2f64.powi(band)).collect();
         frequencies[2] = frequencies[1];
         simulator.set_value("audio/out/eq2/frequency", json!(frequencies));
@@ -1271,11 +1574,11 @@ fn the_wheel_over_overlapping_points_turns_one_band() {
         modifiers: egui::Modifiers::NONE,
     });
     wait_until(&mut harness, "a Q write", |_| {
-        !sets(&simulator, "/audio/out/eq2/q").is_empty()
+        !sets(&simulator, Q_POINTER).is_empty()
     });
     harness.run_steps(40);
     barrier(&simulator);
-    let written: Vec<Value> = sets(&simulator, "/audio/out/eq2/q");
+    let written: Vec<Value> = sets(&simulator, Q_POINTER);
     let bands: usize = written
         .iter()
         .map(|set| {
@@ -1293,7 +1596,7 @@ fn the_wheel_over_overlapping_points_turns_one_band() {
 /// rounds a dragged value to the shown decimals.
 #[test]
 fn a_table_field_dragged_away_and_back_writes_nothing() {
-    let (simulator, _directory, mut harness) = open_eq_with(SimModel::Kh120Ii, |simulator| {
+    let (simulator, _directory, mut harness) = open_eq_with(SimulatedModel::Kh120Ii, |simulator| {
         let mut boosts = vec![0.0; 10];
         boosts[1] = 1.234567;
         simulator.set_value("audio/out/eq2/boost", json!(boosts));
@@ -1316,10 +1619,79 @@ fn a_table_field_dragged_away_and_back_writes_nothing() {
     assert!(written.is_empty(), "{written:?}");
 }
 
+/// A refusal belongs to the EQ it was written to: it stood on under another EQ's tab.
+#[test]
+fn a_refusal_goes_with_a_switch_to_another_eq() {
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .type_text("30");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    let range = Refusal::OutOfRange {
+        min: -99.0,
+        max: 24.0,
+        unit: "dB".to_owned(),
+    };
+    let refusal = texts::describe_refusal(&range);
+    harness.get_by_label_contains(&refusal);
+    harness.get_by_label("EQ 3").click();
+    harness.run_steps(3);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
+}
+
+/// An undo from the EQ window is a write too: an older refusal goes with it.
+#[test]
+fn a_refusal_goes_with_an_undo_in_the_eq_window() {
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
+    let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
+    drag(&mut harness, point, egui::vec2(0.0, -40.0));
+    wait_until(&mut harness, "the band write", |_| {
+        !sets(&simulator, BOOST_POINTER).is_empty()
+    });
+    writes_answered(&mut harness, &simulator);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .click();
+    harness.run_steps(1);
+    harness
+        .query_all_by_role_and_label(Role::SpinButton, GAIN_LABEL)
+        .next()
+        .unwrap()
+        .type_text("30");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    let range = Refusal::OutOfRange {
+        min: -99.0,
+        max: 24.0,
+        unit: "dB".to_owned(),
+    };
+    let refusal = texts::describe_refusal(&range);
+    harness.get_by_label_contains(&refusal);
+    harness
+        .get_by_role_and_label(Role::Button, texts::UNDO.get())
+        .click();
+    wait_until(&mut harness, "the band written back", |_| {
+        sets(&simulator, BOOST_POINTER).len() == 2
+    });
+    harness.run_steps(2);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
+}
+
 /// Leaving a table field by clicking another EQ's tab writes the value to the EQ it was typed in.
 #[test]
 fn a_value_typed_before_switching_the_eq_goes_to_the_eq_it_was_typed_in() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness
         .query_all_by_role_and_label(Role::SpinButton, BOOST_LABEL)
         .nth(1)
@@ -1356,7 +1728,7 @@ fn saved_eq_presets(directory: &tempfile::TempDir) -> Vec<(String, usize)> {
 /// the same name here must not silently replace it.
 #[test]
 fn an_eq_preset_of_another_band_count_keeps_its_name() {
-    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
     harness.get_by_label("EQ 3").click();
     harness.run_steps(2);
@@ -1366,7 +1738,7 @@ fn an_eq_preset_of_another_band_count_keeps_its_name() {
 
 #[test]
 fn saving_an_eq_preset_under_a_taken_name_says_it_replaces() {
-    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
     type_eq_preset_name(&mut harness, "Warm");
     // The typed name reaches the window's state after the frame that drew it.
@@ -1379,7 +1751,7 @@ fn saving_an_eq_preset_under_a_taken_name_says_it_replaces() {
 
 #[test]
 fn deleting_an_eq_preset_asks_first() {
-    let (_simulator, directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     save_eq_preset(&mut harness, "Warm");
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_PRESET_LOAD.get())
@@ -1401,7 +1773,7 @@ fn deleting_an_eq_preset_asks_first() {
 /// The KH 750's crossovers lie side by side, one per input: its sum is drawn per input.
 #[test]
 fn the_kh750_sum_is_drawn_per_input() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh750);
     harness.get_by_label(&texts::eq_input_sum("A"));
     harness.get_by_label(&texts::eq_input_sum("B"));
     assert!(harness.query_by_label(texts::EQ_SUM.get()).is_none());
@@ -1409,20 +1781,20 @@ fn the_kh750_sum_is_drawn_per_input() {
 
 #[test]
 fn a_monitor_has_one_sum() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh120Ii);
     harness.get_by_label(texts::EQ_SUM.get());
 }
 
 /// "EQ 2 Band 2" is on every output of a KH 750: the history names the output too.
 #[test]
 fn the_history_names_the_output_of_a_kh750_eq_change() {
-    let (simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     let point = harness.get_by_label(&texts::eq_band(2)).rect().center();
     drag(&mut harness, point, egui::vec2(0.0, -40.0));
     wait_until(&mut harness, "the band write", |_| {
         simulator.requests().iter().any(|request| {
             request
-                .pointer("/audio/out/eq2/boost")
+                .pointer(BOOST_POINTER)
                 .is_some_and(|value| !value.is_null())
         })
     });
@@ -1436,9 +1808,9 @@ fn the_history_names_the_output_of_a_kh750_eq_change() {
 /// The KH 750 has an EQ 2 on each of its three outputs: the suggested file name tells them apart.
 #[test]
 fn an_eq_export_of_a_kh750_names_the_output() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh750);
     let files = FakeFiles::default();
-    harness.state_mut().set_file_dialog(Box::new(files.clone()));
+    use_files(&mut harness, &files);
     harness
         .get_by_role_and_label(Role::Button, texts::EQ_EXPORT.get())
         .click();
@@ -1454,7 +1826,7 @@ fn an_eq_export_of_a_kh750_names_the_output() {
 /// The type choice of each band is named by its band, as its column title says it.
 #[test]
 fn each_bands_type_choice_is_named() {
-    let (_simulator, _directory, harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, harness) = open_eq(SimulatedModel::Kh120Ii);
     harness.get_by_role_and_label(Role::ComboBox, &texts::eq_band_leaf(1, "Typ"));
 }
 
@@ -1462,7 +1834,7 @@ fn each_bands_type_choice_is_named() {
 /// room there, instead of all of them scrolling in one narrow column.
 #[test]
 fn bands_that_do_not_fit_below_go_into_a_column_to_the_right() {
-    let (_simulator, _directory, mut harness) = open_eq(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = open_eq(SimulatedModel::Kh120Ii);
     harness.get_by_label("EQ 3").click();
     harness.run_steps(4);
     let type_of = |band: usize| {

@@ -92,16 +92,31 @@ impl NeumannApp {
         }
     }
 
+    /// Nothing to fit the window to (no speakers): the window is right as it is, so a size the
+    /// user gives it ends the fit, as with speakers.
+    pub(super) fn watch_fit(&mut self, context: &Context) {
+        self.fit_window(context, Vec2::ZERO, Vec2::ZERO);
+    }
+
     pub(super) fn show_desk(&mut self, ui: &mut Ui) {
-        if self.speakers.is_empty() {
+        let no_speakers = self.speakers.is_empty();
+        if no_speakers {
             ui.weak(texts::NO_SPEAKERS);
-            return;
+            // The Windows strip needs no speaker.
+            if !self.system_strip_on() {
+                self.watch_fit(ui.ctx());
+                return;
+            }
         }
         let catalog = Catalog::embedded();
         let desk = self.settings.desk.clone();
         let editing = self.editing;
         let ids = self.member_ids();
-        let items = layout(&self.settings.order, &self.settings.groups, &ids);
+        let mut items = layout(&self.settings.order, &self.settings.groups, &ids);
+        // Without speakers a group strip has nothing to control, as the master.
+        if no_speakers {
+            items.clear();
+        }
         let dragged = DragAndDrop::payload::<String>(ui.ctx())
             .and_then(|member| ids.iter().position(|id| *id == *member));
         let items = match dragged {
@@ -201,7 +216,7 @@ impl NeumannApp {
                             }
                         }
                     }
-                    if desk.show_master {
+                    if desk.show_master && !no_speakers {
                         let everyone: Vec<usize> = (0..self.speakers.len()).collect();
                         let states = self.states(&everyone);
                         let level = shared_level(&levels(&states), &range);
@@ -330,8 +345,8 @@ impl NeumannApp {
     }
 
     /// A group or master fader let go after moving by `moved` dB: every member that may write its
-    /// level moves by that much from its own current level, within its own range; a mute switch sets mute on all
-    /// of them.
+    /// level moves by that much from its own current level, within its own range. A mute switch
+    /// sets mute on every member that may write it.
     pub(super) fn apply_shared(
         &mut self,
         members: &[usize],
@@ -442,7 +457,8 @@ impl NeumannApp {
     }
 
     /// A write on behalf of a gesture elsewhere (group, master, link, copy): a member that is
-    /// not connected is left out, so its own message ("nicht erreichbar") stays.
+    /// not connected, or whose model may not write the setting, is left out, so its own message
+    /// ("nicht erreichbar") stays.
     pub(super) fn request_and_send(
         &mut self,
         index: usize,
@@ -452,6 +468,9 @@ impl NeumannApp {
     ) {
         let speaker = &mut self.speakers[index];
         if speaker.state.status != Status::Connected {
+            return;
+        }
+        if !can_write(&speaker.state, catalog, &intent.path()) {
             return;
         }
         if let Some(command) = speaker.state.request(intent, catalog, now) {

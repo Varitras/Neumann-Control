@@ -66,16 +66,23 @@ impl NeumannApp {
     }
 
     /// Chosen in the settings, on a system that has it.
-    fn system_strip_on(&self) -> bool {
+    pub(super) fn system_strip_on(&self) -> bool {
         self.settings.system_audio.shown && self.system_audio.offered()
     }
 
     pub(super) fn keep_system_meters_moving(&self, context: &eframe::egui::Context, now: f64) {
-        if self.system_strip_on() {
-            let floor = self.settings.desk.meter_floor.db();
-            context.request_repaint_after(system_refresh(&self.system_meters, floor, now));
+        // Only the desk has the strip, compact mode none.
+        let drawn = self.system_strip_on() && !self.settings.desk.compact;
+        let floor = self.settings.desk.meter_floor.db();
+        if let Some(refresh) = strip_refresh(drawn, &self.system_meters, floor, now) {
+            context.request_repaint_after(refresh);
         }
     }
+}
+
+/// How soon to draw again for the strip's meters; `None` while no strip is drawn.
+fn strip_refresh(drawn: bool, meters: &[MeterState], floor: f64, now: f64) -> Option<Duration> {
+    drawn.then(|| system_refresh(meters, floor, now))
 }
 
 /// How soon Windows' peaks are read again: often while there is sound or a bar still falls.
@@ -95,6 +102,19 @@ mod tests {
     use super::*;
 
     const FLOOR: f64 = -60.0;
+
+    /// Compact mode draws no Windows strip: its meters kept frames coming 10 to 20 times a
+    /// second for nothing.
+    #[test]
+    fn no_strip_drawn_asks_for_no_frames() {
+        let mut sounding = [MeterState::default(); 2];
+        sounding[1].update(-20.0, 5.0);
+        assert_eq!(strip_refresh(false, &sounding, FLOOR, 5.0), None);
+        assert_eq!(
+            strip_refresh(true, &sounding, FLOOR, 5.0),
+            Some(METER_REFRESH)
+        );
+    }
 
     #[test]
     fn silence_is_read_less_often_than_sound() {

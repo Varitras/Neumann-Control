@@ -1,6 +1,6 @@
-//! Which elements a model's channel strips show besides their fixed part, and how a change to
-//! that list is applied. The stored list is resolved against the catalog every time, so a
-//! hand-edited or older file never puts something on a strip that the model cannot show.
+//! Which elements a model's (or a speaker's own) channel strips show besides their fixed part, and
+//! how a change to that list is applied. The stored list is resolved against the catalog every
+//! time, so a hand-edited or older file never puts something on a strip that the model cannot show.
 
 use neumann_control_core::catalog::{Catalog, Entry, Kind};
 use neumann_control_core::settings::{Language, StoredStripLayout, StripElement};
@@ -143,7 +143,9 @@ pub fn changed(
     Some(result)
 }
 
-/// The layout to store after `change`; `None` drops the model's entry, so it shows the default.
+/// The layout to store after `change`; `None` drops the owner's entry (the model's, or the
+/// speaker's with layouts per speaker), so the strip shows what applies one level up: the
+/// model's layout, else the default.
 pub fn apply(layout: &StripLayout, change: &LayoutChange) -> Option<StoredStripLayout> {
     let mut changed = layout.clone();
     match change {
@@ -275,8 +277,6 @@ mod tests {
 
     const MONITOR: &str = "KH 120 II";
     const SUBWOOFER: &str = "KH 750";
-    const PHASE_INVERSION: &str = "audio/out/phaseinversion";
-    const TEMPERATURE: &str = "device/temperature";
 
     fn element(text: &str) -> StripElement {
         StripElement::Path(SscPath::parse(text).unwrap())
@@ -352,7 +352,7 @@ mod tests {
         let stored = StoredStripLayout {
             above: elements(&[
                 paths::DEVICE_NAME,
-                PHASE_INVERSION,
+                paths::PHASE_INVERSION,
                 paths::DELAY,
                 paths::DELAY,
             ]),
@@ -365,8 +365,8 @@ mod tests {
     #[test]
     fn addable_lists_what_is_missing_only() {
         let addable = addable(&monitor_default(), MONITOR, Catalog::embedded());
-        assert!(addable.contains(&element(PHASE_INVERSION)));
-        for missing in [TEMPERATURE, paths::DEVICE_NAME, paths::MUTE] {
+        assert!(addable.contains(&element(paths::PHASE_INVERSION)));
+        for missing in [paths::TEMPERATURE, paths::DEVICE_NAME, paths::MUTE] {
             assert!(!addable.contains(&element(missing)), "{missing}");
         }
         assert!(!addable.contains(&StripElement::Eq));
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn add_remove_and_swap() {
         let layout = monitor_default();
-        let phase = element(PHASE_INVERSION);
+        let phase = element(paths::PHASE_INVERSION);
         let added = stored(apply(&layout, &LayoutChange::Add(phase.clone(), Area::Below)).unwrap());
         assert_eq!(added.below.last(), Some(&phase));
         let swap = LayoutChange::Swap {
@@ -414,14 +414,14 @@ mod tests {
     #[test]
     fn operations_use_the_stored_order_when_an_element_is_absent() {
         let layout = StripLayout {
-            above: elements(&[paths::DELAY, PHASE_INVERSION, paths::STANDBY_TIME]),
+            above: elements(&[paths::DELAY, paths::PHASE_INVERSION, paths::STANDBY_TIME]),
             below: Vec::new(),
         };
         let change = LayoutChange::MoveUp(element(paths::STANDBY_TIME));
         let moved = stored(apply(&layout, &change).unwrap());
         assert_eq!(
             moved.above,
-            elements(&[paths::DELAY, paths::STANDBY_TIME, PHASE_INVERSION])
+            elements(&[paths::DELAY, paths::STANDBY_TIME, paths::PHASE_INVERSION])
         );
     }
 
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn no_element_twice_after_any_change() {
         let layout = monitor_default();
-        let phase = element(PHASE_INVERSION);
+        let phase = element(paths::PHASE_INVERSION);
         let mute = element(paths::MUTE);
         let move_down = LayoutChange::MoveDown(mute.clone());
         assert_ne!(stored(apply(&layout, &move_down).unwrap()), layout);

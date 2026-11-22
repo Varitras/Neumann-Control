@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use neumann_control_core::address::link_local_addresses;
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::schema_walk::{read_all, WalkError, MAX_SCHEMA_DEPTH, MAX_SCHEMA_NODES};
-use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator};
 use neumann_control_core::speaker::{
     spawn, Command, Event, Events, Identity, SpeakerHandle, Target, Timing,
 };
@@ -209,11 +209,67 @@ impl Drop for ClosingListener {
     }
 }
 
+/// Name, firmware, model or serial missing (404) or `null`: the speaker answers, so it is
+/// connected with that field empty. Each made it unreachable, and the app kept reconnecting.
+#[test]
+fn a_missing_or_null_identity_field_leaves_it_empty() {
+    const FIELDS: [&str; 4] = [
+        "device/name",
+        "device/identity/version",
+        "device/identity/product",
+        "device/identity/serial",
+    ];
+    for field in FIELDS {
+        for missing in [true, false] {
+            let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+            match missing {
+                true => simulator.remove_value(field),
+                false => simulator.set_value(field, Value::Null),
+            }
+            let (_handle, events) = start_worker(simulator.address(), None, quiet_timing());
+            let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+                is_connected(event) || is_unreachable(event)
+            });
+            let Some(Event::Connected(identity)) = seen.last() else {
+                panic!("{field}, missing {missing}: {seen:?}");
+            };
+            let read = match field {
+                "device/name" => &identity.name,
+                "device/identity/version" => &identity.version,
+                "device/identity/product" => &identity.product,
+                _ => &identity.serial,
+            };
+            assert_eq!(read, "", "{field}, missing {missing}");
+        }
+    }
+}
+
+/// A speaker added from a scan expects the serial as the scan cleaned it (no control
+/// characters, at most 64 characters); the serial read over SSC is cleaned the same way before
+/// it is compared, or that speaker was locked out with a serial mismatch.
+#[test]
+fn a_serial_is_compared_as_the_scan_cleaned_it() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    simulator.set_value(
+        "device/identity/serial",
+        json!(format!("{KH_120_II_SERIAL}\u{7}")),
+    );
+    let (_handle, events) =
+        start_worker(simulator.address(), Some(KH_120_II_SERIAL), quiet_timing());
+    let seen = collect_until(&events, EVENT_DEADLINE, |event| {
+        is_connected(event) || matches!(event, Event::SerialMismatch { .. })
+    });
+    let Some(Event::Connected(identity)) = seen.last() else {
+        panic!("{seen:?}");
+    };
+    assert_eq!(identity.serial, KH_120_II_SERIAL);
+}
+
 /// A serial that is no text (measured: it always is) is no serial: a speaker added by address
 /// is not pinned to it, so its real serial is taken at the next connection.
 #[test]
 fn a_serial_of_the_wrong_type_is_not_taken() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_value("device/identity/serial", json!(7));
     let (_handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let seen = collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -239,7 +295,7 @@ fn a_serial_of_the_wrong_type_is_not_taken() {
 
 #[test]
 fn worker_reports_identity_then_values() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let woken = Arc::new(AtomicUsize::new(0));
     let wake: Arc<dyn Fn() + Send + Sync> = Arc::new({
         let woken = Arc::clone(&woken);
@@ -282,7 +338,7 @@ fn worker_reports_identity_then_values() {
 
 #[test]
 fn set_command_emits_confirmed_value() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
@@ -305,7 +361,7 @@ fn set_command_emits_confirmed_value() {
 /// A read asked for between polls reports the value the speaker holds now.
 #[test]
 fn a_read_command_reports_the_value_as_it_is_now() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let mute = path("audio/out/mute");
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &mute));
@@ -324,7 +380,7 @@ fn a_read_command_reports_the_value_as_it_is_now() {
 /// index that does not exist; `None` on a computer without one.
 fn simulator_behind_a_gone_interface() -> Option<(Simulator, SocketAddrV6)> {
     let local = link_local_addresses().pop()?;
-    let simulator = Simulator::start_on(SimModel::Kh120Ii, local).unwrap();
+    let simulator = Simulator::start_on(SimulatedModel::Kh120Ii, local).unwrap();
     let reached = simulator.address();
     let gone = SocketAddrV6::new(*reached.ip(), reached.port(), 0, GONE_INTERFACE);
     Some((simulator, gone))
@@ -362,7 +418,7 @@ fn another_serial_through_another_interface_is_no_new_address() {
 
 #[test]
 fn read_only_set_emits_rejection_and_reread() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
@@ -396,7 +452,7 @@ fn read_only_set_emits_rejection_and_reread() {
 
 #[test]
 fn absent_path_is_reported_once_and_not_polled_again() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.remove_value("audio/out/mute");
     let (_handle, events) = start_worker(simulator.address(), None, short_timing());
 
@@ -422,7 +478,7 @@ fn absent_path_is_reported_once_and_not_polled_again() {
 
 #[test]
 fn null_value_from_the_device_keeps_the_connection() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_value("audio/out/mute", Value::Null);
     // Only fast paths repeat, so the product is read only when a connection starts.
     let timing = Timing {
@@ -454,7 +510,7 @@ fn null_value_from_the_device_keeps_the_connection() {
 /// the path missing, so the app can tell which of its writes the answer is for.
 #[test]
 fn set_on_absent_path_is_answered_as_a_write() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.remove_value("audio/out/mute");
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let mute = path("audio/out/mute");
@@ -473,7 +529,7 @@ fn set_on_absent_path_is_answered_as_a_write() {
 
 #[test]
 fn commands_run_before_polling() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let busy = Timing {
         meter: LONG_INTERVAL,
         fast: Duration::from_millis(1),
@@ -514,7 +570,7 @@ fn commands_run_before_polling() {
 
 #[test]
 fn meters_are_polled_between_slow_paths() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let busy = Timing {
         meter: Duration::from_millis(50),
         fast: Duration::from_millis(1),
@@ -543,7 +599,7 @@ fn meters_are_polled_between_slow_paths() {
 
 #[test]
 fn worker_recovers_after_simulator_restart() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let address = simulator.address();
     let (_handle, events) = start_worker(address, None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -555,7 +611,8 @@ fn worker_recovers_after_simulator_restart() {
     };
     assert!(!reason.contains(&address.ip().to_string()));
 
-    let _restarted = Simulator::start_on(SimModel::Kh120Ii, address).expect("the port is free");
+    let _restarted =
+        Simulator::start_on(SimulatedModel::Kh120Ii, address).expect("the port is free");
     let seen = collect_until(&events, RECOVERY_DEADLINE, is_connected);
     assert!(!seen.iter().any(is_unreachable), "outage reported twice");
 }
@@ -602,7 +659,7 @@ fn commands_while_unreachable_fail_at_once() {
 /// the write failed and the value is read again.
 #[test]
 fn an_empty_answer_to_a_write_fails_it_and_reads_the_value_again() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let last = last_initial_path(KH_120_II_PRODUCT);
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
@@ -635,7 +692,7 @@ fn an_empty_answer_to_a_write_fails_it_and_reads_the_value_again() {
 fn a_write_just_before_the_stop_reaches_the_speaker() {
     // The KH 750 reads four meters in a row; a stop seen between two of them must not
     // swallow the write that came first.
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let (handle, events) = start_worker(simulator.address(), None, short_timing());
     let last = last_initial_path(KH_750_PRODUCT);
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
@@ -655,7 +712,7 @@ fn a_write_just_before_the_stop_reaches_the_speaker() {
 
 #[test]
 fn connection_loss_during_set_reports_write_failed() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let last = last_initial_path(KH_120_II_PRODUCT);
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
@@ -676,7 +733,7 @@ fn connection_loss_during_set_reports_write_failed() {
 
 #[test]
 fn serial_mismatch_is_reported() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (_handle, events) = start_worker(simulator.address(), Some("OTHER"), short_timing());
 
     let first = events.recv_timeout(EVENT_DEADLINE).expect("an event");
@@ -698,7 +755,7 @@ fn serial_mismatch_is_reported() {
 /// Another unit at the address: a write meant for the expected speaker must not reach it.
 #[test]
 fn a_write_never_reaches_a_speaker_of_another_serial() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), Some("OTHER"), short_timing());
     collect_until(&events, EVENT_DEADLINE, |event| {
         matches!(event, Event::SerialMismatch { .. })
@@ -725,7 +782,7 @@ fn a_write_never_reaches_a_speaker_of_another_serial() {
 /// another unit answering at that address later is not taken for it.
 #[test]
 fn another_serial_after_a_reconnect_is_a_mismatch() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (_handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
     simulator.set_value("device/identity/serial", json!("OTHER"));
@@ -746,7 +803,7 @@ fn another_serial_after_a_reconnect_is_a_mismatch() {
 /// refused leaf is; the walk does not end on it.
 #[test]
 fn a_refused_container_schema_stays_in_its_own_report() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.refuse_schema("device/network");
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
 
@@ -762,9 +819,23 @@ fn a_refused_container_schema_stays_in_its_own_report() {
         .any(|leaf| leaf.path == path("audio/out/level")));
 }
 
+/// A leaf whose limits the speaker refuses keeps its value in the report, without limits.
+#[test]
+fn a_refused_limits_query_leaves_the_value() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    simulator.refuse_limits("audio/out/level");
+    let mut client = Client::connect(simulator.address()).expect("simulator accepts");
+    let reports = read_all(&mut client, &|| false).expect("the walk goes on");
+    let level = reports
+        .iter()
+        .find(|leaf| leaf.path == path("audio/out/level"))
+        .expect("the level reported");
+    assert_eq!((level.value.is_ok(), &level.limits), (true, &None));
+}
+
 #[test]
 fn read_all_lists_every_leaf() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
 
     let reports = read_all(&mut client, &|| false).expect("the walk succeeds");
@@ -790,7 +861,7 @@ fn read_all_lists_every_leaf() {
 
 #[test]
 fn read_all_command_reports_all_values() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
@@ -809,7 +880,7 @@ const WALK_REPLY_DELAY: Duration = Duration::from_millis(5);
 
 #[test]
 fn set_during_read_all_is_written_before_the_walk_ends() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
     simulator.set_reply_delay(WALK_REPLY_DELAY);
@@ -837,7 +908,7 @@ fn set_during_read_all_is_written_before_the_walk_ends() {
 
 #[test]
 fn meters_keep_running_during_read_all() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let timing = Timing {
         meter: Duration::from_millis(20),
         ..quiet_timing()
@@ -863,7 +934,7 @@ fn meters_keep_running_during_read_all() {
 
 #[test]
 fn connection_loss_during_read_all_is_answered() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let timing = Timing {
         meter: Duration::from_millis(20),
         ..quiet_timing()
@@ -883,7 +954,7 @@ fn connection_loss_during_read_all_is_answered() {
 
 #[test]
 fn polling_pauses_while_nobody_reads_the_events() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let timing = Timing {
         unread_events_limit: 30,
         ..short_timing()
@@ -915,7 +986,7 @@ fn polling_pauses_while_nobody_reads_the_events() {
 /// not one slow interval later: the pause must not use up its turn.
 #[test]
 fn a_path_due_during_the_pause_is_read_when_it_ends() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let slow = Duration::from_secs(2);
     let timing = Timing {
         meter: Duration::from_millis(20),
@@ -944,7 +1015,7 @@ fn a_path_due_during_the_pause_is_read_when_it_ends() {
 
 #[test]
 fn response_time_is_reported_about_once_a_second() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(Duration::from_millis(30));
     let (_handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -972,7 +1043,7 @@ fn response_time_is_reported_about_once_a_second() {
 
 #[test]
 fn drop_stops_the_thread() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, short_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
 
@@ -1004,7 +1075,7 @@ fn drop_stops_the_thread_while_waiting_to_reconnect() {
 
 #[test]
 fn drop_during_read_all_returns_promptly() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     let last = last_initial_path(KH_120_II_PRODUCT);
     collect_until(&events, EVENT_DEADLINE, |event| is_value_of(event, &last));
@@ -1020,7 +1091,7 @@ fn drop_during_read_all_returns_promptly() {
 
 #[test]
 fn drop_during_connect_read_returns_promptly() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(SLOW_REPLY);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -1033,7 +1104,7 @@ fn drop_during_connect_read_returns_promptly() {
 /// Exactly at the depth limit the walk still reads the leaf; one level deeper ends it.
 #[test]
 fn a_schema_at_the_depth_limit_is_read() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let deepest = (1..=MAX_SCHEMA_DEPTH)
         .map(|level| format!("level{level}"))
         .collect::<Vec<_>>()
@@ -1046,7 +1117,7 @@ fn a_schema_at_the_depth_limit_is_read() {
 
 #[test]
 fn oversized_schema_fails_read_all_but_keeps_connection() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let deep = (0..=MAX_SCHEMA_DEPTH)
         .map(|level| format!("level{level}"))
         .collect::<Vec<_>>()
@@ -1078,7 +1149,7 @@ fn oversized_schema_fails_read_all_but_keeps_connection() {
 
 #[test]
 fn too_many_schema_nodes_are_refused() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     for index in 0..=MAX_SCHEMA_NODES {
         simulator.set_value(&format!("wide/node{index}"), json!(index));
     }
@@ -1092,7 +1163,7 @@ fn too_many_schema_nodes_are_refused() {
 
 #[test]
 fn read_all_stops_when_asked() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let mut client = Client::connect(simulator.address()).expect("simulator accepts");
 
     let outcome = read_all(&mut client, &|| true);
@@ -1105,7 +1176,7 @@ fn read_all_stops_when_asked() {
 /// connect-time reads, not after all of them (about two seconds on a KH 750).
 #[test]
 fn a_command_during_the_connect_time_read_goes_out_before_its_end() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(SLOW_REPLY);
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -1132,7 +1203,7 @@ fn a_command_during_the_connect_time_read_goes_out_before_its_end() {
 
 #[test]
 fn commands_queued_during_long_work_keep_their_order() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(Duration::from_millis(20));
     let (handle, events) = start_worker(simulator.address(), None, quiet_timing());
     collect_until(&events, EVENT_DEADLINE, is_connected);
@@ -1175,7 +1246,7 @@ fn is_limits_read(request: &Value) -> bool {
 #[test]
 fn a_connection_lost_while_reading_leaves_fails_the_walk() {
     for seen in [is_leaf_read as fn(&Value) -> bool, is_limits_read] {
-        let simulator = Simulator::start(SimModel::Kh120Ii);
+        let simulator = Simulator::start(SimulatedModel::Kh120Ii);
         simulator.set_reply_delay(SLOW_WALK_REPLY);
         let mut client = Client::connect(simulator.address()).expect("simulator accepts");
         let walk = thread::spawn(move || read_all(&mut client, &|| false));
@@ -1207,12 +1278,12 @@ fn visited_nodes(reports: &[neumann_control_core::schema_walk::LeafReport]) -> u
 
 #[test]
 fn exactly_the_node_limit_is_still_read() {
-    let plain = Simulator::start(SimModel::Kh120Ii);
+    let plain = Simulator::start(SimulatedModel::Kh120Ii);
     let mut client = Client::connect(plain.address()).expect("simulator accepts");
     let base = visited_nodes(&read_all(&mut client, &|| false).unwrap());
     // One container `wide` plus its leaves fill the budget exactly.
     let leaves = MAX_SCHEMA_NODES - base - 1;
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     for index in 0..leaves {
         simulator.set_value(&format!("wide/node{index}"), json!(index));
     }

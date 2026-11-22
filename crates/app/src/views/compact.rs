@@ -1,6 +1,7 @@
 //! The compact mode's rows: LEDs (or the group's colour), name, a lying level fader with its
 //! value, the loudest input as a small meter, then buttons: on a speaker's row the ones chosen
-//! for its model, on a group's and the master's mute. One row per ungrouped speaker and per
+//! for its model, or for the speaker itself when layouts are kept per speaker, on a group's and
+//! the master's mute. One row per ungrouped speaker and per
 //! group, the master at the bottom. The rows only report gestures, as the strips do.
 
 use std::ops::RangeInclusive;
@@ -229,7 +230,14 @@ fn shared_controls(
 ) -> (Option<f64>, Option<bool>) {
     let level = shown.level.as_ref();
     let range = shown.range;
-    let moved = fader::shared(ui, level_label, level, range, Orientation::Horizontal);
+    let moved = fader::shared(
+        ui,
+        level_label,
+        level,
+        range,
+        Orientation::Horizontal,
+        texts::level_move,
+    );
     let readout = shared_readout(level);
     cell(ui, READOUT_WIDTH, |ui| readout_label(ui, readout));
     meters::bar(

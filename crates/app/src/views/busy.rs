@@ -6,8 +6,8 @@ use std::time::Duration;
 use eframe::egui::accesskit::Role;
 use eframe::egui::{emath::lerp, vec2, Pos2, Response, Sense, Shape, Stroke, Ui, WidgetInfo};
 
-/// egui's own spinner asks for the next frame at once, which without vsync is several hundred a
-/// second; a turning arc looks smooth at this rate.
+/// egui's own spinner asks for the next frame at once, which without vsync (Windows) is several
+/// hundred a second; a turning arc looks smooth at this rate.
 const SPINNER_FRAME: Duration = Duration::from_millis(33);
 const SPINNER_STROKE_WIDTH: f32 = 3.0;
 /// Inset from the square so the stroke stays inside it.

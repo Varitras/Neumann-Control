@@ -81,13 +81,13 @@ Invoke-Forbid 'runtime format widths' {
     Find-InRustStrings ('\{[A-Za-z0-9_]*:[^{}"\\]*?(?:[a-z_][a-z0-9_]*|[0-9]+)\$[^{}]*\}' +
         '|\{[A-Za-z0-9_]*:[^{}"\\]*\.\*[^{}]*\}')
 }
-# The index is what gets committed; -text paths (fixtures) skip LF normalisation, so a CR there
-# would reach a blob unchanged.
+# The index is what gets committed. eol=lf turns a CRLF ending into LF, but a lone CR inside a
+# line reaches the blob unchanged.
 Invoke-Forbid 'carriage returns in staged text files' {
     git grep --cached -nIP '\r'
 }
 # Catches a stray CR in new and unstaged files before they are added. A CR at a line end is a
-# CRLF ending, which git normalises to LF on add outside the -text paths.
+# CRLF ending, which git normalises to LF on add.
 Invoke-Forbid 'carriage returns inside lines of working files' {
     git grep -nIP --untracked '\r(?!$)'
 }

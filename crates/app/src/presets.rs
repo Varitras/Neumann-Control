@@ -25,8 +25,9 @@ pub struct PresetChange {
     pub preset: Value,
 }
 
-/// Loading a preset onto a speaker: the writes, and the paths it may not write (another model,
-/// or a path the catalog does not know).
+/// Loading a preset onto a speaker: the writes, and the paths it does not write (see
+/// `is_presettable`: another model's, unknown to the catalog, not writable here, or no state to
+/// restore).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PresetPlan {
     pub changes: Vec<PresetChange>,

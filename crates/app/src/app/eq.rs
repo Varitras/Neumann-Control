@@ -14,6 +14,7 @@ use crate::eq::{
     bands_of, container_of, has_eq, input_sums, one_band, output_group, output_key, switch_order,
     Band, Leaf, ResetKind,
 };
+use crate::eq_file::Imported;
 use crate::eq_response::{band_curves, curve_db, graph_frequencies};
 use crate::history::Entry;
 use crate::paths;
@@ -80,8 +81,9 @@ pub(super) struct EqWindow {
 /// A filter file read for import, shown before it is written.
 pub(super) struct PendingImport {
     pub(super) file: String,
-    /// `None` when the file cannot be imported; `refusal` says why.
-    pub(super) preset: Option<EqPreset>,
+    /// The file as read, `None` when it cannot be imported (`refusal` says why). The preset is
+    /// built from it against the speaker's values each time (`import_preset`).
+    pub(super) imported: Option<Imported>,
     pub(super) notes: Vec<String>,
     /// Only for a file that cannot be imported; whether the speaker takes it is asked each frame.
     pub(super) refusal: Option<String>,
@@ -157,6 +159,15 @@ impl NeumannApp {
 
     fn show_eq_window(&mut self, context: &Context, index: usize) -> Vec<EqAction> {
         let catalog = Catalog::embedded();
+        let Some(id) = self
+            .speaker_of(&self.eq_windows[index].key)
+            .map(eq_window_id)
+        else {
+            return Vec::new();
+        };
+        let viewport = ViewportId::from_hash_of(id);
+        let size = Vec2::from(eq_window::EQ_WINDOW_SIZE);
+        let opening = self.opening(context, viewport, WindowKind::Eq, index, size);
         let window = &self.eq_windows[index];
         let Some(speaker) = self.speaker_of(&window.key) else {
             return Vec::new();
@@ -284,7 +295,6 @@ impl NeumannApp {
                 })
                 .collect()
         });
-        let id = eq_window_id(speaker);
         let own_curves = bands
             .as_deref()
             .map(|bands| band_curves(bands, &frequencies))
@@ -409,11 +419,17 @@ impl NeumannApp {
             }),
             None => None,
         };
-        let import_plan = match (&window.import, selected) {
-            (Some(pending), Some(shown)) => pending
-                .preset
-                .as_ref()
-                .map(|preset| eq_plan(preset, &speaker.latest_values(), &shown.container.path)),
+        // Built from the speaker's values now, as Write builds it.
+        let import_preset = window.import.as_ref().and_then(|pending| {
+            let imported = pending.imported.as_ref()?;
+            Some(self.import_preset(index, &pending.file, imported))
+        });
+        let import_plan = match (&import_preset, selected) {
+            (Some(Ok(preset)), Some(shown)) => Some(eq_plan(
+                preset,
+                &speaker.latest_values(),
+                &shown.container.path,
+            )),
             _ => None,
         };
         let import_changes: Vec<String> = import_plan
@@ -423,15 +439,17 @@ impl NeumannApp {
             .collect();
         // A file that cannot be imported keeps its reason; the speaker's state is asked anew
         // each frame, so a refusal ends with a reconnect.
-        let import_refusal = window.import.as_ref().and_then(|pending| {
-            let unreadable = pending.preset.is_none();
-            match unreadable {
-                true => pending.refusal.clone(),
-                false => import_plan
-                    .as_ref()
-                    .and_then(|plan| unwritable(&plan.writes)),
-            }
-        });
+        let import_refusal =
+            window
+                .import
+                .as_ref()
+                .and_then(|pending| match (&pending.imported, &import_preset) {
+                    (None, _) => pending.refusal.clone(),
+                    (Some(_), Some(Err(reason))) => Some(reason.clone()),
+                    _ => import_plan
+                        .as_ref()
+                        .and_then(|plan| unwritable(&plan.writes)),
+                });
         let import = window.import.as_ref().map(|pending| ImportView {
             file: &pending.file,
             changes: &import_changes,
@@ -444,13 +462,11 @@ impl NeumannApp {
             asking: window.asking_reset,
             crossover: shown.container.crossover,
         });
-        let viewport = ViewportId::from_hash_of(id);
-        let size = Vec2::from(eq_window::EQ_WINDOW_SIZE);
-        let opening = self.opening(context, viewport, WindowKind::Eq, index, size);
         let view = EqView {
             viewport,
             opening,
             title: texts::eq_window_title(&speaker.display_name()),
+            undo_key: !self.dialog_open(),
             outputs: &output_names,
             output,
             tabs: &tabs,
@@ -516,10 +532,12 @@ impl NeumannApp {
             EqAction::Output(output) => {
                 (window.output, window.container, window.band) = (output, 0, 0);
                 window.asking_reset = None;
+                window.refusal = None;
             }
             EqAction::Container(container) => {
                 (window.container, window.band) = (container, 0);
                 window.asking_reset = None;
+                window.refusal = None;
             }
             EqAction::ResetAsk(kind) => window.asking_reset = Some(kind),
             EqAction::ResetCancel => window.asking_reset = None,
@@ -529,6 +547,7 @@ impl NeumannApp {
                 }
             }
             EqAction::Undo => {
+                window.refusal = None;
                 let key = window.key.clone();
                 if let Some(id) = self.eq_undo(&key) {
                     self.request_take_back(id);
@@ -589,17 +608,24 @@ impl NeumannApp {
                 boost,
             }) => {
                 let writes = [(Leaf::Frequency, frequency), (Leaf::Boost, boost)];
-                for (leaf, value) in writes {
-                    if let Some(value) = value {
-                        self.write_band(index, drawn, band, leaf, Value::from(value), now);
-                    }
-                }
+                // The first refusal of the move is the one to tell; a later write's success
+                // does not take it back.
+                let refusals: Vec<String> = writes
+                    .into_iter()
+                    .filter_map(|(leaf, value)| {
+                        let value = Value::from(value?);
+                        self.write_band(index, drawn, band, leaf, value, now)
+                    })
+                    .collect();
+                self.eq_windows[index].refusal = refusals.into_iter().next();
             }
             EqAction::Graph(GraphAction::Q { band, q }) => {
-                self.write_band(index, drawn, band, Leaf::Q, Value::from(q), now);
+                let refusal = self.write_band(index, drawn, band, Leaf::Q, Value::from(q), now);
+                self.eq_windows[index].refusal = refusal;
             }
             EqAction::Table(TableAction::Write { band, leaf, value }) => {
-                self.write_band(index, drawn, band, leaf, value, now);
+                let refusal = self.write_band(index, drawn, band, leaf, value, now);
+                self.eq_windows[index].refusal = refusal;
             }
         }
     }
@@ -687,6 +713,7 @@ impl NeumannApp {
         now: f64,
     ) {
         let writes = switch_order(writes);
+        self.eq_windows[index].refusal = None;
         if let Some(refusal) = self.eq_refusal(index, &writes) {
             self.eq_windows[index].refusal = Some(refusal);
             return;
@@ -709,7 +736,7 @@ impl NeumannApp {
         }
         writes.iter().find_map(|(path, value)| {
             let refusal = writes::check(speaker, catalog, path, value).err()?;
-            let label = leaf_label(catalog, path);
+            let label = paths::setting_label(catalog, path);
             Some(texts::setting_refusal(
                 &label,
                 &texts::describe_refusal(&refusal),
@@ -731,6 +758,7 @@ impl NeumannApp {
     /// Every band of the chosen container at once, in this frame, so the history files it as
     /// one entry.
     fn reset_container(&mut self, index: usize, kind: ResetKind, now: f64) {
+        self.eq_windows[index].refusal = None;
         for leaf in kind.leaves() {
             let Some((path, length)) = self.chosen_leaf(index, *leaf) else {
                 return;
@@ -761,8 +789,8 @@ impl NeumannApp {
         Some((path, length))
     }
 
-    /// One leaf of one band of the container at `place`, `null` elsewhere; a refusal is shown in
-    /// the window.
+    /// One leaf of one band of the container at `place`, `null` elsewhere; a refusal comes back
+    /// as the window says it.
     fn write_band(
         &mut self,
         index: usize,
@@ -771,18 +799,12 @@ impl NeumannApp {
         leaf: Leaf,
         value: Value,
         now: f64,
-    ) {
-        let Some((path, length)) = self.leaf_at(index, place, leaf) else {
-            return;
-        };
-        let Some(value) = one_band(length, band, value) else {
-            return;
-        };
-        let refusal = self
-            .send_eq_write(index, &path, value, now)
+    ) -> Option<String> {
+        let (path, length) = self.leaf_at(index, place, leaf)?;
+        let value = one_band(length, band, value)?;
+        self.send_eq_write(index, &path, value, now)
             .err()
-            .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason));
-        self.eq_windows[index].refusal = refusal;
+            .map(|(label, reason)| texts::eq_refusal(band + 1, &label, &reason))
     }
 
     /// One EQ write through the write policy; a refusal comes back as the leaf's name and the
@@ -812,19 +834,15 @@ impl NeumannApp {
                 speaker.handle.send(command);
                 Ok(())
             }
-            Err(refusal) => Err((leaf_label(catalog, path), texts::describe_refusal(&refusal))),
+            Err(refusal) => Err((
+                paths::setting_label(catalog, path),
+                texts::describe_refusal(&refusal),
+            )),
         }
     }
 }
 
 /// A leaf's name as the window shows it.
-fn leaf_label(catalog: &Catalog, path: &SscPath) -> String {
-    paths::catalog_entry(catalog, path).map_or_else(
-        || path.to_string(),
-        |entry| entry.label(texts::language()).to_owned(),
-    )
-}
-
 /// Whether every change of `entry` is an EQ write to the speaker `key`.
 fn is_eq_entry_of(entry: &Entry, key: &SpeakerKey, catalog: &Catalog) -> bool {
     entry
@@ -964,10 +982,10 @@ mod tests {
         SpeakerKey::Serial(serial.to_owned())
     }
 
-    /// A speaker first known by its address reports its serial: its own windows stay the same
-    /// windows, the EQ window and "All values" alike.
+    /// A speaker first known by its address reports its serial: its own windows keep their
+    /// ids, the EQ window and "All values" alike (the app test checks that they stay open).
     #[test]
-    fn a_speakers_windows_stay_when_it_gets_its_serial() {
+    fn a_speakers_window_ids_stay_when_it_gets_its_serial() {
         let address: std::net::SocketAddrV6 = "[fe80::1]:45".parse().unwrap();
         let mut speaker = SpeakerState::new(SpeakerKey::Address(address), address);
         let windows = |speaker: &SpeakerState| {

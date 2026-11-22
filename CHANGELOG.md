@@ -2,14 +2,106 @@
 
 ## [Unreleased]
 
+### Added
+
+- When a scan finds no speakers, the dialog now says what usually causes it (a firewall blocking
+  the speaker search, or a different network), how to add a speaker by address instead, and
+  has a button that opens the manual (or says there that the manual is missing).
+
 ### Fixed
 
+- The band colours in the settings wrap to the window's width and stand in even columns; a
+  narrow window no longer cuts off the last bands.
+- The lists behind "Swap for…" and "+ Add" on a strip scroll when the window is lower than
+  the list; with a KH 750 the last settings were out of reach.
+- A scroll bar's handle now shows at all times, not only under the mouse pointer. To match,
+  text inputs are darker in the dark theme and white in the light theme.
+- Text and cursor in a text field sit in its middle, not slightly above it.
+- The strip colour choice wraps in a narrow groups window; its own colour was cut off.
 - A value the speaker confirms differently than it was sent counts at once, also while another
   write to the same setting is on its way: the next change starts from it, and taking a change
   back writes it, not the value sent.
 - Loading a preset no longer says the speaker already has its values when nothing could be
   compared: an EQ value went missing, the speaker is gone, or the preset holds only values this
   model does not have.
+- The Windows volume strip, when switched on in the settings, now also shows before any speaker
+  is added.
+- Undo after a write the speaker answered with "not found" no longer sends the value it refused.
+- Undoing an EQ change writes nothing to a speaker if one of its old values cannot be written,
+  instead of switching a band back on with only part of its values.
+- Saving or replacing a settings preset waits for checked values the speaker has not reported yet
+  and names them; before, they were left out and a replaced preset lost them.
+- A failed EQ export keeps the file it was to replace and leaves no temporary file beside it.
+- An EQ import is worked out from the speaker's values when you press **Write**: bands the file
+  leaves out keep changes made meanwhile, and if the EQ is no longer reported the preview stays
+  open and says so instead of closing without writing.
+- Enter in the name field no longer writes back the old name after the speaker was renamed
+  elsewhere.
+- Dragging an EQ point up or down no longer changes its frequency, and dragging it sideways no
+  longer changes its level.
+- Removing a speaker removes the right one when two speakers were remembered at the same address.
+- If the settings file or its desk part cannot be read, **Protect crossovers** is switched on.
+- A speaker that reports no name, firmware, model or serial is now used with that field empty
+  instead of being shown as unreachable, and one added from a scan is no longer refused because
+  its serial holds unusual characters.
+- Full-scan reports and **All values** hide network addresses also when written with a port, a
+  prefix, a full stop after them, a label before them (`ip:`) or in angle brackets; copied
+  refusal texts are masked too.
+- Very long model, firmware and history texts from a speaker are cut, as other device texts are.
+- The third-party licence list in a release no longer lists the app's own parts.
+- Two libraries the app uses are updated to fix reported safety problems.
+- On a screen scaled above 100 %, a window without a size of its own keeps growing with the
+  speakers added; it stopped after the first size.
+- A size you give the empty window before adding speakers is kept and saved.
+- Leaving the app saves where its other windows were, also while the main window still fits
+  itself to the speakers.
+- Holding **Ctrl+M** or **Ctrl+D** switches mute or dim once, not again with every key repeat.
+- An EQ band change the speaker confirms for that band only no longer leaves the other bands
+  without values.
+- A meter whose speaker sends no reading shows none instead of staying at the last level, and
+  a clip lamp no longer stays lit after its speaker became unreachable.
+- The meter readout below a falling bar changes four times a second, as intended, not with every
+  reading.
+- A speaker with several global network addresses is reached at the same one after every scan.
+- The Windows volume strip asks Windows for its playback device again after a read failed, and
+  reads the channel names again when the device reports another number of channels.
+- Compact mode no longer redraws ten to twenty times a second for the Windows volume strip it
+  does not show.
+- **Scan again** keeps the list and your checks when the scan fails, and keeps a speaker's serial
+  when the new scan found it without one.
+- **All values** and **Full scan** share one read of the speaker instead of reading it twice
+  when started together, and a failed **All values** read is written to the log.
+- Loading a preset on a speaker in a group passes linked settings (level, mute and the like) on
+  to the other members, as every other change does.
+- Group and master controls and linked settings leave out members whose model cannot change the
+  setting, instead of showing a refusal on their strip.
+- The load preset dialog names skipped settings as everywhere else, not by their internal path.
+- An EQ refusal disappears with the next change or when another EQ is shown.
+- Reading back an EQ file the app exported changes nothing; every shelf was written again.
+- Among overlapping EQ points, the one highlighted is the one a click, drag or wheel changes.
+- **Ctrl+Z** in the EQ window waits, as in the main window, while a question waits for an answer.
+- If the app's folder cannot be written, the notice says so and the settings no longer offer the
+  detailed log.
+- An unreadable **Show response times** setting falls back to on, as on a first start.
+- Settings are saved once you let go of a colour you drag in its picker, not on every frame.
+- A further window of a kind opens on the screen even when the first was left at its edge.
+- With two windows of a kind open, the place kept is that of the one you moved last; a window
+  only opened there does not move the place where the next one opens.
+- On Linux, after starting or switching to a mode whose window was maximized, the app waits up to
+  a second for the window to be maximized before it notes the window's size, so another size is
+  not kept for it.
+- On Windows, a window that opens on a monitor with another scale than the main window is moved
+  to the place it was left, in that monitor's scale.
+- The log no longer holds a detailed line about the window's place when **Detailed log** is
+  off.
+- The desk's window can no longer be made so narrow that the toolbar's buttons and the average
+  response time run over each other; the compact window can still be narrower.
+- Compact mode without speakers says how to get back to the desk, where speakers are added; it
+  named buttons compact mode does not have.
+- The history names the bands an EQ change switched on or off and the one speaker it went to;
+  it said "all bands", "2 speakers" and showed "null" for bands it left alone.
+- The Windows volume fader shows its move in percent while dragged, not in dB.
+- A knob or fader that cannot be used no longer offers Shift or a double click in its hint.
 
 ## [0.2.1] - 2026-11-03
 

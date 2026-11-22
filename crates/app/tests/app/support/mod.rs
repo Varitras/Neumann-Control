@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use eframe::egui;
-use egui_kittest::kittest::Queryable;
+use eframe::egui::{self, accesskit::Role};
+use egui_kittest::kittest::{NodeT, Queryable};
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::file_dialog::FileDialog;
@@ -28,7 +28,7 @@ use neumann_control_core::settings::{
     self, ColorChoice, CrossoverGuard, DeskSettings, GroupSettings, GroupStrip, Language, Linkable,
     ManualSpeaker, Settings, SettingsPreset, StoredStripLayout, StripElement, WindowGeometry,
 };
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::speaker::{self, Events, SpeakerHandle, Target, Timing};
 use neumann_control_core::ssc::wire::SscPath;
 use serde_json::Value;
@@ -54,11 +54,19 @@ pub const WINDOW_SIZE: [f32; 2] = [900.0, 700.0];
 pub const EXPANDED_WINDOW_SIZE: [f32; 2] = [1200.0, 1600.0];
 pub const LOOPBACK: &str = "::1";
 const DIALOG_SETTLE_FRAMES: usize = 2;
-const KH120_PRODUCT: &str = "KH 120 II";
-const KH750_PRODUCT: &str = "KH 750";
+pub const KH120_PRODUCT: &str = "KH 120 II";
+pub const KH750_PRODUCT: &str = "KH 750";
 /// Real speakers take tens of milliseconds per reply; an instant simulator hid tests that
 /// acted before the connect-time read had arrived.
 pub const REPLY_DELAY: Duration = Duration::from_millis(5);
+
+/// Long enough to keep a write unconfirmed while a test acts, short of the client's response
+/// timeout, after which the write would count as failed.
+pub const UNCONFIRMED_WRITE_DELAY: Duration = Duration::from_secs(2);
+const _: () = assert!(
+    UNCONFIRMED_WRITE_DELAY.as_millis()
+        < neumann_control_core::ssc::client::RESPONSE_TIMEOUT.as_millis()
+);
 
 /// What every scan finds; a test may change it while the app runs.
 pub type SharedScan = Arc<Mutex<ScanResult>>;
@@ -258,11 +266,11 @@ fn build_scaled(
         })
 }
 
-/// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
-/// whether the app listens.
 /// Where a pressed shortcut goes, and how the app is woken for it.
 type Listening = Option<(mpsc::Sender<DeskShortcut>, Wake)>;
 
+/// Stands in for Windows' hot keys: a test presses a shortcut "in another program", and sees
+/// whether the app listens.
 #[derive(Clone, Default)]
 pub struct FakeGlobalKeys {
     listening: Arc<Mutex<Listening>>,
@@ -460,7 +468,6 @@ pub fn wait_for_level(harness: &mut Harness<'static, NeumannApp>, value: f64) {
 /// more mean anything the frame sent has arrived.
 pub const BARRIER_REQUESTS: usize = 2;
 
-/// Waits without drawing frames, so the window sends nothing new meanwhile.
 /// The speaker answered every write sent so far and the app read the answers: a write only
 /// received when the speaker goes away counts as not written, and closes its change.
 pub fn writes_answered(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
@@ -468,6 +475,7 @@ pub fn writes_answered(harness: &mut Harness<'static, NeumannApp>, simulator: &S
     harness.run_steps(2);
 }
 
+/// Waits without drawing frames, so the window sends nothing new meanwhile.
 pub fn barrier(simulator: &Simulator) {
     let start = simulator.requests().len();
     let deadline = Instant::now() + WAIT_LIMIT;
@@ -489,7 +497,7 @@ pub fn level_sets(simulator: &Simulator) -> Vec<f64> {
 }
 
 pub fn connected_speaker(
-    model: SimModel,
+    model: SimulatedModel,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     connected_speaker_with(model, |_| {})
 }
@@ -497,7 +505,7 @@ pub fn connected_speaker(
 /// Like `connected_speaker`, with settings presets in the file the app starts from (one written
 /// by hand or by another version can hold what the app would not save).
 pub fn connected_speaker_with_presets(
-    model: SimModel,
+    model: SimulatedModel,
     presets: Vec<SettingsPreset>,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
@@ -531,7 +539,7 @@ pub fn open_stored_preset(
 
 /// Like `connected_speaker`, with values set on the simulator before the app first reads them.
 pub fn connected_speaker_with(
-    model: SimModel,
+    model: SimulatedModel,
     prepare: impl FnOnce(&Simulator),
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let simulator = Simulator::start(model);
@@ -583,10 +591,10 @@ pub fn serials_remembered(path: &Path, count: usize) -> bool {
             .all(|entry| entry.serial.as_deref() == Some(SIMULATED_SERIAL))
 }
 
-pub fn device_name(model: SimModel) -> &'static str {
+pub fn device_name(model: SimulatedModel) -> &'static str {
     match model {
-        SimModel::Kh120Ii => KH120_DEVICE_NAME,
-        SimModel::Kh750 => KH750_DEVICE_NAME,
+        SimulatedModel::Kh120Ii => KH120_DEVICE_NAME,
+        SimulatedModel::Kh750 => KH750_DEVICE_NAME,
     }
 }
 
@@ -605,7 +613,8 @@ pub fn open_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
     // The panel takes its size from the window it opens in.
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     harness.run_steps(2);
-    harness.get_by_label(name).click();
+    // The first of a name: two speakers may carry the same.
+    harness.query_all_by_label(name).next().unwrap().click();
     wait_until(harness, "the device panel", |harness| {
         harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
     });
@@ -662,8 +671,8 @@ pub fn two_speakers(
     tempfile::TempDir,
     Harness<'static, NeumannApp>,
 ) {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh120 = Simulator::start(SimulatedModel::Kh120Ii);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     let mut first = manual_for(&kh120);
@@ -700,15 +709,19 @@ pub fn sets(simulator: &Simulator, pointer: &str) -> Vec<Value> {
 }
 
 pub fn delay_sets(simulator: &Simulator) -> Vec<Value> {
-    sets(simulator, &format!("/{}", paths::DELAY))
+    sets(simulator, &pointer(paths::DELAY))
 }
 
-/// The harness clock moves about half a second per frame, more than egui allows between the
-/// two clicks of a double click, so the allowance is widened for the test.
+/// The harness clock moves a quarter second per frame, more than egui allows between the two
+/// clicks of a double click, so the allowance is widened for the test.
+pub const TEST_DOUBLE_CLICK_SECONDS: f64 = 2.0;
+/// egui_kittest's default step.
+pub const FRAME_SECONDS: f64 = 0.25;
+
 pub fn double_click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
-    harness
-        .ctx
-        .options_mut(|options| options.input_options.max_double_click_delay = 2.0);
+    harness.ctx.options_mut(|options| {
+        options.input_options.max_double_click_delay = TEST_DOUBLE_CLICK_SECONDS;
+    });
     harness.hover_at(position);
     for pressed in [true, false, true, false] {
         harness.event(egui::Event::PointerButton {
@@ -751,7 +764,10 @@ pub fn turn_knob(
 
 /// One simulator per model, each with its own serial (the app keeps one strip per serial), all
 /// on the desk with `strip_layouts` stored, connected and read once.
-pub fn desk_of(models: &[SimModel], strip_layouts: BTreeMap<String, StoredStripLayout>) -> Desk {
+pub fn desk_of(
+    models: &[SimulatedModel],
+    strip_layouts: BTreeMap<String, StoredStripLayout>,
+) -> Desk {
     desk_prepared(models, strip_layouts, |_| {})
 }
 
@@ -764,7 +780,7 @@ pub type Desk = (
 
 /// Like `desk_of`, with the simulators changed before the app first reads them.
 pub fn desk_prepared(
-    models: &[SimModel],
+    models: &[SimulatedModel],
     strip_layouts: BTreeMap<String, StoredStripLayout>,
     prepare: impl FnOnce(&[Simulator]),
 ) -> Desk {
@@ -810,4 +826,65 @@ pub fn desk_prepared(
 fn the_speaker_ids_are_their_serials_keys() {
     assert_eq!(KH120_ID, format!("serial:{SIMULATED_SERIAL}"));
     assert_eq!(KH750_ID, format!("serial:{KH750_SERIAL}"));
+}
+
+/// The JSON pointer of an SSC path, as the simulator's requests are searched.
+pub fn pointer(path: &str) -> String {
+    format!("/{path}")
+}
+
+/// Mouse wheel notches at the pointer.
+pub fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, notches),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+pub fn slider_center(harness: &Harness<'static, NeumannApp>, label: &str) -> egui::Pos2 {
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Slider, label)
+        .rect()
+        .center()
+}
+
+/// Lower than the KH 750's list of settings a menu offers.
+pub const LOW_WINDOW: [f32; 2] = [900.0, 400.0];
+
+/// Opens a submenu with `open`, then scrolls its last entry into the window. Its entries are
+/// the buttons it adds.
+pub fn last_menu_entry_comes_into_view(
+    harness: &mut Harness<'static, NeumannApp>,
+    open: impl FnOnce(&mut Harness<'static, NeumannApp>),
+) {
+    let buttons = |harness: &Harness<'static, NeumannApp>| -> Vec<(String, egui::Rect)> {
+        harness
+            .query_all_by_role(Role::Button)
+            .filter_map(|node| Some((node.accesskit_node().label()?, node.rect())))
+            .collect()
+    };
+    let before: Vec<String> = buttons(harness)
+        .into_iter()
+        .map(|(label, _)| label)
+        .collect();
+    open(harness);
+    let window = harness.ctx.content_rect();
+    let last = buttons(harness)
+        .into_iter()
+        .filter(|(label, _)| !before.contains(label))
+        .max_by(|one, other| one.1.bottom().total_cmp(&other.1.bottom()))
+        .map(|(label, _)| label)
+        .expect("entries in the submenu");
+    harness
+        .get_by_role_and_label(Role::Button, &last)
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    let rect = harness.get_by_role_and_label(Role::Button, &last).rect();
+    assert!(
+        window.contains_rect(rect),
+        "{last}: {rect:?} outside {window:?}"
+    );
 }

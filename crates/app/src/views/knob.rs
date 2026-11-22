@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 
 use eframe::egui::{
     pos2, vec2, Align, CursorIcon, Id, Key, Label, Layout, Pos2, RichText, Sense, Shape, Stroke,
-    TextEdit, Ui, WidgetInfo,
+    Ui, WidgetInfo,
 };
 
 use neumann_control_core::catalog::{Catalog, Conversion, Entry};
@@ -21,6 +21,7 @@ use crate::display::{conversion_of, shown_value};
 use crate::gesture::{on_grid, typed_value, GestureState};
 use crate::state::SpeakerState;
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 use crate::ui_kit::theme::Tokens;
 use crate::writes::{self, Intent};
 
@@ -214,7 +215,12 @@ pub fn show(ui: &mut Ui, id: Id, knob: &Knob, state: &mut GestureState) -> Optio
             response
         })
         .inner;
-    response.on_hover_text(format!("{}\n{}", knob.label, texts::CONTROL_HINT));
+    // A knob that cannot be used is named only: it takes neither Shift nor a double click.
+    let hint = match enabled {
+        true => format!("{}\n{}", knob.label, texts::CONTROL_HINT),
+        false => knob.label.to_owned(),
+    };
+    response.on_hover_text(hint);
     sent
 }
 
@@ -279,11 +285,7 @@ pub(super) fn value_entry(
         return None;
     }
     let mut text = ui.data(|data| data.get_temp::<String>(text_id))?;
-    let field = ui.add(
-        TextEdit::singleline(&mut text)
-            .id(text_id)
-            .desired_width(EDIT_WIDTH),
-    );
+    let field = ui.add(text_field(&mut text).id(text_id).desired_width(EDIT_WIDTH));
     // Named like the control it types into: on its own the field has no name.
     field.widget_info(|| {
         let mut info = WidgetInfo::text_edit(true, &text, &text, "");

@@ -1,5 +1,5 @@
-//! The look of the app in Windows' light and dark mode. egui follows the system theme on its
-//! own, so each of its two themes gets its own style here.
+//! The app's light and dark look. egui keeps a style per theme and shows the one the settings
+//! choose (or the system's), so each of its two themes gets its own style here.
 
 use crate::groups::Tint;
 use crate::ui_kit::eq_palette::parse_hex;
@@ -21,6 +21,9 @@ pub struct Tokens {
     pub card: Color32,
     pub border: Color32,
     pub field: Color32,
+    /// Sunk below the fields: text inputs and scroll tracks, so a scroll handle in the field
+    /// colour shows on its track.
+    pub inset: Color32,
     pub hover: Color32,
     pub text: Color32,
     pub text_dim: Color32,
@@ -51,6 +54,7 @@ impl Tokens {
             card: Color32::from_gray(44),
             border: Color32::from_gray(64),
             field: Color32::from_gray(56),
+            inset: Color32::from_gray(28),
             hover: Color32::from_gray(72),
             text: Color32::from_gray(222),
             text_dim: Color32::from_gray(160),
@@ -74,6 +78,7 @@ impl Tokens {
             card: Color32::WHITE,
             border: Color32::from_rgb(210, 210, 218),
             field: Color32::from_rgb(236, 236, 240),
+            inset: Color32::WHITE,
             hover: Color32::from_rgb(224, 224, 230),
             text: Color32::from_rgb(24, 24, 28),
             text_dim: Color32::from_rgb(92, 92, 102),
@@ -121,7 +126,7 @@ fn visuals(tokens: &Tokens, theme: Theme) -> Visuals {
     visuals.window_fill = tokens.card;
     visuals.window_stroke = Stroke::new(1.0, tokens.border);
     visuals.window_corner_radius = CornerRadius::same(RADIUS_LARGE);
-    visuals.extreme_bg_color = tokens.field;
+    visuals.extreme_bg_color = tokens.inset;
     visuals.override_text_color = Some(tokens.text);
     visuals.weak_text_color = Some(tokens.text_dim);
     visuals.error_fg_color = tokens.danger;
@@ -220,5 +225,25 @@ mod tests {
             Tokens::dark().chrome
         );
         assert!(!context.style_of(Theme::Light).visuals.dark_mode);
+    }
+
+    /// The least step between two greys that reads as two shades, not one.
+    const VISIBLE_STEP: i32 = 16;
+
+    /// egui paints the resting scroll handle in the inactive widget fill and its track in the
+    /// extreme background; both were the field colour, so the handle showed only under the
+    /// pointer.
+    #[test]
+    fn the_scroll_handle_stands_out_from_its_track_at_rest() {
+        for theme in [Theme::Light, Theme::Dark] {
+            let visuals = style(theme).visuals;
+            let handle = visuals.widgets.inactive.bg_fill;
+            let track = visuals.extreme_bg_color;
+            let step = (0..3)
+                .map(|channel| (i32::from(handle[channel]) - i32::from(track[channel])).abs())
+                .max()
+                .unwrap_or(0);
+            assert!(step >= VISIBLE_STEP, "{theme:?}: {handle:?} on {track:?}");
+        }
     }
 }

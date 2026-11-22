@@ -7,7 +7,7 @@ use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
 use neumann_control_app::shortcuts::DeskShortcut;
 use neumann_control_app::texts;
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use serde_json::Value;
 
 fn press(harness: &mut Harness<'static, NeumannApp>, key: Key) {
@@ -21,7 +21,7 @@ fn mute_sets(simulator: &Simulator) -> Vec<Value> {
 
 #[test]
 fn ctrl_up_and_down_move_every_speaker_by_one_db() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press(&mut harness, Key::ArrowUp);
     wait_until(&mut harness, "the level raised", |_| {
         level_sets(&simulator) == [101.0]
@@ -35,7 +35,7 @@ fn ctrl_up_and_down_move_every_speaker_by_one_db() {
 
 #[test]
 fn ctrl_m_mutes_all_and_again_unmutes() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press(&mut harness, Key::M);
     wait_until(&mut harness, "all muted", |_| {
         mute_sets(&simulator) == [Value::Bool(true)]
@@ -47,11 +47,36 @@ fn ctrl_m_mutes_all_and_again_unmutes() {
     });
 }
 
+/// The key held down repeats: Ctrl+M and Ctrl+D switch once per press, as the global hot keys
+/// do. Each repeat flipped mute (or dim) again on every speaker.
+#[test]
+fn a_held_ctrl_m_switches_once() {
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
+    // Held: egui marks each press after the first a repeat until the key is released.
+    for pressed in [true, true, true, true, false] {
+        harness.input_mut().events.push(egui::Event::Key {
+            key: Key::M,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::COMMAND,
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+    wait_until(&mut harness, "all muted", |_| {
+        !mute_sets(&simulator).is_empty()
+    });
+    writes_answered(&mut harness, &simulator);
+    barrier(&simulator);
+    assert_eq!(mute_sets(&simulator), [Value::Bool(true)]);
+}
+
 /// Dim lowers by 20 dB; dim again goes back to exactly the levels before, also where the range
 /// stopped the way down.
 #[test]
 fn ctrl_d_dims_and_restores_the_levels_before() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     press(&mut harness, Key::D);
     wait_until(&mut harness, "dimmed", |_| level_sets(&simulator) == [80.0]);
     writes_answered(&mut harness, &simulator);
@@ -67,7 +92,7 @@ fn ctrl_d_dims_and_restores_the_levels_before() {
 #[test]
 fn dim_goes_back_after_the_speaker_got_its_serial() {
     let (simulator, directory, mut harness) =
-        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
             simulator.set_value("device/identity/serial", serde_json::json!(7));
         });
     press(&mut harness, Key::D);
@@ -94,7 +119,7 @@ fn dim_goes_back_after_the_speaker_got_its_serial() {
 /// Typing in a field keeps its keys: no shortcut fires while a text field has the focus.
 #[test]
 fn a_shortcut_waits_while_a_field_is_edited() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_panel(&mut harness, KH120_DEVICE_NAME);
     harness
         .get_by_role(egui::accesskit::Role::TextInput)
@@ -110,7 +135,7 @@ fn a_shortcut_waits_while_a_field_is_edited() {
 /// switched off, the app stops listening.
 #[test]
 fn a_global_shortcut_reaches_the_desk_once_switched_on() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let keys = FakeGlobalKeys::default();
     harness.state_mut().set_global_keys(Box::new(keys.clone()));
     harness.run_steps(2);
@@ -132,7 +157,7 @@ fn a_global_shortcut_reaches_the_desk_once_switched_on() {
 /// Linux has no shortcuts from other programs: the settings do not offer them.
 #[test]
 fn the_settings_offer_no_global_shortcuts_where_the_system_has_none() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let mut keys = FakeGlobalKeys::default();
     keys.missing = true;
     harness.state_mut().set_global_keys(Box::new(keys));
@@ -162,7 +187,7 @@ fn a_speaker_away_when_dim_goes_off_gets_its_level_back_on_return() {
     wait_until(&mut harness, "the reachable one back", |_| {
         level_sets(&kh120) == [80.0, 100.0]
     });
-    let back = Simulator::start_on(SimModel::Kh750, address).unwrap();
+    let back = Simulator::start_on(SimulatedModel::Kh750, address).unwrap();
     wait_until(&mut harness, "the returned one back", |_| {
         level_sets(&back) == [100.0]
     });
@@ -172,7 +197,7 @@ fn a_speaker_away_when_dim_goes_off_gets_its_level_back_on_return() {
 /// reader users move by Tab).
 #[test]
 fn a_shortcut_works_while_a_button_has_the_focus() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     harness.key_press(Key::Tab);
     harness.run_steps(2);
     let focused = harness.ctx.memory(|memory| memory.focused().is_some());
@@ -188,7 +213,7 @@ fn a_shortcut_works_while_a_button_has_the_focus() {
 /// change to take back.
 #[test]
 fn a_shortcut_write_failed_while_hidden_is_filed_as_not_written() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let keys = FakeGlobalKeys::default();
     harness.state_mut().set_global_keys(Box::new(keys.clone()));
     harness.get_by_label(texts::SETTINGS.get()).click();

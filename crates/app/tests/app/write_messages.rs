@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use neumann_control_app::state::{Message, SpeakerKey, SpeakerState, Status};
 use neumann_control_app::writes::Intent;
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::speaker::{self, Command, Event, Events, SpeakerHandle, Target, Timing};
 use neumann_control_core::ssc::wire::{DeviceError, SscPath};
 use serde_json::json;
@@ -87,7 +87,7 @@ fn apply_reply_to_write(events: &Events, state: &mut SpeakerState, path: &SscPat
 
 #[test]
 fn a_rejected_write_keeps_its_message_after_the_reread() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events, mut state) = connected(&simulator);
     let path = SscPath::parse("ui/bass_gain").unwrap();
     handle.send(Command::Set {
@@ -103,7 +103,7 @@ fn a_rejected_write_keeps_its_message_after_the_reread() {
 
 #[test]
 fn a_write_in_local_mode_shows_the_local_mode_message() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let (handle, events, mut state) = connected(&simulator);
     simulator.set_value("ui/control_mode", json!("LOCAL"));
     let command = state

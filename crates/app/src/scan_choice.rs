@@ -3,7 +3,7 @@
 
 use std::net::SocketAddrV6;
 
-use neumann_control_core::discovery::Found;
+use neumann_control_core::discovery::{same_speaker, Found};
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::ManualSpeaker;
 
@@ -13,7 +13,8 @@ use crate::targets::{entry_for, is_shown};
 #[derive(Clone, Debug, PartialEq)]
 pub enum ScanChoice {
     Scanning,
-    Failed,
+    /// The last scan failed; the rows offered before it stay, with their checks.
+    Failed(Vec<Offer>),
     Offered(Vec<Offer>),
 }
 
@@ -48,6 +49,9 @@ impl ScanChoice {
                 .iter_mut()
                 .find(|offer| same_speaker(&offer.found, found))
             {
+                // A record without its serial says less than the one offered, as in
+                // `discovery::merge_found`.
+                Some(offer) if offer.found.serial.is_some() && found.serial.is_none() => {}
                 Some(offer) => offer.found = found.clone(),
                 None => offers.push(Offer {
                     found: found.clone(),
@@ -63,9 +67,14 @@ impl ScanChoice {
         ScanChoice::Offered(offers)
     }
 
+    /// After a failed scan, like "Erneut suchen" with nothing found.
+    pub fn failed(&self) -> ScanChoice {
+        ScanChoice::Failed(self.offers().to_vec())
+    }
+
     /// Flips the check of one row; rows of speakers already shown stay unchecked.
     pub fn toggle(&mut self, index: usize) {
-        let ScanChoice::Offered(offers) = self else {
+        let (ScanChoice::Offered(offers) | ScanChoice::Failed(offers)) = self else {
             return;
         };
         let Some(offer) = offers.get_mut(index) else {
@@ -91,17 +100,9 @@ impl ScanChoice {
 
     fn offers(&self) -> &[Offer] {
         match self {
-            ScanChoice::Offered(offers) => offers,
-            ScanChoice::Scanning | ScanChoice::Failed => &[],
+            ScanChoice::Offered(offers) | ScanChoice::Failed(offers) => offers,
+            ScanChoice::Scanning => &[],
         }
-    }
-}
-
-/// By serial when both announce one, else by address.
-fn same_speaker(one: &Found, other: &Found) -> bool {
-    match (&one.serial, &other.serial) {
-        (Some(one), Some(other)) => one == other,
-        _ => one.address == other.address,
     }
 }
 
@@ -207,6 +208,22 @@ mod tests {
         );
     }
 
+    /// A scan in which a speaker's record with its serial came too late finds it by address
+    /// only: the row keeps its serial, as the core's merge of scans does. The serial was lost,
+    /// and the speaker was added without it.
+    #[test]
+    fn a_rescan_without_the_serial_keeps_the_offered_one() {
+        let mut first = choice();
+        first.toggle(1);
+        let unnamed = Found {
+            serial: None,
+            ..found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)
+        };
+        let again = first.again(&[unnamed], &[]);
+        assert_eq!(again.offers().len(), first.offers().len());
+        assert_eq!(again.chosen()[0].serial.as_deref(), Some(NEW_SERIAL));
+    }
+
     /// "Erneut suchen": what the first scan offered stays with its checks, a speaker found at a
     /// new address keeps its check there, and what is new comes after.
     #[test]
@@ -245,7 +262,10 @@ mod tests {
 
     #[test]
     fn a_new_scan_after_nothing_offers_what_it_finds() {
-        for first in [ScanChoice::Failed, ScanChoice::Offered(Vec::new())] {
+        for first in [
+            ScanChoice::Failed(Vec::new()),
+            ScanChoice::Offered(Vec::new()),
+        ] {
             let again = first.again(&[found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)], &[]);
             assert_eq!(
                 again,
@@ -256,7 +276,7 @@ mod tests {
 
     #[test]
     fn a_running_or_failed_scan_offers_nothing() {
-        for mut choice in [ScanChoice::Scanning, ScanChoice::Failed] {
+        for mut choice in [ScanChoice::Scanning, ScanChoice::Failed(Vec::new())] {
             choice.toggle(0);
             assert!(!choice.can_add());
             assert!(choice.chosen().is_empty());

@@ -9,11 +9,12 @@ use neumann_control_app::app::NeumannApp;
 use neumann_control_app::groups::linkable_label;
 use neumann_control_app::panel_tabs::PanelTab;
 use neumann_control_app::texts;
+use neumann_control_app::views::groups_window::GROUPS_WINDOW_MIN_SIZE;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::settings::{
     self, ColorChoice, GroupSettings, GroupStrip, Linkable, Settings, SETTINGS_FILE,
 };
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use serde_json::Value;
 
 #[test]
@@ -229,7 +230,7 @@ fn a_failed_save_is_told_in_the_toolbar() {
 
 #[test]
 fn a_group_added_in_the_window_takes_a_speaker_in_its_panel() {
-    let (simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     open_groups(&mut harness);
     harness.get_by_label(texts::NO_GROUPS.get());
     harness.get_by_label(texts::ADD_GROUP.get()).click();
@@ -326,8 +327,8 @@ fn escape_while_dragging_keeps_the_order() {
 
 #[test]
 fn order_and_group_saved_by_address_follow_the_speaker_once_it_connects() {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh120 = Simulator::start(SimulatedModel::Kh120Ii);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     // Added by address and never connected yet: no serial is known.
@@ -389,7 +390,7 @@ fn group_mute_leaves_an_unreachable_member_alone() {
 
 #[test]
 fn a_new_group_never_repeats_the_name_or_colour_of_another() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     open_groups(&mut harness);
     for _ in 0..2 {
@@ -413,6 +414,8 @@ fn a_new_group_never_repeats_the_name_or_colour_of_another() {
     assert_ne!(groups[0].color, groups[1].color);
 }
 
+/// The member that may not write the setting keeps its own message: a refusal of a write it
+/// never asked for stood on its strip.
 #[test]
 fn a_linked_setting_skips_a_model_that_may_not_write_it() {
     // The KH 750's auto standby follows its rear switch and refuses writes.
@@ -427,7 +430,8 @@ fn a_linked_setting_skips_a_model_that_may_not_write_it() {
     harness.run_steps(5);
     barrier(&kh750);
     assert!(sets(&kh750, "/device/standby/enabled").is_empty());
-    harness.get_by_label(&texts::describe_refusal(&Refusal::NotWritable));
+    let refusal = texts::describe_refusal(&Refusal::NotWritable);
+    assert!(harness.query_by_label_contains(&refusal).is_none());
 }
 
 #[test]
@@ -505,7 +509,7 @@ fn copy_to_group_right_after_a_change_sends_the_new_value() {
     let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Mute]);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Outputs);
     // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
-    kh120.set_reply_delay(std::time::Duration::from_secs(2));
+    kh120.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click();
@@ -552,7 +556,7 @@ fn a_settings_preset_of_another_model_keeps_its_name() {
         .iter()
         .map(|preset| preset.product.as_str())
         .collect();
-    assert_eq!(models, vec!["KH 120 II", "KH 750"]);
+    assert_eq!(models, vec![KH120_PRODUCT, KH750_PRODUCT]);
 }
 
 /// "None" in the groups window takes the colour off the group's strips, saved at once.
@@ -636,3 +640,79 @@ fn the_panels_group_tab_edits_the_speakers_group() {
     harness.get_by_label(texts::MANAGE_GROUPS.get()).click();
     wait_for_label(&mut harness, texts::ADD_GROUP.get());
 }
+
+/// A preset loaded on one member writes a linked setting to the others too, as every other
+/// write of one speaker does: the partner kept its old level.
+#[test]
+fn a_preset_loaded_on_a_member_reaches_its_linked_partners() {
+    let (kh120, kh750, _directory, mut harness) = grouped(vec![Linkable::Level]);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    let field = || texts::PRESET_NAME.get();
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, field())
+        .type_text("Pair");
+    harness.run_steps(1);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    kh120.set_value("audio/out/level", serde_json::json!(70.0));
+    kh750.set_value("audio/out/level", serde_json::json!(70.0));
+    wait_until(&mut harness, "both at 70", |harness| {
+        harness.query_all_by_label(&readout(70.0)).count() >= 2
+    });
+    scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_label(&texts::preset_entry("Pair", KH120_PRODUCT))
+        .click();
+    harness.run_steps(6);
+    harness.get_by_label(texts::WRITE_PRESET.get()).click();
+    wait_until(&mut harness, "the partner's level written", |_| {
+        level_sets(&kh750) == [100.0]
+    });
+    assert_eq!(level_sets(&kh120), [100.0]);
+}
+
+/// The strip colour stood on one row, with an own colour about 520 points wide; the groups
+/// window may be 420 narrow and cut off the end of it.
+#[test]
+fn the_strip_colour_row_wraps_in_a_narrow_groups_window() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join(SETTINGS_FILE);
+    let group = GroupSettings {
+        name: GROUP_NAME.to_owned(),
+        color: 0,
+        color_choice: ColorChoice::Own(OWN_COLOUR.to_owned()),
+        members: Vec::new(),
+        linked: Vec::new(),
+        strip: GroupStrip::Shown,
+    };
+    let narrow = settings::WindowGeometry {
+        x: 16.0,
+        y: 16.0,
+        width: GROUPS_WINDOW_MIN_SIZE[0],
+        height: GROUPS_WINDOW_MIN_SIZE[1],
+        maximized: false,
+    };
+    let mut saved = Settings {
+        groups: vec![group],
+        ..Settings::default()
+    };
+    saved.windows.insert("groups".to_owned(), narrow);
+    settings::save(&saved, &path).unwrap();
+    let mut harness = harness(path, Vec::new());
+    open_groups(&mut harness);
+    let window = harness.get_by_role(Role::Window).rect();
+    let right_edge = window.left() + GROUPS_WINDOW_MIN_SIZE[0];
+    // The test's window grows to what it holds; the system's window keeps its size and cuts.
+    let swatch = harness.get_by_role(Role::ColorWell).rect();
+    assert!(swatch.right() <= right_edge, "{swatch:?} past {right_edge}");
+}
+
+/// Any colour, as an own choice stores it.
+const OWN_COLOUR: &str = "#3080ff";

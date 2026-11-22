@@ -12,7 +12,7 @@ use neumann_control_app::writes::Refusal;
 use neumann_control_core::catalog::ValueError;
 use neumann_control_core::discovery::Found;
 use neumann_control_core::settings::SettingsPreset;
-use neumann_control_core::simulator::{SimModel, Simulator};
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use serde_json::{json, Value};
 
 const STANDBY_LABEL: &str = "Auto-Standby";
@@ -25,7 +25,7 @@ const IDLE_FRAMES: usize = 10;
 
 /// A connected speaker with its device panel open on `tab`, in a window tall enough for all of it.
 fn speaker_with_panel(
-    model: SimModel,
+    model: SimulatedModel,
     tab: PanelTab,
 ) -> (Simulator, tempfile::TempDir, Harness<'static, NeumannApp>) {
     let (simulator, directory, mut harness) = connected_speaker(model);
@@ -33,7 +33,8 @@ fn speaker_with_panel(
     (simulator, directory, harness)
 }
 
-/// The name field sits in "Device", below the outputs, input and standby: scrolled to first.
+/// The name field sits on the Overview tab below the colour choice and the overview rows:
+/// scrolled to first.
 fn click_name_field(harness: &mut Harness<'static, NeumannApp>) {
     harness.get_by_role(Role::TextInput).scroll_to_me();
     harness.run_steps(SCROLL_FRAMES);
@@ -46,7 +47,8 @@ fn role_of(harness: &Harness<'static, NeumannApp>, label: &str) -> Role {
 
 #[test]
 fn kh750_details_show_out1_and_no_phase() {
-    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750, PanelTab::Outputs);
+    let (_simulator, _directory, harness) =
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Outputs);
     harness.get_by_label("Ausgang A");
     harness.get_by_label("Ausgang B");
     assert!(harness.query_by_label("Phase invertiert").is_none());
@@ -54,7 +56,8 @@ fn kh750_details_show_out1_and_no_phase() {
 
 #[test]
 fn kh750_standby_enabled_is_display_only() {
-    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750, PanelTab::Standby);
+    let (_simulator, _directory, harness) =
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Standby);
     assert_eq!(role_of(&harness, STANDBY_LABEL), Role::Label);
     assert!(harness.query_all_by_role(Role::CheckBox).all(|node| node
         .accesskit_node()
@@ -66,19 +69,19 @@ fn kh750_standby_enabled_is_display_only() {
 #[test]
 fn kh120ii_standby_enabled_is_checkbox() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     assert_eq!(role_of(&harness, STANDBY_LABEL), Role::CheckBox);
     harness.get_by_label(STANDBY_LABEL).click();
     wait_until(&mut harness, "standby off on the device", |_| {
-        simulator.value("device/standby/enabled") == Some(Value::Bool(false))
+        simulator.value(paths::STANDBY_ENABLED) == Some(Value::Bool(false))
     });
 }
 
 #[test]
 fn temperature_is_shown_in_celsius() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
-    simulator.set_value("device/temperature", json!(313));
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Device);
+    simulator.set_value(paths::TEMPERATURE, json!(313));
     wait_until(&mut harness, "40 °C", |harness| {
         harness.query_by_label("40 °C").is_some()
     });
@@ -98,7 +101,7 @@ fn the_test_pointers_are_their_paths() {
 #[test]
 fn name_field_shows_refusal() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -126,7 +129,7 @@ fn name_field_shows_refusal() {
 
 #[test]
 fn control_mode_is_shown_read_only_on_both_models() {
-    for model in [SimModel::Kh120Ii, SimModel::Kh750] {
+    for model in [SimulatedModel::Kh120Ii, SimulatedModel::Kh750] {
         let (_simulator, _directory, harness) = speaker_with_panel(model, PanelTab::Device);
         let combo_boxes = harness.query_all_by_role(Role::ComboBox);
         let labels: Vec<_> = combo_boxes
@@ -147,20 +150,20 @@ fn control_mode_is_shown_read_only_on_both_models() {
 
 #[test]
 fn an_announced_model_gives_no_write_controls_or_model_rows() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
-    simulator.set_value("device/identity/product", json!(""));
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    simulator.set_value(paths::PRODUCT, json!(""));
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let found = Found {
         name: String::new(),
-        product: Some("KH 120 II".to_owned()),
+        product: Some(KH120_PRODUCT.to_owned()),
         serial: Some(SIMULATED_SERIAL.to_owned()),
         address: simulator.address(),
     };
     let mut harness = harness(path, vec![found]);
     harness.set_size(EXPANDED_WINDOW_SIZE.into());
     // Without an announced name the dialog names the speaker by its announced model.
-    scan_and_add(&mut harness, &["KH 120 II"]);
+    scan_and_add(&mut harness, &[KH120_PRODUCT]);
     wait_for_level(&mut harness, 100.0);
     wait_for_initial_read(&mut harness, &simulator);
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
@@ -181,17 +184,17 @@ fn an_announced_model_gives_no_write_controls_or_model_rows() {
 fn the_history_is_shown_only_for_a_model_with_a_temperature() {
     let title = texts::trends_title(neumann_control_app::trend::TREND_WINDOW_SECONDS);
     let (_monitor, _directory, monitor_panel) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Device);
     assert!(monitor_panel.query_by_label_contains(&title).is_none());
     let (_subwoofer, _directory, subwoofer_panel) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Device);
     assert!(subwoofer_panel.query_by_label_contains(&title).is_some());
 }
 
 #[test]
 fn number_field_sends_once_per_gesture() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     let start = number_field(&harness, DELAY_LABEL).rect().center();
     harness.drag_at(start);
     for frame in 1..=10 {
@@ -239,8 +242,8 @@ fn numeric_value(harness: &Harness<'static, NeumannApp>, label: &str) -> Option<
 #[test]
 fn out_of_range_device_value_is_not_written_back() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -253,8 +256,8 @@ fn out_of_range_device_value_is_not_written_back() {
 #[test]
 fn visiting_a_number_field_does_not_write_its_rounded_text() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(100.123456));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(100.123456));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(100.123456)
     });
@@ -272,7 +275,7 @@ fn visiting_a_number_field_does_not_write_its_rounded_text() {
 #[test]
 fn an_arrow_key_step_in_a_number_field_is_written() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     let before = numeric_value(&harness, STANDBY_TIME_LABEL).unwrap();
     number_field(&harness, STANDBY_TIME_LABEL).click();
     harness.run_steps(2);
@@ -289,8 +292,8 @@ fn an_arrow_key_step_in_a_number_field_is_written() {
 #[test]
 fn visiting_an_out_of_range_number_field_writes_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -307,7 +310,7 @@ fn visiting_an_out_of_range_number_field_writes_nothing() {
 #[test]
 fn a_number_typed_and_entered_in_one_frame_is_sent() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     number_field(&harness, STANDBY_TIME_LABEL).click();
     harness.run_steps(2);
     let events = &mut harness.input_mut().events;
@@ -328,7 +331,7 @@ fn a_number_typed_and_entered_in_one_frame_is_sent() {
 #[test]
 fn abandoned_number_edit_is_not_sent_on_reopen() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");
     // The first Escape cancels the edit, the second closes the panel.
     harness.key_press(egui::Key::Escape);
@@ -346,7 +349,7 @@ fn abandoned_number_edit_is_not_sent_on_reopen() {
 #[test]
 fn a_typed_number_is_snapped_only_when_sent() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     type_number(&mut harness, STANDBY_TIME_LABEL, "1.5");
     harness.run_steps(2);
     let shown = number_field(&harness, STANDBY_TIME_LABEL).value();
@@ -361,7 +364,7 @@ fn a_typed_number_is_snapped_only_when_sent() {
 #[test]
 fn escape_during_number_edit_sends_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");
     harness.key_press(egui::Key::Escape);
     harness.run_steps(IDLE_FRAMES);
@@ -371,10 +374,30 @@ fn escape_during_number_edit_sends_nothing() {
     assert_eq!(numeric_value(&harness, STANDBY_TIME_LABEL), Some(60.0));
 }
 
+/// Escape during a drag on a number field ends it without a write, as Escape while typing does.
+#[test]
+fn escape_during_a_number_field_drag_writes_nothing() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    let start = number_field(&harness, DELAY_LABEL).rect().center();
+    harness.drag_at(start);
+    for frame in 1..=10 {
+        harness.hover_at(start + egui::vec2(4.0 * frame as f32, 0.0));
+        harness.step();
+    }
+    harness.key_press(egui::Key::Escape);
+    harness.step();
+    harness.drop_at(start + egui::vec2(40.0, 0.0));
+    harness.run_steps(IDLE_FRAMES);
+    barrier(&simulator);
+    let sets = sets(&simulator, DELAY_POINTER);
+    assert!(sets.is_empty(), "{sets:?}");
+}
+
 #[test]
 fn an_abandoned_name_draft_follows_the_device_again() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
     harness.get_by_role(Role::TextInput).type_text("draft");
@@ -392,9 +415,54 @@ fn an_abandoned_name_draft_follows_the_device_again() {
 }
 
 #[test]
+fn a_name_typed_and_entered_in_the_field_is_sent() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("Studio");
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the Set after Enter in the field", |_| {
+        !sets(&simulator, NAME_POINTER).is_empty()
+    });
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
+}
+
+/// The name read again while a draft is typed leaves the draft as it is.
+#[test]
+fn a_poll_during_name_editing_keeps_the_draft() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("Draft");
+    harness.run_steps(1);
+    let name_reads = |simulator: &Simulator| {
+        let requests = simulator.requests();
+        let reads = requests
+            .iter()
+            .filter(|request| request.pointer(NAME_POINTER).is_some_and(Value::is_null));
+        reads.count()
+    };
+    let before = name_reads(&simulator);
+    simulator.set_value(paths::DEVICE_NAME, json!("Other"));
+    wait_until(&mut harness, "the name read again", |_| {
+        name_reads(&simulator) > before
+    });
+    barrier(&simulator);
+    harness.run_steps(3);
+    let shown = harness.get_by_role(Role::TextInput).value();
+    assert_eq!(shown.as_deref(), Some("Draft"));
+}
+
+#[test]
 fn a_name_typed_then_tabbed_to_apply_is_sent() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -410,10 +478,54 @@ fn a_name_typed_then_tabbed_to_apply_is_sent() {
     assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
 }
 
+/// Model and firmware come from the device like any other text and are cut to the same length
+/// in the panel's header; a faulty firmware's endless text filled the window.
+#[test]
+fn the_panel_header_cuts_long_device_texts() {
+    const LONG: usize = 1000;
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
+            simulator.set_value(paths::PRODUCT, json!("M".repeat(LONG)));
+            simulator.set_value(paths::FIRMWARE_VERSION, json!("7".repeat(LONG)));
+        });
+    open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Overview);
+    let limit = neumann_control_app::display::VALUE_CHARACTER_LIMIT;
+    let longest = harness
+        .query_all_by_role(Role::Label)
+        .filter_map(|node| node.value())
+        .filter(|text| text.contains("MMMM") || text.contains("7777"))
+        .map(|text| text.chars().count())
+        .max()
+        .expect("the header line");
+    assert!(longest <= 3 * limit, "{longest} characters");
+}
+
+/// The speaker is renamed elsewhere while the name field has the focus but nothing typed: the
+/// field follows, and Enter writes nothing. It wrote the name from when the field got the focus,
+/// undoing the rename.
+#[test]
+fn enter_in_an_untouched_name_field_does_not_undo_a_rename() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    simulator.set_value(paths::DEVICE_NAME, json!("Renamed"));
+    // The name is polled slowly: up to one slow interval, then its answer.
+    wait_until(&mut harness, "the new name in the field", |harness| {
+        let shown = harness.get_by_role(Role::TextInput).value();
+        shown.as_deref() == Some("Renamed")
+    });
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+    barrier(&simulator);
+    let sets = sets(&simulator, NAME_POINTER);
+    assert!(sets.iter().all(|name| name == "Renamed"), "{sets:?}");
+}
+
 #[test]
 fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     click_name_field(&mut harness);
     harness.run_steps(1);
     harness.get_by_role(Role::TextInput).type_text("draft");
@@ -429,7 +541,7 @@ fn a_name_draft_left_by_tabbing_past_apply_follows_the_device_again() {
 #[test]
 fn the_fixed_part_of_the_strip_is_not_repeated_in_the_panel() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     // Mute and identify are listed in the panel too: a layout can take them off the strip.
     let mutes = harness.query_all_by_role_and_label(Role::CheckBox, texts::MUTE.get());
     assert_eq!(mutes.count(), 1);
@@ -447,7 +559,7 @@ fn the_fixed_part_of_the_strip_is_not_repeated_in_the_panel() {
 
 #[test]
 fn kh750_output_meters_sit_next_to_the_input_meters() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh750);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh750);
     let output_meter = texts::meter_label(texts::OUTPUT_METERS.get(), "A");
     wait_for_label(&mut harness, &output_meter);
     assert_eq!(
@@ -468,7 +580,7 @@ fn kh750_output_meters_sit_next_to_the_input_meters() {
 
 #[test]
 fn kh120ii_strip_has_no_output_meters() {
-    let (_simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     wait_for_label(
         &mut harness,
         &texts::meter_label(texts::INPUT_METERS.get(), "B"),
@@ -484,7 +596,7 @@ fn kh120ii_strip_has_no_output_meters() {
 #[test]
 fn all_values_button_reads_the_whole_tree() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Device);
     scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     wait_until(&mut harness, "the schema walk", |_| {
         simulator
@@ -499,7 +611,7 @@ fn all_values_button_reads_the_whole_tree() {
 #[test]
 fn all_values_cannot_be_reloaded_from_an_unreachable_speaker() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Device);
     scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     let reload_enabled = |harness: &Harness<'static, NeumannApp>| {
         harness
@@ -515,7 +627,7 @@ fn all_values_cannot_be_reloaded_from_an_unreachable_speaker() {
 #[test]
 fn panel_number_rows_keep_their_labels_on_one_line() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     // The panel row and the strip knob's caption carry the same name; neither may wrap.
     let rows = [
         (PanelTab::Standby, STANDBY_TIME_LABEL),
@@ -543,7 +655,7 @@ fn panel_number_rows_keep_their_labels_on_one_line() {
 #[test]
 fn delay_is_typed_in_milliseconds_and_sent_in_samples() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     type_number(&mut harness, DELAY_LABEL, "10");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the delay Set", |_| {
@@ -555,7 +667,7 @@ fn delay_is_typed_in_milliseconds_and_sent_in_samples() {
 #[test]
 fn a_typed_number_outside_the_range_is_refused_not_clamped() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     // 500 ms are 24000 samples, far above the KH 120 II's 5760.
     type_number(&mut harness, DELAY_LABEL, "500");
     harness.key_press(egui::Key::Enter);
@@ -575,9 +687,9 @@ fn a_typed_number_outside_the_range_is_refused_not_clamped() {
 #[test]
 fn visiting_a_delay_in_milliseconds_writes_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     // One sample is 0.0208333… ms, which no decimal text holds exactly.
-    simulator.set_value("audio/out/delay", json!(1));
+    simulator.set_value(paths::DELAY, json!(1));
     wait_until(&mut harness, "the reported delay", |harness| {
         harness.query_by_label_contains("0,02").is_some()
     });
@@ -592,8 +704,8 @@ fn visiting_a_delay_in_milliseconds_writes_nothing() {
 #[test]
 fn a_panel_drag_outside_the_range_writes_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(6000));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(6000.0)
     });
@@ -613,8 +725,8 @@ fn a_panel_drag_outside_the_range_writes_nothing() {
 #[test]
 fn a_panel_drag_back_to_its_start_writes_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(100.123456));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(100.123456));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(100.123456)
     });
@@ -634,16 +746,16 @@ fn a_panel_drag_back_to_its_start_writes_nothing() {
 #[test]
 fn eq_rows_are_not_in_the_device_panel() {
     let (_simulator, _directory, harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    assert!(harness.query_by_label("Verstärkung").is_none());
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    assert!(harness.query_by_label("Anhebung").is_none());
     assert!(harness.query_by_label("Güte (Q)").is_none());
 }
 
 #[test]
 fn the_panel_shows_the_temperature_trend_of_a_kh750() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
-    simulator.set_value("device/temperature", json!(313));
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Device);
+    simulator.set_value(paths::TEMPERATURE, json!(313));
     wait_until(&mut harness, "the trend at 40 °C", |harness| {
         harness
             .query_all_by_label_contains(&texts::temperature_trend("40 °C"))
@@ -657,16 +769,16 @@ fn the_panel_shows_the_temperature_trend_of_a_kh750() {
 #[test]
 fn the_temperature_line_names_its_range() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Device);
     // Below the simulator's 37 °C, so it is the lowest of the session.
-    simulator.set_value("device/temperature", json!(300));
+    simulator.set_value(paths::TEMPERATURE, json!(300));
     wait_until(&mut harness, "27 °C", |harness| {
         harness
             .query_all_by_label_contains(&texts::temperature_trend("27 °C"))
             .next()
             .is_some()
     });
-    simulator.set_value("device/temperature", json!(316));
+    simulator.set_value(paths::TEMPERATURE, json!(316));
     let range = texts::trend_range("27 °C", "43 °C");
     let line = format!("{} ({range})", texts::temperature_trend("43 °C"));
     wait_until(&mut harness, "the range at the line", |harness| {
@@ -676,7 +788,8 @@ fn the_temperature_line_names_its_range() {
 
 #[test]
 fn a_converted_delay_shows_only_the_converted_unit() {
-    let (_simulator, _directory, harness) = speaker_with_panel(SimModel::Kh750, PanelTab::Outputs);
+    let (_simulator, _directory, harness) =
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Outputs);
     let shown: Vec<String> = harness
         .query_all_by_role(Role::SpinButton)
         .filter_map(|field| field.accesskit_node().value().map(|text| text.to_string()))
@@ -691,10 +804,44 @@ fn a_converted_delay_shows_only_the_converted_unit() {
 
 const INPUT_MIX_POINTER: &str = "/audio/out/mixer/levels";
 
+/// A second mix change before the speaker answered the first keeps the first: the whole list
+/// is written from what was just sent, not from the last report.
+#[test]
+fn a_second_mix_edit_before_the_answer_keeps_the_first() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
+    let type_into = |harness: &mut Harness<'static, NeumannApp>, input: &str, text: &str| {
+        let field = || {
+            harness
+                .query_all_by_role_and_label(Role::SpinButton, input)
+                .next()
+        };
+        field().expect("the input's field").click();
+        harness.run_steps(1);
+        harness
+            .query_all_by_role_and_label(Role::SpinButton, input)
+            .next()
+            .unwrap()
+            .type_text(text);
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(2);
+    };
+    type_into(&mut harness, "Eingang A", "-20");
+    type_into(&mut harness, "Eingang B", "-10");
+    wait_until(&mut harness, "both mix writes", |_| {
+        sets(&simulator, INPUT_MIX_POINTER).len() == 2
+    });
+    assert_eq!(
+        sets(&simulator, INPUT_MIX_POINTER)[1],
+        json!([-20.0, -10.0])
+    );
+}
+
 #[test]
 fn the_input_mix_writes_the_whole_list() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     let before = simulator.value("audio/out/mixer/levels").unwrap();
     harness
         .query_all_by_role_and_label(Role::SpinButton, "Eingang B")
@@ -724,12 +871,12 @@ fn the_input_mix_writes_the_whole_list() {
 #[test]
 fn the_input_mix_keeps_the_speakers_number_type() {
     let (simulator, _directory, mut harness) =
-        connected_speaker_with(SimModel::Kh120Ii, |simulator| {
+        connected_speaker_with(SimulatedModel::Kh120Ii, |simulator| {
             simulator.set_value("audio/out/mixer/levels", json!([0, -6]));
         });
     open_panel_on(
         &mut harness,
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         PanelTab::Outputs,
     );
     harness
@@ -753,7 +900,7 @@ fn the_input_mix_keeps_the_speakers_number_type() {
 #[test]
 fn mute_persist_is_a_checkbox_that_writes() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     assert_eq!(role_of(&harness, "Stumm-Persistenz"), Role::CheckBox);
     harness.get_by_label("Stumm-Persistenz").click();
     wait_until(&mut harness, "mute persist written", |_| {
@@ -768,7 +915,7 @@ fn mute_persist_is_a_checkbox_that_writes() {
 #[test]
 fn kh750_shows_its_auto_standby_switch() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh750, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh750, PanelTab::Outputs);
     assert_eq!(
         harness
             .query_all_by_role_and_label(Role::SpinButton, "Eingang A")
@@ -782,7 +929,7 @@ fn kh750_shows_its_auto_standby_switch() {
 #[test]
 fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
     let (_simulator, directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Device);
     scroll_to_and_click(&mut harness, texts::FULL_SCAN.get());
     let written = |directory: &std::path::Path| -> Vec<std::path::PathBuf> {
         std::fs::read_dir(directory)
@@ -802,7 +949,7 @@ fn a_full_scan_writes_a_redacted_report_next_to_the_settings() {
         let name = path.file_name().unwrap().to_str().unwrap().to_owned();
         assert!(name.starts_with("scan-KH-120-II-1_7_3-"), "{name}");
         let text = std::fs::read_to_string(&path).unwrap();
-        assert!(text.contains("audio/out/level"), "{name}");
+        assert!(text.contains(paths::OUTPUT_LEVEL), "{name}");
         assert!(!text.contains(SIMULATED_SERIAL), "{name} holds the serial");
         assert!(!text.contains(KH120_DEVICE_NAME), "{name} holds the name");
     }
@@ -818,7 +965,7 @@ const LEVEL_POINTER: &str = "/audio/out/level";
 #[test]
 fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     let (simulator, directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
     harness.run_steps(3);
     harness
@@ -845,20 +992,20 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(saved.presets.len(), 1);
     let preset = &saved.presets[0];
     assert_eq!(preset.name, "Evening");
-    assert!(preset.values.contains_key("audio/out/level"));
-    assert!(!preset.values.contains_key("audio/out/delay"));
-    assert!(!preset.values.contains_key("device/name"));
+    assert!(preset.values.contains_key(paths::OUTPUT_LEVEL));
+    assert!(!preset.values.contains_key(paths::DELAY));
+    assert!(!preset.values.contains_key(paths::DEVICE_NAME));
 
-    simulator.set_value("audio/out/level", json!(70.0));
+    simulator.set_value(paths::OUTPUT_LEVEL, json!(70.0));
     wait_for_level(&mut harness, 70.0);
     let entries_before = harness.state().history().len();
     if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
-        open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+        open_panel(&mut harness, device_name(SimulatedModel::Kh120Ii));
     }
     scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
-        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .get_by_label(&texts::preset_entry("Evening", KH120_PRODUCT))
         .click();
     // The preview grows the dialog, which centres itself again over a few frames.
     harness.run_steps(6);
@@ -887,24 +1034,65 @@ fn a_settings_preset_is_saved_and_written_back_as_one_entry() {
     assert_eq!(harness.state().history().len(), entries_before + 1);
 }
 
-/// A stored preset can hold a value this speaker refuses (another model's range, a file edited
-/// by hand). Loading it then writes nothing, not the part before the refused value.
+/// The delay row of the save dialog, found by its label's start (the value follows).
+fn delay_row(harness: &Harness<'static, NeumannApp>) -> Option<String> {
+    harness
+        .query_all_by_role(Role::CheckBox)
+        .filter_map(|node| node.accesskit_node().label())
+        .find(|label| label.starts_with("Verzögerung"))
+}
+
+/// A checked value the speaker has not answered cannot go into a preset: saving dropped it
+/// without a word, and replacing an older preset of the name lost that value for good.
+#[test]
+fn a_settings_preset_waits_for_its_unread_values() {
+    let (simulator, directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    simulator.remove_value(paths::DELAY);
+    scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .click();
+    harness.run_steps(1);
+    harness
+        .get_by_role_and_label(Role::TextInput, texts::PRESET_NAME.get())
+        .type_text("Evening");
+    wait_until(&mut harness, "the delay unread", |harness| {
+        delay_row(harness).is_some_and(|label| label.ends_with(texts::UNKNOWN_VALUE))
+    });
+    let delay = delay_row(&harness).unwrap();
+    let delay_label = delay.split(':').next().unwrap();
+    harness.get_by_label(&texts::preset_unread(delay_label));
+    assert!(harness
+        .get_by_label(texts::SAVE.get())
+        .accesskit_node()
+        .is_disabled());
+    harness.get_by_label(&delay).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SAVE.get()).click();
+    harness.run_steps(3);
+    let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
+    assert_eq!(saved.presets.len(), 1);
+    assert!(saved.presets[0].values.contains_key(paths::OUTPUT_LEVEL));
+}
+
 /// The speaker goes while the load dialog shows a preset it holds: nothing is known to be on it
 /// any more, and the dialog says why.
 #[test]
 fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
     let same = SettingsPreset {
         name: "Same".to_owned(),
-        product: "KH 120 II".to_owned(),
-        values: [("audio/out/level".to_owned(), json!(100.0))].into(),
+        product: KH120_PRODUCT.to_owned(),
+        values: [(paths::OUTPUT_LEVEL.to_owned(), json!(100.0))].into(),
     };
     let (simulator, _directory, mut harness) =
-        connected_speaker_with_presets(SimModel::Kh120Ii, vec![same]);
+        connected_speaker_with_presets(SimulatedModel::Kh120Ii, vec![same]);
     open_stored_preset(
         &mut harness,
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         "Same",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     harness.get_by_label(texts::PRESET_UNCHANGED.get());
     simulator.stop();
@@ -918,7 +1106,7 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
     assert!(harness
-        .query_all_by_label_contains("Nicht verbunden")
+        .query_all_by_label_contains(&texts::describe_refusal(&Refusal::NotConnected))
         .next()
         .is_some());
 }
@@ -928,40 +1116,71 @@ fn a_settings_preset_on_a_speaker_gone_is_not_called_the_same() {
 fn a_settings_preset_of_skipped_values_is_not_called_the_same() {
     let other = SettingsPreset {
         name: "Other".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [("audio/out/not/here".to_owned(), json!(1.0))].into(),
     };
     let (_simulator, _directory, mut harness) =
-        connected_speaker_with_presets(SimModel::Kh120Ii, vec![other]);
+        connected_speaker_with_presets(SimulatedModel::Kh120Ii, vec![other]);
     open_stored_preset(
         &mut harness,
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         "Other",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
+    // The preview is shown, with the skipped value named.
+    let skipped = texts::preset_skipped(&["audio/out/not/here".to_owned()]);
+    harness.get_by_label(&skipped);
     assert!(harness
         .query_by_label(texts::PRESET_UNCHANGED.get())
         .is_none());
 }
 
+/// A skipped setting the catalog knows is named as everywhere else in the dialog: it was
+/// listed by its protocol path.
+#[test]
+fn a_skipped_setting_is_named_by_its_label() {
+    let old = SettingsPreset {
+        name: "Old".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
+        values: [(paths::IDENTIFY.to_owned(), json!(true))].into(),
+    };
+    let (_simulator, _directory, mut harness) =
+        connected_speaker_with_presets(SimulatedModel::Kh120Ii, vec![old]);
+    open_stored_preset(
+        &mut harness,
+        device_name(SimulatedModel::Kh120Ii),
+        "Old",
+        KH120_PRODUCT,
+    );
+    let catalog = neumann_control_core::catalog::Catalog::embedded();
+    let path = neumann_control_core::ssc::wire::SscPath::parse(paths::IDENTIFY).unwrap();
+    let label = paths::catalog_entry(catalog, &path)
+        .unwrap()
+        .label(texts::language())
+        .to_owned();
+    harness.get_by_label(&texts::preset_skipped(&[label]));
+}
+
+/// A stored preset can hold a value this speaker refuses (another model's range, a file edited
+/// by hand). Loading it then writes nothing, not the part before the refused value.
 #[test]
 fn a_settings_preset_with_a_refused_value_writes_nothing() {
     let far = SettingsPreset {
         name: "Far".to_owned(),
-        product: "KH 120 II".to_owned(),
+        product: KH120_PRODUCT.to_owned(),
         values: [
-            ("audio/out/level".to_owned(), json!(90.0)),
-            ("audio/out/delay".to_owned(), json!(99_999)),
+            (paths::OUTPUT_LEVEL.to_owned(), json!(90.0)),
+            (paths::DELAY.to_owned(), json!(99_999)),
         ]
         .into(),
     };
     let (simulator, _directory, mut harness) =
-        connected_speaker_with_presets(SimModel::Kh120Ii, vec![far]);
+        connected_speaker_with_presets(SimulatedModel::Kh120Ii, vec![far]);
     open_stored_preset(
         &mut harness,
-        device_name(SimModel::Kh120Ii),
+        device_name(SimulatedModel::Kh120Ii),
         "Far",
-        "KH 120 II",
+        KH120_PRODUCT,
     );
     let range = Refusal::OutOfRange {
         min: 0.0,
@@ -984,7 +1203,7 @@ fn a_settings_preset_with_a_refused_value_writes_nothing() {
 #[test]
 fn a_number_field_left_empty_or_unreadable_writes_nothing() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Standby);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Standby);
     type_number(&mut harness, STANDBY_TIME_LABEL, "50");
     harness.key_press(egui::Key::Backspace);
     harness.key_press(egui::Key::Backspace);
@@ -1004,9 +1223,9 @@ fn a_number_field_left_empty_or_unreadable_writes_nothing() {
 #[test]
 fn a_second_switch_click_before_the_answer_undoes_the_first() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     let mute = texts::MUTE.get();
     harness.get_by_role_and_label(Role::CheckBox, mute).click();
     harness.run_steps(1);
@@ -1026,9 +1245,9 @@ fn a_second_switch_click_before_the_answer_undoes_the_first() {
 #[test]
 fn the_save_dialog_shows_a_write_still_on_its_way() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     // Under the client's answer timeout, so the write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     harness
         .get_by_role_and_label(Role::CheckBox, texts::MUTE.get())
         .click();
@@ -1061,7 +1280,7 @@ fn the_load_notice_stays_in_a_run_without_the_lock() {
 #[test]
 fn a_run_without_the_lock_saves_nothing() {
     let (_simulator, directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     harness.state_mut().save_nothing();
     scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
     harness.run_steps(3);
@@ -1077,7 +1296,20 @@ fn a_run_without_the_lock_saves_nothing() {
     harness.run_steps(3);
     let saved = neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE));
     assert!(saved.presets.is_empty());
-    harness.get_by_label(texts::SETTINGS_NOT_LOCKED.get());
+    harness.get_by_label(texts::FOLDER_NOT_WRITABLE.get());
+}
+
+/// A run that cannot write its folder writes no log: the settings do not offer the detailed
+/// log, whose hint promised a log file.
+#[test]
+fn a_run_without_the_lock_offers_no_detailed_log() {
+    let (_simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    harness.state_mut().save_nothing();
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::SHOW_MASTER.get());
+    assert!(harness.query_by_label(texts::DETAILED_LOG.get()).is_none());
 }
 
 /// Choosing back the reported option before the speaker answered the first choice: it starts
@@ -1085,9 +1317,9 @@ fn a_run_without_the_lock_saves_nothing() {
 #[test]
 fn choosing_back_before_the_answer_writes_both_choices() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Inputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Inputs);
     // Under the client's answer timeout, so the first write stays unconfirmed without a disconnect.
-    simulator.set_reply_delay(std::time::Duration::from_secs(2));
+    simulator.set_reply_delay(UNCONFIRMED_WRITE_DELAY);
     for option in ["DIGITAL ONLY", "ANALOG ONLY"] {
         harness
             .get_by_role_and_label(Role::ComboBox, "Eingangs-Interface")
@@ -1108,7 +1340,7 @@ fn choosing_back_before_the_answer_writes_both_choices() {
 #[test]
 fn deleting_a_settings_preset_asks_first() {
     let (_simulator, directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     scroll_to_and_click(&mut harness, texts::SAVE_PRESET.get());
     harness.run_steps(3);
     let field = || texts::PRESET_NAME.get();
@@ -1125,12 +1357,12 @@ fn deleting_a_settings_preset_asks_first() {
     let presets =
         || neumann_control_core::settings::load(&directory.path().join(SETTINGS_FILE)).presets;
     if harness.query_by_label(texts::LOAD_PRESET.get()).is_none() {
-        open_panel(&mut harness, device_name(SimModel::Kh120Ii));
+        open_panel(&mut harness, device_name(SimulatedModel::Kh120Ii));
     }
     scroll_to_and_click(&mut harness, texts::LOAD_PRESET.get());
     harness.run_steps(3);
     harness
-        .get_by_label(&texts::preset_entry("Evening", "KH 120 II"))
+        .get_by_label(&texts::preset_entry("Evening", KH120_PRODUCT))
         .click();
     harness.run_steps(6);
     harness.get_by_label(texts::DELETE_PRESET.get()).click();
@@ -1146,7 +1378,7 @@ fn deleting_a_settings_preset_asks_first() {
 #[test]
 fn escape_in_the_all_values_filter_keeps_the_window() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Device);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Device);
     scroll_to_and_click(&mut harness, texts::ALL_VALUES.get());
     let filter = || texts::ALL_VALUES_FILTER_LABEL.get();
     wait_until(&mut harness, "the filter", |harness| {
@@ -1176,7 +1408,7 @@ fn escape_in_the_all_values_filter_keeps_the_window() {
 #[test]
 fn escape_on_an_open_list_keeps_the_panel() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Group);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Group);
     harness
         .query_all_by_role(Role::ComboBox)
         .next()
@@ -1192,7 +1424,7 @@ fn escape_on_an_open_list_keeps_the_panel() {
 #[test]
 fn the_history_shows_a_delay_in_its_shown_unit() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
     type_number(&mut harness, DELAY_LABEL, "10");
     harness.key_press(egui::Key::Enter);
     wait_until(&mut harness, "the delay write", |_| {
@@ -1217,7 +1449,7 @@ fn the_history_shows_a_delay_in_its_shown_unit() {
 #[test]
 fn the_panel_opens_on_the_overview_again() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     harness.get_by_label(texts::REMOVE.get());
     show_tab(&mut harness, PanelTab::Outputs);
     assert!(harness.query_by_label(texts::REMOVE.get()).is_none());
@@ -1232,7 +1464,7 @@ fn the_panel_opens_on_the_overview_again() {
 #[test]
 fn the_name_is_edited_on_the_overview_and_shown_on_the_device_tab() {
     let (_simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Overview);
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
     harness.get_by_role(Role::TextInput);
     show_tab(&mut harness, PanelTab::Device);
     assert!(harness.query_by_role(Role::TextInput).is_none());
@@ -1244,8 +1476,8 @@ fn the_name_is_edited_on_the_overview_and_shown_on_the_device_tab() {
 #[test]
 fn a_delay_field_shows_its_milliseconds_rounded() {
     let (simulator, _directory, mut harness) =
-        speaker_with_panel(SimModel::Kh120Ii, PanelTab::Outputs);
-    simulator.set_value("audio/out/delay", json!(184));
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Outputs);
+    simulator.set_value(paths::DELAY, json!(184));
     wait_until(&mut harness, "the reported delay", |harness| {
         numeric_value(harness, DELAY_LABEL) == Some(184.0)
     });

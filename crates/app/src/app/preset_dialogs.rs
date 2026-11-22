@@ -127,13 +127,17 @@ impl NeumannApp {
         let entries = presettable(catalog, speaker);
         let rows: Vec<SaveRow> = entries
             .iter()
-            .map(|entry| SaveRow {
-                label: entry.label(texts::language()).to_owned(),
-                value: saved_value(speaker, &entry.path).map_or_else(
-                    || texts::UNKNOWN_VALUE.to_owned(),
-                    |value| shown_value(entry, value),
-                ),
-                chosen: chosen.contains(&entry.path),
+            .map(|entry| {
+                let value = saved_value(speaker, &entry.path);
+                SaveRow {
+                    label: entry.label(texts::language()).to_owned(),
+                    value: value.map_or_else(
+                        || texts::UNKNOWN_VALUE.to_owned(),
+                        |value| shown_value(entry, value),
+                    ),
+                    chosen: chosen.contains(&entry.path),
+                    unread: value.is_none(),
+                }
             })
             .collect();
         let product = speaker.product().to_owned();
@@ -202,10 +206,7 @@ impl NeumannApp {
             .changes
             .iter()
             .map(|change| ComparedChange {
-                label: paths::catalog_entry(catalog, &change.path).map_or_else(
-                    || change.path.to_string(),
-                    |entry| entry.label(texts::language()).to_owned(),
-                ),
+                label: paths::setting_label(catalog, &change.path),
                 now: shown(&change.path, change.current.as_ref()),
                 written: shown(&change.path, Some(&change.preset)),
             })
@@ -216,23 +217,28 @@ impl NeumannApp {
         let gone = gone.map(|refusal| texts::describe_refusal(&refusal));
         let refused = loading.changes.iter().find_map(|change| {
             let refusal = writes::check(speaker, catalog, &change.path, &change.preset).err()?;
-            let label = paths::catalog_entry(catalog, &change.path).map_or_else(
-                || change.path.to_string(),
-                |entry| entry.label(texts::language()).to_owned(),
-            );
+            let label = paths::setting_label(catalog, &change.path);
             Some(texts::setting_refusal(
                 &label,
                 &texts::describe_refusal(&refusal),
             ))
         });
         let refusal = gone.or(refused);
+        let skipped: Vec<String> = loading
+            .skipped
+            .iter()
+            .map(|text| match SscPath::parse(text) {
+                Ok(path) => paths::setting_label(catalog, &path),
+                Err(_) => text.clone(),
+            })
+            .collect();
         let view = LoadView {
             title: texts::LOAD_PRESET_TITLE.get(),
             presets: &names,
             empty: texts::NO_PRESETS.get(),
             selected,
             changes: Changes::Compared(&changes),
-            skipped: &loading.skipped,
+            skipped: &skipped,
             warning: None,
             refusal: refusal.as_deref(),
             deleting: selected
@@ -247,11 +253,12 @@ impl NeumannApp {
                 deleting = false;
             }
             LoadAction::Write => {
-                let speaker = &mut self.speakers[index];
+                let ids = self.member_ids();
                 for change in loading.changes {
                     let intent = Intent::restoring(&change.path, change.preset);
-                    if let Some(command) = speaker.state.request(intent, catalog, now) {
-                        speaker.handle.send(command);
+                    let state = &mut self.speakers[index].state;
+                    if let Some(command) = state.request(intent, catalog, now) {
+                        self.send_with_links(index, command, catalog, &ids, now);
                     }
                 }
                 return None;

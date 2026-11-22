@@ -264,7 +264,6 @@ pub fn new_group(groups: &[GroupSettings], base: &str, colors: u8) -> GroupSetti
     }
 }
 
-/// Puts `member` into `group` (or into none), out of any other group.
 /// Links `linkable` in `group`, or no longer.
 pub fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
     if group.linked.contains(&linkable) {
@@ -274,6 +273,7 @@ pub fn toggle_link(group: &mut GroupSettings, linkable: Linkable) {
     }
 }
 
+/// Puts `member` into `group` (or into none), out of any other group.
 pub fn set_membership(groups: &mut [GroupSettings], member: &str, group: Option<usize>) {
     for existing in groups.iter_mut() {
         existing.members.retain(|id| id != member);

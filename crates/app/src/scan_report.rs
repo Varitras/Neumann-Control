@@ -2,23 +2,12 @@
 //! about each path, and nothing that identifies the speaker or its owner. No file access here.
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::mask::mask_serial_like;
+use neumann_control_core::mask::{mask_device_text, REDACTED};
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::{json, Map, Value};
 
 use crate::paths;
 
-/// Stands for every value the report leaves out.
-pub const REDACTED: &str = "<redacted>";
-const MAC_GROUPS: usize = 6;
-const MAC_GROUP_LENGTH: usize = 2;
-/// A full IPv6 address has seven colons; a shortened one has `::`. A clock time has two at most.
-const IPV6_FULL_COLONS: usize = 7;
-const IPV6_SHORTENED: &str = "::";
-const IPV4_GROUPS: usize = 4;
-/// Punctuation around an address in a word; brackets are not among it, `[address]:port` is
-/// told by them.
-const WORD_TRIM: &str = ",;()\"'";
 /// A serial or name this long is too particular to be part of another word by chance, so it is
 /// replaced anywhere; a shorter name ("L", "Sub") only where it stands alone.
 const ANYWHERE_MIN_LENGTH: usize = 6;
@@ -112,16 +101,8 @@ fn redacted_text(text: &str, known: &[&str]) -> String {
             false => replaced_as_word(&text, identifier),
         }
     });
-    let mut redacted = String::new();
-    // Whitespace of any kind separates words; it stays as it was.
-    for piece in text.split_inclusive(char::is_whitespace) {
-        let word = piece.trim_end_matches(char::is_whitespace);
-        let space = &piece[word.len()..];
-        redacted.push_str(&redacted_word(word));
-        redacted.push_str(space);
-    }
-    // Also when no serial is known: a run of digits as long as one is masked.
-    mask_serial_like(&redacted)
+    // Addresses and serial-like digit runs, also when no serial is known.
+    mask_device_text(&text)
 }
 
 /// `identifier` replaced where no letter or digit adjoins it.
@@ -145,53 +126,6 @@ fn replaced_as_word(text: &str, identifier: &str) -> String {
     }
     replaced.push_str(&text[rest..]);
     replaced
-}
-
-/// One word with the address in it replaced: `key=address`, `[address]:port` and
-/// `address/prefix` are found as well as a bare address.
-fn redacted_word(word: &str) -> String {
-    let value = word.rsplit_once('=').map_or(word, |(_, value)| value);
-    let bare = value.trim_matches(|character: char| WORD_TRIM.contains(character));
-    let bracketed = bare
-        .strip_prefix('[')
-        .and_then(|rest| rest.split_once(']'))
-        .map(|(inside, _)| inside);
-    let address = bracketed.unwrap_or(bare);
-    let address = address.split('/').next().unwrap_or_default();
-    match !address.is_empty() && looks_like_address(address) {
-        true => word.replace(address, REDACTED),
-        false => word.to_owned(),
-    }
-}
-
-fn looks_like_address(word: &str) -> bool {
-    looks_like_mac(word) || looks_like_ipv6(word) || looks_like_ipv4(word)
-}
-
-fn looks_like_ipv4(word: &str) -> bool {
-    let groups: Vec<&str> = word.split('.').collect();
-    groups.len() == IPV4_GROUPS && groups.iter().all(|group| group.parse::<u8>().is_ok())
-}
-
-fn looks_like_mac(word: &str) -> bool {
-    let groups: Vec<&str> = word.split([':', '-']).collect();
-    groups.len() == MAC_GROUPS
-        && groups.iter().all(|group| {
-            group.len() == MAC_GROUP_LENGTH && group.chars().all(|digit| digit.is_ascii_hexdigit())
-        })
-}
-
-fn looks_like_ipv6(word: &str) -> bool {
-    let address = word.split('%').next().unwrap_or_default();
-    let colons = address.matches(':').count();
-    let allowed = address
-        .chars()
-        .all(|character| character.is_ascii_hexdigit() || character == ':' || character == '.');
-    let has_digit = address
-        .chars()
-        .any(|character| character.is_ascii_hexdigit());
-    let shaped = address.contains(IPV6_SHORTENED) || colons >= IPV6_FULL_COLONS;
-    shaped && allowed && has_digit
 }
 
 /// The report as JSON: header, then per leaf the value or the refusal, the device's limits, and

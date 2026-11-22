@@ -551,7 +551,7 @@ fn every_error_has_a_text() {
 #[test]
 fn every_crossover_names_its_input() {
     let catalog = Catalog::embedded();
-    for container in catalog.eq_containers("KH 750") {
+    for container in catalog.eq_containers(SUBWOOFER) {
         let named = matches!(container.input.as_deref(), Some("A" | "B"));
         assert_eq!(container.crossover, named, "{}", container.path);
     }

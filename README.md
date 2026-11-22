@@ -114,9 +114,12 @@ another's window forward.
    Speakers that already have one are marked "already added". **Scan again** looks once more, for
    a speaker that was still starting up; the list and your checks stay, new speakers are added
    below. **Cancel** adds nothing.
-2. If the scan finds nothing (for example because mDNS is blocked), press **+ Address** and enter
-   the speaker's IPv6 address. A link-local address (`fe80::...`) needs the index of the network
-   adapter after a `%`, for example `fe80::1%7`. Find the index in PowerShell:
+2. If the scan finds nothing, the dialog names the usual causes: the firewall must allow mDNS
+   (UDP port 5353) for the app, and the computer and the speakers must be on the same network
+   (see [Requirements](#requirements)). Its **Manual** button opens this manual. Without a scan,
+   press **+ Address** and enter the speaker's IPv6 address. A link-local address
+   (`fe80::...`) needs the index of the network adapter after a `%`, for example `fe80::1%7`.
+   Find the index in PowerShell:
 
    ```powershell
    Get-NetAdapter | Select-Object Name, ifIndex
@@ -152,10 +155,10 @@ Each speaker has a channel strip:
   and Sub, captioned "Out". A thin line marks each meter's peak of the last 1.5 seconds, and the
   number under the channel shows it in whole dB ("–" below the meter range),
 - the response time, and by default **Mute**, **Ident.** (identify) and **EQ**, which opens the
-  speaker's EQ window once the speaker has reported its model; on the KH 120 II also
-  **Auto standby**, on the KH 750 **Mute A** and **Mute B** for its outputs A and B and its
-  **Temperature**. Above the fader every model shows the same, so the faders of a mixed desk
-  stand level,
+  speaker's EQ window once the speaker has reported its model; on the KH 120 II and on the
+  read-only models also **Auto standby** (greyed out where it cannot be changed), on the KH 750
+  **Mute A** and **Mute B** for its outputs A and B and its **Temperature**. Above the fader
+  every model shows the same, so the faders of a mixed desk stand level,
 - **Details** at the foot, which opens the device panel.
 
 What a strip shows besides its name, LEDs, fader, meters and message is set per model, for every
@@ -187,7 +190,8 @@ added, a strip that widens once its model is known) until you size it yourself; 
 app keeps the size you chose.
 
 The toolbar shows the number of speakers (not in the narrowest window) and the average response
-time of the connected ones.
+time of the connected ones. So that it fits, the desk's window is at least 660 pixels wide at
+100 % scaling; the compact window can be narrower.
 
 ### Faders and knobs
 
@@ -211,8 +215,9 @@ opening it again brings it to the front. Its header shows name, model, firmware 
 serial number; below it, tabs sort every setting the catalog knows for that model:
 
 - **Overview**: strip colour, the device name to change, presets, **EQ** and **Remove**,
-- **Group**: which group the speaker is in; while it is in one, that group's settings (as in the
-  groups window, without deleting), **Apply to group** and **Manage groups…**,
+- **Group**: which group the speaker is in and **Manage groups…**; while it is in one, also that
+  group's settings (as in the groups window, without deleting) and **Apply to group** for each
+  linked setting,
 - **Outputs**: one column per output, side by side (on the KH 750 its own woofer, then A and B),
 - **Inputs**: the input settings and what the rear panel reports,
 - **Standby**: standby time, level and the countdown,
@@ -277,10 +282,10 @@ and its own layouts are forgotten.
   value to the other members.
 - The group's name or **Details** at the foot of the group strip open the groups window on that
   group; right-click the group strip for **Delete group…**, which asks there first.
-- **Show group strip** (on by default) takes the group strip off the desk; the members stay
-  grouped and linked, and in the compact mode each gets its own row instead of the group's.
-  Right-click a member's name for **Edit group "…"…**, which opens the groups window on its
-  group, also while the group strip is off.
+- **Show group strip** (on by default): switched off, the group strip leaves the desk; the
+  members stay grouped and linked, and in the compact mode each gets its own row instead of the
+  group's. Right-click a member's name for **Edit group "…"…**, which opens the groups window on
+  its group, also while the group strip is off.
 - **Strip colour** in the group's settings keeps the group's colour (**Default**), takes it off
   (**None**) or sets one of your own (**Own**). In a speaker's panel it follows the group
   (**As the group**), takes it off or sets the speaker's own; a strip without colour has no
@@ -378,7 +383,8 @@ input B ("Crossover A", "Crossover B").
   before **Write** sends them as one history entry.
 - **Export…** saves the chosen EQ as Equalizer APO filter lines, numbered by band; shelves as
   `LSC`/`HSC` with their Q converted back. Bands that are off, a band's flat level, the 6 dB
-  filters, band passes and inversion have no APO line; they are written as comments and listed after saving.
+  filters, band passes, inversion and shelves too steep for their height have no APO line; they
+  are written as comments and listed after saving.
   Room EQ Wizard cannot load text filter files.
 - With **Protect crossovers** on in **Settings** (off by default), the crossovers get no **Make
   flat**, no **Reset**, no EQ presets and no **Import…**. Without it they do, with a warning that
@@ -447,7 +453,8 @@ it). It sets:
 - on Windows, whether the desk shows a strip with the Windows volume, and of which playback device (Windows'
   default device or a chosen one): a fader in percent, mute and a peak meter per channel, named
   after its speaker position (L, R, C, LFE, BL, BR, SL, SR …) as the device's format gives it. It
-  sets Windows' own volume, like the volume slider in the taskbar.
+  sets Windows' own volume, like the volume slider in the taskbar. The strip also shows before
+  any speaker is added.
 
 ### Help and updates
 
@@ -520,7 +527,8 @@ Speaker addresses and serial numbers are masked in the log and in the interface.
 malformed `settings.json` is renamed to `settings.json.bad` (`.bad.1`, `.bad.2` … when that name is
 taken) and replaced by defaults. If only some values in it are not understood, or it holds values of
 a newer version (for example after going back to an older one), those values fall back to their
-defaults, the rest is kept, and a copy of the file is kept as `settings.json.bad`. A settings file
+defaults, the rest is kept, and a copy of the file is kept as `settings.json.bad`. In both cases
+**Protect crossovers** is switched on if its setting could not be read. A settings file
 that can be neither read nor moved aside (held open by another program) is not written over: the app
 says so and saves nothing in that run. The toolbar tells you whenever one of these happened at the
 start.
@@ -540,7 +548,8 @@ start.
 - Models other than the KH 120 II and the KH 750 are read-only. If you have one, please
   [open an issue](https://github.com/Varitras/Neumann-Control/issues/new?template=new-model.yml)
   with its **Full scan** (see [Supported models](#supported-models)).
-- Only IPv6 link-local addressing is supported; IPv4 is not.
+- Only IPv6 is supported; IPv4 is not. Link-local addresses are preferred; a global address is
+  used only when a speaker announces no link-local one.
 - On Linux there is no strip with the system volume and no shortcuts from other programs, and
   only x86_64 is built. Under Wayland the app learns no window positions: it keeps the windows'
   sizes, and the desktop decides where they open. macOS is not supported.
@@ -560,7 +569,7 @@ The executable is `target\release\neumann-control.exe` (on Linux `target/release
 carriage returns, a test of `release-notes.ps1`, format, licence check, `cargo audit`, clippy and
 the tests.
 It needs `cargo-audit` and `cargo-about`. `build-release.ps1` runs them on a clean working tree,
-raises the patch version in `Cargo.toml` and commits that alone (`-KeepVersion` builds the
+raises the patch version in the file `VERSION` and commits that alone (`-KeepVersion` builds the
 version as it is), and writes `release\neumann-control-<version>\` (on Linux
 `release/neumann-control-<version>-linux-x86_64/`; or `-OutputRoot <folder>`) with the executable, the manual, `LICENSE`, `THIRD-PARTY-LICENSES.html` and `SHA256SUMS`. On Linux
 it stops when the executable needs a glibc newer than 2.39, as one built on a newer system does.
@@ -570,13 +579,12 @@ The manual is this README as one HTML file with its pictures embedded, made by `
 cargo run -p neumann-control-manual -- README.md neumann-control-manual.html
 ```
 
-A release is a tag `v<version>` on `main` whose version matches `Cargo.toml` and has its own
+A release is a tag `v<version>` on `main` whose version matches the file `VERSION` and has its own
 section in `CHANGELOG.md`. Pushing the tag starts `.github/workflows/release.yml`: on clean
 Windows and Linux runners it runs `build-release.ps1 -KeepVersion` (the scripts run in PowerShell 7
 on Linux too) and drafts a GitHub release with the Windows folder as a ZIP, the Linux folder as a
 `.tar.gz`, a `SHA256SUMS` of both and that CHANGELOG section as its text, marked as a prerelease
-below 1.0 or with a version suffix (`-alpha.1`); the draft is published by hand. CI runs
-`check.ps1` on Windows and on Linux.
+below 1.0; the draft is published by hand. CI runs `check.ps1` on Windows and on Linux.
 
 Mutation testing uses `cargo-mutants` and `cargo-nextest` with the settings in
 `.cargo/mutants.toml` (simulator, drawing code, the manual's command line and the calls into

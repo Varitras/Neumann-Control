@@ -54,6 +54,7 @@ pub fn show(ui: &mut Ui, strip: &SystemStrip) -> SystemStripResponse {
                 Some(&level),
                 PERCENT_RANGE,
                 Orientation::Vertical,
+                texts::percent_move,
             );
             let (lowest, highest) = (*PERCENT_RANGE.start(), *PERCENT_RANGE.end());
             response.volume = moved.map(|moved| (volume + moved).clamp(lowest, highest));

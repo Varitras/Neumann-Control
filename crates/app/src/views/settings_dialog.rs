@@ -4,8 +4,8 @@
 
 use eframe::egui::color_picker::{color_edit_button_srgba, Alpha};
 use eframe::egui::{
-    self, ComboBox, Context, Grid, Id, ScrollArea, Theme, Ui, Vec2, ViewportBuilder, ViewportClass,
-    ViewportId,
+    self, ComboBox, Context, Grid, Id, ScrollArea, TextStyle, TextWrapMode, Theme, Ui, Vec2,
+    ViewportBuilder, ViewportClass, ViewportId, WidgetText,
 };
 use neumann_control_core::settings::{
     BandCurves, CrossoverGuard, DelayUnit, EqDisplaySettings, LanguageChoice, MeterFloor, Settings,
@@ -18,12 +18,11 @@ use crate::texts;
 use crate::ui_kit::eq_palette::{band_color, band_key, curve_color, hex, BAND_COLOR_COUNT};
 
 const WINDOW_ID: &str = "settings_window";
-pub(crate) const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
-pub(crate) const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
+pub const SETTINGS_WINDOW_SIZE: [f32; 2] = [520.0, 640.0];
+pub const SETTINGS_WINDOW_MIN_SIZE: [f32; 2] = [360.0, 300.0];
 const SYSTEM_DEVICE_ID: &str = "system_audio_device";
 const METER_FLOOR_ID: &str = "meter_floor";
 const BAND_GRID_ID: &str = "band_colors";
-const BAND_COLUMNS: usize = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsAction {
@@ -37,11 +36,14 @@ pub fn viewport() -> ViewportId {
     ViewportId::from_hash_of(Id::unique(WINDOW_ID))
 }
 
-/// What the system has of the settings that depend on it (Linux has neither).
+/// Which of the settings that depend on the system or the run it offers (Linux has neither of
+/// the first two).
 #[derive(Clone, Copy)]
 pub struct Offered {
     pub global_shortcuts: bool,
     pub system_audio: bool,
+    /// The run writes a log (not without the folder's lock).
+    pub detailed_log: bool,
 }
 
 /// `curve_labels`: each curve's settings key with its name, as the EQ window's tabs say it.
@@ -137,8 +139,10 @@ fn contents(
     if offered.global_shortcuts {
         ui.checkbox(&mut desk.global_shortcuts, texts::GLOBAL_SHORTCUTS);
     }
-    ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
-        .on_hover_text(texts::DETAILED_LOG_HINT);
+    if offered.detailed_log {
+        ui.checkbox(&mut desk.detailed_log, texts::DETAILED_LOG)
+            .on_hover_text(texts::DETAILED_LOG_HINT);
+    }
     let mut protected = desk.crossovers == CrossoverGuard::Protected;
     if ui
         .checkbox(&mut protected, texts::PROTECT_CROSSOVERS)
@@ -181,16 +185,17 @@ fn eq_display(ui: &mut Ui, display: &mut EqDisplaySettings, curve_labels: &[(Str
         texts::BAND_CURVES_CHOSEN,
     );
     ui.label(texts::BAND_COLORS);
+    let columns = band_columns(ui);
+    // Number and swatch in columns of their own, so the swatches line up under each other
+    // whatever the number's width.
     Grid::new(BAND_GRID_ID).show(ui, |ui| {
         for band in 0..BAND_COLOR_COUNT {
             let mut color = band_color(display, band, dark);
-            ui.horizontal(|ui| {
-                ui.label(band_key(band));
-                if color_edit_button_srgba(ui, &mut color, Alpha::Opaque).changed() {
-                    display.band_colors.insert(band_key(band), hex(color));
-                }
-            });
-            if (band + 1) % BAND_COLUMNS == 0 {
+            ui.label(band_key(band));
+            if color_edit_button_srgba(ui, &mut color, Alpha::Opaque).changed() {
+                display.band_colors.insert(band_key(band), hex(color));
+            }
+            if (band + 1) % columns == 0 {
                 ui.end_row();
             }
         }
@@ -209,6 +214,30 @@ fn eq_display(ui: &mut Ui, display: &mut EqDisplaySettings, curve_labels: &[(Str
         display.band_colors.clear();
         display.curve_colors.clear();
     }
+}
+
+/// As many bands to a row as the window's width holds, at least one.
+fn band_columns(ui: &Ui) -> usize {
+    let spacing = ui.spacing();
+    let widest_number = (0..BAND_COLOR_COUNT)
+        .map(|band| {
+            WidgetText::from(band_key(band))
+                .into_galley(
+                    ui,
+                    Some(TextWrapMode::Extend),
+                    f32::INFINITY,
+                    TextStyle::Body,
+                )
+                .size()
+                .x
+        })
+        .fold(0.0, f32::max);
+    let swatch = spacing.interact_size.x;
+    let gap = spacing.item_spacing.x;
+    // A grid column is never narrower than its minimum, which is a swatch's width.
+    let band_width = widest_number.max(swatch) + swatch + 2.0 * gap;
+    let fitting = ((ui.available_width() + gap) / band_width).floor() as usize;
+    fitting.clamp(1, BAND_COLOR_COUNT)
 }
 
 /// Whether the desk shows the Windows volume, and of which playback device.

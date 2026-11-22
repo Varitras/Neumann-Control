@@ -1,6 +1,7 @@
-//! The device panel's settings: the catalog entries for the speaker's model on one tab, by
-//! topic; the outputs side by side, one column each. Entries the model may write get a control
-//! (numbers also a knob), the rest a greyed value; what the strip or the panel header shows and
+//! The device panel's settings: the catalog entries for the speaker's model on the chosen tab,
+//! by topic; the outputs side by side, one column each. Entries the model may write get a
+//! control (a single number also a knob, a list of numbers a field per element), the rest a
+//! greyed value; what the strip or the panel header shows and
 //! what the speaker does not have are left out.
 
 use eframe::egui::{self, Button, RichText, Ui};
@@ -14,7 +15,7 @@ use super::layout_menu;
 use crate::display::shown_value;
 use crate::panel_tabs::{also_in_overview, tab_of, tabs_for, PanelTab};
 use crate::paths;
-use crate::state::{FullScanState, SpeakerState, Status};
+use crate::state::{FullScanState, SpeakerState};
 use crate::strip_layout::{self, LayoutChange, StripLayout};
 use crate::texts;
 
@@ -45,7 +46,8 @@ const SHOWN_ELSEWHERE: &[&str] = &[
 ];
 
 pub struct DetailsResponse {
-    /// The writes the user asked for that the write policy allowed.
+    /// What to send to the worker: the writes the write policy allowed, and the reads the user
+    /// asked for ("Alle Werte", "Komplett scannen").
     pub commands: Vec<Command>,
     /// A row put on the strip layout (the model's, or the speaker's own) or taken off it.
     pub layout: Option<LayoutChange>,
@@ -57,8 +59,8 @@ pub fn tabs(speaker: &SpeakerState, catalog: &Catalog) -> Vec<PanelTab> {
     tabs_for(groups.into_iter().map(|(group, _)| group))
 }
 
-/// Draws the entries of `tab`; `layout` is the model's strip layout once the speaker reported
-/// its model.
+/// Draws the entries of `tab`; `layout` is the strip layout the speaker shows (its model's or
+/// its own), once it reported its model.
 pub fn show(
     ui: &mut Ui,
     speaker: &mut SpeakerState,
@@ -283,13 +285,12 @@ fn display(ui: &mut Ui, speaker: &SpeakerState, entry: &Entry) {
 }
 
 fn full_scan_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec<Command>) {
-    let running = speaker.full_scan == FullScanState::Running;
-    let enabled = speaker.status == Status::Connected && !running;
+    let enabled = speaker.can_start_full_scan();
     if ui
         .add_enabled(enabled, Button::new(texts::FULL_SCAN))
         .clicked()
     {
-        commands.push(speaker.start_full_scan());
+        commands.extend(speaker.start_full_scan());
     }
 }
 
@@ -316,7 +317,7 @@ fn all_values_button(ui: &mut Ui, speaker: &mut SpeakerState, commands: &mut Vec
         )
         .clicked()
     {
-        commands.push(speaker.read_all_values());
+        commands.extend(speaker.read_all_values());
     }
 }
 

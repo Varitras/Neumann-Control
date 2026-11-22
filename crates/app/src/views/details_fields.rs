@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use eframe::egui::{Button, Checkbox, ComboBox, Key, TextEdit, Ui};
+use eframe::egui::{Button, Checkbox, ComboBox, Key, Ui};
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::speaker::Command;
 use serde_json::Value;
@@ -12,6 +12,7 @@ use super::number_field::{self, NumberField};
 use crate::display::{capped, conversion_of};
 use crate::state::SpeakerState;
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 use crate::writes::{self, Intent};
 
 /// Drag speed for numbers without a step in the catalog, in units per point.
@@ -126,8 +127,8 @@ impl Fields<'_> {
         self.send(ui, Intent::Write { path, value });
     }
 
-    /// Shows and toggles from the value last sent, as the strip does: a second click before the
-    /// answer undoes the first instead of repeating it.
+    /// Shows and toggles from the value last sent: a second click before the answer undoes the
+    /// first instead of repeating it. The strip toggles so too, but shows the reported value.
     pub fn switch(&mut self, ui: &mut Ui, entry: &Entry) {
         let current = self.speaker.latest(&entry.path).and_then(Value::as_bool);
         let enabled = self.enabled(entry, current.is_some());
@@ -192,12 +193,13 @@ impl Fields<'_> {
         let mut draft = ui
             .data(|data| data.get_temp::<TextDraft>(draft_id))
             .unwrap_or_default();
-        let focused = ui.memory(|memory| memory.has_focus(field_id));
-        if !draft.edited && !focused {
+        // Untouched, the draft follows the speaker even with the focus: Enter in it wrote the
+        // name from when it got the focus, undoing a rename made meanwhile.
+        if !draft.edited {
             draft.text = latest.as_deref().map(capped).unwrap_or_default();
         }
         let label = ui.label(entry.label(texts::language()));
-        let field = TextEdit::singleline(&mut draft.text)
+        let field = text_field(&mut draft.text)
             .id(field_id)
             .desired_width(ui.available_width());
         let field = ui.add_enabled(enabled, field).labelled_by(label.id);

@@ -7,7 +7,7 @@ use super::NeumannApp;
 use serde_json::Value;
 
 use crate::display::{conversion_of, converted};
-use crate::eq::{container_of, output_group, several_outputs, take_back_rank};
+use crate::eq::{container_of, output_group, several_outputs, take_back_rank, WriteStage};
 use crate::history::{
     changed_since, closed_because, is_open, Change, ClockTime, Closed, Entry, History,
 };
@@ -17,7 +17,7 @@ use crate::texts;
 use crate::views::history::{
     self as history_view, HistoryAction, HistoryRow, QuestionAction, UNDO_SHORTCUT,
 };
-use crate::writes::Intent;
+use crate::writes::{self, Intent};
 use neumann_control_core::catalog::{Catalog, Conversion};
 use neumann_control_core::speaker::Command;
 
@@ -71,26 +71,44 @@ struct Described {
     unit: Option<String>,
     /// The panel's conversion of the setting (a delay in ms or m), so the line reads the same.
     conversion: Option<Conversion>,
-    /// For an EQ band write: the band it touched; its values are that band's entries.
-    band: Option<usize>,
-    /// An EQ write of every band (a reset to flat).
-    all_bands: bool,
+    /// Which bands of an EQ array the write touched; its values are their entries.
+    bands: Bands,
+}
+
+/// The bands of an EQ write a history line names.
+enum Bands {
+    /// No EQ array: the value is shown whole.
+    Whole,
+    One(usize),
+    /// Every band (a reset to flat).
+    All,
+    /// Some bands: one part of a write switching bands off and on, whose other places are
+    /// `null`.
+    Some(Vec<usize>),
 }
 
 impl Described {
     /// The part of `value` the line shows: the band's entry of an EQ array, one entry for
-    /// all bands holding the same, else all of it.
-    fn shown<'a>(&self, value: &'a Value) -> Option<&'a Value> {
-        if let Some(band) = self.band {
-            return value.as_array().and_then(|bands| bands.get(band));
+    /// all bands holding the same, the touched bands' entries, else all of it.
+    fn shown(&self, value: &Value) -> Option<Value> {
+        let entries = value.as_array();
+        match &self.bands {
+            Bands::One(band) => entries.and_then(|entries| entries.get(*band)).cloned(),
+            Bands::All => {
+                let first = entries.and_then(|entries| entries.first());
+                let alike = entries.is_some_and(|entries| entries.iter().all(|e| Some(e) == first));
+                if alike {
+                    return first.cloned();
+                }
+                Some(value.clone())
+            }
+            Bands::Some(bands) => {
+                let entries = entries?;
+                let touched = bands.iter().filter_map(|band| entries.get(*band)).cloned();
+                Some(Value::Array(touched.collect()))
+            }
+            Bands::Whole => Some(value.clone()),
         }
-        let bands = value.as_array().filter(|_| self.all_bands);
-        let first = bands.and_then(|bands| bands.first());
-        let alike = bands.is_some_and(|bands| bands.iter().all(|band| Some(band) == first));
-        if alike {
-            return first;
-        }
-        Some(value)
     }
 
     /// `value` as the panel shows it.
@@ -100,7 +118,7 @@ impl Described {
         };
         match (self.conversion, shown.as_f64()) {
             (Some(conversion), Some(number)) => converted(conversion, number),
-            _ => texts::history_value(shown, self.unit.as_deref()),
+            _ => texts::history_value(&shown, self.unit.as_deref()),
         }
     }
 }
@@ -125,7 +143,8 @@ impl NeumannApp {
         }
     }
 
-    fn dialog_open(&self) -> bool {
+    /// A dialog waits for an answer: Ctrl+Z takes nothing back meanwhile, in no window.
+    pub(super) fn dialog_open(&self) -> bool {
         self.settings_open
             || self.removal.is_some()
             || self.add_address.is_some()
@@ -189,9 +208,8 @@ impl NeumannApp {
         let text = match lines.as_slice() {
             [line] => line.clone(),
             _ => {
-                let first = &entry.changes[0].path;
-                let shared = entry.changes.iter().all(|change| change.path == *first);
-                let setting = shared.then(|| self.describe(&entry.changes[0]).setting);
+                let setting = one_setting_on_each(&entry.changes)
+                    .then(|| self.describe(&entry.changes[0]).setting);
                 texts::history_changes(setting.as_deref(), entry.changes.len())
             }
         };
@@ -231,23 +249,35 @@ impl NeumannApp {
 
     /// The open changes whose speakers now hold another value than the written one.
     pub(super) fn changed_lines(&self, entry: &Entry) -> Vec<String> {
+        self.changed_now(entry)
+            .map(|(change, now)| {
+                let described = self.describe(change);
+                texts::changed_now(
+                    &described.speaker,
+                    &described.setting,
+                    &described.text(now),
+                    &described.text(&change.after),
+                )
+            })
+            .collect()
+    }
+
+    /// The open changes of `entry` whose value changed since, with the value now.
+    fn changed_now<'a>(
+        &'a self,
+        entry: &'a Entry,
+    ) -> impl Iterator<Item = (&'a Change, &'a serde_json::Value)> {
         let catalog = Catalog::embedded();
-        let mut lines = Vec::new();
-        for change in entry.changes.iter().filter(|change| is_open(change)) {
-            let latest = self.latest(change);
-            let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-            let Some(now) = latest.filter(|_| changed_since(change, latest, step)) else {
-                continue;
-            };
-            let described = self.describe(change);
-            lines.push(texts::changed_now(
-                &described.speaker,
-                &described.setting,
-                &described.text(now),
-                &described.text(&change.after),
-            ));
-        }
-        lines
+        entry
+            .changes
+            .iter()
+            .filter(|change| is_open(change))
+            .filter_map(move |change| {
+                let latest = self.latest(change);
+                let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
+                let now = latest.filter(|_| changed_since(change, latest, step))?;
+                Some((change, now))
+            })
     }
 
     fn latest(&self, change: &Change) -> Option<&serde_json::Value> {
@@ -271,10 +301,7 @@ impl NeumannApp {
         let catalog = Catalog::embedded();
         let entry = paths::catalog_entry(catalog, &change.path);
         let language = texts::language();
-        let label = entry.map_or_else(
-            || change.path.to_string(),
-            |entry| entry.label(language).to_owned(),
-        );
+        let label = paths::setting_label(catalog, &change.path);
         let given: Vec<usize> = change
             .after
             .as_array()
@@ -292,24 +319,29 @@ impl NeumannApp {
                 false => name.to_owned(),
             }
         });
-        let (setting, band, all_bands) = match (container_name, given.as_slice()) {
+        let places = change.after.as_array().map_or(0, Vec::len);
+        let (setting, bands) = match (container_name, given.as_slice()) {
             (Some(container), [band]) => {
                 let setting = texts::eq_change_setting(&container, band + 1, &label);
-                (setting, Some(*band), false)
+                (setting, Bands::One(*band))
+            }
+            (Some(container), [_, _, ..]) if given.len() == places => {
+                let setting = texts::eq_all_bands_setting(&container, &label);
+                (setting, Bands::All)
             }
             (Some(container), [_, _, ..]) => {
-                let setting = texts::eq_all_bands_setting(&container, &label);
-                (setting, None, true)
+                let numbers: Vec<usize> = given.iter().map(|band| band + 1).collect();
+                let setting = texts::eq_bands_setting(&container, &numbers, &label);
+                (setting, Bands::Some(given))
             }
-            _ => (label, None, false),
+            _ => (label, Bands::Whole),
         };
         Described {
             speaker,
             setting,
             unit: entry.and_then(|entry| entry.unit.clone()),
             conversion: entry.and_then(conversion_of),
-            band,
-            all_bands,
+            bands,
         }
     }
 
@@ -391,17 +423,28 @@ impl NeumannApp {
     fn take_back(&mut self, id: u64, confirmed: bool, now: f64) -> Option<u64> {
         let catalog = Catalog::embedded();
         let entry = self.history.history.entry(id)?.clone();
-        if !confirmed && self.changed_since(&entry, catalog) {
+        if !confirmed && self.changed_now(&entry).next().is_some() {
             self.history.question = Some(id);
             return None;
         }
         let mut skipped = Vec::new();
+        // All or nothing per speaker, as forward: one value the policy refuses keeps the
+        // speaker's other changes of the entry from going out alone.
+        let refusing: Vec<SpeakerKey> = entry
+            .changes
+            .iter()
+            .filter(|change| is_open(change) && self.refuses_take_back(change, catalog))
+            .map(|change| change.speaker.clone())
+            .collect();
         // As forward: EQ bands go off first and on last, so no prefix sounds a mixed band.
         let mut order: Vec<(usize, &Change)> = entry.changes.iter().enumerate().collect();
         order.sort_by_key(|(_, change)| {
-            change.before.as_ref().map_or(1, |before| {
-                take_back_rank(&change.path, before, &change.after)
-            })
+            change
+                .before
+                .as_ref()
+                .map_or(WriteStage::Between, |before| {
+                    take_back_rank(&change.path, before, &change.after)
+                })
         });
         for (index, change) in order {
             if !is_open(change) {
@@ -415,6 +458,10 @@ impl NeumannApp {
                 skip(&mut skipped, texts::REMOVED_SPEAKER.get().to_owned());
                 continue;
             };
+            if refusing.contains(&speaker.state.key) {
+                skip(&mut skipped, speaker.state.display_name());
+                continue;
+            }
             let Some(command) = send_before(&mut speaker.state, change, catalog, now) else {
                 skip(&mut skipped, speaker.state.display_name());
                 continue;
@@ -438,15 +485,17 @@ impl NeumannApp {
         Some(id)
     }
 
-    fn changed_since(&self, entry: &Entry, catalog: &Catalog) -> bool {
-        entry
-            .changes
+    /// The write policy refuses the change's value before, e.g. one the speaker reported out of
+    /// its range; a speaker gone or a value before unknown is left to `take_back` itself.
+    fn refuses_take_back(&self, change: &Change, catalog: &Catalog) -> bool {
+        let speaker = self
+            .speakers
             .iter()
-            .filter(|change| is_open(change))
-            .any(|change| {
-                let step = paths::catalog_entry(catalog, &change.path).and_then(|entry| entry.step);
-                changed_since(change, self.latest(change), step)
-            })
+            .find(|speaker| speaker.state.key == change.speaker);
+        let (Some(speaker), Some(before)) = (speaker, change.before.as_ref()) else {
+            return false;
+        };
+        writes::check(&speaker.state, catalog, &change.path, before).is_err()
     }
 }
 
@@ -520,6 +569,21 @@ fn clock_now() -> ClockTime {
 
 fn clock_text(clock: ClockTime) -> String {
     texts::clock_time(clock.hour, clock.minute, clock.second)
+}
+
+/// Whether the changes are one setting on as many speakers, as a group move writes it; the two
+/// parts of an EQ write that switches bands off and on are one speaker's.
+fn one_setting_on_each(changes: &[Change]) -> bool {
+    let Some(first) = changes.first() else {
+        return false;
+    };
+    let shared = changes.iter().all(|change| change.path == first.path);
+    let speakers_apart = changes.iter().enumerate().all(|(place, change)| {
+        changes[..place]
+            .iter()
+            .all(|earlier| earlier.speaker != change.speaker)
+    });
+    shared && speakers_apart
 }
 
 #[cfg(test)]
@@ -614,11 +678,25 @@ mod tests {
         assert_eq!(third.before, Some(json!([1.5, null])));
     }
 
-    /// Mute on, then off again before the first answer: the speaker refuses the first and takes
-    /// the second. Taking the second back writes what the speaker held before both, not the
-    /// value it refused.
+    /// Mute on, then off again before the first answer: the speaker refuses the first, by an
+    /// error or by a 404, and takes the second. Taking the second back writes what the speaker
+    /// held before both, not the value it refused (a 404 once sent `mute true`).
     #[test]
     fn a_take_back_does_not_restore_a_value_the_speaker_refused() {
+        let mute = paths::path(paths::MUTE);
+        let rejected = Event::WriteRejected {
+            path: mute.clone(),
+            error: DeviceError {
+                code: DeviceError::READ_ONLY,
+                description: String::new(),
+            },
+        };
+        for refusal in [rejected, Event::WriteAbsent(mute.clone())] {
+            take_back_after_a_refusal(refusal);
+        }
+    }
+
+    fn take_back_after_a_refusal(refusal: Event) {
         let catalog = Catalog::embedded();
         let mute = paths::path(paths::MUTE);
         let address = "[fe80::1]:45".parse().unwrap();
@@ -640,14 +718,8 @@ mod tests {
             speaker.record_written(&mute, &json!(value));
             history.push(NOON, written_changes(&mut speaker), None);
         }
-        let rejected = Event::WriteRejected {
-            path: mute.clone(),
-            error: DeviceError {
-                code: DeviceError::READ_ONLY,
-                description: String::new(),
-            },
-        };
-        speaker.apply(rejected, 0.0);
+        let shown = format!("{refusal:?}");
+        speaker.apply(refusal, 0.0);
         let written = Event::Written {
             path: mute.clone(),
             value: json!(false),
@@ -660,6 +732,6 @@ mod tests {
             path: mute,
             value: json!(false),
         };
-        assert_eq!(command, Some(expected));
+        assert_eq!(command, Some(expected), "after {shown}");
     }
 }

@@ -1,6 +1,7 @@
-//! The EQ graph: a log frequency axis, one curve per container, the sum, and a point per band
-//! of the chosen container. A point is dragged for frequency and gain and turned with the
-//! mouse wheel for Q; each gesture is handed out once, when it ends.
+//! The EQ graph: a log frequency axis, one curve per container, the sum, compared speakers' sums,
+//! each band's own curve, and a point per band of the chosen container that is on. A point is
+//! dragged for frequency and gain and turned with the mouse wheel for Q; each gesture is handed out
+//! once, when it ends.
 
 use std::ops::RangeInclusive;
 
@@ -33,7 +34,7 @@ const LABEL_GAP_BELOW: f32 = 2.0;
 const LABEL_GAP_LEFT: f32 = 3.0;
 const GRID_WIDTH: f32 = 1.0;
 const CURVE_WIDTH: f32 = 1.5;
-const SUM_WIDTH: f32 = 2.5;
+pub(super) const SUM_WIDTH: f32 = 2.5;
 const DASH_LENGTH: f32 = 6.0;
 const BAND_CURVE_WIDTH: f32 = 1.0;
 const CHOSEN_CURVE_WIDTH: f32 = 1.5;
@@ -45,7 +46,10 @@ const DASH_GAP: f32 = 4.0;
 /// Big enough for a two-digit number inside.
 const POINT_RADIUS: f32 = 7.0;
 const SELECTED_RING: f32 = 3.0;
+const SELECTED_RING_WIDTH: f32 = 1.0;
 const POINT_GRAB: f32 = 14.0;
+/// Less pointer travel than this, in points, leaves an axis of a dragged point as it was.
+const AXIS_STILL: f32 = 0.5;
 const DRAG_ID: &str = "eq_point_drag";
 const WHEEL_ID: &str = "eq_point_wheel";
 
@@ -277,6 +281,8 @@ fn curve_points(axes: &Axes, frequencies: &[f64], db: &[f64]) -> Vec<Pos2> {
 struct PointDrag {
     offset: Vec2,
     at: Pos2,
+    /// How far the pointer went since the press, before `at` is kept inside the graph.
+    travel: Vec2,
 }
 
 /// Draws one band's point and hands out what its gesture chose.
@@ -324,15 +330,17 @@ fn band_point(
         let mut state = earlier.unwrap_or(PointDrag {
             offset: home - pressed,
             at: home,
+            travel: Vec2::ZERO,
         });
         state.at = (pointer + state.offset).clamp(axes.rect.min, axes.rect.max);
+        state.travel = pointer - pressed;
         ui.data_mut(|data| data.insert_temp(drag_id, state));
     }
     if response.drag_stopped() {
         ui.data_mut(|data| data.remove::<PointDrag>(drag_id));
         // egui ends a drag on Escape; that frame cancels the gesture instead of writing it.
         if let Some(end) = drag.filter(|_| !escaped) {
-            actions.extend(moved(axes, graph, band, point, end.at));
+            actions.extend(moved(axes, graph, band, point, &end));
         }
     }
     // Asked every frame: a wheel step falls due after the pointer may have left the point. A held
@@ -366,14 +374,21 @@ fn moved(
     graph: &Graph,
     band: usize,
     point: &GraphPoint,
-    end: Pos2,
+    drag: &PointDrag,
 ) -> Option<GraphAction> {
+    let end = drag.at;
     let frequency = snapped_frequency(axes.frequency(end.x));
     let range = &graph.gain_range;
     let boost = on_grid(axes.db(end.y) - point.gain, GAIN_GRID_DB);
     let boost = boost.clamp(*range.start(), *range.end());
-    let frequency = (frequency != snapped_frequency(point.frequency)).then_some(frequency);
-    let boost = (boost != on_grid(point.boost, GAIN_GRID_DB)).then_some(boost);
+    // An axis the pointer did not move along is not written: a value halfway between two grid
+    // steps came back from the pixel round trip rounded to the other step. The pointer's own
+    // travel counts, so a point at the edge still takes a drag beyond it.
+    let across = drag.travel.x.abs() >= AXIS_STILL;
+    let along = drag.travel.y.abs() >= AXIS_STILL;
+    let frequency =
+        (across && frequency != snapped_frequency(point.frequency)).then_some(frequency);
+    let boost = (along && boost != on_grid(point.boost, GAIN_GRID_DB)).then_some(boost);
     let changed = frequency.is_some() || boost.is_some();
     changed.then_some(GraphAction::Move {
         band,
@@ -417,7 +432,7 @@ fn paint_point(ui: &Ui, graph: &Graph, band: usize, point: &GraphPoint, center: 
         painter.circle_stroke(
             center,
             POINT_RADIUS + SELECTED_RING,
-            Stroke::new(1.0, point.color),
+            Stroke::new(SELECTED_RING_WIDTH, point.color),
         );
     }
     painter.circle_filled(center, POINT_RADIUS, point.color);
@@ -477,15 +492,19 @@ fn paint_band_curves(ui: &Ui, graph: &Graph, axes: &Axes) {
 /// The band whose point is under the pointer, if any.
 fn hovered_band(ui: &Ui, graph: &Graph, axes: &Axes) -> Option<usize> {
     let pointer = ui.input(|input| input.pointer.hover_pos())?;
-    graph
-        .points
+    topmost_band_at(graph.points, axes, pointer)
+}
+
+/// The band a click or drag at `pointer` takes: of points on one spot the one drawn last, on
+/// top, within its grab square. The highlight took the first within a wider circle, so it
+/// showed another band than the one a gesture changed.
+fn topmost_band_at(points: &[GraphPoint], axes: &Axes, pointer: Pos2) -> Option<usize> {
+    points
         .iter()
         .enumerate()
+        .rev()
         .filter(|(_, point)| point.enabled)
-        .find(|(_, point)| {
-            let home = pos2(axes.x(point.frequency), axes.y(point.gain + point.boost));
-            home.distance(pointer) <= POINT_GRAB
-        })
+        .find(|(_, point)| grab_rect(home(axes, point)).contains(pointer))
         .map(|(band, _)| band)
 }
 
@@ -504,4 +523,36 @@ fn paint_area(ui: &Ui, axes: &Axes, frequencies: &[f64], db: &[f64], color: Colo
         }
     }
     ui.painter().add(Shape::mesh(mesh));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(frequency: f64, boost: f64) -> GraphPoint {
+        GraphPoint {
+            color: Color32::WHITE,
+            frequency,
+            gain: 0.0,
+            boost,
+            q: 1.0,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn of_points_on_one_spot_the_top_one_is_taken() {
+        let axes = Axes {
+            rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 300.0)),
+            db_span: 12.0,
+        };
+        let points = [point(1000.0, 3.0), point(1000.0, 3.0), point(100.0, 0.0)];
+        let spot = home(&axes, &points[0]);
+        assert_eq!(topmost_band_at(&points, &axes, spot), Some(1));
+        let beside = spot + vec2(10.0, 0.0);
+        assert_eq!(topmost_band_at(&points, &axes, beside), None);
+        let mut off = points;
+        off[1].enabled = false;
+        assert_eq!(topmost_band_at(&off, &axes, spot), Some(0));
+    }
 }

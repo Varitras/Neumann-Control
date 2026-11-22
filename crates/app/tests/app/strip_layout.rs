@@ -16,12 +16,12 @@ use neumann_control_app::strip_layout;
 use neumann_control_app::texts;
 use neumann_control_core::catalog::{Catalog, Entry};
 use neumann_control_core::settings::{self, StoredStripLayout, StripElement};
-use neumann_control_core::simulator::SimModel;
+use neumann_control_core::simulator::{SimulatedModel, Simulator};
 use neumann_control_core::ssc::wire::SscPath;
-use serde_json::json;
+use serde_json::{json, Value};
 
-const MONITOR: &str = "KH 120 II";
-const SUBWOOFER: &str = "KH 750";
+const MONITOR: &str = KH120_PRODUCT;
+const SUBWOOFER: &str = KH750_PRODUCT;
 
 fn element(text: &str) -> StripElement {
     StripElement::Path(SscPath::parse(text).unwrap())
@@ -50,7 +50,7 @@ fn label(text: &str) -> &'static str {
 
 #[test]
 fn without_a_layout_the_strip_shows_the_working_values() {
-    let (_simulators, _directory, harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, harness) = desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     let shown = [
         paths::INPUT_INTERFACE,
         paths::CURRENT_INPUT,
@@ -76,7 +76,11 @@ fn without_a_layout_the_strip_shows_the_working_values() {
 
 #[test]
 fn a_stored_layout_shows_on_every_strip_of_its_model() {
-    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii, SimModel::Kh750];
+    let models = [
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+    ];
     let stored = layouts(MONITOR, &[], &[paths::PHASE_INVERSION]);
     let (_simulators, _directory, harness) = desk_of(&models, stored);
     let phase = label(paths::PHASE_INVERSION);
@@ -88,46 +92,36 @@ fn a_stored_layout_shows_on_every_strip_of_its_model() {
 #[test]
 fn an_added_select_writes_through_the_policy() {
     let stored = layouts(MONITOR, &[], &[paths::INPUT_INTERFACE]);
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], stored);
+    let (simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh120Ii], stored);
     harness.get_by_role(Role::ComboBox).click();
     harness.run_steps(2);
     harness.get_by_label("DIGITAL ONLY").click();
     wait_until(&mut harness, "the interface write", |_| {
-        sets(&simulators[0], "/audio/in/interface") == [json!("DIGITAL ONLY")]
+        sets(&simulators[0], &pointer(paths::INPUT_INTERFACE)) == [json!("DIGITAL ONLY")]
     });
 }
 
 #[test]
 fn a_switch_the_model_may_not_write_is_shown_disabled() {
     let stored = layouts(SUBWOOFER, &[], &[paths::STANDBY_ENABLED]);
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh750], stored);
+    let (simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], stored);
     let button = harness.get_by_role_and_label(Role::Button, label(paths::STANDBY_ENABLED));
     assert!(button.accesskit_node().is_disabled());
     button.click();
     harness.run_steps(3);
     barrier(&simulators[0]);
-    assert!(sets(&simulators[0], "/device/standby/enabled").is_empty());
+    assert!(sets(&simulators[0], &pointer(paths::STANDBY_ENABLED)).is_empty());
 }
 
 #[test]
 fn a_display_shows_its_value() {
     let stored = layouts(SUBWOOFER, &[paths::TEMPERATURE], &[]);
-    let (simulators, _directory, harness) = desk_of(&[SimModel::Kh750], stored);
+    let (simulators, _directory, harness) = desk_of(&[SimulatedModel::Kh750], stored);
     let reported = simulators[0]
         .value(paths::TEMPERATURE)
         .expect("a temperature");
     let shown = shown_value(entry(paths::TEMPERATURE), &reported);
     assert!(harness.query_by_label_contains(&shown).is_some(), "{shown}");
-}
-
-fn open_first_panel(harness: &mut Harness<'static, NeumannApp>, name: &str) {
-    harness.set_size(EXPANDED_WINDOW_SIZE.into());
-    harness.run_steps(2);
-    harness.query_all_by_label(name).next().unwrap().click();
-    wait_until(harness, "the device panel", |harness| {
-        harness.query_by_label(texts::TAB_OVERVIEW.get()).is_some()
-    });
-    harness.run_steps(1);
 }
 
 fn right_click_button(harness: &mut Harness<'static, NeumannApp>, label: &str) {
@@ -149,9 +143,13 @@ fn stored_layout(directory: &tempfile::TempDir, model: &str) -> Option<StoredStr
 
 #[test]
 fn add_to_strip_from_the_panel_reaches_both_monitors() {
-    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii, SimModel::Kh750];
+    let models = [
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+    ];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
-    open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     show_tab(&mut harness, PanelTab::Outputs);
     let phase = label(paths::PHASE_INVERSION);
     harness
@@ -168,12 +166,13 @@ fn add_to_strip_from_the_panel_reaches_both_monitors() {
 
 #[test]
 fn hide_from_the_strip_menu() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     right_click_button(&mut harness, texts::IDENTIFY.get());
     choose(&mut harness, texts::HIDE.get());
     let identify = harness.query_by_role_and_label(Role::Button, texts::IDENTIFY.get());
     assert!(identify.is_none());
-    open_first_panel(&mut harness, KH120_DEVICE_NAME);
+    open_panel(&mut harness, KH120_DEVICE_NAME);
     show_tab(&mut harness, PanelTab::Device);
     harness
         .get_by_role_and_label(Role::CheckBox, label(paths::IDENTIFY))
@@ -194,7 +193,8 @@ fn hide_from_the_strip_menu() {
 
 #[test]
 fn swap_keeps_the_place() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     right_click_button(&mut harness, texts::IDENTIFY.get());
     choose(&mut harness, texts::SWAP_FOR.get());
     let phase = label(paths::PHASE_INVERSION);
@@ -220,15 +220,48 @@ fn swap_is_offered_only_with_something_to_add() {
         below: everything,
     };
     let stored = BTreeMap::from([(SUBWOOFER.to_owned(), full)]);
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh750], stored);
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], stored);
     right_click_button(&mut harness, texts::EQ.get());
     let swap = harness.get_by_label(texts::SWAP_FOR.get());
     assert!(swap.accesskit_node().is_disabled());
 }
 
+/// The KH 750 offers more settings to swap in than a low window shows; the list stood still
+/// and the last of them could not be reached.
+#[test]
+fn the_swap_list_scrolls_in_a_low_window() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], BTreeMap::new());
+    harness.set_size(LOW_WINDOW.into());
+    harness.run_steps(2);
+    harness
+        .get_by_role_and_label(Role::Button, texts::EQ.get())
+        .scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    right_click_button(&mut harness, texts::EQ.get());
+    last_menu_entry_comes_into_view(&mut harness, |harness| {
+        choose(harness, texts::SWAP_FOR.get());
+    });
+}
+
+/// The list behind "+ Add" in edit mode is the same long one.
+#[test]
+fn the_add_list_scrolls_in_a_low_window() {
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], BTreeMap::new());
+    start_editing(&mut harness);
+    harness.set_size(LOW_WINDOW.into());
+    harness.run_steps(2);
+    let add = harness.get_by_label(texts::ADD_ELEMENT.get());
+    add.scroll_to_me();
+    harness.run_steps(SCROLL_FRAMES);
+    last_menu_entry_comes_into_view(&mut harness, |harness| {
+        choose(harness, texts::ADD_ELEMENT.get());
+    });
+}
+
 #[test]
 fn the_fixed_part_has_no_layout_menu() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     harness.get_by_label(KH120_DEVICE_NAME).click_secondary();
     harness.run_steps(2);
     assert!(harness.query_by_label(texts::HIDE.get()).is_none());
@@ -241,7 +274,8 @@ fn the_fixed_part_has_no_layout_menu() {
 
 #[test]
 fn the_menu_writes_nothing() {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     right_click_button(&mut harness, texts::IDENTIFY.get());
     choose(&mut harness, texts::MOVE_UP.get());
     right_click_button(&mut harness, texts::MUTE.get());
@@ -286,16 +320,6 @@ fn center(harness: &Harness<'static, NeumannApp>, role: Role, label: &str) -> eg
     harness.get_by_role_and_label(role, label).rect().center()
 }
 
-fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
-    harness.event(egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Line,
-        delta: egui::vec2(0.0, notches),
-        phase: egui::TouchPhase::Move,
-        source: egui::MouseWheelSource::Wheel,
-        modifiers: egui::Modifiers::NONE,
-    });
-}
-
 /// Whether any request carried a value: reads ask with `null` only, `osc` holds the id.
 fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
     fn carries_a_value(value: &serde_json::Value) -> bool {
@@ -312,7 +336,8 @@ fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
 
 #[test]
 fn editing_hides_and_adds() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
     hide_in_edit_mode(&mut harness, texts::IDENTIFY.get());
     add_in_edit_mode(&mut harness, label(paths::PHASE_INVERSION));
@@ -332,7 +357,8 @@ fn editing_hides_and_adds() {
 
 #[test]
 fn editing_sends_nothing() {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+    let (simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     harness
         .get_by_role_and_label(Role::Button, texts::MUTE.get())
@@ -355,7 +381,7 @@ fn editing_sends_nothing() {
         .get_by_role_and_label(Role::Button, texts::MUTE.get())
         .click();
     wait_until(&mut harness, "the mute after editing", |_| {
-        !sets(&simulators[0], "/audio/out/mute").is_empty()
+        !sets(&simulators[0], &pointer(paths::MUTE)).is_empty()
     });
     assert!(any_set(&simulators[0]), "the check itself sees a set");
 }
@@ -364,7 +390,8 @@ fn editing_sends_nothing() {
 /// above the fader closes and the buttons below make room. Nothing is stored before letting go.
 #[test]
 fn a_drag_shows_where_the_element_lands_before_letting_go() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     let mute_before = center(&harness, Role::Button, texts::MUTE.get());
     let from = center(&harness, Role::Slider, label(paths::DELAY));
@@ -405,8 +432,10 @@ fn a_drag_shows_where_the_element_lands_before_letting_go() {
 /// Layouts are per model: a knob of a KH 120 II let go on a KH 750 strip lands nowhere.
 #[test]
 fn a_drag_onto_another_models_strip_changes_nothing() {
-    let (_simulators, directory, mut harness) =
-        desk_of(&[SimModel::Kh120Ii, SimModel::Kh750], knob_strip_layouts());
+    let (_simulators, directory, mut harness) = desk_of(
+        &[SimulatedModel::Kh120Ii, SimulatedModel::Kh750],
+        knob_strip_layouts(),
+    );
     start_editing(&mut harness);
     let delays: Vec<egui::Pos2> = harness
         .query_all_by_role_and_label(Role::Slider, label(paths::DELAY))
@@ -431,7 +460,8 @@ fn a_drag_onto_another_models_strip_changes_nothing() {
 
 #[test]
 fn dragging_moves_across_the_fader() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     let from = center(&harness, Role::Slider, label(paths::DELAY));
     let to = center(&harness, Role::Button, texts::MUTE.get());
@@ -452,7 +482,7 @@ fn a_drag_next_to_an_absent_element_keeps_the_stored_order() {
     let above = [paths::DELAY, paths::PHASE_INVERSION, paths::STANDBY_TIME];
     let stored = layouts(MONITOR, &above, &[]);
     let (_simulators, directory, mut harness) =
-        desk_prepared(&[SimModel::Kh120Ii], stored, |simulators| {
+        desk_prepared(&[SimulatedModel::Kh120Ii], stored, |simulators| {
             simulators[0].remove_value(paths::PHASE_INVERSION);
         });
     start_editing(&mut harness);
@@ -466,7 +496,8 @@ fn a_drag_next_to_an_absent_element_keeps_the_stored_order() {
 
 #[test]
 fn an_unreachable_strip_can_still_be_edited() {
-    let (mut simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (mut simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     simulators.remove(0).stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     start_editing(&mut harness);
@@ -477,7 +508,8 @@ fn an_unreachable_strip_can_still_be_edited() {
 
 #[test]
 fn default_restores_todays_strip() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
     hide_in_edit_mode(&mut harness, texts::IDENTIFY.get());
     harness.get_by_label(texts::DEFAULT_LAYOUT.get()).click();
@@ -489,7 +521,8 @@ fn default_restores_todays_strip() {
 
 #[test]
 fn compact_mode_ends_editing() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
     for _ in 0..2 {
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::K);
@@ -501,7 +534,7 @@ fn compact_mode_ends_editing() {
 #[test]
 fn everything_hidden_keeps_the_way_back() {
     let stored = layouts(MONITOR, &[], &[]);
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], stored);
+    let (_simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh120Ii], stored);
     let mute = texts::MUTE.get();
     assert!(harness
         .query_by_role_and_label(Role::Button, mute)
@@ -515,14 +548,16 @@ fn everything_hidden_keeps_the_way_back() {
 
 #[test]
 fn the_hint_names_the_model() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     start_editing(&mut harness);
     harness.get_by_label(&texts::applies_to_every(MONITOR));
 }
 
 #[test]
 fn the_button_row_keeps_its_size_and_its_words() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     let buttons = [texts::MUTE.get(), texts::IDENTIFY.get(), texts::EQ.get()];
     let rects = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
         buttons
@@ -545,7 +580,8 @@ fn the_button_row_keeps_its_size_and_its_words() {
 /// element along (it used to jump to the pointer).
 #[test]
 fn a_right_drag_in_edit_mode_moves_nothing() {
-    let (_simulators, directory, mut harness) = desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+    let (_simulators, directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], knob_strip_layouts());
     start_editing(&mut harness);
     let from = center(&harness, Role::Slider, label(paths::DELAY));
     let to = center(&harness, Role::Button, texts::MUTE.get());
@@ -574,16 +610,36 @@ fn a_right_drag_in_edit_mode_moves_nothing() {
     assert_eq!(stored.above.first(), Some(&element(paths::DELAY)));
 }
 
+/// Waits until the speaker was asked for its meters again and the answer reached the window:
+/// a fixed number of frames took no time and could compare a round without a new level.
+fn new_reading(harness: &mut Harness<'static, NeumannApp>, simulator: &Simulator) {
+    let meter_reads = |simulator: &Simulator| {
+        let meters = pointer(paths::INPUT_METER);
+        simulator
+            .requests()
+            .iter()
+            .filter(|request| request.pointer(&meters).is_some_and(Value::is_null))
+            .count()
+    };
+    let before = meter_reads(simulator);
+    wait_until(harness, "a new meter reading", |_| {
+        meter_reads(simulator) > before
+    });
+    barrier(simulator);
+    harness.run_steps(2);
+}
+
 /// The input meters' places while the levels change, in normal and in edit mode.
 fn meters_while_levels_change(editing: bool) -> Vec<Vec<egui::Rect>> {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     if editing {
         start_editing(&mut harness);
     }
     let mut places = Vec::new();
     for level in [-119.0, -60.0, -6.0, -100.0, -0.5, -45.0] {
         simulators[0].set_value("m/in/level", json!([level, level - 3.0]));
-        harness.run_steps(4);
+        new_reading(&mut harness, &simulators[0]);
         let meters: Vec<egui::Rect> = harness
             .query_all_by_role(Role::ProgressIndicator)
             .map(|node| node.rect())
@@ -610,7 +666,7 @@ const WIDE_READOUTS: [i32; 6] = [-109, -108, -106, -104, -103, -100];
 /// A wide peak readout must not widen its column and push the meters beside it.
 #[test]
 fn no_meter_moves_when_the_peak_readout_changes() {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh750], BTreeMap::new());
+    let (simulators, _directory, mut harness) = desk_of(&[SimulatedModel::Kh750], BTreeMap::new());
     let places = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
         harness
             .query_all_by_role(Role::ProgressIndicator)
@@ -637,27 +693,37 @@ fn no_meter_moves_when_the_peak_readout_changes() {
 /// rate the window kept the GPU busy all the time.
 #[test]
 fn a_falling_meter_does_not_repaint_at_once() {
-    let (simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     simulators[0].set_value("m/in/level", json!([-6.0, -6.0]));
     let high = texts::meter_readout(Some(-6));
     wait_until(&mut harness, &high, |harness| {
         harness.query_all_by_label_contains(&high).next().is_some()
     });
     simulators[0].set_value("m/in/level", json!([-119.0, -119.0]));
-    // A new reading wakes the window at once; the frames of the fall after it must not.
-    wait_until(&mut harness, "a frame booked after a pause", |harness| {
-        let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
-        !delay.is_zero() && delay < Duration::MAX
+    // The fall takes about 19 frames at a quarter second each; while it lasts, every frame asks
+    // for the next one after a pause. Asked only for some frame, the test also passed once the
+    // fall was over and only the readings woke the window.
+    wait_until(&mut harness, "the fall begun", |harness| {
+        harness.query_all_by_label_contains(&high).next().is_none()
     });
+    for _ in 0..FRAMES_OF_THE_FALL {
+        harness.step();
+        let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+        assert!(!delay.is_zero() && delay < Duration::MAX, "{delay:?}");
+    }
 }
+
+/// Frames checked while the bar falls, well within its fall of about 19.
+const FRAMES_OF_THE_FALL: usize = 8;
 
 #[test]
 fn no_strip_moves_while_values_change() {
     let models = [
-        SimModel::Kh120Ii,
-        SimModel::Kh750,
-        SimModel::Kh750,
-        SimModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh120Ii,
     ];
     let (simulators, _directory, mut harness) = desk_of(&models, BTreeMap::new());
     let places = |harness: &Harness<'static, NeumannApp>| -> Vec<egui::Rect> {
@@ -678,7 +744,9 @@ fn no_strip_moves_while_values_change() {
             simulator.set_value("m/in/level", json!([level, level - 1.0]));
             simulator.set_value("m/out/level", json!([level, level, level]));
         }
-        harness.run_steps(4);
+        for simulator in &simulators {
+            new_reading(&mut harness, simulator);
+        }
         assert_eq!(places(&harness), first, "round {round}");
     }
 }
@@ -686,10 +754,10 @@ fn no_strip_moves_while_values_change() {
 #[test]
 fn no_strip_moves_in_a_window_narrower_than_the_desk() {
     let models = [
-        SimModel::Kh120Ii,
-        SimModel::Kh750,
-        SimModel::Kh750,
-        SimModel::Kh120Ii,
+        SimulatedModel::Kh120Ii,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh750,
+        SimulatedModel::Kh120Ii,
     ];
     let (_simulators, _directory, mut harness) = desk_of(&models, BTreeMap::new());
     for (width, height) in [
@@ -718,7 +786,7 @@ fn no_strip_moves_in_a_window_narrower_than_the_desk() {
 /// strip leaves the other speaker of that model as it was.
 #[test]
 fn own_layouts_keep_the_other_speaker_of_the_model() {
-    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii];
+    let models = [SimulatedModel::Kh120Ii, SimulatedModel::Kh120Ii];
     let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
     switch_to_own_layouts(&mut harness);
     let identify = |harness: &Harness<'static, NeumannApp>| {
@@ -753,7 +821,8 @@ fn switch_to_own_layouts(harness: &mut Harness<'static, NeumannApp>) {
 /// With own layouts an edit is this speaker's only, and the hint says so.
 #[test]
 fn with_own_layouts_the_hint_names_the_speaker() {
-    let (_simulators, _directory, mut harness) = desk_of(&[SimModel::Kh120Ii], BTreeMap::new());
+    let (_simulators, _directory, mut harness) =
+        desk_of(&[SimulatedModel::Kh120Ii], BTreeMap::new());
     switch_to_own_layouts(&mut harness);
     start_editing(&mut harness);
     harness.get_by_label(texts::APPLIES_TO_THIS_SPEAKER.get());
@@ -766,7 +835,7 @@ fn with_own_layouts_the_hint_names_the_speaker() {
 /// it belongs to its own speaker's layout.
 #[test]
 fn with_own_layouts_a_drag_onto_another_speakers_strip_changes_nothing() {
-    let models = [SimModel::Kh120Ii, SimModel::Kh120Ii];
+    let models = [SimulatedModel::Kh120Ii, SimulatedModel::Kh120Ii];
     let (_simulators, directory, mut harness) = desk_of(&models, knob_strip_layouts());
     switch_to_own_layouts(&mut harness);
     start_editing(&mut harness);
@@ -791,7 +860,7 @@ fn with_own_layouts_a_drag_onto_another_speakers_strip_changes_nothing() {
 #[test]
 fn a_knobs_entry_field_is_named_like_the_knob() {
     let (_simulators, _directory, mut harness) =
-        desk_of(&[SimModel::Kh120Ii], knob_strip_layouts());
+        desk_of(&[SimulatedModel::Kh120Ii], knob_strip_layouts());
     let knob = label(paths::DELAY);
     let position = harness
         .get_by_role_and_label(Role::Slider, knob)

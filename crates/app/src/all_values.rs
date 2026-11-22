@@ -2,7 +2,7 @@
 //! identifiers masked and device text capped. No drawing here.
 
 use neumann_control_core::catalog::Catalog;
-use neumann_control_core::mask::{mask_serial, mask_serial_like};
+use neumann_control_core::mask::{mask_device_text, mask_serial};
 use neumann_control_core::schema_walk::LeafReport;
 use serde_json::Value;
 
@@ -36,7 +36,7 @@ impl Row<'_> {
     /// because only a click needs it.
     pub fn copy_text(&self) -> String {
         let value = match &self.report.value {
-            Err(refusal) => refusal.clone(),
+            Err(refusal) => mask_device_text(refusal),
             Ok(_) => value_text(self.report, &self.path),
         };
         format!("{}{COPY_SEPARATOR}{value}", self.path)
@@ -85,10 +85,10 @@ fn masked_identifier(value: &Value) -> String {
         .join(IDENTIFIER_SEPARATOR)
 }
 
-/// `value` with every text in it masked like a serial where it looks like one.
+/// `value` with every address and serial-like run in its texts masked.
 fn masked_texts(value: &Value) -> Value {
     match value {
-        Value::String(text) => Value::String(mask_serial_like(text)),
+        Value::String(text) => Value::String(mask_device_text(text)),
         Value::Array(items) => Value::Array(items.iter().map(masked_texts).collect()),
         Value::Object(fields) => Value::Object(
             fields
@@ -162,6 +162,49 @@ mod tests {
     fn one(report: LeafReport) -> Row<'static> {
         let leaked: &'static [LeafReport] = Box::leak(Box::new([report]));
         rows(leaked, "", Catalog::embedded()).remove(0)
+    }
+
+    /// Addresses in device texts, also with a port, a prefix or sentence punctuation, are masked
+    /// on every way out: the report's values and refusals, and the cell and the copy of "All
+    /// values", refusal texts included. Each way had its own rule; some kept addresses.
+    #[test]
+    fn addresses_are_masked_on_every_way_out() {
+        const ADDRESSES: [&str; 6] = [
+            "192.0.2.5",
+            "198.51.100.7",
+            "203.0.113.9",
+            "00:11:22:33:44:55",
+            "fe80::1:2:3:4",
+            "2001:db8::42",
+        ];
+        let texts = [
+            "peer=192.0.2.5:45 up",
+            "reached at 198.51.100.7.",
+            "route 203.0.113.9/24, ok",
+            "mac 00:11:22:33:44:55.",
+            "via [fe80::1:2:3:4]:45",
+            "host 2001:db8::42!",
+        ];
+        for text in texts {
+            let value = report("osc/status", Ok(json!(text)), None);
+            let refusal = report("osc/status", Err(text.to_owned()), None);
+            let mut out = vec![
+                one(value.clone()).value,
+                one(value.clone()).copy_text(),
+                one(refusal.clone()).copy_text(),
+            ];
+            for report in crate::scan_report::redacted(&[value, refusal], &[]) {
+                out.push(format!("{:?}", report.value));
+            }
+            for shown in out {
+                for address in ADDRESSES {
+                    assert!(
+                        !shown.contains(address),
+                        "{address} in {shown:?} from {text:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// A factory name holds the serial ("KH 120 II 3712345678"): any text that looks like a

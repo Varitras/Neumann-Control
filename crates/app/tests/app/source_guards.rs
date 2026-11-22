@@ -90,8 +90,43 @@ fn the_release_script_ships_the_manual_the_app_opens() {
     );
 }
 
-/// egui's spinner asks for the next frame at once; without vsync (the app presents by Mailbox)
-/// that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
+/// Cargo puts the package version into the identity of every build artifact, so each new version
+/// left a full new set in `target/` next to the old one. The product version lives in `VERSION`
+/// and Cargo's stays fixed; built from parts so this file does not name it itself.
+const CARGO_VERSION: &str = concat!("CARGO_PKG", "_VERSION");
+const FIXED_CARGO_VERSION: &str = "version = \"0.0.0\"";
+
+#[test]
+fn the_product_version_comes_from_the_version_file() {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = vec![crate_root.join("build.rs")];
+    rust_files(&crate_root.join("src"), &mut files);
+    rust_files(&crate_root.join("tests"), &mut files);
+    let reading_cargo: Vec<_> = files
+        .iter()
+        .filter(|path| fs::read_to_string(path).unwrap().contains(CARGO_VERSION))
+        .collect();
+    assert!(
+        reading_cargo.is_empty(),
+        "{CARGO_VERSION} in {reading_cargo:?}"
+    );
+
+    let manifest = fs::read_to_string(crate_root.join("../../Cargo.toml")).unwrap();
+    let workspace_package = manifest
+        .split("[workspace.package]")
+        .nth(1)
+        .and_then(|rest| rest.split("\n[").next())
+        .expect("a [workspace.package] section");
+    assert!(
+        workspace_package
+            .lines()
+            .any(|line| line.trim() == FIXED_CARGO_VERSION),
+        "the workspace version stays {FIXED_CARGO_VERSION}"
+    );
+}
+
+/// egui's spinner asks for the next frame at once; without vsync (on Windows the app presents by
+/// Mailbox) that drew several hundred frames a second while a scan ran. Views use `busy::spinner`.
 #[test]
 fn no_view_draws_egui_s_own_spinner() {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -108,6 +143,27 @@ fn no_view_draws_egui_s_own_spinner() {
         }
     }
     assert!(found.is_empty(), "egui's spinner drawn at: {found:?}");
+}
+
+/// egui puts a field's text at the top of its frame; `ui_kit::text_field` centres it. A field
+/// made straight from egui sat its text and cursor above the middle.
+#[test]
+fn every_text_field_comes_from_the_ui_kit() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rust_files(&source, &mut files);
+    let own = Path::new("ui_kit").join("text_field.rs");
+    let mut found = Vec::new();
+    for file in files.iter().filter(|file| !file.ends_with(&own)) {
+        let text = fs::read_to_string(file).unwrap();
+        for call in ["TextEdit::", "text_edit_singleline", "text_edit_multiline"] {
+            for (start, _) in production_code(&text).match_indices(call) {
+                let line = text[..start].lines().count();
+                found.push(format!("{}:{line}", file.display()));
+            }
+        }
+    }
+    assert!(found.is_empty(), "egui's own text field at: {found:?}");
 }
 
 /// The arguments of the call whose name ends at `start` in `text`, up to its closing parenthesis.
@@ -135,8 +191,8 @@ fn call_arguments(text: &str, start: usize) -> &str {
 const REPORT_READS: &[(&str, usize)] = &[
     // `display`: read-only rows.
     ("views/details.rs", 1),
-    // `display`, the clip LEDs, and the mute button's look (its toggle starts from `latest`).
-    ("views/strip.rs", 4),
+    // `display` and the mute button's look (its toggle starts from `latest`).
+    ("views/strip.rs", 2),
     // A container's band count, which a write does not change.
     ("app/eq.rs", 2),
     // A stored preset's own values, not the speaker's.
@@ -161,7 +217,7 @@ fn gestures_start_from_the_latest_values() {
         }
         for file in files {
             let text = fs::read_to_string(&file).unwrap();
-            let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+            let code = production_code(&text);
             let reads = code.matches(".values").count();
             let name = file
                 .strip_prefix(&source)
@@ -200,6 +256,22 @@ fn main_loads_untouched_without_the_lock() {
     );
 }
 
+/// The log starts at the level the settings ask for: placing the window, before the app
+/// existed to set it, wrote a debug line into every normal log.
+#[test]
+fn main_sets_the_log_level_before_the_window_opens() {
+    let main =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs")).unwrap();
+    let level = main.find("log_detail::apply(");
+    let window = main.find("eframe::run_native(");
+    assert!(
+        level
+            .zip(window)
+            .is_some_and(|(level, window)| level < window),
+        "main.rs must call log_detail::apply before eframe::run_native"
+    );
+}
+
 /// An EQ preset is planned and saved from what the speaker will hold once its writes are
 /// through, not from its last report: a band write still on its way would otherwise be left
 /// out of a load or saved as it was.
@@ -212,7 +284,7 @@ fn eq_presets_are_planned_from_the_latest_values() {
     for file in files {
         let text = fs::read_to_string(&file).unwrap();
         // Unit tests hand the planners their own values.
-        let code = text.split("#[cfg(test)]").next().unwrap_or_default();
+        let code = production_code(&text);
         for call in ["eq_plan(", "capture_eq("] {
             for (start, _) in code.match_indices(call) {
                 let defined = code[..start].ends_with("fn ");
@@ -228,4 +300,14 @@ fn eq_presets_are_planned_from_the_latest_values() {
         found.is_empty(),
         "planned from the reported values at: {found:?}"
     );
+}
+
+/// A file's code before its test module: an item marked `#[cfg(test)]` further up (a constant
+/// only tests use) is production code's neighbour, not its end.
+fn production_code(text: &str) -> &str {
+    let Some(module) = text.find("mod tests {") else {
+        return text;
+    };
+    let start = text[..module].rfind("#[cfg(test)]").unwrap_or(module);
+    &text[..start]
 }

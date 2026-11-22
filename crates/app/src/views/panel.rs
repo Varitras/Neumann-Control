@@ -17,7 +17,7 @@ use super::group_settings::{self, GroupEdit};
 use super::trends::{self, TemperatureTrend, Trends};
 use super::wheel;
 use super::{placed, Opening};
-use crate::display::{conversion_of, firmware_version};
+use crate::display::{capped, conversion_of, firmware_version};
 use crate::eq::has_eq;
 use crate::groups::linkable_label;
 use crate::panel_tabs::{shown_tab, PanelTab};
@@ -227,7 +227,7 @@ fn trends_of<'a>(ui: &Ui, speaker: &'a SpeakerState, catalog: &'a Catalog) -> Tr
 /// Name, model, masked serial and firmware. The window's own ✕ and Escape close it.
 fn header(ui: &mut Ui, speaker: &SpeakerState) {
     ui.add(Label::new(RichText::new(speaker.display_name()).strong()).truncate());
-    let model = speaker.model().unwrap_or_default().to_owned();
+    let model = capped(speaker.model().unwrap_or_default());
     if let Some(identity) = &speaker.identity {
         let line = texts::status_line(
             &firmware_version(&identity.version),

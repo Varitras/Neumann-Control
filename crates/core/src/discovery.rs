@@ -4,7 +4,7 @@
 use std::net::{Ipv6Addr, SocketAddrV6};
 use std::time::{Duration, Instant};
 
-use mdns_sd::{IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
+use mdns_sd::{instance_name_unescaped, IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use crate::address::{is_link_local, NO_SCOPE};
 use crate::mask::{mask_serial_in, mask_serial_like};
@@ -29,7 +29,8 @@ pub struct Found {
 
 /// Link-local with a scope wins, the lowest scope of several (two adapters on the speakers'
 /// segment hear it on both, in no fixed order); a link-local address without a scope cannot be
-/// connected to on Windows and is skipped; a global address is the fallback.
+/// connected to on Windows and is skipped; a global address is the fallback, the lowest of
+/// several, so the choice does not follow the order they came in.
 pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAddrV6> {
     let scoped_link_local = addresses
         .iter()
@@ -37,7 +38,8 @@ pub fn pick_address(addresses: &[(Ipv6Addr, u32)], port: u16) -> Option<SocketAd
         .min_by_key(|(address, scope)| (*scope, *address));
     let global = addresses
         .iter()
-        .find(|(address, _)| !is_link_local(address));
+        .filter(|(address, _)| !is_link_local(address))
+        .min_by_key(|(address, _)| *address);
     scoped_link_local
         .or(global)
         .map(|(address, scope)| SocketAddrV6::new(*address, port, 0, *scope))
@@ -52,13 +54,6 @@ pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
         found.into_iter().partition(|entry| entry.serial.is_some());
     let mut merged: Vec<Found> = Vec::new();
     for candidate in known.into_iter().chain(unknown) {
-        let at_known_address = candidate.serial.is_none()
-            && merged
-                .iter()
-                .any(|entry| entry.address == candidate.address);
-        if at_known_address {
-            continue;
-        }
         let existing = merged
             .iter_mut()
             .find(|entry| same_speaker(entry, &candidate));
@@ -73,28 +68,29 @@ pub fn merge_found(found: Vec<Found>) -> Vec<Found> {
     merged
 }
 
+/// As `pick_address` chooses: a link-local address over a global one, then the lower scope and
+/// address.
 fn replaces(candidate: &SocketAddrV6, held: &SocketAddrV6) -> bool {
     match (is_link_local(held.ip()), is_link_local(candidate.ip())) {
         (true, true) => (candidate.scope_id(), candidate.ip()) < (held.scope_id(), held.ip()),
         (true, false) => false,
-        (false, _) => true,
+        (false, true) => true,
+        (false, false) => candidate.ip() < held.ip(),
     }
 }
 
-fn same_speaker(left: &Found, right: &Found) -> bool {
-    match (&left.serial, &right.serial) {
-        (Some(left_serial), Some(right_serial)) => left_serial == right_serial,
-        (None, None) => left.address == right.address,
-        _ => false,
+/// By serial when both announce one, else by address: an address joins two results only while
+/// one has no serial (the speaker answered before its TXT record named it).
+pub fn same_speaker(one: &Found, other: &Found) -> bool {
+    match (&one.serial, &other.serial) {
+        (Some(one), Some(other)) => one == other,
+        _ => one.address == other.address,
     }
 }
 
-fn instance_name<'a>(fullname: &'a str, service_type: &str) -> &'a str {
-    let suffix = format!(".{service_type}");
-    fullname.strip_suffix(&suffix).unwrap_or(fullname)
-}
-
-fn capped(text: &str) -> String {
+/// A device text as the app keeps it: no control characters, at most 64 characters. The worker
+/// cleans the serial it reads the same way, so a scanned speaker's serial compares equal.
+pub fn cleaned(text: &str) -> String {
     text.chars()
         .filter(|character| !character.is_control())
         .take(MAX_TXT_CHARACTERS)
@@ -104,7 +100,7 @@ fn capped(text: &str) -> String {
 /// A TXT value that is empty after cleaning counts as missing, so two malformed speakers are
 /// never merged under the same empty serial.
 fn txt_value(text: Option<&str>) -> Option<String> {
-    text.map(capped).filter(|value| !value.is_empty())
+    text.map(cleaned).filter(|value| !value.is_empty())
 }
 
 /// Adds one resolved speaker; mdns-sd re-emits resolutions per interface and refresh, so the
@@ -134,20 +130,19 @@ fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
 
 fn found_from_parts(
     fullname: &str,
-    service_type: &str,
     port: u16,
     addresses: &[(Ipv6Addr, u32)],
     product: Option<&str>,
     serial: Option<&str>,
 ) -> Option<Found> {
     let serial = txt_value(serial);
-    let name = instance_name(fullname, service_type);
+    let name = instance_name_unescaped(fullname);
     let name = match &serial {
-        Some(serial) => mask_serial_in(without_serial_suffix(name, serial), serial),
-        None => mask_serial_like(name),
+        Some(serial) => mask_serial_in(without_serial_suffix(&name, serial), serial),
+        None => mask_serial_like(&name),
     };
     Some(Found {
-        name: capped(&name),
+        name: cleaned(&name),
         product: txt_value(product),
         serial,
         address: pick_address(addresses, port)?,
@@ -192,7 +187,6 @@ fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, Stri
             .collect();
         let entry = found_from_parts(
             service.get_fullname(),
-            &service.ty_domain,
             service.get_port(),
             &addresses,
             service.get_property_val_str(TXT_PRODUCT_KEY),
@@ -211,20 +205,10 @@ mod tests {
     use crate::mask::mask_serial;
 
     #[test]
-    fn instance_name_loses_the_service_suffix() {
-        assert_eq!(
-            instance_name("KH 120 II 1._ssc._tcp.local.", SERVICE_TYPE),
-            "KH 120 II 1"
-        );
-        assert_eq!(instance_name("plain", SERVICE_TYPE), "plain");
-    }
-
-    #[test]
     fn an_announced_name_without_its_serial_entry_is_masked_too() {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "KH 120 II 3712345678._ssc._tcp.local.",
-            "_ssc._tcp.local.",
             45,
             &[(address, 0)],
             Some("KH 120 II"),
@@ -240,7 +224,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "a._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some(&long),
@@ -261,6 +244,28 @@ mod tests {
         }
     }
 
+    /// A speaker that announces several global addresses (and no scoped link-local one) gets the
+    /// same one whatever their order: the first or the last one won, so a remembered entry could
+    /// move on every scan.
+    #[test]
+    fn of_several_global_addresses_the_choice_does_not_follow_their_order() {
+        let low = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1);
+        let high = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2);
+        for order in [[low, high], [high, low]] {
+            let addresses: Vec<(Ipv6Addr, u32)> =
+                order.iter().map(|address| (*address, 0)).collect();
+            assert_eq!(
+                pick_address(&addresses, 45).map(|chosen| *chosen.ip()),
+                Some(low)
+            );
+        }
+        for order in [[2, 1], [1, 2]] {
+            let found = order.map(|last| sample(Some("SIM0001234"), last)).to_vec();
+            let merged = merge_found(found);
+            assert_eq!(*merged[0].address.ip(), low, "order {order:?}");
+        }
+    }
+
     #[test]
     fn repeated_events_do_not_fill_the_cap() {
         let mut found = Vec::new();
@@ -275,7 +280,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "a._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some(""),
@@ -291,7 +295,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "KH 120 II SIM0001234._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some("KH 120 II"),
@@ -308,16 +311,17 @@ mod tests {
 
     fn announced_name(fullname: &str, serial: Option<&str>) -> String {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
-        found_from_parts(
-            fullname,
-            SERVICE_TYPE,
-            45,
-            &[(address, 0)],
-            Some("KH 120 II"),
-            serial,
-        )
-        .unwrap()
-        .name
+        found_from_parts(fullname, 45, &[(address, 0)], Some("KH 120 II"), serial)
+            .unwrap()
+            .name
+    }
+
+    /// mdns-sd 0.22 hands over a name read from the network with its escapes, so "Mon. L"
+    /// arrives as `Mon\. L`; the desk shows the name as the speaker has it.
+    #[test]
+    fn a_dot_or_backslash_in_the_device_name_shows_without_its_escape() {
+        assert_eq!(announced_name(r"Mon\. L._ssc._tcp.local.", None), "Mon. L");
+        assert_eq!(announced_name(r"A\\B._ssc._tcp.local.", None), r"A\B");
     }
 
     #[test]
@@ -366,20 +370,13 @@ mod tests {
 
     #[test]
     fn control_characters_are_removed_from_txt() {
-        assert_eq!(capped("KH\u{0}1\n20\u{1b}"), "KH120");
+        assert_eq!(cleaned("KH\u{0}1\n20\u{1b}"), "KH120");
     }
 
     #[test]
     fn service_without_usable_address_is_dropped() {
         let link_local: Ipv6Addr = "fe80::1".parse().unwrap();
-        let found = found_from_parts(
-            "a._ssc._tcp.local.",
-            SERVICE_TYPE,
-            45,
-            &[(link_local, 0)],
-            None,
-            None,
-        );
+        let found = found_from_parts("a._ssc._tcp.local.", 45, &[(link_local, 0)], None, None);
         assert_eq!(found, None);
     }
 }

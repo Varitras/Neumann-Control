@@ -135,9 +135,9 @@ pub const SETTINGS_SET_ASIDE: Text = Text::new(
     "Einstellungsdatei unlesbar, als .bad beiseitegelegt; Vorgaben genommen",
     "Settings file unreadable, moved aside as .bad; defaults taken",
 );
-pub const SETTINGS_NOT_LOCKED: Text = Text::new(
-    "Ordner nicht für diese App gesperrt; Änderungen werden nicht gespeichert",
-    "Folder not locked for this app; changes are not saved",
+pub const FOLDER_NOT_WRITABLE: Text = Text::new(
+    "Programmordner nicht beschreibbar; Einstellungen und Protokoll werden nicht gespeichert",
+    "The program folder cannot be written; settings and log are not saved",
 );
 pub const SETTINGS_NOT_COPIED: Text = Text::new(
     "Einstellungen teils nicht verstanden und nicht gesichert; Änderungen werden nicht gespeichert",
@@ -150,6 +150,10 @@ pub const SETTINGS_UNTOUCHABLE: Text = Text::new(
 pub const NO_SPEAKERS: Text = Text::new(
     "Keine Lautsprecher. „Suchen“ findet sie im Netz, „+ Adresse“ fügt einen von Hand hinzu.",
     "No speakers. “Scan” finds them on the network, “+ Address” adds one by hand.",
+);
+pub const NO_SPEAKERS_COMPACT: Text = Text::new(
+    "Keine Lautsprecher. „Kompakt“ (Strg+K) führt zurück zum Pult, dort „Suchen“ oder „+ Adresse“.",
+    "No speakers. “Compact” (Ctrl+K) goes back to the desk, where “Scan” or “+ Address” add them.",
 );
 
 pub const MUTE: Text = Text::new("Stumm", "Mute");
@@ -258,7 +262,7 @@ pub const BEFORE_UNKNOWN: Text = Text::new(
     "Der Wert vorher ist unbekannt",
     "The value before is unknown",
 );
-pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since");
+pub const CHANGED_SINCE: Text = Text::new("Seitdem geändert", "Changed since then");
 pub const REVERT_ANYWAY: Text = Text::new("Trotzdem rückgängig machen?", "Undo anyway?");
 pub const REVERT: Text = Text::new("Trotzdem rückgängig", "Undo anyway");
 pub const SWITCH_ON: Text = Text::new("an", "on");
@@ -478,6 +482,11 @@ pub const ADDRESS_ALREADY_LISTED: Text = Text::new(
 
 pub const SCAN_CHOICE_TITLE: Text = Text::new("Gefundene Lautsprecher", "Speakers found");
 pub const NOTHING_FOUND: Text = Text::new("Keine Lautsprecher gefunden", "No speakers found");
+/// A firewall that blocks mDNS gives the same empty answer as a network without speakers.
+pub const SCAN_EMPTY_HINT: Text = Text::new(
+    "Die Firewall muss mDNS (UDP-Port 5353) für dieses Programm erlauben, und Computer und Lautsprecher müssen im selben Netz sein. Ohne Suche geht es mit „+ Adresse“.",
+    "The firewall must allow mDNS (UDP port 5353) for this app, and the computer and the speakers must be on the same network. Without a scan, use “+ Address”.",
+);
 pub const SCAN_AGAIN: Text = Text::new("Erneut suchen", "Scan again");
 pub const ALREADY_ADDED: Text = Text::new("bereits hinzugefügt", "already added");
 
@@ -823,6 +832,8 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
             .as_f64()
             .map_or_else(|| number.to_string(), self::number),
         Value::String(text) => text.clone(),
+        // A place a write left alone is no value.
+        Value::Null => UNKNOWN_VALUE.to_owned(),
         Value::Array(entries) => entries
             .iter()
             .map(|entry| history_value(entry, None))
@@ -830,6 +841,8 @@ pub fn history_value(value: &Value, unit: Option<&str>) -> String {
             .join(" / "),
         other => other.to_string(),
     };
+    // Cut like any device text the app shows; a list of long entries too.
+    let text = crate::display::capped(&text);
     match unit {
         Some(unit) => format!("{text} {unit}"),
         None => text,
@@ -903,7 +916,7 @@ pub fn frequency_mark(hertz: f64) -> String {
     format!("{hertz}")
 }
 
-/// What a band change in the history touched: "EQ 2 Band 3 · Verstärkung".
+/// What a band change in the history touched: "EQ 2 Band 3 · Anhebung".
 pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
     format!("{container} {} {band} · {leaf}", BAND.get())
 }
@@ -911,6 +924,14 @@ pub fn eq_change_setting(container: &str, band: usize, leaf: &str) -> String {
 /// A setting in the save dialog: "Pegel: 85 dB SPL".
 pub fn preset_row(setting: &str, value: &str) -> String {
     format!("{setting}: {value}")
+}
+
+/// `settings`: the checked rows the speaker has not answered, joined.
+pub fn preset_unread(settings: &str) -> String {
+    match language() {
+        Language::German => format!("Noch nicht gelesen: {settings}. Warten oder abwählen."),
+        Language::English => format!("Not read yet: {settings}. Wait or uncheck."),
+    }
 }
 
 /// A preset in the load dialog.
@@ -990,6 +1011,13 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
     )
 }
 
+/// How far the Windows volume fader moved: "+10 %".
+pub fn percent_move(moved: f64) -> String {
+    // Adding 0 turns a -0 into 0: a move just below zero read "-0 %".
+    let moved = moved.round() + 0.0;
+    number_text(format!("{moved:+.0} %"))
+}
+
 /// The Windows volume under its fader: "52 %".
 pub fn percent(value: f64) -> String {
     format!("{} %", number_text(value.round().to_string()))
@@ -1048,6 +1076,16 @@ pub fn setting_refusal(leaf: &str, reason: &str) -> String {
 }
 
 /// What a write of every band touched: "EQ 2 · Pegel, alle Bänder".
+/// Some bands of a container (numbers from 1): "EQ 2 Bänder 2, 4 · Ein".
+pub fn eq_bands_setting(container: &str, bands: &[usize], leaf: &str) -> String {
+    let numbers: Vec<String> = bands.iter().map(usize::to_string).collect();
+    let numbers = numbers.join(", ");
+    pick(
+        format!("{container} Bänder {numbers} · {leaf}"),
+        format!("{container} bands {numbers} · {leaf}"),
+    )
+}
+
 pub fn eq_all_bands_setting(container: &str, leaf: &str) -> String {
     pick(
         format!("{container} · {leaf}, alle Bänder"),
@@ -1223,6 +1261,18 @@ mod tests {
         assert_eq!(trend_start(60.0), "−1 min");
     }
 
+    /// A device text in the history is cut like everywhere else the app shows one.
+    #[test]
+    fn a_long_device_text_in_the_history_is_cut() {
+        use crate::display::VALUE_CHARACTER_LIMIT;
+        let long = serde_json::json!("x".repeat(3 * VALUE_CHARACTER_LIMIT));
+        let list = serde_json::json!(vec!["y".repeat(VALUE_CHARACTER_LIMIT); 3]);
+        for value in [long, list] {
+            let shown = history_value(&value, None).chars().count();
+            assert!(shown <= VALUE_CHARACTER_LIMIT + 1, "{shown}");
+        }
+    }
+
     #[test]
     fn a_list_value_reads_entry_by_entry() {
         let value = serde_json::json!([0.0, -20.5]);
@@ -1255,5 +1305,11 @@ mod tests {
         set_language(Language::English);
         assert_eq!(readout(87.5, "dB SPL"), "87.5 dB SPL");
         set_language(Language::German);
+    }
+
+    #[test]
+    fn a_tiny_move_down_reads_no_minus_zero() {
+        assert_eq!(percent_move(-0.3), "+0 %");
+        assert_eq!(percent_move(10.4), "+10 %");
     }
 }

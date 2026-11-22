@@ -3,18 +3,17 @@
 
 use serde_json::{json, Map, Number, Value};
 
-use super::SimModel;
-use crate::ssc::wire::{merge, token_count, DeviceError, SscPath, MAX_REQUEST_TOKENS};
+use super::SimulatedModel;
+use crate::ssc::wire::{
+    descend, merge, nest, token_count, DeviceError, SscPath, DESCRIPTION_KEY, ERROR_KEY,
+    MAX_REQUEST_TOKENS, OSC_KEY, PATH_SEPARATOR, XID_KEY,
+};
 
-const OSC_KEY: &str = "osc";
-const XID_KEY: &str = "xid";
-const ERROR_KEY: &str = "error";
 const SCHEMA_KEY: &str = "schema";
 const LIMITS_KEY: &str = "limits";
 const VERSION_KEY: &str = "version";
 const PING_KEY: &str = "ping";
 const FEATURE_KEY: &str = "feature";
-const PATH_SEPARATOR: &str = "/";
 
 const OSC_VERSION: &str = "1.1";
 const OSC_PATTERN_FEATURE: &str = "*?";
@@ -52,7 +51,7 @@ const NOT_ACCEPTABLE: ErrorKind = ErrorKind {
     description: "not acceptable",
 };
 const REQUEST_TOO_LONG: ErrorKind = ErrorKind {
-    code: 413,
+    code: DeviceError::REQUEST_TOO_LONG,
     description: "request too long",
 };
 const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
@@ -60,8 +59,8 @@ const PARAMETER_NOT_FOUND: ErrorKind = ErrorKind {
     description: "parameter address not found",
 };
 
-/// While the rear CONTROL switch is on LOCAL, every set answers 401 and gets still work.
-/// Measured on the KH 750 and the KH 120 II.
+/// While the rear CONTROL switch is on LOCAL, every set of a writable path answers 401 and gets
+/// still work; a read-only path still answers 405. Measured on the KH 750 and the KH 120 II.
 const CONTROL_MODE_PATH: &str = "ui/control_mode";
 const LOCAL_CONTROL_MODE: &str = "LOCAL";
 
@@ -130,24 +129,26 @@ pub struct SimulatedDevice {
     read_only_for_model: &'static [&'static str],
     /// Containers whose `osc/schema` is refused, as a protected node of a firmware might be.
     refused_schemas: Vec<Vec<String>>,
+    refused_limits: Vec<Vec<String>>,
 }
 
 impl SimulatedDevice {
-    pub fn new(model: SimModel) -> SimulatedDevice {
+    pub fn new(model: SimulatedModel) -> SimulatedDevice {
         let (source, read_only_for_model) = match model {
-            SimModel::Kh120Ii => (KH_120_II_TREE, READ_ONLY_KH_120_II),
-            SimModel::Kh750 => (KH_750_TREE, READ_ONLY_KH_750),
+            SimulatedModel::Kh120Ii => (KH_120_II_TREE, READ_ONLY_KH_120_II),
+            SimulatedModel::Kh750 => (KH_750_TREE, READ_ONLY_KH_750),
         };
         SimulatedDevice {
             tree: serde_json::from_str(source).expect("embedded value tree is valid JSON"),
             read_only_for_model,
             refused_schemas: Vec::new(),
+            refused_limits: Vec::new(),
         }
     }
 
     pub fn value(&self, path: &str) -> Option<Value> {
         let path = SscPath::parse(path).ok()?;
-        lookup(&self.tree, path.segments()).cloned()
+        descend(&self.tree, path.segments()).cloned()
     }
 
     pub fn set_value(&mut self, path: &str, value: Value) {
@@ -169,6 +170,11 @@ impl SimulatedDevice {
     pub fn refuse_schema(&mut self, path: &str) {
         let path = SscPath::parse(path).expect("a valid SSC path");
         self.refused_schemas.push(path.segments().to_vec());
+    }
+
+    pub fn refuse_limits(&mut self, path: &str) {
+        let path = SscPath::parse(path).expect("a valid SSC path");
+        self.refused_limits.push(path.segments().to_vec());
     }
 
     pub fn remove_value(&mut self, path: &str) {
@@ -259,31 +265,21 @@ impl SimulatedDevice {
         value: Value,
         bundled: bool,
     ) -> Result<Value, Value> {
-        let current = match lookup(&self.tree, path) {
+        let current = match descend(&self.tree, path) {
             Some(found) if !found.is_object() => found.clone(),
             found => {
-                let node = if found.is_none() {
-                    &path[..self.first_missing_depth(path)]
-                } else {
-                    path
-                };
-                // Recorded: inside a bundle the 404 sits at the parent of the failing node.
-                let node = if bundled && node.len() > 1 {
-                    &node[..node.len() - 1]
-                } else {
-                    node
-                };
+                let node = self.not_found_node(path, found.is_some(), bundled);
                 return Err(error_entry(node, &NOT_FOUND));
             }
         };
         if value.is_null() {
             return Ok(nest(path, current));
         }
-        if self.is_in_local_mode() {
-            return Err(error_entry(path, &NOT_AUTHORISED));
-        }
         if self.is_read_only(path) {
             return Err(error_entry(path, &NOT_ALLOWED));
+        }
+        if self.is_in_local_mode() {
+            return Err(error_entry(path, &NOT_AUTHORISED));
         }
         if !same_kind(&current, &value) {
             return Err(error_entry(path, &NOT_ACCEPTABLE));
@@ -291,6 +287,26 @@ impl SimulatedDevice {
         let resulting = resulting_value(&current, value);
         self.store(path, resulting.clone());
         Ok(nest(path, resulting))
+    }
+
+    /// Where a 404 for `path` is reported: at its first missing segment, or at `path` itself
+    /// when it names a container.
+    fn not_found_node<'a>(
+        &self,
+        path: &'a [String],
+        container: bool,
+        bundled: bool,
+    ) -> &'a [String] {
+        let node = match container {
+            true => path,
+            false => &path[..self.first_missing_depth(path)],
+        };
+        // Recorded: inside a bundle the 404 sits at the parent of the failing node.
+        let inside_bundle = bundled && node.len() > 1;
+        match inside_bundle {
+            true => &node[..node.len() - 1],
+            false => node,
+        }
     }
 
     fn first_missing_depth(&self, path: &[String]) -> usize {
@@ -312,7 +328,7 @@ impl SimulatedDevice {
     }
 
     fn is_read_only(&self, path: &[String]) -> bool {
-        let joined = path.join(PATH_SEPARATOR);
+        let joined = path.join(&PATH_SEPARATOR.to_string());
         READ_ONLY_COMMON.contains(&joined.as_str())
             || self.read_only_for_model.contains(&joined.as_str())
     }
@@ -345,7 +361,7 @@ impl SimulatedDevice {
         if self.refused_schemas.contains(&path) {
             return introspection_error(SCHEMA_KEY, &NOT_ALLOWED);
         }
-        let Some(node) = lookup(&tree, &path) else {
+        let Some(node) = descend(&tree, &path) else {
             return introspection_error(SCHEMA_KEY, &PARAMETER_NOT_FOUND);
         };
         let described = if node.is_object() {
@@ -361,8 +377,11 @@ impl SimulatedDevice {
             Ok(path) => path,
             Err(refusal) => return refusal,
         };
+        if self.refused_limits.contains(&path) {
+            return introspection_error(LIMITS_KEY, &NOT_ALLOWED);
+        }
         let tree = self.address_tree();
-        let Some(node) = lookup(&tree, &path).filter(|node| !node.is_object()) else {
+        let Some(node) = descend(&tree, &path).filter(|node| !node.is_object()) else {
             return introspection_error(LIMITS_KEY, &PARAMETER_NOT_FOUND);
         };
         // Only the type is reproduced; the other fields (units, range, options) are not
@@ -396,17 +415,6 @@ pub fn encode_line(body: &Value, xid: Option<&Value>) -> String {
     tagged.to_string()
 }
 
-fn lookup<'a>(tree: &'a Value, path: &[String]) -> Option<&'a Value> {
-    path.iter()
-        .try_fold(tree, |node, segment| node.get(segment))
-}
-
-fn nest(path: &[String], value: Value) -> Value {
-    path.iter().rev().fold(value, |inner, segment| {
-        Value::Object(Map::from_iter([(segment.clone(), inner)]))
-    })
-}
-
 /// Flattens a request into (path, value) pairs, stopping at non-object values and `{}`.
 fn collect_leaves(members: &Map<String, Value>, prefix: &[String]) -> Vec<(Vec<String>, Value)> {
     let mut leaves = Vec::new();
@@ -422,7 +430,7 @@ fn collect_leaves(members: &Map<String, Value>, prefix: &[String]) -> Vec<(Vec<S
 }
 
 fn error_pair(kind: &ErrorKind) -> Value {
-    json!([kind.code, { "desc": kind.description }])
+    json!([kind.code, { DESCRIPTION_KEY: kind.description }])
 }
 
 fn error_entry(node: &[String], kind: &ErrorKind) -> Value {

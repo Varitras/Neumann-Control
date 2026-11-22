@@ -1,19 +1,19 @@
-//! The windows of their own (device panel, EQ, all values, settings, presets) open where the
-//! user last left one of their kind, for every speaker alike. Kept in the settings by kind, in
+//! The windows of their own (device panel, EQ, all values, settings, presets, groups) open where
+//! the user last left one of their kind, for every speaker alike. Kept in the settings by kind, in
 //! screen pixels like the main window.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
-use eframe::egui::{pos2, vec2, Context, Rect, Vec2, ViewportCommand, ViewportId};
+use eframe::egui::{pos2, vec2, Context, Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 use neumann_control_core::settings::WindowGeometry;
 
-use super::{is_open, window_geometry, NeumannApp};
+use super::{is_open, window_geometry, AwaitedWindow, NeumannApp};
 use crate::views::{
     all_values, eq_window, groups_window, panel, preset_dialog, settings_dialog, Opening,
     WindowPlace,
 };
 use crate::window_fit::SCREEN_MARGIN;
-use crate::window_placement::{fit_into, MonitorArea, WINDOW_MIN_SIZE};
+use crate::window_placement::{fit_into, least_size, MonitorArea};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WindowKind {
@@ -77,16 +77,35 @@ fn keep_place(
     windows.insert(kind.key().to_owned(), geometry);
 }
 
-/// The `index`-th open window of a kind (from 0), set off from the others.
-pub(super) fn cascaded(opening: Opening, index: usize) -> Opening {
-    let Opening::At(place) = opening else {
-        return opening;
-    };
-    let offset = CASCADE_STEP * index as f32;
-    Opening::At(WindowPlace {
-        position: place.position.map(|position| position + offset),
-        ..place
-    })
+/// Keeps `geometry` of the `kind` window on `viewport` as its kind's place when that window
+/// moved or changed size since the frame before (`seen`): of several open windows of a kind,
+/// the one the user handled last is kept, not the one drawn last.
+fn note_place(
+    seen: &mut HashMap<ViewportId, WindowGeometry>,
+    windows: &mut BTreeMap<String, WindowGeometry>,
+    kind: WindowKind,
+    viewport: ViewportId,
+    geometry: WindowGeometry,
+) {
+    // First seen it stands where it was opened, not where the user put it; it only gives its
+    // kind a first place.
+    let before = seen.insert(viewport, geometry);
+    let moved = before.is_some_and(|before| before != geometry);
+    let unplaced = !windows.contains_key(kind.key());
+    if moved || unplaced {
+        keep_place(windows, kind, geometry);
+    }
+}
+
+/// The `index`-th open window of a kind (from 0), set off from the others; before it is fitted
+/// onto a monitor, so that the offset never takes it past the screen's edge.
+fn cascaded(geometry: WindowGeometry, index: usize, pixels_per_point: f32) -> WindowGeometry {
+    let offset = CASCADE_STEP * index as f32 * pixels_per_point;
+    WindowGeometry {
+        x: geometry.x + offset.x,
+        y: geometry.y + offset.y,
+        ..geometry
+    }
 }
 
 /// A window of `size` centred over the main window `main` (both in points), in screen pixels.
@@ -115,7 +134,8 @@ fn above_the_taskbar(
             ..*monitor
         })
         .collect();
-    fit_into(geometry, &usable, least_size(pixels_per_point))
+    // An own window keeps the smaller least size of the two modes, as before they differed.
+    fit_into(geometry, &usable, least_size(true, pixels_per_point))
 }
 
 /// A window of its own at `geometry` on a monitor there is, no smaller than its kind's own
@@ -131,12 +151,17 @@ fn own_window_place(
     place_of(fit_into(geometry, monitors, least), pixels_per_point)
 }
 
-/// The least window size in screen pixels.
-fn least_size(pixels_per_point: f32) -> (f32, f32) {
-    (
-        WINDOW_MIN_SIZE[0] * pixels_per_point,
-        WINDOW_MIN_SIZE[1] * pixels_per_point,
-    )
+/// The `index`-th open window of `kind` (from 0) where the last of its kind was left (`saved`,
+/// screen pixels).
+fn saved_window(
+    saved: WindowGeometry,
+    index: usize,
+    monitors: &[MonitorArea],
+    pixels_per_point: f32,
+    kind: WindowKind,
+) -> WindowPlace {
+    let shifted = cascaded(saved, index, pixels_per_point);
+    own_window_place(shifted, monitors, pixels_per_point, kind)
 }
 
 /// A window of `size` where the main window's place is unknown (Wayland tells no program where
@@ -149,6 +174,39 @@ fn unplaced(size: Vec2, monitor: Option<Vec2>) -> Option<WindowPlace> {
         size: size.min(monitor - Vec2::splat(SCREEN_MARGIN)),
         maximized: false,
     })
+}
+
+/// Windows creates a window at the place given in points with the scale of the monitor it
+/// starts on; X11 and Wayland windows are left where the window manager puts them.
+const MOVES_NEW_WINDOWS_BACK: bool = cfg!(windows);
+
+/// Measured and asked-for places differ by up to this from rounding to whole pixels.
+const ONE_PIXEL: f32 = 1.0;
+
+/// Where a window opened at `intended` has to go when it is at `measured` (both in screen
+/// pixels), in its own scale `pixels_per_point`; `None` where it is.
+pub(super) fn misplaced(
+    intended: WindowGeometry,
+    measured: WindowGeometry,
+    pixels_per_point: f32,
+) -> Option<WindowPlace> {
+    let off = |one: f32, other: f32| (one - other).abs() > ONE_PIXEL;
+    let moved = off(intended.x, measured.x)
+        || off(intended.y, measured.y)
+        || off(intended.width, measured.width)
+        || off(intended.height, measured.height);
+    moved.then(|| place_of(intended, pixels_per_point))
+}
+
+/// A place (points, at `pixels_per_point`) in screen pixels.
+fn pixels_of(place: WindowPlace, position: Pos2, pixels_per_point: f32) -> WindowGeometry {
+    WindowGeometry {
+        x: position.x * pixels_per_point,
+        y: position.y * pixels_per_point,
+        width: place.size.x * pixels_per_point,
+        height: place.size.y * pixels_per_point,
+        maximized: place.maximized,
+    }
 }
 
 /// A saved geometry (screen pixels) as egui places a window (points).
@@ -166,7 +224,7 @@ impl NeumannApp {
     /// while open, else where the last of its kind was left, else at `default_size` over the
     /// middle of the main window.
     pub(super) fn opening(
-        &self,
+        &mut self,
         context: &Context,
         viewport: ViewportId,
         kind: WindowKind,
@@ -179,10 +237,13 @@ impl NeumannApp {
         }
         let monitor = context.input_for(ViewportId::ROOT, |input| input.viewport().monitor_size);
         let place = self
-            .saved_place(context, kind)
-            .or_else(|| self.centred_place(context, default_size))
+            .saved_place(context, kind, index)
+            .or_else(|| self.centred_place(context, default_size, index))
             .or_else(|| unplaced(default_size, monitor));
-        let opening = cascaded(place.map_or(Opening::Default, Opening::At), index);
+        let opening = place.map_or(Opening::Default, Opening::At);
+        if let Opening::At(place) = opening {
+            self.note_placing(context, viewport, place);
+        }
         log::debug!(
             "{} window {index} opens {opening:?} on monitors {:?}",
             kind.key(),
@@ -191,31 +252,54 @@ impl NeumannApp {
         opening
     }
 
-    /// Where the last `kind` window was left, if one was.
-    fn saved_place(&self, context: &Context, kind: WindowKind) -> Option<WindowPlace> {
+    /// A window opened at `place` (in the main window's scale) is checked once it is open.
+    fn note_placing(&mut self, context: &Context, viewport: ViewportId, place: WindowPlace) {
+        let Some(position) = place.position.filter(|_| MOVES_NEW_WINDOWS_BACK) else {
+            return;
+        };
+        if place.maximized {
+            return;
+        }
+        let pixels = pixels_of(place, position, context.pixels_per_point());
+        self.placing.insert(viewport, pixels);
+    }
+
+    /// Where the last `kind` window was left, if one was, for the `index`-th open one.
+    fn saved_place(
+        &self,
+        context: &Context,
+        kind: WindowKind,
+        index: usize,
+    ) -> Option<WindowPlace> {
         let saved = self.settings.windows.get(kind.key())?;
         // On a monitor there is now: the saved one may have been unplugged since.
-        Some(own_window_place(
+        let pixels_per_point = context.pixels_per_point();
+        Some(saved_window(
             *saved,
+            index,
             &self.monitors,
-            context.pixels_per_point(),
+            pixels_per_point,
             kind,
         ))
     }
 
-    /// A window of `size` over the middle of the main window, once the main window's place is
-    /// known.
-    fn centred_place(&self, context: &Context, size: Vec2) -> Option<WindowPlace> {
+    /// The `index`-th window of `size` over the middle of the main window, once the main
+    /// window's place is known.
+    fn centred_place(&self, context: &Context, size: Vec2, index: usize) -> Option<WindowPlace> {
         let main = context.input_for(ViewportId::ROOT, |input| input.viewport().outer_rect)?;
         let pixels_per_point = context.pixels_per_point();
-        let geometry = centred(main, size, pixels_per_point);
+        let geometry = cascaded(
+            centred(main, size, pixels_per_point),
+            index,
+            pixels_per_point,
+        );
         let placed = above_the_taskbar(geometry, &self.monitors, pixels_per_point);
         Some(place_of(placed, pixels_per_point))
     }
 
     /// The main window to `geometry`, through egui as every size the fit asks for: set on the
     /// winit window directly, beside egui's commands, it came late or not at all under Wayland.
-    pub(super) fn restore_window(&self, context: &Context, geometry: WindowGeometry) {
+    pub(super) fn restore_window(&mut self, context: &Context, geometry: WindowGeometry) {
         let place = self.on_a_monitor(context, geometry);
         if let Some(position) = place.position {
             context.send_viewport_cmd(ViewportCommand::OuterPosition(position));
@@ -224,8 +308,13 @@ impl NeumannApp {
         // Only a change: under Wayland "not maximized" to a window that is not maximized brought
         // the compositor's old size back over the one just asked for.
         let maximized = context.input(|input| input.viewport().maximized == Some(true));
+        // A switch back before the window manager applied the one before ends that wait too:
+        // its window would be noted as this mode's.
+        self.awaited_window = None;
         if place.maximized != maximized {
             context.send_viewport_cmd(ViewportCommand::Maximized(place.maximized));
+            let now = context.input(|input| input.time);
+            self.awaited_window = Some(AwaitedWindow::new(geometry, now));
         }
     }
 
@@ -233,7 +322,12 @@ impl NeumannApp {
     /// as egui places it, never below the main window's least size.
     fn on_a_monitor(&self, context: &Context, geometry: WindowGeometry) -> WindowPlace {
         let pixels_per_point = context.pixels_per_point();
-        let fitted = fit_into(geometry, &self.monitors, least_size(pixels_per_point));
+        let compact = self.settings.desk.compact;
+        let fitted = fit_into(
+            geometry,
+            &self.monitors,
+            least_size(compact, pixels_per_point),
+        );
         place_of(fitted, pixels_per_point)
     }
 
@@ -245,15 +339,32 @@ impl NeumannApp {
         viewport: ViewportId,
         kind: WindowKind,
     ) {
-        let last = self.settings.windows.get(kind.key()).copied();
+        // Its own last place first: another window of its kind may have left the kind's.
+        let last = (self.seen_places.get(&viewport))
+            .or_else(|| self.settings.windows.get(kind.key()))
+            .copied();
         // The window's own scale: on another monitor it may differ from the main window's.
-        let geometry = context.input_for(viewport, |input| {
+        let (geometry, pixels_per_point) = context.input_for(viewport, |input| {
             let size = input.viewport_rect().size();
-            window_geometry(input.viewport(), size, input.pixels_per_point, last)
+            let geometry = window_geometry(input.viewport(), size, input.pixels_per_point, last);
+            (geometry, input.pixels_per_point)
         });
-        if let Some(geometry) = geometry {
-            keep_place(&mut self.settings.windows, kind, geometry);
+        let Some(geometry) = geometry else {
+            return;
+        };
+        let intended = self.placing.remove(&viewport);
+        if let Some(place) =
+            intended.and_then(|intended| misplaced(intended, geometry, pixels_per_point))
+        {
+            // Its place this frame is the one Windows chose, not the user's.
+            if let Some(position) = place.position {
+                context.send_viewport_cmd_to(viewport, ViewportCommand::OuterPosition(position));
+            }
+            context.send_viewport_cmd_to(viewport, ViewportCommand::InnerSize(place.size));
+            return;
         }
+        let windows = &mut self.settings.windows;
+        note_place(&mut self.seen_places, windows, kind, viewport, geometry);
     }
 }
 
@@ -261,6 +372,88 @@ impl NeumannApp {
 mod tests {
     use super::*;
     use eframe::egui::ViewportInfo;
+
+    /// Every open window of a kind noted its place each frame, and the one drawn last won: the
+    /// panel the user moved lost its place to another panel that stood still.
+    #[test]
+    fn of_two_windows_of_a_kind_the_one_moved_keeps_its_place() {
+        let (first, second) = (ViewportId::from_hash_of(1), ViewportId::from_hash_of(2));
+        let other = WindowGeometry {
+            x: 900.0,
+            ..GEOMETRY
+        };
+        let moved = WindowGeometry {
+            y: 300.0,
+            ..GEOMETRY
+        };
+        let mut seen = HashMap::new();
+        let mut windows = BTreeMap::new();
+        let kind = WindowKind::Panel;
+        note_place(&mut seen, &mut windows, kind, first, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, second, other);
+        note_place(&mut seen, &mut windows, kind, first, moved);
+        note_place(&mut seen, &mut windows, kind, second, other);
+        assert_eq!(windows[kind.key()], moved);
+    }
+
+    /// A window that just opened, set off from the first, has not been handled by the user: the
+    /// kind's place stays, and the next window opens there, not 30 points further each time.
+    #[test]
+    fn a_window_just_opened_does_not_take_its_kinds_place() {
+        let (first, second) = (ViewportId::from_hash_of(1), ViewportId::from_hash_of(2));
+        let cascaded = WindowGeometry {
+            x: GEOMETRY.x + 30.0,
+            ..GEOMETRY
+        };
+        let mut seen = HashMap::new();
+        let mut windows = BTreeMap::new();
+        let kind = WindowKind::Panel;
+        keep_place(&mut windows, kind, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, first, GEOMETRY);
+        note_place(&mut seen, &mut windows, kind, second, cascaded);
+        assert_eq!(windows[kind.key()], GEOMETRY);
+        // Moved by the user, it is the kind's place.
+        let moved = WindowGeometry {
+            y: 500.0,
+            ..cascaded
+        };
+        note_place(&mut seen, &mut windows, kind, second, moved);
+        assert_eq!(windows[kind.key()], moved);
+        // The first window of a kind with no place yet gives it one.
+        let mut fresh = BTreeMap::new();
+        note_place(&mut HashMap::new(), &mut fresh, kind, first, GEOMETRY);
+        assert_eq!(fresh[kind.key()], GEOMETRY);
+    }
+
+    /// Windows converts a new window's place with the scale of the monitor it starts on: with
+    /// the main window at 100 % and that monitor at 150 %, a saved x of 3000 pixels became 4500.
+    /// The window is moved back in its own scale once it is open.
+    #[test]
+    fn a_window_opened_at_another_scale_is_moved_to_its_place() {
+        let intended = WindowGeometry {
+            x: 3000.0,
+            y: 200.0,
+            width: 600.0,
+            height: 400.0,
+            maximized: false,
+        };
+        let measured = WindowGeometry {
+            x: 4500.0,
+            y: 300.0,
+            width: 900.0,
+            height: 600.0,
+            ..intended
+        };
+        let place = misplaced(intended, measured, 1.5).expect("moved");
+        assert_eq!(place.position, Some(pos2(2000.0, 133.33333)));
+        assert_eq!(place.size, vec2(400.0, 266.66666));
+        assert_eq!(misplaced(intended, intended, 1.0), None);
+        let rounded = WindowGeometry {
+            x: 3000.4,
+            ..intended
+        };
+        assert_eq!(misplaced(rounded, intended, 1.0), None);
+    }
 
     /// A tall window centred over a main window low on the screen ends above the taskbar (the
     /// panel's foot once reached below the screen).
@@ -411,13 +604,37 @@ mod tests {
 
     #[test]
     fn a_further_open_window_is_set_off_from_the_first() {
-        let place = place_of(GEOMETRY, 1.0);
-        assert_eq!(cascaded(Opening::At(place), 0), Opening::At(place));
-        let Opening::At(second) = cascaded(Opening::At(place), 2) else {
-            panic!("still a place");
+        let screen = [MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        }];
+        let kind = WindowKind::Panel;
+        let first = saved_window(GEOMETRY, 0, &screen, 1.0, kind);
+        assert_eq!(first, place_of(GEOMETRY, 1.0));
+        let third = saved_window(GEOMETRY, 2, &screen, 1.0, kind);
+        assert_eq!(third.position, Some(pos2(10.0, 20.0) + CASCADE_STEP * 2.0));
+        assert_eq!(third.size, first.size);
+    }
+
+    /// The offset came after the fit onto the monitor: a window of a kind left at the screen's
+    /// edge opened its further ones partly past it.
+    #[test]
+    fn a_further_window_at_the_screen_edge_stays_on_the_screen() {
+        let screen = [MonitorArea {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        }];
+        let corner = WindowGeometry {
+            x: 1320.0,
+            y: 680.0,
+            ..GEOMETRY
         };
-        assert_eq!(second.position, Some(pos2(10.0, 20.0) + CASCADE_STEP * 2.0));
-        assert_eq!(second.size, place.size);
-        assert_eq!(cascaded(Opening::Open, 2), Opening::Open);
+        let third = saved_window(corner, 2, &screen, 1.0, WindowKind::Panel);
+        let end = third.position.unwrap() + third.size;
+        assert!(end.x <= 1920.0 && end.y <= 1080.0, "{third:?}");
     }
 }

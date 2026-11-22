@@ -1,6 +1,7 @@
 //! The window: owns the settings, one worker per speaker and the scan, and wires the views to
 //! them. Worker events are drained once per frame; workers wake the window when they have news.
 
+use std::collections::HashMap;
 use std::net::SocketAddrV6;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -129,14 +130,24 @@ pub struct NeumannApp {
     /// that could be neither read nor set aside would be overwritten with what this run holds;
     /// without the folder's lock another app may hold the same file.
     unsaved_because: Option<texts::Text>,
+    /// `main` started the log; not in a run without the folder's lock.
+    writes_log: bool,
     add_address: Option<AddAddressForm>,
     removal: Option<Removal>,
     panels: Vec<OpenPanel>,
     groups_window: Option<desk::GroupsWindow>,
     settings_open: bool,
+    /// A setting changed while the pointer was held (a colour dragged in its picker): saved
+    /// once it is let go.
+    settings_unsaved: bool,
     /// The desk's strips are being customized; not saved, a new start shows the desk as usual.
     editing: bool,
     window: Option<WindowGeometry>,
+    awaited_window: Option<AwaitedWindow>,
+    /// Own windows just opened at a place, in screen pixels, until they are seen there.
+    placing: HashMap<ViewportId, WindowGeometry>,
+    /// Own windows' places as seen the frame before.
+    seen_places: HashMap<ViewportId, WindowGeometry>,
     /// Without a saved desk window, the window is sized to the desk until the user sizes it.
     window_fit: Option<WindowFit>,
     history: history::HistoryState,
@@ -210,7 +221,11 @@ impl NeumannApp {
         let repaint_context = context.clone();
         let mut app = NeumannApp {
             window: settings.window_of_mode(),
-            window_fit: settings.window_of_mode().is_none().then(WindowFit::default),
+            awaited_window: AwaitedWindow::at_start(settings.window_of_mode()),
+            placing: HashMap::new(),
+            seen_places: HashMap::new(),
+            window_fit: (settings.window_of_mode().is_none())
+                .then(|| WindowFit::for_mode(settings.desk.compact)),
             settings_path,
             settings,
             spawner,
@@ -227,11 +242,13 @@ impl NeumannApp {
                 LoadOutcome::NotCopied => Some(texts::SETTINGS_NOT_COPIED),
                 LoadOutcome::Read | LoadOutcome::PartlyUnderstood | LoadOutcome::SetAside => None,
             },
+            writes_log: true,
             add_address: None,
             removal: None,
             panels: Vec::new(),
             groups_window: None,
             settings_open: false,
+            settings_unsaved: false,
             editing: false,
             history: history::HistoryState::default(),
             eq_windows: Vec::new(),
@@ -490,7 +507,7 @@ impl NeumannApp {
     /// The dialog shows the failure; after it was cancelled, the toolbar does.
     fn show_scan_failure(&mut self) {
         match &mut self.scan_choice {
-            Some(choice) => *choice = ScanChoice::Failed,
+            Some(choice) => *choice = choice.failed(),
             None => self.notice = Some(texts::SCAN_FAILED),
         }
     }
@@ -520,8 +537,14 @@ impl NeumannApp {
     /// Stops the speaker's worker and forgets it in the settings: its manual entry, its group and
     /// its place in the order.
     fn remove_speaker(&mut self, removal: Removal) {
+        // The shared rule: two serials at one address are two speakers.
         let position = self.speakers.iter().position(|speaker| {
-            speaker.state.key == removal.key || speaker.state.address == removal.address
+            same_speaker(
+                &speaker.state.key,
+                speaker.state.address,
+                &removal.key,
+                removal.address,
+            )
         });
         let (key, address) = match position {
             Some(position) => {
@@ -546,9 +569,10 @@ impl NeumannApp {
     /// For a run without the folder's lock: another app may hold the same settings file. What
     /// loading found stays said; it is the more particular reason.
     pub fn save_nothing(&mut self) {
+        self.writes_log = false;
         let reason = *self
             .unsaved_because
-            .get_or_insert(texts::SETTINGS_NOT_LOCKED);
+            .get_or_insert(texts::FOLDER_NOT_WRITABLE);
         self.notice = self.notice.or(Some(reason));
     }
 
@@ -832,19 +856,15 @@ impl NeumannApp {
             .collect()
     }
 
-    /// Puts the speakers checked for group `index` in it and the others out of it; true when
-    /// one moved.
-    fn apply_members(&mut self, index: usize, ids: &[String], members: &[MemberChoice]) -> bool {
+    /// Puts the speakers checked for group `index` in it and the others out of it.
+    fn apply_members(&mut self, index: usize, ids: &[String], members: &[MemberChoice]) {
         let groups = &mut self.settings.groups;
-        let mut moved = false;
         for (id, member) in ids.iter().zip(members) {
             let in_group = desk::group_of(groups, id) == Some(index);
             if member.checked != in_group {
                 set_membership(groups, id, member.checked.then_some(index));
-                moved = true;
             }
         }
-        moved
     }
 
     fn show_groups_window(&mut self, ui: &mut Ui) {
@@ -928,6 +948,7 @@ impl NeumannApp {
         let offered = Offered {
             global_shortcuts: self.global_keys.offered(),
             system_audio: self.system_audio.offered(),
+            detailed_log: self.writes_log,
         };
         let action = settings_dialog::show(
             &context,
@@ -943,10 +964,17 @@ impl NeumannApp {
                 ui.ctx()
                     .set_theme(theme::preference(self.settings.desk.theme));
                 log_detail::apply(self.settings.desk.detailed_log);
-                self.save_settings();
+                self.settings_unsaved = true;
             }
             SettingsAction::Close => self.settings_open = false,
             SettingsAction::None => {}
+        }
+        // The dialog is embedded in the main window where there are no windows of their own.
+        let held = |viewport| context.input_for(viewport, |input| input.pointer.any_down());
+        let held = held(viewport) || held(ViewportId::ROOT);
+        if settings_due(self.settings_unsaved, held, !self.settings_open) {
+            self.settings_unsaved = false;
+            self.save_settings();
         }
     }
 
@@ -1028,7 +1056,10 @@ impl NeumannApp {
         let Some(choice) = &mut self.scan_choice else {
             return;
         };
-        match scan_choice_view::show(ui, choice, self.scan.is_some()) {
+        // What its manual button may have run into; other notices stay in the toolbar.
+        let manual_notices = [texts::MANUAL_MISSING, texts::MANUAL_NOT_OPENED];
+        let notice = self.notice.filter(|notice| manual_notices.contains(notice));
+        match scan_choice_view::show(ui, choice, self.scan.is_some(), notice) {
             ScanChoiceAction::None => {}
             ScanChoiceAction::ScanAgain => {
                 if self.scan.is_none() {
@@ -1039,6 +1070,7 @@ impl NeumannApp {
             }
             ScanChoiceAction::Toggle(index) => choice.toggle(index),
             ScanChoiceAction::Cancel => self.scan_choice = None,
+            ScanChoiceAction::OpenManual => self.open_manual(),
             ScanChoiceAction::Add => {
                 let chosen = choice.chosen();
                 self.scan_choice = None;
@@ -1128,6 +1160,63 @@ pub fn window_geometry(
     })
 }
 
+/// Whether changed settings are written now: not on every frame of a drag, which wrote and
+/// flushed the file each time, but once the pointer is let go or the dialog closes.
+fn settings_due(unsaved: bool, held: bool, closing: bool) -> bool {
+    unsaved && (!held || closing)
+}
+
+/// How long a window manager may take to maximize or restore the window as asked; one that
+/// ignores the request leaves the window as it is.
+const MAXIMIZE_WAIT_SECONDS: f64 = 1.0;
+
+/// A maximize or restore the app asked for that the window manager has not applied yet: X11 and
+/// Wayland apply it frames later, Windows at once.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AwaitedWindow {
+    pub window: WindowGeometry,
+    /// `input.time` after which the window counts as measured again.
+    pub until: f64,
+}
+
+impl AwaitedWindow {
+    pub fn new(window: WindowGeometry, now: f64) -> AwaitedWindow {
+        AwaitedWindow {
+            window,
+            until: now + MAXIMIZE_WAIT_SECONDS,
+        }
+    }
+
+    /// A start in a maximized window: `place_window` asks for it, and X11 and Wayland report
+    /// the default size in the frames before, which was kept as the normal place.
+    pub fn at_start(window: Option<WindowGeometry>) -> Option<AwaitedWindow> {
+        let start = 0.0;
+        window
+            .filter(|window| window.maximized)
+            .map(|window| AwaitedWindow::new(window, start))
+    }
+}
+
+/// The main window's geometry for this frame: the one asked for while `awaited` has not
+/// arrived, so that the rectangle measured before it is never kept as the normal place; else
+/// `window_geometry`'s.
+pub fn next_window(
+    viewport: &ViewportInfo,
+    size: Vec2,
+    pixels_per_point: f32,
+    last: Option<WindowGeometry>,
+    awaited: &mut Option<AwaitedWindow>,
+    now: f64,
+) -> Option<WindowGeometry> {
+    *awaited = awaited.filter(|awaited| {
+        viewport.maximized != Some(awaited.window.maximized) && now < awaited.until
+    });
+    match awaited {
+        Some(awaited) => Some(awaited.window),
+        None => window_geometry(viewport, size, pixels_per_point, last),
+    }
+}
+
 impl eframe::App for NeumannApp {
     fn logic(&mut self, context: &Context, frame: &mut eframe::Frame) {
         let pause = self
@@ -1153,9 +1242,10 @@ impl eframe::App for NeumannApp {
         self.poll_scan();
         self.finish_logic_history();
         let pixels_per_point = context.pixels_per_point();
+        let (last, awaited) = (self.window, &mut self.awaited_window);
         self.window = context.input(|input| {
             let size = input.viewport_rect().size();
-            window_geometry(input.viewport(), size, pixels_per_point, self.window)
+            next_window(input.viewport(), size, pixels_per_point, last, awaited, now)
         });
     }
 
@@ -1179,8 +1269,9 @@ impl eframe::App for NeumannApp {
         self.speakers.clear();
         if let Some(window) = self.chosen_window() {
             self.settings.remember_window(window);
-            self.save_settings();
         }
+        // Also while the main window is fitted: own windows note their places in memory only.
+        self.save_settings();
     }
 }
 
@@ -1264,6 +1355,16 @@ mod tests {
     use eframe::egui::{pos2, vec2, Rect};
     use std::sync::Mutex;
 
+    /// A colour dragged in its picker changes the settings on every frame: they are written once
+    /// the pointer is let go, or when the dialog closes meanwhile.
+    #[test]
+    fn settings_changed_while_held_wait_for_the_release() {
+        assert!(!settings_due(true, true, false));
+        assert!(settings_due(true, false, false));
+        assert!(settings_due(true, true, true));
+        assert!(!settings_due(false, false, true));
+    }
+
     /// Each speaker reports its meters ten times a second; drawing every report at once made the
     /// frame rate grow with the number of speakers.
     #[test]
@@ -1307,6 +1408,78 @@ mod tests {
         );
         let first = window_geometry(&wayland, SIZE, 1.0, None).unwrap();
         assert_eq!((first.width, first.height), (800.0, 500.0));
+    }
+
+    /// X11 and Wayland maximize frames after the request: a mode switch onto a maximized window
+    /// kept the old mode's rectangle, measured in between, as the new mode's normal place.
+    /// Started maximized on X11 or Wayland, the frames before the maximize arrives showed the
+    /// default size, which was kept as the normal place.
+    #[test]
+    fn a_maximized_start_waits_for_its_maximize() {
+        let saved = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = AwaitedWindow::at_start(Some(saved));
+        let not_yet = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        assert_eq!(
+            next_window(&not_yet, SIZE, 1.0, None, &mut awaited, 0.1),
+            Some(saved)
+        );
+        assert_eq!(AwaitedWindow::at_start(Some(LAST_NORMAL)), None);
+        assert_eq!(AwaitedWindow::at_start(None), None);
+    }
+
+    #[test]
+    fn a_late_maximize_keeps_the_place_asked_for() {
+        let target = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = Some(AwaitedWindow {
+            window: target,
+            until: 1.0,
+        });
+        let not_yet = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        let first = next_window(&not_yet, SIZE, 1.0, Some(target), &mut awaited, 0.1);
+        assert_eq!(first, Some(target));
+        let arrived = ViewportInfo {
+            maximized: Some(true),
+            ..viewport()
+        };
+        let second = next_window(&arrived, SIZE, 1.0, first, &mut awaited, 0.2);
+        assert_eq!(second, Some(target));
+        assert_eq!(awaited, None);
+    }
+
+    /// A window manager that ignores the request leaves the window as it is: after a while its
+    /// measured place counts again.
+    #[test]
+    fn an_ignored_maximize_is_given_up() {
+        let target = WindowGeometry {
+            maximized: true,
+            ..LAST_NORMAL
+        };
+        let mut awaited = Some(AwaitedWindow {
+            window: target,
+            until: 1.0,
+        });
+        let ignored = ViewportInfo {
+            maximized: Some(false),
+            ..viewport()
+        };
+        let measured = window_geometry(&ignored, SIZE, 1.0, Some(target));
+        assert_eq!(
+            next_window(&ignored, SIZE, 1.0, Some(target), &mut awaited, 1.5),
+            measured
+        );
+        assert_eq!(awaited, None);
     }
 
     /// A window not open has no geometry: neither a size of its own nor the last one is kept

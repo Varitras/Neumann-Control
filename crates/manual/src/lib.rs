@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// Where links to files that are not shipped lead.
 /// From the workspace manifest, as the app's help menu.
@@ -44,6 +44,11 @@ pub fn render(markdown: &str, read: impl Fn(&str) -> Option<Vec<u8>>) -> Result<
         };
         match tag {
             Tag::Image { dest_url, .. } => *dest_url = embedded(dest_url, &read)?.into(),
+            // pulldown-cmark adds the `mailto:` of an address in angle brackets itself.
+            Tag::Link {
+                link_type: LinkType::Email,
+                ..
+            } => {}
             Tag::Link { dest_url, .. } => *dest_url = link(dest_url, &ids)?.into(),
             _ => {}
         }
@@ -226,31 +231,19 @@ mod tests {
             ("a.svg", "image/svg+xml"),
             ("a.gif", "image/gif"),
         ] {
-            let manual = render(
-                &format!(
-                    "![x]({name})
-"
-                ),
-                read,
-            )
-            .unwrap();
+            let manual = render(&format!("![x]({name})\n"), read).unwrap();
             assert!(
                 manual.contains(&format!("data:{media_type};base64,")),
                 "{name}"
             );
         }
-        assert!(render(
-            "![x](a.txt)
-",
-            read
-        )
-        .is_err());
+        assert!(render("![x](a.txt)\n", read).is_err());
     }
 
     #[test]
     fn web_addresses_stay_as_they_are() {
-        let markdown = "[site](https://example.com/a) [mail](mailto:a@example.com)                         ![logo](https://example.com/logo.png)
-";
+        let markdown = "[site](https://example.com/a) [mail](mailto:a@example.com) \
+                        ![logo](https://example.com/logo.png)\n";
         let manual = render(markdown, no_files).unwrap();
         assert!(
             manual.contains("href=\"https://example.com/a\""),
@@ -263,16 +256,18 @@ mod tests {
         );
     }
 
+    /// An address in angle brackets comes without `mailto:`: it was taken for a repository file
+    /// and pointed into the repository.
+    #[test]
+    fn an_email_autolink_stays_an_address() {
+        let manual = render("<a@example.com>\n", no_files).unwrap();
+        assert!(manual.contains("href=\"mailto:a@example.com\""), "{manual}");
+        assert!(!manual.contains("/blob/main/"), "{manual}");
+    }
+
     #[test]
     fn tables_are_tables() {
-        let manual = render(
-            "| File | Content |
-|---|---|
-| a | b |
-",
-            no_files,
-        )
-        .unwrap();
+        let manual = render("| File | Content |\n|---|---|\n| a | b |\n", no_files).unwrap();
         assert!(manual.contains("<table>"), "{manual}");
     }
 

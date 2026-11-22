@@ -14,7 +14,7 @@ use neumann_control_core::address::{parse_address, AddressError, SSC_PORT};
 use neumann_control_core::discovery::Found;
 use neumann_control_core::mask::mask_host;
 use neumann_control_core::settings::{self, ManualSpeaker, SETTINGS_FILE};
-use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator};
 use neumann_control_core::ssc::client::RESPONSE_TIMEOUT;
 
 const KH750_NAME: &str = "Sub";
@@ -33,23 +33,26 @@ fn announced(simulator: &Simulator, name: &str, product: &str, serial: &str) -> 
 /// announcement is not this speaker's name.
 #[test]
 fn another_serials_announcement_does_not_name_a_remembered_speaker() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let mut remembered = manual_for(&simulator);
     remembered.serial = Some("OTHER".to_owned());
     let path = settings_file(directory.path(), vec![remembered]);
-    let found = announced(&simulator, "Kitchen", "KH 120 II", SIMULATED_SERIAL);
+    let found = announced(&simulator, "Kitchen", KH120_PRODUCT, SIMULATED_SERIAL);
     let mut harness = harness(path, vec![found]);
     harness.run_steps(20);
     assert!(harness.query_by_label_contains("Kitchen").is_none());
 }
 
 fn kh750_found(simulator: &Simulator) -> Found {
-    announced(simulator, KH750_NAME, "KH 750", KH750_SERIAL)
+    announced(simulator, KH750_NAME, KH750_PRODUCT, KH750_SERIAL)
 }
 
 /// Longer than the test meter interval (100 ms), so a poll is waiting for its reply.
 const SILENCE_SETTLE: Duration = Duration::from_millis(300);
+/// The manual entry's replies come this late, so it connects only after the chosen one for the
+/// second address started.
+const LATE_CONNECT_REPLY: Duration = Duration::from_millis(300);
 /// A third of the reply timeout a joined worker could wait for: far below it, far above two
 /// frames.
 const STALL_LIMIT: Duration = Duration::from_millis((RESPONSE_TIMEOUT.as_millis() / 3) as u64);
@@ -66,7 +69,7 @@ fn app_time(harness: &Harness<'static, NeumannApp>) -> f64 {
 }
 
 fn kh120_found(simulator: &Simulator) -> Found {
-    announced(simulator, KH120_NAME, "KH 120 II", SIMULATED_SERIAL)
+    announced(simulator, KH120_NAME, KH120_PRODUCT, SIMULATED_SERIAL)
 }
 
 fn saved_at(path: &Path, simulator: &Simulator) -> bool {
@@ -78,14 +81,14 @@ fn saved_at(path: &Path, simulator: &Simulator) -> bool {
 
 #[test]
 fn scan_shows_choices_without_adding_speakers() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), vec![kh750_found(&simulator)]);
     harness.get_by_label(texts::SCAN.get()).click();
     wait_for_label(&mut harness, KH750_NAME);
     harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
-    harness.get_by_label("KH 750");
+    harness.get_by_label(KH750_PRODUCT);
     harness.get_by_label(&mask_host(&simulator.address()));
     harness.run_steps(5);
     harness.get_by_label(&texts::speaker_count(0));
@@ -107,10 +110,54 @@ fn scan_says_when_nothing_was_found() {
         .is_none());
 }
 
+/// A blocked mDNS port looks the same as an empty network: the dialog names the usual causes,
+/// the way around the scan, and opens the manual from there.
+#[test]
+fn an_empty_scan_names_the_firewall_and_opens_the_manual() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let manual = directory
+        .path()
+        .join(neumann_control_app::help::MANUAL_FILE);
+    std::fs::write(&manual, "<html></html>").unwrap();
+    let help = FakeHelp::default();
+    let mut harness = harness(path, Vec::new());
+    harness
+        .state_mut()
+        .set_help(std::sync::Arc::new(help.clone()));
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    harness.get_by_label(texts::SCAN_EMPTY_HINT.get());
+    harness.get_by_label(texts::MANUAL.get()).click();
+    harness.run_steps(2);
+    assert_eq!(
+        *help.opened.lock().unwrap(),
+        vec![manual.to_string_lossy().into_owned()]
+    );
+}
+
+/// Without the manual next to the program the dialog says so itself: the notice in the toolbar
+/// lay behind the dialog's backdrop, and the dialog did not change.
+#[test]
+fn a_missing_manual_is_named_in_the_scan_dialog() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let mut harness = harness(path, Vec::new());
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, texts::NOTHING_FOUND.get());
+    harness.get_by_label(texts::MANUAL.get()).click();
+    harness.run_steps(2);
+    // One in the toolbar, one in the dialog.
+    let shown = harness
+        .query_all_by_label(texts::MANUAL_MISSING.get())
+        .count();
+    assert_eq!(shown, 2);
+}
+
 /// A speaker still starting up was missed: "Scan again" finds it without closing the dialog.
 #[test]
 fn scan_again_finds_a_speaker_the_first_scan_missed() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let shared: SharedScan = std::sync::Arc::new(std::sync::Mutex::new(Ok(Vec::new())));
@@ -121,6 +168,29 @@ fn scan_again_finds_a_speaker_the_first_scan_missed() {
     harness.get_by_label(texts::SCAN_AGAIN.get()).click();
     wait_for_label(&mut harness, &mask_host(&simulator.address()));
     harness.get_by_label(texts::SCAN_CHOICE_TITLE.get());
+}
+
+/// "Scan again" keeps the rows and checks, also when it fails: the failure replaced them, and
+/// the user had to scan and check again.
+#[test]
+fn a_failed_scan_again_keeps_the_rows_and_checks() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), Vec::new());
+    let shared: SharedScan =
+        std::sync::Arc::new(std::sync::Mutex::new(Ok(vec![kh120_found(&simulator)])));
+    let mut harness = harness_with_shared_scan(path.clone(), shared.clone());
+    harness.get_by_label(texts::SCAN.get()).click();
+    wait_for_label(&mut harness, KH120_NAME);
+    harness.get_by_label(KH120_NAME).click();
+    harness.run_steps(1);
+    *shared.lock().unwrap() = Err("no network".to_owned());
+    harness.get_by_label(texts::SCAN_AGAIN.get()).click();
+    wait_for_label(&mut harness, texts::SCAN_FAILED.get());
+    harness.get_by_label(texts::ADD.get()).click();
+    wait_until(&mut harness, "the checked speaker added", |_| {
+        saved_at(&path, &simulator)
+    });
 }
 
 #[test]
@@ -144,8 +214,8 @@ fn a_failed_scan_says_so_in_the_dialog() {
 /// (seen as scroll bars on the Linux VM; a first start closed without speakers did the same).
 #[test]
 fn a_size_the_fit_gave_is_not_kept_as_the_users() {
-    let kh120 = Simulator::start(SimModel::Kh120Ii);
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh120 = Simulator::start(SimulatedModel::Kh120Ii);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join(SETTINGS_FILE);
     settings::save(&settings::Settings::default(), &path).unwrap();
@@ -180,8 +250,8 @@ fn a_size_the_fit_gave_is_not_kept_as_the_users() {
 
 #[test]
 fn only_checked_speakers_are_added() {
-    let unchosen = Simulator::start(SimModel::Kh120Ii);
-    let chosen = Simulator::start(SimModel::Kh750);
+    let unchosen = Simulator::start(SimulatedModel::Kh120Ii);
+    let chosen = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let found = vec![kh120_found(&unchosen), kh750_found(&chosen)];
@@ -202,7 +272,7 @@ fn only_checked_speakers_are_added() {
 
 #[test]
 fn cancel_adds_nothing() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut harness = harness(path.clone(), vec![kh750_found(&simulator)]);
@@ -222,7 +292,7 @@ fn cancel_adds_nothing() {
 
 #[test]
 fn known_speaker_is_marked_and_not_selectable() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&simulator)]);
     let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
@@ -250,7 +320,7 @@ fn known_speaker_is_marked_and_not_selectable() {
 
 #[test]
 fn chosen_speaker_survives_restart() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), Vec::new());
     let mut first_run = harness(path.clone(), vec![kh750_found(&simulator)]);
@@ -267,7 +337,7 @@ fn chosen_speaker_survives_restart() {
 
 #[test]
 fn rescan_updates_saved_address() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let stale = ManualSpeaker {
         address: LOOPBACK.to_owned(),
@@ -275,8 +345,14 @@ fn rescan_updates_saved_address() {
         serial: Some(SIMULATED_SERIAL.to_owned()),
     };
     let path = settings_file(directory.path(), vec![stale]);
-    let mut harness = harness(path.clone(), vec![kh120_found(&simulator)]);
+    // The scan at the start finds nothing, so only the user's scan can move the speaker: with
+    // it found from the start the test passed on the silent scan alone.
+    let shared: SharedScan = std::sync::Arc::new(std::sync::Mutex::new(Ok(Vec::new())));
+    let mut harness = harness_with_shared_scan(path.clone(), shared.clone());
     harness.get_by_label(&texts::speaker_count(1));
+    harness.run_steps(5);
+    assert!(!saved_at(&path, &simulator));
+    *shared.lock().unwrap() = Ok(vec![kh120_found(&simulator)]);
     harness.get_by_label(texts::SCAN.get()).click();
     // Not the name: the unconnected strip shows the announced name as well.
     wait_for_label(&mut harness, texts::ALREADY_ADDED.get());
@@ -335,10 +411,9 @@ fn add_address_saves_the_speaker_and_shows_it() {
 
 #[test]
 fn a_manual_speaker_found_at_a_second_address_is_shown_once() {
-    let manual_simulator = Simulator::start(SimModel::Kh120Ii);
-    // The manual entry connects only after the chosen one for the second address started.
-    manual_simulator.set_reply_delay(Duration::from_millis(300));
-    let second_simulator = Simulator::start(SimModel::Kh120Ii);
+    let manual_simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    manual_simulator.set_reply_delay(LATE_CONNECT_REPLY);
+    let second_simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(directory.path(), vec![manual_for(&manual_simulator)]);
     let mut harness = harness(path.clone(), vec![kh120_found(&second_simulator)]);
@@ -365,8 +440,8 @@ fn a_manual_speaker_found_at_a_second_address_is_shown_once() {
 
 #[test]
 fn two_manual_entries_for_one_speaker_are_shown_once() {
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let second = Simulator::start(SimModel::Kh120Ii);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let second = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let path = settings_file(
         directory.path(),
@@ -412,7 +487,7 @@ fn ask_to_remove(harness: &mut Harness<'static, NeumannApp>) {
 
 #[test]
 fn remove_needs_confirmation_and_forgets_speaker() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     ask_to_remove(&mut harness);
     harness.get_by_label(&texts::speaker_count(1));
@@ -435,7 +510,7 @@ fn remove_needs_confirmation_and_forgets_speaker() {
 /// masked address (removing it forgets the name: `remove_needs_confirmation_and_forgets_speaker`).
 #[test]
 fn a_speaker_that_is_off_keeps_its_last_name() {
-    let (simulator, directory, harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, directory, harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     let address = simulator.address();
     drop(harness);
@@ -448,7 +523,7 @@ fn a_speaker_that_is_off_keeps_its_last_name() {
 
 #[test]
 fn cancel_remove_keeps_speaker() {
-    let (_simulator, directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (_simulator, directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     let path = directory.path().join(SETTINGS_FILE);
     ask_to_remove(&mut harness);
     harness.get_by_label(texts::CANCEL.get()).click();
@@ -461,7 +536,7 @@ fn cancel_remove_keeps_speaker() {
 
 #[test]
 fn a_moved_speaker_is_found_at_the_start() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let stale = ManualSpeaker {
         address: LOOPBACK.to_owned(),
@@ -480,7 +555,7 @@ fn a_moved_speaker_is_found_at_the_start() {
 
 #[test]
 fn a_speaker_that_stays_unreachable_is_looked_for_again() {
-    let first = Simulator::start(SimModel::Kh120Ii);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
     let directory = tempfile::tempdir().unwrap();
     let mut entry = manual_for(&first);
     entry.serial = Some(SIMULATED_SERIAL.to_owned());
@@ -491,7 +566,7 @@ fn a_speaker_that_stays_unreachable_is_looked_for_again() {
     first.stop();
     wait_for_label(&mut harness, texts::UNREACHABLE.get());
     let since = app_time(&harness);
-    let moved = Simulator::start(SimModel::Kh120Ii);
+    let moved = Simulator::start(SimulatedModel::Kh120Ii);
     *shared.lock().unwrap() = Ok(vec![kh120_found(&moved)]);
     // Not looked for during the grace, and right after it.
     while app_time(&harness) < since + UNREACHABLE_GRACE_SECONDS - GRACE_MARGIN_SECONDS {
@@ -515,8 +590,8 @@ fn a_speaker_that_stays_unreachable_is_looked_for_again() {
 /// stays with that one.
 #[test]
 fn an_open_panel_stays_when_another_speaker_learns_its_serial() {
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let reserved = Simulator::start(SimModel::Kh750);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let reserved = Simulator::start(SimulatedModel::Kh750);
     let late_address = reserved.address();
     let late_entry = manual_for(&reserved);
     reserved.stop();
@@ -527,7 +602,7 @@ fn an_open_panel_stays_when_another_speaker_learns_its_serial() {
     let mut harness = harness(path, Vec::new());
     wait_for_label(&mut harness, KH120_DEVICE_NAME);
     open_panel(&mut harness, KH120_DEVICE_NAME);
-    let _late = Simulator::start_on(SimModel::Kh750, late_address).unwrap();
+    let _late = Simulator::start_on(SimulatedModel::Kh750, late_address).unwrap();
     wait_for_label(&mut harness, KH750_DEVICE_NAME);
     harness.run_steps(2);
     // The strip and the panel each name the speaker the panel belongs to.
@@ -557,10 +632,43 @@ fn confirm_remove(harness: &mut Harness<'static, NeumannApp>) {
     harness.run_steps(2);
 }
 
+/// Two serials at one address are two speakers: one moved there after the other left. Removing
+/// the one that answers removed the first strip at that address instead, the other speaker.
+#[test]
+fn removing_one_of_two_serials_at_an_address_removes_that_one() {
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
+    let moved_away = ManualSpeaker {
+        serial: Some("SIM9999999".to_owned()),
+        ..manual_for(&simulator)
+    };
+    let here = ManualSpeaker {
+        serial: Some(SIMULATED_SERIAL.to_owned()),
+        ..manual_for(&simulator)
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let path = settings_file(directory.path(), vec![moved_away, here]);
+    let mut harness = harness(path.clone(), Vec::new());
+    harness.set_size(EXPANDED_WINDOW_SIZE.into());
+    wait_for_label(&mut harness, KH120_DEVICE_NAME);
+    harness.get_by_label(&texts::speaker_count(2));
+    remove_named(&mut harness, KH120_DEVICE_NAME);
+    harness.run_steps(3);
+    harness.get_by_label(&texts::speaker_count(1));
+    assert!(harness.query_by_label(KH120_DEVICE_NAME).is_none());
+    let left: Vec<Option<String>> = settings::load(&path)
+        .manual
+        .into_iter()
+        .map(|entry| entry.serial)
+        .collect();
+    assert_eq!(left, vec![Some("SIM9999999".to_owned())]);
+}
+
 #[test]
 fn removing_the_second_speaker_keeps_the_first() {
-    let (_simulators, _directory, mut harness) =
-        desk_of(&[SimModel::Kh120Ii, SimModel::Kh750], BTreeMap::new());
+    let (_simulators, _directory, mut harness) = desk_of(
+        &[SimulatedModel::Kh120Ii, SimulatedModel::Kh750],
+        BTreeMap::new(),
+    );
     remove_named(&mut harness, KH750_DEVICE_NAME);
     harness.get_by_label(&texts::speaker_count(1));
     harness.get_by_label(KH120_DEVICE_NAME);
@@ -571,7 +679,7 @@ fn removing_the_second_speaker_keeps_the_first() {
 /// speaker is removed all the same.
 #[test]
 fn a_speaker_that_connects_while_asked_about_is_removed() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     // Slow replies keep it connecting (no model, no serial yet) while the question is asked.
     simulator.set_reply_delay(SLOW_CONNECT_REPLY);
     let directory = tempfile::tempdir().unwrap();
@@ -594,7 +702,7 @@ fn a_speaker_that_connects_while_asked_about_is_removed() {
 /// stop; removing its speaker must not make the window wait with it.
 #[test]
 fn removing_a_speaker_that_does_not_answer_does_not_stall_the_window() {
-    let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
+    let (simulator, _directory, mut harness) = connected_speaker(SimulatedModel::Kh120Ii);
     ask_to_remove(&mut harness);
     simulator.inject(Fault::Silence);
     // The next meter poll is sent and stays unanswered.
@@ -618,7 +726,7 @@ fn a_speaker_remembered_through_a_gone_interface_is_reached_through_its_new_one(
         eprintln!("no link-local IPv6 address on this computer: nothing to reach through");
         return;
     };
-    let simulator = Simulator::start_on(SimModel::Kh120Ii, local).unwrap();
+    let simulator = Simulator::start_on(SimulatedModel::Kh120Ii, local).unwrap();
     let reached = simulator.address();
     let directory = tempfile::tempdir().unwrap();
     let gone = std::net::SocketAddrV6::new(*reached.ip(), reached.port(), 0, GONE_INTERFACE);

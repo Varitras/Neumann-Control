@@ -78,7 +78,8 @@ fn group_contents(
             }
         }
         let label = texts::group_level(&group.name);
-        response.level = fader::shared(ui, &label, level, range, Orientation::Vertical);
+        let vertical = Orientation::Vertical;
+        response.level = fader::shared(ui, &label, level, range, vertical, texts::level_move);
         let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, &texts::group_mute(&group.name), muted);
@@ -111,7 +112,8 @@ pub fn master(
     frame(ui, tokens.accent, |ui| {
         ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()));
         let label = texts::MASTER_LEVEL.get();
-        response.level = fader::shared(ui, label, level, range, Orientation::Vertical);
+        let vertical = Orientation::Vertical;
+        response.level = fader::shared(ui, label, level, range, vertical, texts::level_move);
         let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, texts::MUTE_ALL.get(), muted);
@@ -127,9 +129,20 @@ pub(super) fn shared_readout(level: Option<&SharedLevel>) -> String {
 
 /// Draws a strip's frame around `contents`; returns where it lies.
 pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui)) -> Rect {
+    framed(ui, STRIP_WIDTH, color, contents).response.rect
+}
+
+/// A strip's frame, `width` wide in `color`, around `contents`, which the desk lays out in a
+/// row and whose own content stacks.
+pub(super) fn framed<R>(
+    ui: &mut Ui,
+    width: f32,
+    color: Color32,
+    contents: impl FnOnce(&mut Ui) -> R,
+) -> egui::InnerResponse<R> {
     let tokens = Tokens::current(ui.ctx());
-    let inner_width = STRIP_WIDTH - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
-    egui::Frame::new()
+    let inner_width = width - 2.0 * (f32::from(STRIP_MARGIN) + BORDER_WIDTH);
+    let frame = egui::Frame::new()
         .fill(tokens.card)
         .stroke(Stroke::new(BORDER_WIDTH, color))
         .corner_radius(CornerRadius::same(STRIP_RADIUS))
@@ -137,11 +150,11 @@ pub(super) fn frame(ui: &mut Ui, color: Color32, contents: impl FnOnce(&mut Ui))
         .show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.set_width(inner_width);
-                contents(ui);
-            });
-        })
-        .response
-        .rect
+                contents(ui)
+            })
+            .inner
+        });
+    egui::InnerResponse::new(frame.inner, frame.response)
 }
 
 /// Shows whether all are muted; a click asks for the opposite for all.

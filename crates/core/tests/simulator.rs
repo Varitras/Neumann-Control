@@ -2,7 +2,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv6Addr, SocketAddrV6, TcpStream};
 use std::time::Duration;
 
-use neumann_control_core::simulator::{Fault, SimModel, Simulator};
+use neumann_control_core::simulator::{Fault, SimulatedModel, Simulator, FOREIGN_XID_OFFSET};
+use neumann_control_core::ssc::client::MAX_LINE_BYTES;
 use neumann_control_core::ssc::wire::{device_error, parse_line, reply_xid, DeviceError};
 use serde_json::{json, Value};
 
@@ -11,8 +12,6 @@ const READ_TIMEOUT: Duration = Duration::from_secs(3);
 const SILENCE_TIMEOUT: Duration = Duration::from_millis(400);
 // Longer than the simulator's read poll interval, so the first half is seen on its own.
 const PARTIAL_LINE_PAUSE: Duration = Duration::from_millis(200);
-const LINE_LIMIT_BYTES: usize = 1_048_576;
-const FOREIGN_XID_OFFSET: u64 = 1000;
 const SLOW_REPLY_DELAY: Duration = Duration::from_secs(2);
 const KH_120_II: &str = "KH 120 II";
 const KH_750: &str = "KH 750";
@@ -57,16 +56,16 @@ impl Client {
     }
 }
 
-fn model_of(name: &str) -> SimModel {
+fn model_of(name: &str) -> SimulatedModel {
     match name {
-        KH_120_II => SimModel::Kh120Ii,
-        KH_750 => SimModel::Kh750,
+        KH_120_II => SimulatedModel::Kh120Ii,
+        KH_750 => SimulatedModel::Kh750,
         other => panic!("unknown model {other}"),
     }
 }
 
 fn start_kh120() -> Simulator {
-    Simulator::start(SimModel::Kh120Ii)
+    Simulator::start(SimulatedModel::Kh120Ii)
 }
 
 /// The reply with its transaction id removed, and an `osc` object left empty by that dropped.
@@ -158,7 +157,7 @@ fn simulator_refuses_read_only_set_with_405() {
 
 #[test]
 fn simulator_refuses_standby_enabled_set_on_kh750_only() {
-    let kh750 = Simulator::start(SimModel::Kh750);
+    let kh750 = Simulator::start(SimulatedModel::Kh750);
     let refused = Client::connect(&kh750).ask(&json!({"device":{"standby":{"enabled":false}}}));
     assert_eq!(device_error(&refused).unwrap().code, DeviceError::READ_ONLY);
     let kh120 = start_kh120();
@@ -169,7 +168,7 @@ fn simulator_refuses_standby_enabled_set_on_kh750_only() {
 
 #[test]
 fn control_mode_set_answers_405_on_both_models() {
-    for model in [SimModel::Kh120Ii, SimModel::Kh750] {
+    for model in [SimulatedModel::Kh120Ii, SimulatedModel::Kh750] {
         let simulator = Simulator::start(model);
         let reply = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
         assert_eq!(
@@ -181,7 +180,7 @@ fn control_mode_set_answers_405_on_both_models() {
 
 #[test]
 fn auto_standby_set_answers_405_on_kh750() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let reply = Client::connect(&simulator).ask(&json!({"ui":{"auto_standby":"OFF"}}));
     assert_eq!(
         device_error(&reply).map(|error| error.code),
@@ -203,6 +202,19 @@ fn local_control_mode_refuses_every_set_with_401() {
     );
     let read = client.ask(&json!({"audio":{"out":{"level":null}}}));
     assert_eq!(read, json!({"audio":{"out":{"level":100.0}}}));
+}
+
+/// Measured on a KH 120 II in LOCAL: a set of the read-only `ui/control_mode` still answers
+/// 405, the speaker checks writability before the switch. The simulator answered 401.
+#[test]
+fn local_control_mode_still_refuses_a_read_only_path_with_405() {
+    let simulator = start_kh120();
+    simulator.set_value("ui/control_mode", json!("LOCAL"));
+    let refused = Client::connect(&simulator).ask(&json!({"ui":{"control_mode":"NETWORK"}}));
+    assert_eq!(
+        device_error(&refused).map(|error| error.code),
+        Some(DeviceError::READ_ONLY)
+    );
 }
 
 #[test]
@@ -236,7 +248,10 @@ fn simulator_schema_root_lists_top_level() {
     assert_eq!(level["warnings"], Value::Null);
     assert_eq!(level.as_object().unwrap().len(), 6);
     let unknown = Client::connect(&simulator).ask(&json!({"osc":{"schema":[{"nowhere":null}]}}));
-    assert_eq!(device_error(&unknown).unwrap().code, 454);
+    assert_eq!(
+        device_error(&unknown).unwrap().code,
+        DeviceError::PARAMETER_NOT_FOUND
+    );
 }
 
 fn count_leaves(client: &mut Client, prefix: &[&str], level: &Value) -> usize {
@@ -267,8 +282,8 @@ fn count_leaves(client: &mut Client, prefix: &[&str], level: &Value) -> usize {
 #[test]
 fn simulator_trees_have_the_measured_leaf_counts() {
     for (model, expected) in [
-        (SimModel::Kh120Ii, KH_120_II_LEAVES),
-        (SimModel::Kh750, KH_750_LEAVES),
+        (SimulatedModel::Kh120Ii, KH_120_II_LEAVES),
+        (SimulatedModel::Kh750, KH_750_LEAVES),
     ] {
         let simulator = Simulator::start(model);
         let mut client = Client::connect(&simulator);
@@ -284,7 +299,7 @@ fn simulator_trees_have_the_measured_leaf_counts() {
 
 #[test]
 fn simulator_reports_limits_type_and_identity() {
-    let simulator = Simulator::start(SimModel::Kh750);
+    let simulator = Simulator::start(SimulatedModel::Kh750);
     let mut client = Client::connect(&simulator);
     let number = client.ask(&json!({"osc":{"limits":[{"audio":{"out":{"level":null}}}]}}));
     assert_eq!(
@@ -396,10 +411,10 @@ fn fault_overlong_line_exceeds_the_limit() {
     client
         .reader
         .by_ref()
-        .take(LINE_LIMIT_BYTES as u64 + 1)
+        .take(MAX_LINE_BYTES as u64 + 1)
         .read_to_end(&mut received)
         .unwrap();
-    assert_eq!(received.len(), LINE_LIMIT_BYTES + 1);
+    assert_eq!(received.len(), MAX_LINE_BYTES + 1);
     assert!(!received.contains(&b'\n'));
 }
 
@@ -435,8 +450,8 @@ fn stop_closes_connections_and_refuses_new_ones() {
 #[test]
 fn a_simulator_takes_a_port_no_other_one_is_given() {
     const LINUX_DYNAMIC_PORTS_FROM: u16 = 32_768;
-    let first = Simulator::start(SimModel::Kh120Ii);
-    let second = Simulator::start(SimModel::Kh120Ii);
+    let first = Simulator::start(SimulatedModel::Kh120Ii);
+    let second = Simulator::start(SimulatedModel::Kh120Ii);
     for simulator in [&first, &second] {
         assert!(
             simulator.address().port() < LINUX_DYNAMIC_PORTS_FROM,
@@ -447,7 +462,7 @@ fn a_simulator_takes_a_port_no_other_one_is_given() {
     assert_ne!(first.address(), second.address());
     let address = first.address();
     first.stop();
-    let restarted = Simulator::start_on(SimModel::Kh120Ii, address).expect("still free");
+    let restarted = Simulator::start_on(SimulatedModel::Kh120Ii, address).expect("still free");
     let reply = Client::connect(&restarted).ask(&json!({"osc":{"ping":null}}));
     assert_eq!(reply, json!({"osc":{"ping":null}}));
 }
@@ -458,7 +473,7 @@ fn start_on_rebinds_the_same_address() {
     let address: SocketAddrV6 = first.address();
     assert_eq!(*address.ip(), Ipv6Addr::LOCALHOST);
     first.stop();
-    let second = Simulator::start_on(SimModel::Kh120Ii, address).expect("port is free again");
+    let second = Simulator::start_on(SimulatedModel::Kh120Ii, address).expect("port is free again");
     assert_eq!(second.address(), address);
     let reply = Client::connect(&second).ask(&json!({"osc":{"ping":null}}));
     assert_eq!(reply, json!({"osc":{"ping":null}}));
@@ -543,14 +558,16 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
     let error = device_error(&refused).expect("33 tokens are refused");
     assert_eq!(
         (error.code, error.description.as_str()),
-        (413, "request too long")
+        (DeviceError::REQUEST_TOO_LONG, "request too long")
     );
+    // The measured code: the constant alone is also what the simulator answers with.
+    assert_eq!(DeviceError::REQUEST_TOO_LONG, 413);
     assert_eq!(reply_xid(&refused), None);
     let ten = json!([true, false, false, false, false, false, false, false, false, false]);
     let two_lists = client.ask(&json!({"audio":{"out":{"eq2":{"enabled": ten, "boost": ten}}}}));
     assert_eq!(
         device_error(&two_lists).map(|error| error.code),
-        Some(413),
+        Some(DeviceError::REQUEST_TOO_LONG),
         "31 tokens"
     );
     let with_mute = client
@@ -563,7 +580,7 @@ fn a_request_over_the_speakers_token_budget_is_refused_with_413() {
 
 #[test]
 fn a_delayed_reply_does_not_hold_up_other_callers() {
-    let simulator = Simulator::start(SimModel::Kh120Ii);
+    let simulator = Simulator::start(SimulatedModel::Kh120Ii);
     simulator.set_reply_delay(SLOW_REPLY_DELAY);
     let mut client = Client::connect(&simulator);
     client.send(&json!({"audio": {"out": {"mute": null}}}));

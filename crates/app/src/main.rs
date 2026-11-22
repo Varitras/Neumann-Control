@@ -9,12 +9,13 @@ use std::sync::Arc;
 use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::WgpuConfiguration;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::log_detail;
 use neumann_control_app::single_instance::{self, Claim};
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::system_audio::CoreAudio;
 use neumann_control_app::system_language;
 use neumann_control_app::texts;
-use neumann_control_app::window_placement::{first_window_size, place_window, WINDOW_MIN_SIZE};
+use neumann_control_app::window_placement::{first_window_size, min_size, place_window};
 use neumann_control_core::settings::{self, LOG_FILE, SETTINGS_FILE};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 
@@ -61,12 +62,12 @@ fn start_log(directory: &Path) {
     let Ok(file) = File::create(directory.join(LOG_FILE)) else {
         return;
     };
-    let config = ConfigBuilder::new()
+    let configuration = ConfigBuilder::new()
         .add_filter_allow_str(LOG_TARGET_PREFIX)
         .build();
-    // Up to debug: the app lowers the level to info unless the detailed log is on.
-    let _ = WriteLogger::init(LevelFilter::Debug, config, file);
-    log::info!("neumann-control {} started", env!("CARGO_PKG_VERSION"));
+    // Up to debug: `main` lowers the level to info unless the detailed log is on.
+    let _ = WriteLogger::init(LevelFilter::Debug, configuration, file);
+    log::info!("neumann-control {} started", env!("APP_VERSION"));
     // A window app has no console: a crash would leave no trace but in the log.
     let report = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -100,13 +101,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         settings::load_untouched(&settings_path)
     };
+    // Before the window is placed, which logs where it goes.
+    log_detail::apply(saved.settings.desk.detailed_log);
     let saved_window = saved.settings.window_of_mode();
+    let compact = saved.settings.desk.compact;
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_title(texts::WINDOW_TITLE)
             .with_icon(Arc::new(window_icon().inspect_err(log_start_failure)?))
             .with_inner_size(first_window_size(saved.settings.desk.compact))
-            .with_min_inner_size(WINDOW_MIN_SIZE),
+            .with_min_inner_size(min_size(saved.settings.desk.compact)),
         centered: true,
         wgpu_options: wgpu_options(),
         ..eframe::NativeOptions::default()
@@ -117,7 +121,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(move |creation_context| {
             let window = creation_context.winit_window();
             if let (Some(window), Some(saved)) = (window, saved_window) {
-                place_window(window, saved);
+                place_window(window, saved, compact);
             }
             let context = creation_context.egui_ctx.clone();
             let spawner = Box::new(CoreSpawner::new(context.clone()));

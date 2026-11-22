@@ -11,11 +11,11 @@ use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr, SocketAddrV6, TcpStream};
 use std::time::{Duration, Instant};
 
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::mask::mask_host;
 use crate::ssc::wire::{
-    device_error, extract, parse_line, reply_xid, request_line, DeviceError, SscPath,
+    descend, device_error, extract, nest, parse_line, reply_xid, request_line, DeviceError, SscPath,
 };
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -30,6 +30,7 @@ pub const LINE_TERMINATOR: &str = "\r\n";
 const FIRST_XID: u64 = 1;
 const SCHEMA_PATH: &str = "osc/schema";
 const LIMITS_PATH: &str = "osc/limits";
+const MISSING_PATH_MESSAGE: &str = "reply without the requested path";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeKind {
@@ -172,7 +173,8 @@ impl Connection {
     }
 }
 
-fn is_timeout(error: &io::Error) -> bool {
+/// A read that ran into its timeout, as Windows (`TimedOut`) and Linux (`WouldBlock`) say it.
+pub(crate) fn is_timeout(error: &io::Error) -> bool {
     matches!(
         error.kind(),
         io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
@@ -364,7 +366,7 @@ fn judge(tree: &Value, xid: u64, path: &SscPath) -> Verdict {
 fn confirmed_value(reply: &Value, path: &SscPath) -> Result<Value, SscError> {
     extract(reply, path)
         .cloned()
-        .ok_or_else(|| unusable("reply without the requested path"))
+        .ok_or_else(|| unusable(MISSING_PATH_MESSAGE))
 }
 
 fn protocol(message: &str) -> SscError {
@@ -381,14 +383,7 @@ fn introspection_path(text: &str) -> SscPath {
 
 /// `[ {a:{b:null}} ]`: the list holding one address tree that ends in `null`.
 fn introspection_argument(path: &SscPath) -> Value {
-    let tree = path
-        .segments()
-        .iter()
-        .rev()
-        .fold(Value::Null, |inner, segment| {
-            Value::Object(Map::from_iter([(segment.clone(), inner)]))
-        });
-    Value::Array(vec![tree])
+    Value::Array(vec![nest(path.segments(), Value::Null)])
 }
 
 /// The node an `osc/schema` or `osc/limits` reply describes: the first list entry, followed
@@ -401,12 +396,9 @@ fn introspected_node<'a>(
     let listed = extract(reply, &introspection_path(method))
         .and_then(Value::as_array)
         .and_then(|items| items.first())
-        .ok_or_else(|| unusable("reply without the requested path"))?;
+        .ok_or_else(|| unusable(MISSING_PATH_MESSAGE))?;
     let segments = path.map_or(&[][..], SscPath::segments);
-    segments
-        .iter()
-        .try_fold(listed, |node, segment| node.get(segment))
-        .ok_or_else(|| unusable("reply does not describe the requested path"))
+    descend(listed, segments).ok_or_else(|| unusable("reply does not describe the requested path"))
 }
 
 fn node_kind(node: &Value) -> NodeKind {

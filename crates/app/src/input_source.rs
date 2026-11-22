@@ -73,5 +73,8 @@ mod tests {
     fn unknown_or_missing_switch_gives_no_source() {
         assert_eq!(input_source(&reporting(json!("SOMETHING NEW"))), None);
         assert_eq!(input_source(&reporting(json!(3))), None);
+        let address = parse_address("fe80::2a36:38ff:fe12:3456%7", 45).unwrap();
+        let unread = SpeakerState::new(SpeakerKey::Address(address), address);
+        assert_eq!(input_source(&unread), None);
     }
 }

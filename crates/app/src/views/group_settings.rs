@@ -1,12 +1,13 @@
 //! One group's settings as the groups window and the speaker panel's group tab show them: name,
 //! colour, whether it has a strip, what it links and who belongs to it.
 
-use eframe::egui::{Color32, TextEdit, Ui};
+use eframe::egui::{Color32, Ui};
 use neumann_control_core::settings::{GroupSettings, GroupStrip};
 
 use super::color_choice;
 use crate::groups::{linkable_label, toggle_link, LINKABLE};
 use crate::texts;
+use crate::ui_kit::text_field::text_field;
 
 const NAME_ID: &str = "group_name";
 
@@ -53,9 +54,7 @@ fn name(ui: &mut Ui, name: &mut String) -> bool {
         .data(|data| data.get_temp::<String>(draft_id))
         .unwrap_or_else(|| name.clone());
     let label = ui.label(texts::GROUP_NAME);
-    let response = ui
-        .add(TextEdit::singleline(&mut draft))
-        .labelled_by(label.id);
+    let response = ui.add(text_field(&mut draft)).labelled_by(label.id);
     let typed = draft.trim().to_owned();
     // Only what was typed: a draft left from another group must not rename this one.
     let changed = response.changed() && !typed.is_empty() && typed != *name;

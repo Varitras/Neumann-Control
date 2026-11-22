@@ -1,7 +1,7 @@
 //! The top bar: "Suchen", "+ Adresse", "Gruppen", the speaker count, a notice when something
-//! failed, and at the right the average response time, the pen (edit the strips), "Dimmen"
-//! while dimmed, "Kompakt",
-//! "Verlauf", "Einstellungen" and "?" with the manual, the wiki and "Über" (one small button:
+//! failed, and at the right the average response time, the pen (edit the strips), "Dim" while
+//! dimmed, "Kompakt", "Verlauf", "Einstellungen" and "?" with the manual, the wiki and "Über
+//! Neumann Control" (one small button:
 //! the narrowest window has no room for two). The compact window is narrow, so there only the
 //! count, notice and the right side without the pen remain; adding speakers and groups and
 //! editing the strips are the desk's job.

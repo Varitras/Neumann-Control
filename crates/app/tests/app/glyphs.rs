@@ -41,6 +41,12 @@ fn all_ui_texts_have_glyphs() {
             texts_to_check.push(entry.group.title(language).to_owned());
             texts_to_check.push(entry.label(language).to_owned());
             texts_to_check.extend(entry.unit.clone());
+            // Drawn too: the names of a list's entries and the choices of a select.
+            texts_to_check.extend(entry.element_labels(language).iter().cloned());
+            texts_to_check.extend(entry.options.iter().cloned());
+        }
+        for container in &catalog.eq {
+            texts_to_check.push(container.label(language).to_owned());
         }
     }
     let families = [FontFamily::Proportional, fonts::semibold(12.0).family];
