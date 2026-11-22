@@ -1702,6 +1702,21 @@ mod tests {
         assert_eq!(speaker.read_all_values(), None);
     }
 
+    /// "Alle Werte" closed and opened again while its read is out waits for that read: the
+    /// window's state said nothing was out, and a second walk went to the speaker.
+    #[test]
+    fn a_read_of_every_value_reopened_waits_for_the_one_out() {
+        let mut speaker = state();
+        speaker.status = Status::Connected;
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+        speaker.close_all_values();
+        assert_eq!(speaker.read_all_values(), None);
+        assert_eq!(speaker.start_full_scan(), None);
+        speaker.apply(Event::AllValues(Vec::new()), 1.0);
+        assert_eq!(speaker.all_values, AllValuesState::Loaded(Vec::new()));
+        assert_eq!(speaker.read_all_values(), Some(Command::ReadAll));
+    }
+
     /// "Alle Werte" alone kept the reason, which no window shows, and logged it nowhere.
     #[test]
     fn a_failed_read_of_every_value_keeps_no_raw_reason() {
