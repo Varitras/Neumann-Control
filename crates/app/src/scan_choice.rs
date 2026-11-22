@@ -213,6 +213,22 @@ mod tests {
         );
     }
 
+    /// A scan in which a speaker's record with its serial came too late finds it by address
+    /// only: the row keeps its serial, as the core's merge of scans does. The serial was lost,
+    /// and the speaker was added without it.
+    #[test]
+    fn a_rescan_without_the_serial_keeps_the_offered_one() {
+        let mut first = choice();
+        first.toggle(1);
+        let unnamed = Found {
+            serial: None,
+            ..found("Sub", NEW_SERIAL, NEW_ADDRESS_TEXT)
+        };
+        let again = first.again(&[unnamed], &[]);
+        assert_eq!(again.offers().len(), first.offers().len());
+        assert_eq!(again.chosen()[0].serial.as_deref(), Some(NEW_SERIAL));
+    }
+
     /// "Erneut suchen": what the first scan offered stays with its checks, a speaker found at a
     /// new address keeps its check there, and what is new comes after.
     #[test]
