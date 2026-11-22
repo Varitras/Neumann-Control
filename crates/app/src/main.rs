@@ -9,6 +9,7 @@ use std::sync::Arc;
 use eframe::egui::ViewportBuilder;
 use eframe::egui_wgpu::WgpuConfiguration;
 use neumann_control_app::app::NeumannApp;
+use neumann_control_app::log_detail;
 use neumann_control_app::single_instance::{self, Claim};
 use neumann_control_app::spawner::CoreSpawner;
 use neumann_control_app::system_audio::CoreAudio;
@@ -64,7 +65,7 @@ fn start_log(directory: &Path) {
     let config = ConfigBuilder::new()
         .add_filter_allow_str(LOG_TARGET_PREFIX)
         .build();
-    // Up to debug: the app lowers the level to info unless the detailed log is on.
+    // Up to debug: `main` lowers the level to info unless the detailed log is on.
     let _ = WriteLogger::init(LevelFilter::Debug, config, file);
     log::info!("neumann-control {} started", env!("APP_VERSION"));
     // A window app has no console: a crash would leave no trace but in the log.
@@ -100,6 +101,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         settings::load_untouched(&settings_path)
     };
+    // Before the window is placed, which logs where it goes.
+    log_detail::apply(saved.settings.desk.detailed_log);
     let saved_window = saved.settings.window_of_mode();
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()

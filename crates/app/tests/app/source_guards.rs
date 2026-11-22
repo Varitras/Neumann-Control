@@ -244,7 +244,9 @@ fn main_sets_the_log_level_before_the_window_opens() {
     let level = main.find("log_detail::apply(");
     let window = main.find("eframe::run_native(");
     assert!(
-        level.zip(window).is_some_and(|(level, window)| level < window),
+        level
+            .zip(window)
+            .is_some_and(|(level, window)| level < window),
         "main.rs must call log_detail::apply before eframe::run_native"
     );
 }
