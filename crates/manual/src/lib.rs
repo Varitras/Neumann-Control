@@ -263,6 +263,15 @@ mod tests {
         );
     }
 
+    /// An address in angle brackets comes without `mailto:`: it was taken for a repository file
+    /// and pointed into the repository.
+    #[test]
+    fn an_email_autolink_stays_an_address() {
+        let manual = render("<a@example.com>\n", no_files).unwrap();
+        assert!(manual.contains("href=\"mailto:a@example.com\""), "{manual}");
+        assert!(!manual.contains("/blob/main/"), "{manual}");
+    }
+
     #[test]
     fn tables_are_tables() {
         let manual = render(
