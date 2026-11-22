@@ -708,7 +708,7 @@ pub fn sets(simulator: &Simulator, pointer: &str) -> Vec<Value> {
 }
 
 pub fn delay_sets(simulator: &Simulator) -> Vec<Value> {
-    sets(simulator, &format!("/{}", paths::DELAY))
+    sets(simulator, &pointer(paths::DELAY))
 }
 
 /// The harness clock moves a quarter second per frame, more than egui allows between the two
@@ -822,4 +822,27 @@ pub fn desk_prepared(
 fn the_speaker_ids_are_their_serials_keys() {
     assert_eq!(KH120_ID, format!("serial:{SIMULATED_SERIAL}"));
     assert_eq!(KH750_ID, format!("serial:{KH750_SERIAL}"));
+}
+
+/// The JSON pointer of an SSC path, as the simulator's requests are searched.
+pub fn pointer(path: &str) -> String {
+    format!("/{path}")
+}
+
+/// Mouse wheel notches at the pointer.
+pub fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
+    harness.event(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::vec2(0.0, notches),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+pub fn slider_center(harness: &Harness<'static, NeumannApp>, label: &str) -> egui::Pos2 {
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Slider, label)
+        .rect()
+        .center()
 }

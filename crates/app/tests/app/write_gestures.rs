@@ -3,7 +3,7 @@
 //! for each kind of control: strip fader, group fader, typed entry and panel knob.
 
 use crate::support::*;
-use eframe::egui::{self, accesskit::Role, MouseWheelUnit, TouchPhase};
+use eframe::egui::{self, accesskit::Role};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use neumann_control_app::app::NeumannApp;
@@ -12,34 +12,13 @@ use neumann_control_app::paths;
 use neumann_control_app::texts;
 use neumann_control_app::writes::Refusal;
 use neumann_control_core::simulator::SimModel;
-use serde_json::{json, Value};
-
-fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
-    harness.event(egui::Event::MouseWheel {
-        unit: MouseWheelUnit::Line,
-        delta: egui::vec2(0.0, notches),
-        phase: TouchPhase::Move,
-        source: egui::MouseWheelSource::Wheel,
-        modifiers: egui::Modifiers::NONE,
-    });
-}
-
-fn slider_center(harness: &Harness<'static, NeumannApp>, label: &str) -> egui::Pos2 {
-    harness
-        .get_by_role_and_label(Role::Slider, label)
-        .rect()
-        .center()
-}
+use serde_json::json;
 
 fn click_at(harness: &mut Harness<'static, NeumannApp>, position: egui::Pos2) {
     harness.drag_at(position);
     harness.step();
     harness.drop_at(position);
     harness.run_steps(5);
-}
-
-fn levels(simulator: &neumann_control_core::simulator::Simulator) -> Vec<Value> {
-    sets(simulator, "/audio/out/level")
 }
 
 #[test]
@@ -71,7 +50,7 @@ fn a_click_on_a_group_fader_without_moving_writes_nothing() {
     click_at(&mut harness, center);
     barrier(&kh120);
     barrier(&kh750);
-    assert!(levels(&kh120).is_empty() && levels(&kh750).is_empty());
+    assert!(level_sets(&kh120).is_empty() && level_sets(&kh750).is_empty());
 }
 
 #[test]
@@ -103,7 +82,7 @@ fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Standby);
     // The panel scrolls: a wheel the standby time knob did not take would bring the standby
     // level knob below it under the pointer.
-    let label = texts::knob_label("Standby-Zeit");
+    let label = texts::knob_label(STANDBY_TIME_LABEL);
     let center = slider_center(&harness, &label);
     harness.hover_at(center);
     for _ in 0..8 {
@@ -111,12 +90,12 @@ fn the_wheel_on_a_panel_knob_does_not_scroll_another_knob_under_the_pointer() {
         harness.step();
     }
     wait_until(&mut harness, "the standby time write", |_| {
-        !sets(&simulator, "/device/standby/auto_standby_time").is_empty()
+        !sets(&simulator, &pointer(paths::STANDBY_TIME)).is_empty()
     });
     harness.run_steps(5);
     barrier(&simulator);
-    for other in ["/device/standby/level", "/ui/logo/brightness"] {
-        assert!(sets(&simulator, other).is_empty(), "{other}");
+    for other in ["device/standby/level", paths::LOGO_BRIGHTNESS] {
+        assert!(sets(&simulator, &pointer(other)).is_empty(), "{other}");
     }
     assert!(delay_sets(&simulator).is_empty());
 }
@@ -138,10 +117,10 @@ fn a_group_move_is_relative_to_where_the_drag_started() {
     wait_for_level(&mut harness, 80.0);
     harness.drop_at(start + egui::vec2(0.0, 5.0));
     wait_until(&mut harness, "both level sets", |_| {
-        !levels(&kh120).is_empty() && !levels(&kh750).is_empty()
+        !level_sets(&kh120).is_empty() && !level_sets(&kh750).is_empty()
     });
-    let first = levels(&kh120)[0].as_f64().unwrap();
-    let second = levels(&kh750)[0].as_f64().unwrap();
+    let first = level_sets(&kh120)[0];
+    let second = level_sets(&kh750)[0];
     assert!(second < 90.0, "the KH 750 went up: {second}");
     assert!(
         ((first - 80.0) - (second - 90.0)).abs() < 1e-9,
@@ -164,12 +143,12 @@ fn a_group_raises_its_quieter_members_when_the_loudest_is_at_its_limit() {
     }
     harness.drop_at(start - egui::vec2(0.0, 20.0));
     wait_until(&mut harness, "the KH 750 set", |_| {
-        !levels(&kh750).is_empty()
+        !level_sets(&kh750).is_empty()
     });
     harness.run_steps(5);
     barrier(&kh120);
-    assert!(levels(&kh750)[0].as_f64().unwrap() > 90.0);
-    assert!(levels(&kh120).is_empty(), "{:?}", levels(&kh120));
+    assert!(level_sets(&kh750)[0] > 90.0);
+    assert!(level_sets(&kh120).is_empty(), "{:?}", level_sets(&kh120));
 }
 
 #[test]
@@ -178,7 +157,7 @@ fn scrolling_the_panel_from_a_gap_never_turns_a_knob() {
     open_panel_on(&mut harness, KH120_DEVICE_NAME, PanelTab::Device);
     harness.set_size(egui::vec2(1200.0, 420.0));
     harness.run_steps(2);
-    let knob = slider_center(&harness, &texts::knob_label("Logo-Helligkeit"));
+    let knob = slider_center(&harness, &texts::knob_label(LOGO_LABEL));
     // Above the knob, on no control: the wheel scrolls the panel, and knobs pass under it.
     harness.hover_at(knob - egui::vec2(0.0, 40.0));
     for _ in 0..12 {
@@ -198,7 +177,7 @@ fn scrolling_the_panel_from_a_gap_never_turns_a_knob() {
 #[test]
 fn a_knob_on_an_out_of_range_value_turned_further_out_writes_nothing() {
     let (simulator, _directory, mut harness) = connected_speaker(SimModel::Kh120Ii);
-    simulator.set_value("audio/out/delay", json!(6000));
+    simulator.set_value(paths::DELAY, json!(6000));
     wait_until(&mut harness, "the reported delay", |harness| {
         harness.query_by_label_contains("125,00 ms").is_some()
     });

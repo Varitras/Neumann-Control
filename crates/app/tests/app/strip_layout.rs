@@ -286,16 +286,6 @@ fn center(harness: &Harness<'static, NeumannApp>, role: Role, label: &str) -> eg
     harness.get_by_role_and_label(role, label).rect().center()
 }
 
-fn wheel(harness: &mut Harness<'static, NeumannApp>, notches: f32) {
-    harness.event(egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Line,
-        delta: egui::vec2(0.0, notches),
-        phase: egui::TouchPhase::Move,
-        source: egui::MouseWheelSource::Wheel,
-        modifiers: egui::Modifiers::NONE,
-    });
-}
-
 /// Whether any request carried a value: reads ask with `null` only, `osc` holds the id.
 fn any_set(simulator: &neumann_control_core::simulator::Simulator) -> bool {
     fn carries_a_value(value: &serde_json::Value) -> bool {
