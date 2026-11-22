@@ -323,6 +323,38 @@ fn a_compact_button_is_hidden_and_another_added_by_right_click() {
     assert_eq!(stored.last(), Some(&switch(paths::IDENTIFY)));
 }
 
+/// With own layouts, hiding a button on one speaker's row leaves the other speaker of the
+/// model as it was, and is kept for that speaker only.
+#[test]
+fn own_compact_layouts_keep_the_other_speaker_of_the_model() {
+    let models = [SimulatedModel::Kh120Ii, SimulatedModel::Kh120Ii];
+    let (_simulators, directory, mut harness) = desk_of(&models, BTreeMap::new());
+    harness.get_by_label(texts::SETTINGS.get()).click();
+    harness.run_steps(2);
+    harness.get_by_label(texts::LAYOUTS_PER_MODEL.get()).click();
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    press_compact_shortcut(&mut harness);
+    let eq_buttons = |harness: &Harness<'static, NeumannApp>| {
+        harness
+            .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+            .count()
+    };
+    assert_eq!(eq_buttons(&harness), 2);
+    harness
+        .query_all_by_role_and_label(Role::Button, texts::EQ.get())
+        .next()
+        .unwrap()
+        .click_secondary();
+    harness.run_steps(2);
+    choose(&mut harness, texts::HIDE.get());
+    assert_eq!(eq_buttons(&harness), 1);
+    let desk = settings::load(&directory.path().join(SETTINGS_FILE)).desk;
+    assert!(desk.compact_layouts.is_empty());
+    assert_eq!(desk.speaker_compact_layouts.len(), 1);
+}
+
 #[test]
 fn a_compact_button_moves_right_and_the_default_comes_back() {
     let (_simulators, directory, mut harness) =
