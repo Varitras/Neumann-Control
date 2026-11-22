@@ -687,8 +687,8 @@ impl Worker {
         })
     }
 
-    /// A string value as it is, any other value in its JSON form; empty when the speaker has
-    /// none (404, `null`): it answers, so it is reachable.
+    /// A string value as it is, any other value in its JSON form; empty when the speaker gives
+    /// none (any refusal, `null`, or an answer without it): it answers, so it is reachable.
     fn read_text(&self, client: &mut Client, path: &str) -> Result<String, Interruption> {
         match self.read_identity_value(client, path)? {
             Some(Value::String(text)) => Ok(text),
@@ -712,7 +712,8 @@ impl Worker {
         }
     }
 
-    /// `None` for an answer without a value (404, `null`); a lost connection interrupts.
+    /// `None` for an answer without a value: any refusal (404 and others), `null`, or a reply
+    /// that lacks the path; the stream is still in step. A lost connection interrupts.
     fn read_identity_value(
         &self,
         client: &mut Client,

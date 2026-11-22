@@ -557,15 +557,7 @@ fn readable_desk<'de, D>(deserializer: D) -> Result<DeskSettings, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let value = serde_json::Value::deserialize(deserializer)?;
-    Ok(DeskSettings::deserialize(value).unwrap_or_else(|error| {
-        log::warn!(
-            "the desk settings are not understood ({:?}); using their defaults",
-            error.classify()
-        );
-        NOT_UNDERSTOOD.with(|count| count.set(count.get() + 1));
-        DeskSettings::unread()
-    }))
+    understood_or(deserializer, DeskSettings::unread)
 }
 
 /// A list keeps the entries this version can read; one it cannot is left out, not the list.

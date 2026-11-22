@@ -209,8 +209,6 @@ impl Drop for ClosingListener {
     }
 }
 
-/// A serial that is no text (measured: it always is) is no serial: a speaker added by address
-/// is not pinned to it, so its real serial is taken at the next connection.
 /// Name, firmware, model or serial missing (404) or `null`: the speaker answers, so it is
 /// connected with that field empty. Each made it unreachable, and the app kept reconnecting.
 #[test]
@@ -267,6 +265,8 @@ fn a_serial_is_compared_as_the_scan_cleaned_it() {
     assert_eq!(identity.serial, KH_120_II_SERIAL);
 }
 
+/// A serial that is no text (measured: it always is) is no serial: a speaker added by address
+/// is not pinned to it, so its real serial is taken at the next connection.
 #[test]
 fn a_serial_of_the_wrong_type_is_not_taken() {
     let simulator = Simulator::start(SimulatedModel::Kh120Ii);
