@@ -49,6 +49,9 @@ impl ScanChoice {
                 .iter_mut()
                 .find(|offer| same_speaker(&offer.found, found))
             {
+                // A record without its serial says less than the one offered, as in
+                // `discovery::merge_found`.
+                Some(offer) if offer.found.serial.is_some() && found.serial.is_none() => {}
                 Some(offer) => offer.found = found.clone(),
                 None => offers.push(Offer {
                     found: found.clone(),
