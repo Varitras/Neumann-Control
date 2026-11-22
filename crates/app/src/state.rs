@@ -141,6 +141,8 @@ pub struct SpeakerState {
     /// One per knob the user turned, so a sent value stays shown until the speaker reports it.
     pub knobs: BTreeMap<SscPath, GestureState>,
     pub all_values: AllValuesState,
+    /// A read of every value is out; its answer fills "Alle Werte" and the full scan alike.
+    reading_all: bool,
     /// Case-insensitive part of a path the "Alle Werte" table is narrowed to.
     pub all_values_filter: String,
     /// The worker's running mean; none until the current connection measured one.
@@ -222,6 +224,7 @@ impl SpeakerState {
             fader: GestureState::default(),
             knobs: BTreeMap::new(),
             all_values: AllValuesState::Idle,
+            reading_all: false,
             all_values_filter: String::new(),
             response_time: None,
             written: Vec::new(),
@@ -529,6 +532,7 @@ impl SpeakerState {
     /// a running read or scan can be asked again.
     pub fn forget_outstanding(&mut self) {
         self.drop_pending();
+        self.reading_all = false;
         if self.all_values == AllValuesState::Loading {
             self.all_values = AllValuesState::Idle;
         }
@@ -632,12 +636,14 @@ impl SpeakerState {
                 self.warnings.record(now, None);
             }
             Event::AllValues(reports) => {
+                self.reading_all = false;
                 if self.full_scan == FullScanState::Running {
                     self.full_scan = FullScanState::Read(reports.clone());
                 }
                 self.finish_all_values(AllValuesState::Loaded(reports));
             }
             Event::AllValuesFailed(reason) => {
+                self.reading_all = false;
                 log::warn!("reading every value failed: {}", mask_device_text(&reason));
                 if self.full_scan == FullScanState::Running {
                     self.full_scan = FullScanState::Failed(ScanFailure::Reading);
@@ -669,21 +675,22 @@ impl SpeakerState {
     /// Starts reading every value; the worker answers with `AllValues` or `AllValuesFailed`.
     /// `None` while the full scan's read is out: its answer fills "Alle Werte" too.
     pub fn read_all_values(&mut self) -> Option<Command> {
-        let reading = self.reading_every_value();
         self.all_values = AllValuesState::Loading;
-        (!reading).then_some(Command::ReadAll)
+        self.read_every_value()
     }
 
     /// Starts "Komplett scannen"; the walk is the same as for "Alle Werte", whose read, when
     /// out, it waits for instead of sending another.
     pub fn start_full_scan(&mut self) -> Option<Command> {
-        let reading = self.reading_every_value();
         self.full_scan = FullScanState::Running;
-        (!reading).then_some(Command::ReadAll)
+        self.read_every_value()
     }
 
-    fn reading_every_value(&self) -> bool {
-        self.all_values == AllValuesState::Loading || self.full_scan == FullScanState::Running
+    /// The read for "Alle Werte" or the full scan, unless one is out already; kept apart from the
+    /// window, which may close and open again while it is out.
+    fn read_every_value(&mut self) -> Option<Command> {
+        let out = std::mem::replace(&mut self.reading_all, true);
+        (!out).then_some(Command::ReadAll)
     }
 
     /// Closes the "Alle Werte" window and forgets its filter.
