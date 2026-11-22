@@ -477,14 +477,11 @@ fn drag_handle(ui: &mut Ui, rect: Rect, element: &StripElement, layout_key: &str
 fn edit_controls(ui: &mut Ui, applies: &str, offers: &[Offer], wishes: &mut Wishes) {
     ui.label(RichText::new(applies).small().weak());
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(texts::ADD_ELEMENT, |ui| {
-            for offer in offers {
-                if ui.button(&offer.label).clicked() {
-                    let added = LayoutChange::Add(offer.element.clone(), Area::Below);
-                    wishes.layout = Some(added);
-                }
-            }
-        });
+        let chosen =
+            layout_menu::chosen_offer(ui, texts::ADD_ELEMENT, offers, |offer| &offer.label);
+        if let Some(offer) = chosen {
+            wishes.layout = Some(LayoutChange::Add(offer.element.clone(), Area::Below));
+        }
         if ui.button(texts::DEFAULT_LAYOUT).clicked() {
             wishes.layout = Some(LayoutChange::Reset);
         }

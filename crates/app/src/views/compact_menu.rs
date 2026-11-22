@@ -6,7 +6,7 @@ use eframe::egui::{Rect, Ui};
 use neumann_control_core::catalog::Catalog;
 use neumann_control_core::settings::CompactButton;
 
-use super::layout_menu::{popup, right_clicked, setting_label};
+use super::layout_menu::{chosen_offer, popup, right_clicked, setting_label};
 use crate::compact_layout::{self, CompactChange};
 use crate::paths;
 use crate::texts;
@@ -87,13 +87,10 @@ pub fn row_menu(
 fn add_and_reset(ui: &mut Ui, offers: &[CompactOffer]) -> Option<CompactChange> {
     let mut change = None;
     ui.add_enabled_ui(!offers.is_empty(), |ui| {
-        ui.menu_button(texts::ADD_BUTTON, |ui| {
-            for offer in offers {
-                if ui.button(&offer.label).clicked() {
-                    change = Some(CompactChange::Add(offer.button.clone()));
-                }
-            }
-        });
+        let chosen = chosen_offer(ui, texts::ADD_BUTTON, offers, |offer| &offer.label);
+        if let Some(offer) = chosen {
+            change = Some(CompactChange::Add(offer.button.clone()));
+        }
     });
     if ui.button(texts::DEFAULT_LAYOUT).clicked() {
         change = Some(CompactChange::Reset);

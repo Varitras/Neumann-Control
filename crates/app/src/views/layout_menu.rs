@@ -3,7 +3,9 @@
 //! of the device panel. A right click anywhere on the element's area opens them, also on a
 //! disabled control, which takes no click itself. They only report the change.
 
-use eframe::egui::{Id, Popup, PopupAnchor, PopupKind, Rect, SetOpenCommand, Ui};
+use eframe::egui::{
+    Id, Popup, PopupAnchor, PopupKind, Rect, ScrollArea, SetOpenCommand, Ui, WidgetText,
+};
 use neumann_control_core::catalog::{Catalog, Entry, Group};
 use neumann_control_core::settings::StripElement;
 
@@ -71,16 +73,13 @@ pub fn element_menu(
             change = Some(LayoutChange::Remove(element.clone()));
         }
         ui.add_enabled_ui(!offers.is_empty(), |ui| {
-            ui.menu_button(texts::SWAP_FOR, |ui| {
-                for offer in offers {
-                    if ui.button(&offer.label).clicked() {
-                        change = Some(LayoutChange::Swap {
-                            old: element.clone(),
-                            new: offer.element.clone(),
-                        });
-                    }
-                }
-            });
+            let chosen = chosen_offer(ui, texts::SWAP_FOR, offers, |offer| &offer.label);
+            if let Some(offer) = chosen {
+                change = Some(LayoutChange::Swap {
+                    old: element.clone(),
+                    new: offer.element.clone(),
+                });
+            }
         });
         if ui.button(texts::MOVE_UP).clicked() {
             change = Some(LayoutChange::MoveUp(element.clone()));
@@ -90,6 +89,35 @@ pub fn element_menu(
         }
     });
     change
+}
+
+/// A submenu titled `title` listing `offers` by `label`; the one clicked. It scrolls: a KH 750
+/// offers more settings than a low window shows, and a menu does not scroll itself.
+pub(super) fn chosen_offer<'a, T>(
+    ui: &mut Ui,
+    title: impl Into<WidgetText>,
+    offers: &'a [T],
+    label: impl Fn(&T) -> &str,
+) -> Option<&'a T> {
+    let mut chosen = None;
+    ui.menu_button(title, |ui| {
+        ScrollArea::vertical()
+            .max_height(menu_room(ui))
+            .show(ui, |ui| {
+                for offer in offers {
+                    if ui.button(label(offer)).clicked() {
+                        chosen = Some(offer);
+                    }
+                }
+            });
+    });
+    chosen
+}
+
+/// The window's height less a menu's frame: egui moves a menu that fits into the window.
+fn menu_room(ui: &Ui) -> f32 {
+    let frame = ui.spacing().menu_margin.sum().y + 2.0 * ui.visuals().window_stroke.width;
+    ui.ctx().content_rect().height() - frame
 }
 
 /// Put a panel row on the strip (below the fader), or take it off.
