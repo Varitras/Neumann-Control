@@ -1012,6 +1012,11 @@ pub fn trend_hover(minutes_ago: u64, value: &str) -> String {
 }
 
 /// The Windows volume under its fader: "52 %".
+/// How far the Windows volume fader moved: "+10 %".
+pub fn percent_move(moved: f64) -> String {
+    number_text(format!("{moved:+.0} %"))
+}
+
 pub fn percent(value: f64) -> String {
     format!("{} %", number_text(value.round().to_string()))
 }

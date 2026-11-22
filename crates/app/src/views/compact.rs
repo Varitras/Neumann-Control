@@ -230,7 +230,14 @@ fn shared_controls(
 ) -> (Option<f64>, Option<bool>) {
     let level = shown.level.as_ref();
     let range = shown.range;
-    let moved = fader::shared(ui, level_label, level, range, Orientation::Horizontal);
+    let moved = fader::shared(
+        ui,
+        level_label,
+        level,
+        range,
+        Orientation::Horizontal,
+        texts::level_move,
+    );
     let readout = shared_readout(level);
     cell(ui, READOUT_WIDTH, |ui| readout_label(ui, readout));
     meters::bar(

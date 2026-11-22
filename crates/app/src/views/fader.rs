@@ -1,6 +1,6 @@
 //! The level fader, upright on a strip and lying in a compact row: dragged relative to the
 //! pointer (Shift for fine moves), written once when let go, and the mouse wheel in 0.5 dB steps
-//! per notch.
+//! per notch. The shared faders (group, master, the Windows volume in percent) take a drag only.
 
 use std::ops::RangeInclusive;
 
@@ -168,12 +168,15 @@ pub fn show(
 /// member by it from its own current level. It reaches past the loudest member's limit as far as
 /// the quietest can follow (`SharedLevel::reach`). No wheel, so a group move is always one
 /// deliberate gesture.
+/// `move_text` words the move shown while dragging: dB for speakers, percent for the Windows
+/// volume.
 pub fn shared(
     ui: &mut Ui,
     label: &str,
     level: Option<&SharedLevel>,
     range: RangeInclusive<f64>,
     orientation: Orientation,
+    move_text: fn(f64) -> String,
 ) -> Option<f64> {
     let tokens = Tokens::current(ui.ctx());
     let enabled = level.is_some();
@@ -197,7 +200,7 @@ pub fn shared(
     if drag.current.is_some() {
         let moved = gesture::released(drag.started, value, WHEEL_STEP_DB)
             .map_or(0.0, |end| end - drag.started);
-        let text = texts::level_move(moved);
+        let text = move_text(moved);
         dragged_value(ui, id, rect, &range, value, orientation, &text);
     }
     drag.released.map(|released| released - drag.started)

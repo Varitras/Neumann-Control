@@ -78,7 +78,8 @@ fn group_contents(
             }
         }
         let label = texts::group_level(&group.name);
-        response.level = fader::shared(ui, &label, level, range, Orientation::Vertical);
+        let vertical = Orientation::Vertical;
+        response.level = fader::shared(ui, &label, level, range, vertical, texts::level_move);
         let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, &texts::group_mute(&group.name), muted);
@@ -111,7 +112,8 @@ pub fn master(
     frame(ui, tokens.accent, |ui| {
         ui.add(egui::Label::new(RichText::new(texts::MASTER).strong()));
         let label = texts::MASTER_LEVEL.get();
-        response.level = fader::shared(ui, label, level, range, Orientation::Vertical);
+        let vertical = Orientation::Vertical;
+        response.level = fader::shared(ui, label, level, range, vertical, texts::level_move);
         let readout = shared_readout(level);
         ui.add(egui::Label::new(RichText::new(readout).monospace()));
         response.mute = mute_button(ui, texts::MUTE_ALL.get(), muted);
