@@ -4,7 +4,7 @@
 use std::net::{Ipv6Addr, SocketAddrV6};
 use std::time::{Duration, Instant};
 
-use mdns_sd::{IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
+use mdns_sd::{instance_name_unescaped, IfKind, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use crate::address::{is_link_local, NO_SCOPE};
 use crate::mask::{mask_serial_in, mask_serial_like};
@@ -88,11 +88,6 @@ pub fn same_speaker(one: &Found, other: &Found) -> bool {
     }
 }
 
-fn instance_name<'a>(fullname: &'a str, service_type: &str) -> &'a str {
-    let suffix = format!(".{service_type}");
-    fullname.strip_suffix(&suffix).unwrap_or(fullname)
-}
-
 /// A device text as the app keeps it: no control characters, at most 64 characters. The worker
 /// cleans the serial it reads the same way, so a scanned speaker's serial compares equal.
 pub fn cleaned(text: &str) -> String {
@@ -135,17 +130,16 @@ fn without_serial_suffix<'a>(name: &'a str, serial: &str) -> &'a str {
 
 fn found_from_parts(
     fullname: &str,
-    service_type: &str,
     port: u16,
     addresses: &[(Ipv6Addr, u32)],
     product: Option<&str>,
     serial: Option<&str>,
 ) -> Option<Found> {
     let serial = txt_value(serial);
-    let name = instance_name(fullname, service_type);
+    let name = instance_name_unescaped(fullname);
     let name = match &serial {
-        Some(serial) => mask_serial_in(without_serial_suffix(name, serial), serial),
-        None => mask_serial_like(name),
+        Some(serial) => mask_serial_in(without_serial_suffix(&name, serial), serial),
+        None => mask_serial_like(&name),
     };
     Some(Found {
         name: cleaned(&name),
@@ -193,7 +187,6 @@ fn browse(daemon: &ServiceDaemon, duration: Duration) -> Result<Vec<Found>, Stri
             .collect();
         let entry = found_from_parts(
             service.get_fullname(),
-            &service.ty_domain,
             service.get_port(),
             &addresses,
             service.get_property_val_str(TXT_PRODUCT_KEY),
@@ -212,20 +205,10 @@ mod tests {
     use crate::mask::mask_serial;
 
     #[test]
-    fn instance_name_loses_the_service_suffix() {
-        assert_eq!(
-            instance_name("KH 120 II 1._ssc._tcp.local.", SERVICE_TYPE),
-            "KH 120 II 1"
-        );
-        assert_eq!(instance_name("plain", SERVICE_TYPE), "plain");
-    }
-
-    #[test]
     fn an_announced_name_without_its_serial_entry_is_masked_too() {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "KH 120 II 3712345678._ssc._tcp.local.",
-            "_ssc._tcp.local.",
             45,
             &[(address, 0)],
             Some("KH 120 II"),
@@ -241,7 +224,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "a._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some(&long),
@@ -298,7 +280,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "a._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some(""),
@@ -314,7 +295,6 @@ mod tests {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
         let found = found_from_parts(
             "KH 120 II SIM0001234._ssc._tcp.local.",
-            SERVICE_TYPE,
             45,
             &[(address, 0)],
             Some("KH 120 II"),
@@ -331,16 +311,9 @@ mod tests {
 
     fn announced_name(fullname: &str, serial: Option<&str>) -> String {
         let address: Ipv6Addr = "2001:db8::1".parse().unwrap();
-        found_from_parts(
-            fullname,
-            SERVICE_TYPE,
-            45,
-            &[(address, 0)],
-            Some("KH 120 II"),
-            serial,
-        )
-        .unwrap()
-        .name
+        found_from_parts(fullname, 45, &[(address, 0)], Some("KH 120 II"), serial)
+            .unwrap()
+            .name
     }
 
     /// mdns-sd 0.22 hands over a name read from the network with its escapes, so "Mon. L"
@@ -403,14 +376,7 @@ mod tests {
     #[test]
     fn service_without_usable_address_is_dropped() {
         let link_local: Ipv6Addr = "fe80::1".parse().unwrap();
-        let found = found_from_parts(
-            "a._ssc._tcp.local.",
-            SERVICE_TYPE,
-            45,
-            &[(link_local, 0)],
-            None,
-            None,
-        );
+        let found = found_from_parts("a._ssc._tcp.local.", 45, &[(link_local, 0)], None, None);
         assert_eq!(found, None);
     }
 }
