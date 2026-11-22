@@ -6,7 +6,7 @@ use eframe::egui::{Button, Checkbox, Grid, Id, Label, Modal, Ui};
 
 use super::busy;
 use crate::scan_choice::{Offer, ScanChoice};
-use crate::texts;
+use crate::texts::{self, Text};
 
 const MODAL_ID: &str = "scan_choice";
 const GRID_ID: &str = "scan_choice_rows";
@@ -22,17 +22,28 @@ pub enum ScanChoiceAction {
     OpenManual,
 }
 
-/// `scanning`: a scan runs, whose speakers will join the rows.
-pub fn show(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceAction {
-    let modal =
-        Modal::new(Id::unique(MODAL_ID)).show(ui.ctx(), |ui| contents(ui, choice, scanning));
+/// `scanning`: a scan runs, whose speakers will join the rows. `notice`: the app's notice, which
+/// the toolbar shows behind the dialog's backdrop (the manual that could not be opened).
+pub fn show(
+    ui: &mut Ui,
+    choice: &ScanChoice,
+    scanning: bool,
+    notice: Option<Text>,
+) -> ScanChoiceAction {
+    let modal = Modal::new(Id::unique(MODAL_ID))
+        .show(ui.ctx(), |ui| contents(ui, choice, scanning, notice));
     if modal.should_close() {
         return ScanChoiceAction::Cancel;
     }
     modal.inner
 }
 
-fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceAction {
+fn contents(
+    ui: &mut Ui,
+    choice: &ScanChoice,
+    scanning: bool,
+    notice: Option<Text>,
+) -> ScanChoiceAction {
     ui.heading(texts::SCAN_CHOICE_TITLE);
     let mut action = match choice {
         ScanChoice::Scanning => {
@@ -43,7 +54,7 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
             ui.colored_label(ui.visuals().error_fg_color, texts::SCAN_FAILED);
             ScanChoiceAction::None
         }
-        ScanChoice::Offered(offers) if offers.is_empty() => nothing_found(ui),
+        ScanChoice::Offered(offers) if offers.is_empty() => nothing_found(ui, notice),
         ScanChoice::Offered(offers) => rows(ui, offers),
     };
     ui.horizontal(|ui| {
@@ -70,12 +81,16 @@ fn contents(ui: &mut Ui, choice: &ScanChoice, scanning: bool) -> ScanChoiceActio
     action
 }
 
-fn nothing_found(ui: &mut Ui) -> ScanChoiceAction {
+fn nothing_found(ui: &mut Ui, notice: Option<Text>) -> ScanChoiceAction {
     ui.label(texts::NOTHING_FOUND);
     // Without a limit the modal grows as wide as the sentence.
     ui.set_max_width(HINT_WIDTH);
     ui.add(Label::new(texts::SCAN_EMPTY_HINT).wrap());
-    if ui.button(texts::MANUAL).clicked() {
+    let opened = ui.button(texts::MANUAL).clicked();
+    if let Some(notice) = notice {
+        ui.add(Label::new(notice).wrap());
+    }
+    if opened {
         return ScanChoiceAction::OpenManual;
     }
     ScanChoiceAction::None

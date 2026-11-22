@@ -1034,7 +1034,7 @@ impl NeumannApp {
         let Some(choice) = &mut self.scan_choice else {
             return;
         };
-        match scan_choice_view::show(ui, choice, self.scan.is_some()) {
+        match scan_choice_view::show(ui, choice, self.scan.is_some(), self.notice) {
             ScanChoiceAction::None => {}
             ScanChoiceAction::ScanAgain => {
                 if self.scan.is_none() {
