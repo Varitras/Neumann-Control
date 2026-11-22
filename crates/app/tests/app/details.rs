@@ -395,6 +395,51 @@ fn an_abandoned_name_draft_follows_the_device_again() {
 }
 
 #[test]
+fn a_name_typed_and_entered_in_the_field_is_sent() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("Studio");
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Enter);
+    wait_until(&mut harness, "the Set after Enter in the field", |_| {
+        !sets(&simulator, NAME_POINTER).is_empty()
+    });
+    barrier(&simulator);
+    assert_eq!(sets(&simulator, NAME_POINTER), vec![json!("Studio")]);
+}
+
+/// The name read again while a draft is typed leaves the draft as it is.
+#[test]
+fn a_poll_during_name_editing_keeps_the_draft() {
+    let (simulator, _directory, mut harness) =
+        speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
+    click_name_field(&mut harness);
+    harness.run_steps(1);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_role(Role::TextInput).type_text("Draft");
+    harness.run_steps(1);
+    let name_reads = |simulator: &Simulator| {
+        let requests = simulator.requests();
+        let reads = requests
+            .iter()
+            .filter(|request| request.pointer(NAME_POINTER).is_some_and(Value::is_null));
+        reads.count()
+    };
+    let before = name_reads(&simulator);
+    simulator.set_value(paths::DEVICE_NAME, json!("Other"));
+    wait_until(&mut harness, "the name read again", |_| {
+        name_reads(&simulator) > before
+    });
+    barrier(&simulator);
+    harness.run_steps(3);
+    let shown = harness.get_by_role(Role::TextInput).value();
+    assert_eq!(shown.as_deref(), Some("Draft"));
+}
+
+#[test]
 fn a_name_typed_then_tabbed_to_apply_is_sent() {
     let (simulator, _directory, mut harness) =
         speaker_with_panel(SimulatedModel::Kh120Ii, PanelTab::Overview);
